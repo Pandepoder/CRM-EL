@@ -1,6 +1,6 @@
 {
   "name": "tonala-os",
-  "version": "0.0.0",
+  "version": "1.0.0-beta.1",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
@@ -21,7 +21,6 @@
     "outbox:run-once": "tsx scripts/outbox/run-once.ts",
     "web:dev": "pnpm --filter @tonala/web dev",
     "web:build": "pnpm --filter @tonala/web build",
-    "web:dev:legacy": "tsx scripts/web/dev-server.ts",
     "test": "vitest run",
     "test:unit": "vitest run --exclude tests/integration/**/*.test.ts --exclude packages/shared/database/database.test.ts",
     "test:integration": "vitest run tests/integration/**/*.test.ts packages/shared/database/database.test.ts",
@@ -46,6 +45,6 @@
     "drizzle-orm": "^0.45.2",
     "pg": "^8.22.0",
     "zod": "^4.4.3"
-  }
+  },
+  "description": "Sistema operativo territorial (ERP/CRM) construido como Modular Monolith (Clean Architecture)"
 }
-
