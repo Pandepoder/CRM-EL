@@ -1,0 +1,58 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "jsx": "preserve",
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ES2022"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "allowJs": true,
+    "incremental": true,
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@tonala/ui": [
+        "../../packages/ui/index.ts"
+      ],
+      "@tonala/config": [
+        "../../packages/config/index.ts"
+      ],
+      "@tonala/shared/*": [
+        "../../packages/shared/*/index.ts"
+      ],
+      "@tonala/modules/*/domain": [
+        "../../packages/modules/*/domain/index.ts"
+      ],
+      "@tonala/modules/*/application": [
+        "../../packages/modules/*/application/index.ts"
+      ],
+      "@tonala/modules/*/infrastructure": [
+        "../../packages/modules/*/infrastructure/index.ts"
+      ],
+      "@tonala/modules/*/contracts": [
+        "../../packages/modules/*/contracts/index.ts"
+      ]
+    },
+    "esModuleInterop": true
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

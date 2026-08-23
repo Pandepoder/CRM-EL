@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Tonala OS — Qué falta para V1</title>
+  <style>
+    @page { margin: 18mm 16mm; size: A4; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.45;
+      color: #1a2332;
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 { font-size: 20pt; margin: 0 0 6px; color: #176b87; }
+    h2 { font-size: 13pt; margin: 22px 0 8px; color: #176b87; border-bottom: 2px solid #d8dee6; padding-bottom: 4px; }
+    h3 { font-size: 11pt; margin: 14px 0 6px; }
+    p { margin: 8px 0; }
+    .meta { color: #667085; font-size: 10pt; margin-bottom: 20px; }
+    .lead {
+      background: #f4f6f8;
+      border-left: 4px solid #176b87;
+      padding: 12px 14px;
+      margin: 16px 0;
+      font-size: 12pt;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10pt; }
+    th, td { border: 1px solid #d8dee6; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #edf2f5; font-weight: 700; }
+    ul { margin: 8px 0; padding-left: 22px; }
+    li { margin: 4px 0; }
+    .steps {
+      background: #f4f6f8;
+      padding: 12px 14px;
+      border-radius: 6px;
+      font-family: Consolas, monospace;
+      font-size: 10pt;
+      line-height: 1.6;
+    }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li::before { content: "☐ "; }
+    .footer { margin-top: 28px; font-size: 9pt; color: #667085; border-top: 1px solid #d8dee6; padding-top: 10px; }
+    .ok { color: #217a4d; font-weight: 700; }
+    .pending { color: #a86605; font-weight: 700; }
+    @media print {
+      body { padding: 0; }
+      h2 { break-after: avoid; }
+      table { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Tonala OS</h1>
+  <p class="meta"><strong>Qué falta para la versión utilizable (V1)</strong><br>
+  Para: Cliente / equipo territorial · 14 de agosto de 2026 · Objetivo: V1 utilizable</p>
+
+  <div class="lead">
+    <strong>En una frase:</strong> Hoy Tonala OS tiene el <strong>motor</strong> (contactos, territorio, asignaciones y visitas en base de datos) pero <strong>falta la aplicación web completa</strong> que el equipo use cada día sin ayuda técnica.
+  </div>
+
+  <h2>1. Qué ya está hecho</h2>
+  <ul>
+    <li>Registrar contactos con nombre</li>
+    <li>Vincular contacto a colonia (territorio)</li>
+    <li>Asignar responsable a un contacto</li>
+    <li>Programar y completar visitas (con reglas de negocio)</li>
+    <li>Base de datos, permisos en servidor, historial de cambios</li>
+    <li>Pruebas automáticas del núcleo (143 pruebas pasando)</li>
+  </ul>
+  <p>Esta base <strong>no se tira; se reutiliza</strong>.</p>
+
+  <h2>2. Qué falta — Aplicación web</h2>
+  <table>
+    <tr><th>Falta</th><th>Por qué importa</th></tr>
+    <tr><td>Inicio de sesión (usuario y contraseña)</td><td>Hoy no hay login; solo prototipo de desarrollo</td></tr>
+    <tr><td>Aplicación web profesional (Next.js)</td><td>Reemplaza el prototipo HTML temporal</td></tr>
+    <tr><td>Diseño web + celular</td><td>Coordinadores en laptop; responsables en campo</td></tr>
+    <tr><td>Pantalla inicial según rol</td><td>Responsable → su día; coordinador → CRM; dirección → resumen</td></tr>
+  </table>
+
+  <h2>3. Qué falta — CRM del día a día</h2>
+  <table>
+    <tr><th>Falta</th><th>Por qué importa</th></tr>
+    <tr><td>Lista y búsqueda de contactos</td><td>Encontrar antes de duplicar</td></tr>
+    <tr><td>Alta rápida en 4 pasos</td><td>Captura rápida en campo</td></tr>
+    <tr><td>Ficha completa del contacto</td><td>Territorio, responsable y visitas en un lugar</td></tr>
+    <tr><td>Completar visita sin códigos técnicos</td><td>Elegir la visita de una lista, no pegar IDs</td></tr>
+    <tr><td>Responsable pendiente con otro color</td><td>Capturista puede dejar pendiente; se ve claro</td></tr>
+  </table>
+
+  <h2>4. Qué falta — Mapa (todos los usuarios)</h2>
+  <table>
+    <tr><th>Falta</th><th>Por qué importa</th></tr>
+    <tr><td>Mapa visible y usable para <strong>todos</strong></td><td>Todos entienden el territorio</td></tr>
+    <tr><td>Cartografía de Tonala importada</td><td>Sin depender del INE en tiempo real</td></tr>
+    <tr><td>Mapa fluido con mucha información</td><td>Secciones, colonias, contactos, visitas, presencia operativa</td></tr>
+    <tr><td>Ficha al tocar una sección</td><td>Resumen y enlaces a contactos</td></tr>
+  </table>
+
+  <h2>5. Qué falta — Equipo (campo)</h2>
+  <ul>
+    <li><strong>Mi día</strong> — visitas de hoy para el responsable</li>
+    <li>Mis visitas y mis contactos asignados</li>
+    <li>Completar visita desde el teléfono</li>
+  </ul>
+
+  <h2>6. Operación sin botones de técnico</h2>
+  <ul>
+    <li>Procesar eventos automáticamente tras cada acción</li>
+    <li>Quitar botones de “preparar base de datos” de la interfaz</li>
+    <li>Ambiente de pruebas (staging) antes de producción</li>
+  </ul>
+
+  <h2>Decisiones ya acordadas</h2>
+  <ol>
+    <li><strong>Mapa</strong> — Todos los usuarios lo ven y lo usan.</li>
+    <li><strong>Capturista</strong> — Puede dejar responsable pendiente; color distinto al asignado.</li>
+    <li><strong>Mapa V1</strong> — Lo más completo y fluido posible.</li>
+    <li><strong>Al entrar</strong> — Cada rol ve la pantalla que más le ayuda.</li>
+  </ol>
+
+  <h2>Orden de trabajo</h2>
+  <div class="steps">
+    Paso 1 → Login + aplicación web<br>
+    Paso 2 → CRM completo<br>
+    Paso 3 → Mi día y visitas en campo<br>
+    Paso 4 → Mapa de Tonala completo<br>
+    Paso 5 → Pruebas finales y puesta en marcha
+  </div>
+
+  <h2>Fuera de esta primera versión</h2>
+  <p>IA, WhatsApp, chat en vivo, exportaciones masivas, otros municipios, app nativa separada, encuestas masivas, portal público.</p>
+
+  <h2>Resumen</h2>
+  <table>
+    <tr><th></th><th>Hoy</th><th>V1 utilizable</th></tr>
+    <tr><td>Motor de negocio</td><td class="ok">Listo</td><td>Se reutiliza</td></tr>
+    <tr><td>App para el equipo</td><td class="pending">Prototipo</td><td class="ok">App web profesional</td></tr>
+    <tr><td>Login</td><td class="pending">No</td><td class="ok">Sí</td></tr>
+    <tr><td>Mapa</td><td class="pending">No existe</td><td class="ok">Completo, para todos</td></tr>
+    <tr><td>Celular</td><td class="pending">Parcial</td><td class="ok">Misma app web</td></tr>
+    <tr><td>Operación diaria</td><td class="pending">No</td><td class="ok">Sí</td></tr>
+  </table>
+
+  <p><strong>Esfuerzo restante:</strong> construir la capa de producto (interfaz, login, mapa, Mi día) sobre la base que ya funciona.</p>
+
+  <p class="footer">Tonala OS — Documento para cliente · V1 utilizable · Detalle técnico interno en PRODUCT_OPERABILITY_PLAN_V1.md</p>
+
+</body>
+</html>

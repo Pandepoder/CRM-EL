@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@tonala/shared/projections/public": ["packages/shared/projections/public.ts"],
+      "@tonala/shared/projections": ["packages/shared/projections/public.ts"],
+      "@tonala/shared/projections/infrastructure": ["packages/shared/projections/infrastructure/index.ts"],
+      "@tonala/modules/*/domain": ["packages/modules/*/domain/index.ts"],
+      "@tonala/modules/*/application": ["packages/modules/*/application/index.ts"],
+      "@tonala/modules/*/infrastructure": ["packages/modules/*/infrastructure/index.ts"],
+      "@tonala/modules/*/contracts": ["packages/modules/*/contracts/index.ts"],
+      "@tonala/shared/*": ["packages/shared/*/index.ts"],
+      "@tonala/ui": ["packages/ui/index.ts"],
+      "@tonala/config": ["packages/config/index.ts"]
+    }
+  },
+  "include": [
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
+    "scripts/**/*.mjs",
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "drizzle.config.ts",
+    "vitest.config.ts",
+    "eslint.config.mjs"
+  ],
+  "exclude": ["node_modules", "outputs", "work", "apps/web"]
+}
