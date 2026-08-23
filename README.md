@@ -1,119 +1,103 @@
-# Tonala OS - Sistema de Gestion Operativa Territorial
+# Tonala OS - Gestor Operativo Territorial
 
-**Tonala OS** es una plataforma integral (ERP/CRM) disenada especificamente para el control territorial, logistica y administracion de estructuras ciudadanas. Construida con una arquitectura de grado empresarial, la plataforma centraliza la informacion geografica, el padron ciudadano, y la agenda operativa en un solo ecosistema seguro.
+![Version](https://img.shields.io/badge/version-1.0.0--usable-blue.svg)
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)
+![Node.js](https://img.shields.io/badge/node-%3E%3D24.0.0-success.svg)
+![Architecture](https://img.shields.io/badge/architecture-Clean_Architecture-orange.svg)
+
+**Tonala OS** es un ERP/CRM de grado empresarial disenado especificamente para el control logistico, auditoria territorial y administracion de estructuras ciudadanas.
 
 ## Descripcion General del Sistema
 
-El proyecto esta disenado para resolver la complejidad de coordinar equipos en calle y analizar datos territoriales en tiempo real. Actua como el centro de mando (Command Center) para administradores y coordinadores, ofreciendo:
+El proyecto actua como el centro de mando (Command Center) de campa�as y administraciones, resolviendo la complejidad de coordinar equipos en calle y analizar datos territoriales en tiempo real.
 
-- **Inteligencia Territorial:** Un mapa interactivo en tiempo real que permite visualizar incidencias, auditorias de eventos y calor demografico.
-- **Directorio Ciudadano (CRM):** Un motor de busqueda y paginacion avanzado para gestionar contactos, asignacion de habilidades, zonas y disponibilidad operativa.
-- **Gestion de Estructuras:** Administracion jerarquica de equipos, asignacion de coordinadores territoriales, representantes generales y responsables de ruta.
-- **Trazabilidad y Auditoria:** Cada interaccion en el sistema esta protegida por una capa de validacion de roles estricta y un patron de eventos (*Outbox Pattern*) para evitar la perdida de datos y asegurar consistencia.
+### Caracteristicas Principales
+
+*   **Inteligencia Territorial (Mapa en Vivo):** Visualizacion geoespacial interactiva para auditorias de eventos, supervision de incidencias (Leaflet) y calor demografico.
+*   **Directorio Ciudadano (CRM):** Motor de alta velocidad para gestion de contactos, captura de habilidades, roles, zonas y disponibilidad operativa.
+*   **Estructura Jerarquica:** Asignacion de equipos, lideres, representantes de casilla y auditores en campo.
+*   **Trazabilidad Inquebrantable:** Transacciones de base de datos protegidas por el patron *Outbox* (consistencia eventual) y validacion estricta de Roles por pagina y endpoint.
 
 ---
 
 ## Capturas de Pantalla
 
-*(Nota: Reemplaza las imagenes de ejemplo en la carpeta `docs/assets/` con tus capturas reales manteniendo los nombres de archivo, o ajusta las rutas aqui).*
+*(Nota: Reemplaza las imagenes de ejemplo en `docs/assets/` con tus capturas reales).*
 
-### Panel de Control (Dashboard)
-![Dashboard Overview](./docs/assets/dashboard.png)
-*Vista principal con metricas agregadas, distribucion demografica y estadisticas de ciudadania.*
-
-### Directorio y CRM
-![Modulo CRM](./docs/assets/crm-view.png)
-*Gestion de ciudadanos con busqueda, filtros de asignacion y tablas de datos paginadas.*
-
-### Mapa Operativo
-![Mapa Territorial](./docs/assets/map-view.png)
-*Visualizacion geoespacial de reportes de campo y seccionamiento electoral.*
+| Panel de Control (Dashboard) | Directorio CRM | Mapa Operativo |
+|:---:|:---:|:---:|
+| ![-](./docs/assets/dashboard.png) | ![-](./docs/assets/crm-view.png) | ![-](./docs/assets/map-view.png) |
+| *Metricas agregadas y graficas demograficas* | *Busqueda y paginacion de ciudadanos* | *Incidencias geolocalizadas* |
 
 ---
 
-## Estado del Proyecto
+## Stack Tecnologico
 
-| Fase | Version | Estado |
-|------|---------|--------|
-| Fundacion Base | v0.1.0 | Completado |
-| V1 Produccion | v1.0.0 | Implementacion Activa |
+El sistema esta construido con tecnologias modernas, priorizando la velocidad, escalabilidad y una separacion estricta de responsabilidades:
 
-Arquitectura principal: Next.js (App Router) en `apps/web`. Orientacion de diseno "Web-first" con adaptacion responsiva para dispositivos moviles.
+*   **Core:** [Next.js (App Router)](https://nextjs.org/) + React
+*   **Base de Datos:** PostgreSQL
+*   **ORM:** [Drizzle ORM](https://orm.drizzle.team/)
+*   **Estilos:** CSS Nativo (`globals.css`), siguiendo la convencion de no utilizar frameworks invasivos (Cero Tailwind).
+*   **Arquitectura:** Modular Monolith orientado a Eventos (Clean Architecture).
 
-## Requisitos del Entorno
+## Empezando (Getting Started)
 
-- Node.js 24 o superior.
-- pnpm 11 o superior.
-- Docker y Docker Compose (requerido para el motor de base de datos local PostgreSQL).
+Sigue estos pasos para levantar un entorno de desarrollo local completo.
 
-## Instrucciones de Instalacion
+### Requisitos Previos
 
-1. Habilitar Corepack e instalar dependencias:
-   ```bash
-   corepack enable
-   pnpm install
-   ```
+1.  Node.js v24+
+2.  pnpm v11+
+3.  Docker y Docker Compose
 
-2. Configuracion de Variables de Entorno:
-   Copiar el archivo de entorno base:
-   ```bash
-   cp .env.example .env
-   ```
+### 1. Instalacion de dependencias
 
-## Entorno de Desarrollo Local
-
-El sistema utiliza PostgreSQL. Para el entorno local, se provee un contenedor mediante Docker Compose. No se requiere base de datos remota para el desarrollo diario.
-
-Secuencia de inicio estandar:
 ```bash
-pnpm db:start
-pnpm db:migrate
-pnpm db:seed
-pnpm web:dev
+corepack enable
+pnpm install
 ```
 
-Para ejecutar la validacion completa del codigo (requerida antes de enviar cambios al repositorio):
+### 2. Variables de Entorno
+
+Duplica el archivo de ejemplo:
+
 ```bash
+cp .env.example .env
+```
+
+### 3. Iniciar el Entorno Local
+
+Todo el flujo de base de datos local esta automatizado. Ejecuta:
+
+```bash
+pnpm db:start     # Levanta PostgreSQL en Docker
+pnpm db:migrate   # Aplica migraciones Drizzle
+pnpm db:seed      # Carga usuarios demo y estructura base
+pnpm web:dev      # Inicia el servidor en http://localhost:3000
+```
+
+## Flujo de Trabajo y Pruebas
+
+Antes de enviar cualquier cambio al repositorio (Push), debes asegurar que tu codigo cumple con los estandares de la arquitectura:
+
+```bash
+# Ejecuta la suite de validacion completa
 pnpm validate
 ```
 
-### Comandos de Utilidad (Base de Datos)
+Para comandos especificos:
+*   `pnpm typecheck`: Valida contratos TypeScript.
+*   `pnpm check:boundaries`: Analizador estatico que previene que los modulos rompan la arquitectura limpia.
+*   `pnpm test:unit`: Pruebas unitarias ultrarrapidas.
+*   `pnpm test:integration`: Pruebas de integracion completas (requiere BD).
 
-- `pnpm db:status` : Verifica la conexion con PostgreSQL.
-- `pnpm db:stop` : Detiene el contenedor de base de datos.
-- `pnpm db:reset` : Elimina el esquema publico, regenera migraciones y puebla la base de datos con informacion predeterminada.
+## Contribucion al Proyecto
 
-## Estructura Arquitectonica
+�Bienvenido! Apreciamos mucho las contribuciones. Si deseas aportar al proyecto, corregir bugs o a�adir nuevas funcionalidades, por favor lee nuestra [Guia de Contribucion (CONTRIBUTING.md)](./CONTRIBUTING.md) antes de empezar.
 
-El proyecto utiliza un patron **Modular Monolith (Event-Driven)** apoyado en **Clean Architecture**.
+Revisa tambien nuestro [Codigo de Conducta](./CODE_OF_CONDUCT.md).
 
-```txt
-apps/web                                        # Interfaz de usuario (Next.js)
-packages/modules/<module>/                      # Logica de negocio por dominio
-  |- domain/                                    # Entidades e interfaces centrales
-  |- application/                               # Casos de uso
-  |- infrastructure/                            # Implementacion de repositorios y BD
-  |- contracts/                                 # Contratos expuestos a otros modulos
-packages/shared/                                # Codigo compartido (BD, Auth, Kernel)
-packages/ui/                                    # Componentes visuales reutilizables
-packages/config/                                # Configuracion central del sistema
-db/migrations/                                  # Historial de cambios de base de datos
-docs/assets/                                    # Imagenes y documentacion visual
-```
+## Hoja de Ruta (Roadmap)
 
-- **Estructura Modular:** El codigo se organiza por modulo de negocio, no por capa tecnica.
-- **Limites Estrictos:** Ningun modulo debe importar elementos internos de otro modulo. La comunicacion se realiza exclusivamente a traves de la capa `contracts`.
-- **Capa de Presentacion:** `apps/web` actua unicamente como capa de entrega (Delivery Layer). Sus responsabilidades se limitan a autenticacion, validacion de entrada e invocacion de casos de uso.
-- **Consistencia de Datos:** Toda operacion de escritura utiliza el patron Outbox para garantizar la consistencia eventual.
-- **Revision Automatizada:** El analizador de limites (`boundary-checker`) bloquea cualquier violacion de dependencias en el entorno de integracion continua.
-
-## Estandares de Versionamiento
-
-Rama principal de produccion: `main`
-
-Nomenclatura de ramas de desarrollo y Commits (Conventional Commits):
-- `feat:` Nuevas caracteristicas
-- `fix:` Correccion de errores
-- `chore:` Mantenimiento, dependencias o tareas menores
-- `docs:` Actualizacion de documentacion tecnica o README
-- `refactor:` Reestructuracion de codigo sin alterar logica de negocio
+Puedes consultar el plan detallado de caracteristicas restantes para la Version 1 en nuestro documento oficial: [`docs/ROADMAP_V1_FEATURES.md`](./docs/ROADMAP_V1_FEATURES.md) (si aplica en tu carpeta actual).
