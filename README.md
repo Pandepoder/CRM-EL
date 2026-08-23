@@ -1,7 +1,35 @@
-# Tonala OS - Gestor Operativo Territorial
+# Tonala OS - Sistema de Gestion Operativa Territorial
 
-Sistema operativo de control territorial y estructura electoral.
-Construido bajo el patron Modular Monolith (Event-Driven) utilizando Clean Architecture.
+**Tonala OS** es una plataforma integral (ERP/CRM) disenada especificamente para el control territorial, logistica y administracion de estructuras ciudadanas. Construida con una arquitectura de grado empresarial, la plataforma centraliza la informacion geografica, el padron ciudadano, y la agenda operativa en un solo ecosistema seguro.
+
+## Descripcion General del Sistema
+
+El proyecto esta disenado para resolver la complejidad de coordinar equipos en calle y analizar datos territoriales en tiempo real. Actua como el centro de mando (Command Center) para administradores y coordinadores, ofreciendo:
+
+- **Inteligencia Territorial:** Un mapa interactivo en tiempo real que permite visualizar incidencias, auditorias de eventos y calor demografico.
+- **Directorio Ciudadano (CRM):** Un motor de busqueda y paginacion avanzado para gestionar contactos, asignacion de habilidades, zonas y disponibilidad operativa.
+- **Gestion de Estructuras:** Administracion jerarquica de equipos, asignacion de coordinadores territoriales, representantes generales y responsables de ruta.
+- **Trazabilidad y Auditoria:** Cada interaccion en el sistema esta protegida por una capa de validacion de roles estricta y un patron de eventos (*Outbox Pattern*) para evitar la perdida de datos y asegurar consistencia.
+
+---
+
+## Capturas de Pantalla
+
+*(Nota: Reemplaza las imagenes de ejemplo en la carpeta `docs/assets/` con tus capturas reales manteniendo los nombres de archivo, o ajusta las rutas aqui).*
+
+### Panel de Control (Dashboard)
+![Dashboard Overview](./docs/assets/dashboard.png)
+*Vista principal con metricas agregadas, distribucion demografica y estadisticas de ciudadania.*
+
+### Directorio y CRM
+![Modulo CRM](./docs/assets/crm-view.png)
+*Gestion de ciudadanos con busqueda, filtros de asignacion y tablas de datos paginadas.*
+
+### Mapa Operativo
+![Mapa Territorial](./docs/assets/map-view.png)
+*Visualizacion geoespacial de reportes de campo y seccionamiento electoral.*
+
+---
 
 ## Estado del Proyecto
 
@@ -12,17 +40,11 @@ Construido bajo el patron Modular Monolith (Event-Driven) utilizando Clean Archi
 
 Arquitectura principal: Next.js (App Router) en `apps/web`. Orientacion de diseno "Web-first" con adaptacion responsiva para dispositivos moviles.
 
-## Documentacion Tecnica
-
-- docs/PRODUCT_OPERABILITY_PLAN_V1.md : Alcance y criterios de termino V1.
-- docs/adr/ADR-012-v1-usable-web-first.md : Decisiones de arquitectura principal.
-- docs/cliente/TONALA_OS_V1_QUE_FALTA.pdf : Resumen ejecutivo.
-
 ## Requisitos del Entorno
 
 - Node.js 24 o superior.
 - pnpm 11 o superior.
-- Docker y Docker Compose (requerido para base de datos local).
+- Docker y Docker Compose (requerido para el motor de base de datos local PostgreSQL).
 
 ## Instrucciones de Instalacion
 
@@ -40,7 +62,7 @@ Arquitectura principal: Next.js (App Router) en `apps/web`. Orientacion de disen
 
 ## Entorno de Desarrollo Local
 
-El sistema utiliza PostgreSQL. Para el entorno local, se provee un contenedor mediante Docker Compose. No se requiere base de datos remota para desarrollo diario.
+El sistema utiliza PostgreSQL. Para el entorno local, se provee un contenedor mediante Docker Compose. No se requiere base de datos remota para el desarrollo diario.
 
 Secuencia de inicio estandar:
 ```bash
@@ -50,28 +72,20 @@ pnpm db:seed
 pnpm web:dev
 ```
 
-Para ejecutar la validacion completa de codigo (requerida antes de enviar cambios al repositorio):
+Para ejecutar la validacion completa del codigo (requerida antes de enviar cambios al repositorio):
 ```bash
 pnpm validate
 ```
 
-### Comandos de Utilidad Base de Datos
+### Comandos de Utilidad (Base de Datos)
 
 - `pnpm db:status` : Verifica la conexion con PostgreSQL.
 - `pnpm db:stop` : Detiene el contenedor de base de datos.
 - `pnpm db:reset` : Elimina el esquema publico, regenera migraciones y puebla la base de datos con informacion predeterminada.
 
-### Comandos de Calidad de Codigo
+## Estructura Arquitectonica
 
-- `pnpm typecheck` : Validacion de tipos TypeScript.
-- `pnpm lint` : Analisis estatico de codigo.
-- `pnpm check:boundaries` : Validacion de limites arquitectonicos entre modulos.
-- `pnpm test:unit` : Ejecucion de pruebas unitarias.
-- `pnpm test:integration` : Ejecucion de pruebas de integracion.
-
-Nota: Las pruebas unitarias no requieren conexion a base de datos. Las pruebas de integracion y el comando de validacion completa requieren el contenedor PostgreSQL activo.
-
-## Estructura del Proyecto
+El proyecto utiliza un patron **Modular Monolith (Event-Driven)** apoyado en **Clean Architecture**.
 
 ```txt
 apps/web                                        # Interfaz de usuario (Next.js)
@@ -84,33 +98,22 @@ packages/shared/                                # Codigo compartido (BD, Auth, K
 packages/ui/                                    # Componentes visuales reutilizables
 packages/config/                                # Configuracion central del sistema
 db/migrations/                                  # Historial de cambios de base de datos
-scripts/db/                                     # Automatizacion de BD y semillas
-docs/                                           # Documentacion tecnica y de negocio
+docs/assets/                                    # Imagenes y documentacion visual
 ```
 
-## Estandares Arquitectonicos
-
 - **Estructura Modular:** El codigo se organiza por modulo de negocio, no por capa tecnica.
-- **Limites Estrictos:** Ningun modulo debe importar elementos internos (`domain`, `application`, `infrastructure`) de otro modulo. La comunicacion se realiza exclusivamente a traves de la carpeta `contracts`.
-- **Capa de Presentacion:** `apps/web` actua unicamente como capa de entrega (Delivery Layer). Sus responsabilidades se limitan a autenticacion, validacion de entrada e invocacion de casos de uso (Application).
+- **Limites Estrictos:** Ningun modulo debe importar elementos internos de otro modulo. La comunicacion se realiza exclusivamente a traves de la capa `contracts`.
+- **Capa de Presentacion:** `apps/web` actua unicamente como capa de entrega (Delivery Layer). Sus responsabilidades se limitan a autenticacion, validacion de entrada e invocacion de casos de uso.
 - **Consistencia de Datos:** Toda operacion de escritura utiliza el patron Outbox para garantizar la consistencia eventual.
-- **Revision Automatizada:** El analizador de limites (`boundary-checker`) bloqueara cualquier violacion de importacion en el entorno de integracion continua.
+- **Revision Automatizada:** El analizador de limites (`boundary-checker`) bloquea cualquier violacion de dependencias en el entorno de integracion continua.
 
 ## Estandares de Versionamiento
 
 Rama principal de produccion: `main`
 
-Nomenclatura de ramas de desarrollo:
-- `feature/<descripcion-corta>`
-- `fix/<descripcion-corta>`
-- `chore/<descripcion-corta>`
-- `adr/<numero-tema>`
-
-Nomenclatura de commits (Conventional Commits):
-- `feat: <mensaje>`
-- `fix: <mensaje>`
-- `chore: <mensaje>`
-- `docs: <mensaje>`
-- `test: <mensaje>`
-- `refactor: <mensaje>`
-- `adr: <mensaje>`
+Nomenclatura de ramas de desarrollo y Commits (Conventional Commits):
+- `feat:` Nuevas caracteristicas
+- `fix:` Correccion de errores
+- `chore:` Mantenimiento, dependencias o tareas menores
+- `docs:` Actualizacion de documentacion tecnica o README
+- `refactor:` Reestructuracion de codigo sin alterar logica de negocio

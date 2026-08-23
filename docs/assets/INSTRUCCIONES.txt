@@ -1,0 +1,10 @@
+INSTRUCCIONES PARA CAPTURAS DE PANTALLA
+
+Para que tu README.md luzca profesional y documentado, se han agregado tres referencias de imagenes. 
+Por favor, toma capturas de pantalla de tu sistema en funcionamiento y guardalas en esta misma carpeta con los siguientes nombres exactos:
+
+1. dashboard.png  (Captura de la pantalla principal /resumen)
+2. crm-view.png   (Captura de la pantalla de Directorio Ciudadano /crm)
+3. map-view.png   (Captura de la pantalla del Mapa en Vivo /mapa)
+
+En cuanto guardes esos 3 archivos aqui y hagas un "git push", GitHub los mostrara automaticamente en tu portada.
