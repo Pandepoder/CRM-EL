@@ -1,3 +1,7 @@
+> [!WARNING]
+> **DOCUMENTO DEPRECADO (HIST�RICO)**
+> Este documento refleja la planeaci�n de la etapa inicial de prototipado. Para ver el estado actual y real del proyecto, consulta [`ROADMAP_V1.md`](./ROADMAP_V1.md).
+
 # PRODUCT_OPERABILITY_PLAN_V1
 
 Status: Active — target product definition  
