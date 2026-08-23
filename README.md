@@ -1,112 +1,116 @@
-# Tonala OS
+# Tonala OS - Gestor Operativo Territorial
 
-Sistema operativo territorial construido como modular monolith event-driven.
+Sistema operativo de control territorial y estructura electoral.
+Construido bajo el patron Modular Monolith (Event-Driven) utilizando Clean Architecture.
 
-## Estado del producto
+## Estado del Proyecto
 
 | Fase | Version | Estado |
 |------|---------|--------|
-| Walking Skeleton (baseline arquitectonico) | `v0.1.0-walking-skeleton` | Completado (ADR-010) |
-| **V1 utilizable (objetivo actual)** | `v1.0.0-usable` | En planificacion / implementacion |
+| Fundacion Base | v0.1.0 | Completado |
+| V1 Produccion | v1.0.0 | Implementacion Activa |
 
-Direccion de producto: **web-first** (escritorio y laptop como experiencia principal) con **layout responsive** para telefonos. No es una app nativa separada.
+Arquitectura principal: Next.js (App Router) en `apps/web`. Orientacion de diseno "Web-first" con adaptacion responsiva para dispositivos moviles.
 
-Documentacion activa:
+## Documentacion Tecnica
 
-- [`docs/PRODUCT_OPERABILITY_PLAN_V1.md`](docs/PRODUCT_OPERABILITY_PLAN_V1.md) — alcance, incrementos y criterios de terminado V1
-- [`docs/adr/ADR-012-v1-usable-web-first.md`](docs/adr/ADR-012-v1-usable-web-first.md) — decision arquitectonica V1
-- [`docs/cliente/TONALA_OS_V1_QUE_FALTA.pdf`](docs/cliente/TONALA_OS_V1_QUE_FALTA.pdf) — resumen sencillo para cliente (que falta para V1)
+- docs/PRODUCT_OPERABILITY_PLAN_V1.md : Alcance y criterios de termino V1.
+- docs/adr/ADR-012-v1-usable-web-first.md : Decisiones de arquitectura principal.
+- docs/cliente/TONALA_OS_V1_QUE_FALTA.pdf : Resumen ejecutivo.
 
-## Requisitos
+## Requisitos del Entorno
 
-- Node.js 24 o compatible.
-- pnpm 11.
-- Docker con Docker Compose.
+- Node.js 24 o superior.
+- pnpm 11 o superior.
+- Docker y Docker Compose (requerido para base de datos local).
 
-## Instalacion
+## Instrucciones de Instalacion
 
-```bash
-corepack enable
-pnpm install
-```
+1. Habilitar Corepack e instalar dependencias:
+   ```bash
+   corepack enable
+   pnpm install
+   ```
 
-Copia `.env.example` a `.env` para desarrollo local.
+2. Configuracion de Variables de Entorno:
+   Copiar el archivo de entorno base:
+   ```bash
+   cp .env.example .env
+   ```
 
-## Entorno Local
+## Entorno de Desarrollo Local
 
-PostgreSQL local corre en Docker Compose. No se requiere base remota para desarrollo diario.
+El sistema utiliza PostgreSQL. Para el entorno local, se provee un contenedor mediante Docker Compose. No se requiere base de datos remota para desarrollo diario.
 
+Secuencia de inicio estandar:
 ```bash
 pnpm db:start
 pnpm db:migrate
 pnpm db:seed
 pnpm web:dev
+```
+
+Para ejecutar la validacion completa de codigo (requerida antes de enviar cambios al repositorio):
+```bash
 pnpm validate
 ```
 
-Comandos utiles:
+### Comandos de Utilidad Base de Datos
 
-```bash
-pnpm db:status
-pnpm db:stop
-pnpm db:reset
-pnpm typecheck
-pnpm lint
-pnpm check:boundaries
-pnpm test:unit
-pnpm test:integration
-pnpm test
-pnpm validate:unit
-```
+- `pnpm db:status` : Verifica la conexion con PostgreSQL.
+- `pnpm db:stop` : Detiene el contenedor de base de datos.
+- `pnpm db:reset` : Elimina el esquema publico, regenera migraciones y puebla la base de datos con informacion predeterminada.
 
-Datos temporales: volumen Docker `tonala_os_postgres_data`. `pnpm db:reset` elimina ese volumen y reconstruye migraciones/seeds.
+### Comandos de Calidad de Codigo
 
-`pnpm test:unit` y `pnpm validate:unit` no requieren PostgreSQL. `pnpm test`,
-`pnpm test:integration` y `pnpm validate` requieren `.env` con `DATABASE_URL`
-y un PostgreSQL disponible, normalmente iniciado con `pnpm db:start`.
+- `pnpm typecheck` : Validacion de tipos TypeScript.
+- `pnpm lint` : Analisis estatico de codigo.
+- `pnpm check:boundaries` : Validacion de limites arquitectonicos entre modulos.
+- `pnpm test:unit` : Ejecucion de pruebas unitarias.
+- `pnpm test:integration` : Ejecucion de pruebas de integracion.
 
-## Estructura
+Nota: Las pruebas unitarias no requieren conexion a base de datos. Las pruebas de integracion y el comando de validacion completa requieren el contenedor PostgreSQL activo.
+
+## Estructura del Proyecto
 
 ```txt
-apps/web
-packages/modules/<module>/{domain,application,infrastructure,contracts}
-packages/shared/{kernel,database,auth,outbox,observability,errors}
-packages/ui
-packages/config
-db/migrations
-db/seeds
-docs/adr
-docs/PRODUCT_OPERABILITY_PLAN_V1.md
-docs/ROADMAP_V1.md
+apps/web                                        # Interfaz de usuario (Next.js)
+packages/modules/<module>/                      # Logica de negocio por dominio
+  |- domain/                                    # Entidades e interfaces centrales
+  |- application/                               # Casos de uso
+  |- infrastructure/                            # Implementacion de repositorios y BD
+  |- contracts/                                 # Contratos expuestos a otros modulos
+packages/shared/                                # Codigo compartido (BD, Auth, Kernel)
+packages/ui/                                    # Componentes visuales reutilizables
+packages/config/                                # Configuracion central del sistema
+db/migrations/                                  # Historial de cambios de base de datos
+scripts/db/                                     # Automatizacion de BD y semillas
+docs/                                           # Documentacion tecnica y de negocio
 ```
 
-## Reglas De Arquitectura
+## Estandares Arquitectonicos
 
-- Module-first.
-- Los modulos no importan `domain`, `application` o `infrastructure` internos de otros modulos.
-- La comunicacion entre modulos ocurre por contratos publicos, casos de uso autorizados, eventos o query models explicitos.
-- Next.js es la delivery layer de V1: autentica, autoriza, valida entrada, invoca casos de uso y traduce resultado.
-- Supabase es infraestructura, no arquitectura.
+- **Estructura Modular:** El codigo se organiza por modulo de negocio, no por capa tecnica.
+- **Limites Estrictos:** Ningun modulo debe importar elementos internos (`domain`, `application`, `infrastructure`) de otro modulo. La comunicacion se realiza exclusivamente a traves de la carpeta `contracts`.
+- **Capa de Presentacion:** `apps/web` actua unicamente como capa de entrega (Delivery Layer). Sus responsabilidades se limitan a autenticacion, validacion de entrada e invocacion de casos de uso (Application).
+- **Consistencia de Datos:** Toda operacion de escritura utiliza el patron Outbox para garantizar la consistencia eventual.
+- **Revision Automatizada:** El analizador de limites (`boundary-checker`) bloqueara cualquier violacion de importacion en el entorno de integracion continua.
 
-El boundary checker actual es una primera defensa automatizada. Podra complementarse despues con herramientas de analisis de dependencias, pero desde el Bloque 1 ya falla ante imports prohibidos.
+## Estandares de Versionamiento
 
-## Convencion De Ramas Y Commits
+Rama principal de produccion: `main`
 
-Rama principal: `main`.
-
-Ramas de trabajo:
-
+Nomenclatura de ramas de desarrollo:
 - `feature/<descripcion-corta>`
 - `fix/<descripcion-corta>`
 - `chore/<descripcion-corta>`
 - `adr/<numero-tema>`
 
-Commits:
-
-- `feat: ...`
-- `fix: ...`
-- `chore: ...`
-- `docs: ...`
-- `test: ...`
-- `refactor: ...`
-- `adr: ...`
+Nomenclatura de commits (Conventional Commits):
+- `feat: <mensaje>`
+- `fix: <mensaje>`
+- `chore: <mensaje>`
+- `docs: <mensaje>`
+- `test: <mensaje>`
+- `refactor: <mensaje>`
+- `adr: <mensaje>`
