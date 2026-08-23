@@ -24,6 +24,18 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    env:
+      DATABASE_URL: postgres://postgres:password@localhost:5432/tonala_os_test
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: tonala_os_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      NEXT_PUBLIC_APP_NAME: Tonala OS
+      NEXT_PUBLIC_APP_ENV: test
+      SESSION_SECRET: ci-test-session-secret-at-least-32-chars
+      DEMO_PASSWORD: TonalaDemo2026
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,11 +55,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Setup Database
-        env:
-          DATABASE_URL: postgres://postgres:password@localhost:5432/tonala_os_test
         run: pnpm db:migrate
 
       - name: Run Full Validation (Typecheck, Lint, Tests)
-        env:
-          DATABASE_URL: postgres://postgres:password@localhost:5432/tonala_os_test
         run: pnpm validate
