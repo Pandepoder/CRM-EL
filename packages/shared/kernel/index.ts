@@ -55,3 +55,4 @@ function assertNonEmpty(value: string, label: string): void {
     throw new Error(`${label} cannot be empty`);
   }
 }
+

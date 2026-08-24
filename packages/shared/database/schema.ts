@@ -12,6 +12,22 @@ import {
   uuid
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { customType } from "drizzle-orm/pg-core";
+import { encryptData, decryptData } from "./crypto.js";
+
+export const encryptedText = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "text";
+  },
+  toDriver(value) {
+    if (value == null) return null as any;
+    return encryptData(value) as any;
+  },
+  fromDriver(value) {
+    if (value == null) return null as any;
+    return decryptData(value) as any;
+  }
+});
 
 export const roles = pgTable(
   "roles",
@@ -88,22 +104,22 @@ export const contacts = pgTable(
 
     // CRM Extended Fields
     referredByUserId: uuid("referred_by_user_id").references(() => userProfiles.id),
-    firstName: text("first_name"),
-    lastName: text("last_name"),
-    maternalLastName: text("maternal_last_name"),
+    firstName: encryptedText("first_name"),
+    lastName: encryptedText("last_name"),
+    maternalLastName: encryptedText("maternal_last_name"),
     birthDate: timestamp("birth_date", { withTimezone: true }),
-    phone: text("phone"),
-    email: text("email"),
-    address: text("address"),
-    addressNumber: text("address_number"),
-    colony: text("colony"),
-    profession: text("profession"),
-    companyOrWork: text("company_or_work"),
+    phone: encryptedText("phone"),
+    email: encryptedText("email"),
+    address: encryptedText("address"),
+    addressNumber: encryptedText("address_number"),
+    colony: encryptedText("colony"),
+    profession: encryptedText("profession"),
+    companyOrWork: encryptedText("company_or_work"),
     yearsKnown: integer("years_known"),
-    skill: text("skill"),
-    availability: text("availability"),
-    interests: text("interests"),
-    pastSupport: text("past_support")
+    skill: encryptedText("skill"),
+    availability: encryptedText("availability"),
+    interests: encryptedText("interests"),
+    pastSupport: encryptedText("past_support")
   },
   (table) => [
     check("contacts_status_check", sql`${table.status} IN ('active')`),
@@ -461,3 +477,61 @@ export const electoralRepresentatives = pgTable(
     uniqueIndex("electoral_reps_section_user_idx").on(table.sectionId, table.userId)
   ]
 );
+
+// ==========================================
+// LOGISTICS & INVENTORY MODULE
+// ==========================================
+
+export const warehouses = pgTable("warehouses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  location: text("location"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const inventoryItems = pgTable("inventory_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  warehouseId: uuid("warehouse_id").notNull().references(() => warehouses.id),
+  sku: text("sku").notNull(),
+  name: text("name").notNull(),
+  quantity: integer("quantity").notNull().default(0),
+  category: text("category").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const inventoryTransactions = pgTable("inventory_transactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
+  transactionType: text("transaction_type").notNull(), // 'in', 'out'
+  quantity: integer("quantity").notNull(),
+  assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
+  performedByUserId: uuid("performed_by_user_id").notNull().references(() => userProfiles.id),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ==========================================
+// INBOX & MESSAGING MODULE
+// ==========================================
+
+export const inboxConversations = pgTable("inbox_conversations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  contactId: uuid("contact_id").references(() => contacts.id),
+  channel: text("channel").notNull(), // 'whatsapp', 'sms', 'messenger'
+  externalId: text("external_id").notNull().unique(), // The phone number or Facebook ID
+  status: text("status").notNull().default("open"), // 'open', 'resolved', 'ignored'
+  assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const inboxMessages = pgTable("inbox_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  conversationId: uuid("conversation_id").notNull().references(() => inboxConversations.id),
+  direction: text("direction").notNull(), // 'inbound', 'outbound'
+  content: text("content").notNull(),
+  status: text("status").notNull().default("sent"), // 'sent', 'delivered', 'read', 'failed'
+  sentByUserId: uuid("sent_by_user_id").references(() => userProfiles.id), // null if inbound
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

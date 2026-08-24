@@ -9,6 +9,7 @@ const validEnv = {
   POSTGRES_DB: "tonala_os",
   POSTGRES_USER: "tonala",
   POSTGRES_PASSWORD: "secret",
+  DATABASE_ENCRYPTION_KEY: "01234567890123456789012345678901",
   NEXT_PUBLIC_APP_NAME: "Tonala OS",
   NEXT_PUBLIC_APP_ENV: "local",
   NODE_ENV: "test"

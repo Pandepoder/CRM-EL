@@ -34,6 +34,7 @@ jobs:
       NEXT_PUBLIC_APP_NAME: Tonala OS
       NEXT_PUBLIC_APP_ENV: test
       SESSION_SECRET: ci-test-session-secret-at-least-32-chars
+      DATABASE_ENCRYPTION_KEY: tonala-ci-encryption-key-32-chars-long!
       DEMO_PASSWORD: TonalaDemo2026
 
     steps:

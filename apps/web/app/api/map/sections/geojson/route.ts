@@ -19,13 +19,11 @@ export async function GET() {
     const result = await db.execute<{
       id: string;
       section_num: number;
-      name: string | null;
       geom_json: string | null;
     }>(sql`
       SELECT
         id::text,
         section_num,
-        name,
         geom_json
       FROM electoral_sections
       WHERE geom_json IS NOT NULL
@@ -48,7 +46,7 @@ export async function GET() {
           id: row.section_num,
           properties: {
             section_num: row.section_num,
-            name: row.name ?? `Sección ${row.section_num}`,
+            name: `Sección ${row.section_num}`,
           },
           geometry,
         };

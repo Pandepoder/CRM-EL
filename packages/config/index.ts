@@ -6,7 +6,8 @@ const privateEnvSchema = z.object({
   POSTGRES_PORT: z.coerce.number().int().positive(),
   POSTGRES_DB: z.string().min(1),
   POSTGRES_USER: z.string().min(1),
-  POSTGRES_PASSWORD: z.string().min(1)
+  POSTGRES_PASSWORD: z.string().min(1),
+  DATABASE_ENCRYPTION_KEY: z.string().min(32).describe("Llave maestra AES-256 para cifrar PII en la base de datos"),
 });
 
 const publicEnvSchema = z.object({

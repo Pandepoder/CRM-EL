@@ -1,3 +1,4 @@
+import "dotenv/config";
 import pg from "pg";
 import { spawn } from "node:child_process";
 import { loadAppEnv } from "../../packages/config/index.js";
@@ -19,7 +20,7 @@ function run(command: string, args: readonly string[]): Promise<void> {
 async function dropSchema() {
   const env = loadAppEnv();
   const pool = new pg.Pool({ connectionString: env.private.DATABASE_URL });
-  await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO postgres; GRANT ALL ON SCHEMA public TO public;");
+  await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO postgres; GRANT ALL ON SCHEMA public TO public; DROP SCHEMA IF EXISTS drizzle CASCADE;");
   await pool.end();
 }
 

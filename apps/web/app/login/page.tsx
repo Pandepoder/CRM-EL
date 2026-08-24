@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const from = searchParams.get("from") || "/crm";
@@ -23,10 +23,10 @@ export default function LoginPage() {
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })
       });
-      const data = (await response.json()) as { message?: string };
+      const data = await response.json() as { message?: string };
       
       if (!response.ok) {
         setError(data.message ?? "Credenciales inválidas.");
@@ -42,6 +42,57 @@ export default function LoginPage() {
   }
 
   return (
+    <form onSubmit={(e) => { void onSubmit(e); }}>
+      {error ? <p className="login-error">{error}</p> : null}
+      
+      <div className="input-group">
+        <label htmlFor="email">Correo Institucional</label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="nombre@tonala.gob.mx"
+          style={{ minHeight: "54px" }}
+        />
+      </div>
+
+      <div className="input-group" style={{ marginBottom: "24px" }}>
+        <label htmlFor="password">Contraseña de Acceso</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          style={{ minHeight: "54px" }}
+        />
+      </div>
+
+      <div style={{ marginBottom: "24px", display: "flex", alignItems: "flex-start", gap: "12px", fontSize: "12px", color: "var(--gray-600)", lineHeight: "1.5" }}>
+        <input type="checkbox" id="terms" required style={{ marginTop: "3px" }} />
+        <label htmlFor="terms">
+          Al acceder a este sistema, confirmo que tengo autorización estricta para manejar datos ciudadanos y acepto los 
+          <Link href="/terminos" style={{ color: "var(--blue-600)", textDecoration: "underline" }}> Términos de Uso</Link> y la 
+          <Link href="/privacidad" style={{ color: "var(--blue-600)", textDecoration: "underline" }}> Política de Privacidad</Link>.
+        </label>
+      </div>
+
+      <button className="action-button" type="submit" disabled={loading} style={{ width: "100%", minHeight: "54px", fontSize: "16px" }}>
+        {loading ? "Verificando..." : "Entrar al Sistema"}
+      </button>
+    </form>
+  );
+}
+
+export default function LoginPage() {
+  return (
     <main className="login-page">
       <div className="login-card" style={{ maxWidth: "480px", borderRadius: "24px", padding: "48px 40px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "32px", justifyContent: "center" }}>
@@ -55,50 +106,9 @@ export default function LoginPage() {
           Acceso operativo al panel de Tonalá OS.
         </p>
 
-        <form onSubmit={(e) => { void onSubmit(e); }}>
-          {error ? <p className="login-error">{error}</p> : null}
-          
-          <div className="field" style={{ marginBottom: "20px" }}>
-            <label htmlFor="email">Correo Electrónico</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="correo@ejemplo.com"
-              style={{ minHeight: "54px" }}
-            />
-          </div>
-
-          <div className="field" style={{ marginBottom: "32px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <label htmlFor="password">Contraseña</label>
-              <a href="#" style={{ fontSize: "12px", color: "var(--blue-600)", fontWeight: "bold", textDecoration: "none" }}>¿Olvidaste tu contraseña?</a>
-            </div>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              style={{ minHeight: "54px" }}
-            />
-          </div>
-
-          <button className="action-button" type="submit" disabled={loading} style={{ width: "100%", minHeight: "54px", fontSize: "16px" }}>
-            {loading ? "Verificando..." : "Entrar al Sistema"}
-          </button>
-        </form>
-
-        <p className="login-hint">
-          ¿No tienes cuenta? <Link href="/register" style={{ color: "var(--blue-600)", fontWeight: 800, textDecoration: "none" }}>Regístrate aquí</Link>
-        </p>
+        <Suspense fallback={<div style={{ textAlign: "center", padding: "20px" }}>Cargando...</div>}>
+          <LoginForm />
+        </Suspense>
       </div>
     </main>
   );
