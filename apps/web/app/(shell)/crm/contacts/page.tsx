@@ -8,7 +8,7 @@ import { actorFromSession, permissionChecker } from '@/lib/api-helpers';
 import { createCrmDependencies } from '@/lib/crm-deps';
 import { listContacts } from '@tonala/modules/contacts/application';
 import { DevelopmentLogger } from '@tonala/shared/observability';
-import { Search, Plus, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Plus, Users, ChevronLeft, ChevronRight, Download } from "lucide-react";
 
 const PAGE_SIZE = 25;
 
@@ -66,12 +66,21 @@ export default async function ContactsPage({
             {q && ` · Buscando: "${q}"`}
           </p>
         </div>
-        <Link
-          href="/crm/contacts/nuevo"
-          style={{ display: "inline-flex", alignItems: "center", gap: "8px", background: "#0f172a", color: "white", padding: "11px 20px", borderRadius: "12px", fontWeight: 700, fontSize: "14px", textDecoration: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
-        >
-          <Plus size={16} /> Nuevo Ciudadano
-        </Link>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <a
+            href={`/api/crm/contacts/export${q ? '?q=' + encodeURIComponent(q) : ''}`}
+            download
+            style={{ display: "inline-flex", alignItems: "center", gap: "8px", background: "white", border: "1px solid #e2e8f0", color: "#475569", padding: "11px 20px", borderRadius: "12px", fontWeight: 700, fontSize: "14px", textDecoration: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}
+          >
+            <Download size={16} /> Exportar CSV
+          </a>
+          <Link
+            href="/crm/contacts/nuevo"
+            style={{ display: "inline-flex", alignItems: "center", gap: "8px", background: "#0f172a", color: "white", padding: "11px 20px", borderRadius: "12px", fontWeight: 700, fontSize: "14px", textDecoration: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
+          >
+            <Plus size={16} /> Nuevo Ciudadano
+          </Link>
+        </div>
       </div>
 
       {/* Search bar */}
