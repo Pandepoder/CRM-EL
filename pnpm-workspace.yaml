@@ -6,5 +6,5 @@ packages:
 allowBuilds:
   argon2: true
   esbuild: true
-  puppeteer: set this to true or false
+  puppeteer: true
   sharp: true
