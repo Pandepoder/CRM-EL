@@ -75,7 +75,7 @@ export function AppShell({
   const configuracionItems = filterNavItems(getNavSection("configuracion"));
 
   const allItems = [...dashboardItems, ...estructuraItems, ...territorioItems, ...configuracionItems];
-  const activeTitle = allItems.find((n) => n.active)?.label ?? "Tonala OS";
+  const activeTitle = allItems.find((n) => n.active)?.label ?? "Tonalá OS";
 
   return (
     <div className="shell">
@@ -206,7 +206,7 @@ export function AppShell({
       </main>
 
       {/* MOBILE BOTTOM NAV */}
-      <nav className="mobile-bottom-nav" aria-label="Navegacion movil">
+      <nav className="mobile-bottom-nav" aria-label="Navegación movil">
         {/* We take up to 4 most important items that the user has access to */}
         {allItems.filter(i => i.key !== "perfil" && i.key !== "settings").slice(0, 4).map((item) => (
           <a key={item.key} className={`mobile-nav-button ${item.active ? "is-active" : ""}`} href={item.href}>

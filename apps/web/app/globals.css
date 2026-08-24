@@ -708,3 +708,156 @@ button {
     display: none;
   }
 }
+
+/* ==========================================================================
+   MODERN LOGIN REDESIGN
+   ========================================================================== */
+.modern-login-layout {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at top left, #1f5c9b, #0b1f3a);
+  padding: 24px;
+}
+
+.modern-login-container {
+  width: 100%;
+  max-width: 440px;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 48px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  animation: float-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.modern-login-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.modern-login-icon {
+  width: 64px;
+  height: 64px;
+  background: #f0f7ff;
+  color: #2878c7;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
+}
+
+.modern-login-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0b1f3a;
+  margin: 0 0 8px;
+}
+
+.modern-login-subtitle {
+  font-size: 15px;
+  color: #64748b;
+  margin: 0;
+}
+
+.modern-input-wrapper {
+  margin-bottom: 24px;
+  position: relative;
+}
+
+.modern-input-wrapper label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 8px;
+}
+
+.modern-input {
+  width: 100%;
+  padding: 14px 16px 14px 44px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 15px;
+  background: #f8fafc;
+  color: #0f172a;
+  transition: all 0.2s ease;
+}
+
+.modern-input:focus {
+  outline: none;
+  border-color: #2878c7;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(40, 120, 199, 0.1);
+}
+
+.modern-input-icon {
+  position: absolute;
+  left: 14px;
+  top: 39px;
+  color: #94a3b8;
+}
+
+.modern-checkbox-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 32px;
+  background: #f0f7ff;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #dcecff;
+}
+
+.modern-checkbox-group input {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: #2878c7;
+}
+
+.modern-checkbox-group label {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #475569;
+}
+
+.modern-checkbox-group a {
+  color: #1f5c9b;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.modern-button {
+  width: 100%;
+  padding: 16px;
+  background: #2878c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.modern-button:hover:not(:disabled) {
+  background: #1f5c9b;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 15px -3px rgba(40, 120, 199, 0.3);
+}
+
+.modern-button:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+@keyframes float-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}

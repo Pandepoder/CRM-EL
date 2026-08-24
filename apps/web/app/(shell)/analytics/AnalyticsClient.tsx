@@ -20,7 +20,7 @@ export default function AnalyticsClient({
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight">Análisis Demográfico</h1>
-        <p className="text-gray-500 mt-1">Métricas en tiempo real de la estructura y padrón.</p>
+        <p className="text-gray-500 mt-1">MéMétricas en tiempo real de la estructura y padrón.</p>
       </div>
 
       {/* KPIs Cards */}

@@ -52,7 +52,7 @@ export default async function ResumenPage() {
             <span className="w-2 h-2 rounded-full" style={{ background: "#4ade80" }}></span>
             Sistema en Línea
           </div>
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-3" style={{ color: "white" }}>Hola, {session.displayName} 👋</h1>
+          <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-3" style={{ color: "white" }}>Hola, {session.displayName} ??</h1>
           <p className="text-lg md:text-xl max-w-2xl font-medium leading-relaxed" style={{ color: "#dcecff" }}>
             Bienvenido al centro de mando operativo. Aquí tienes un resumen rápido de tu actividad y accesos directos a tus herramientas clave.
           </p>
