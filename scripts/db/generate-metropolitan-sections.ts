@@ -1,7 +1,7 @@
 import "dotenv/config";
 import pg from "pg";
 import { loadAppEnv } from "../../packages/config/index.js";
-import { OFFICIAL_TONALA_SECTIONS, SectionDefinition, boundsToRealisticPolygon } from "./generate-official-sections.js";
+import { OFFICIAL_TONALA_SECTIONS, type SectionDefinition, boundsToRealisticPolygon } from "./generate-official-sections.js";
 
 const env = loadAppEnv();
 const pool = new pg.Pool({ connectionString: env.private.DATABASE_URL });

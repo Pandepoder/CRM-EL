@@ -20,7 +20,6 @@ export class InboxApplication {
         // TODO: Phone is encrypted with random IV AES-256-GCM. 
         // To find by phone, we need to add a deterministic `phone_hash` column to the `contacts` table.
         // For now, we leave contactId as null.
-        const contact = null;
 
         const [newConv] = await tx.insert(schema.inboxConversations).values({
           channel: command.channel,

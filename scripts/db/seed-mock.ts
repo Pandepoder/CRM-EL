@@ -7,7 +7,7 @@ import { loadAppEnv } from "../../packages/config/index.js";
 const env = loadAppEnv();
 const pool = new pg.Pool({ connectionString: env.private.DATABASE_URL });
 
-async function applyPendingSQL() {
+async function _applyPendingSQL() {
   console.log("Applying pending SQL changes directly to bypass migration history...");
   const sqlContent = readFileSync(join(process.cwd(), "db/migrations/0001_pretty_scarlet_witch.sql"), "utf-8");
   

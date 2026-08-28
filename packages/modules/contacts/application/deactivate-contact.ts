@@ -30,7 +30,7 @@ export async function deactivateContact(
 
   const cid = createEntityId(input.contactId);
 
-  return deps.txManager.transaction(async (tx) => {
+  return deps.txManager.transaction(async (_tx) => {
     const contact = await deps.contactRepository.findById(cid);
     if (!contact) {
       return err({ code: "NOT_FOUND", message: "Contact not found" } as unknown as TonalaOsError);

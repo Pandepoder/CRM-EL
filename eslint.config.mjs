@@ -28,6 +28,7 @@ export default tseslint.config(
     },
     rules: {
       "@typescript-eslint/consistent-type-imports": ["error", { "prefer": "type-imports" }],
+      "@typescript-eslint/require-await": "off",
       "@typescript-eslint/no-floating-promises": "off",
       "@typescript-eslint/no-misused-promises": "off",
       "@typescript-eslint/no-unsafe-assignment": "off",
@@ -53,6 +54,12 @@ export default tseslint.config(
     },
     plugins: {
       "unused-imports": unusedImports
+    }
+  },
+  {
+    files: ["scripts/**/*.ts", "scripts/**/*.js"],
+    rules: {
+      "no-console": "off"
     }
   }
 );

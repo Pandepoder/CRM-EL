@@ -15,7 +15,7 @@ const interestsList = ["Seguridad pública", "Bacheo y pavimentación", "Alumbra
 
 function rElem(arr: any[]) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-function rName() { return rElem(firstNames) + " " + rElem(lastNames); }
+function _rName() { return rElem(firstNames) + " " + rElem(lastNames); }
 function rPhone() { return "33" + Math.floor(Math.random() * 90000000 + 10000000).toString(); }
 
 async function run() {
