@@ -1,103 +1,200 @@
-# Tonala OS - Gestor Operativo Territorial
+# 🇲🇽 Tonalá OS - Suite Integral de Gestión Territorial y Electoral
 
-![Version](https://img.shields.io/badge/version-1.0.0--usable-blue.svg)
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)
-![Node.js](https://img.shields.io/badge/node-%3E%3D24.0.0-success.svg)
-![Architecture](https://img.shields.io/badge/architecture-Clean_Architecture-orange.svg)
+![Version](https://img.shields.io/badge/version-1.3.0--production-blue.svg)
+![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)
+![Next.js](https://img.shields.io/badge/Next.js-15.5-black.svg)
+![React](https://img.shields.io/badge/React-19-blue.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6.svg)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)
+![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.31-C5F74F.svg)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)
 
-**Tonala OS** es un ERP/CRM de grado empresarial disenado especificamente para el control logistico, auditoria territorial y administracion de estructuras ciudadanas.
-
-## Descripcion General del Sistema
-
-El proyecto actua como el centro de mando (Command Center) de campa�as y administraciones, resolviendo la complejidad de coordinar equipos en calle y analizar datos territoriales en tiempo real.
-
-### Caracteristicas Principales
-
-*   **Inteligencia Territorial (Mapa en Vivo):** Visualizacion geoespacial interactiva para auditorias de eventos, supervision de incidencias (Leaflet) y calor demografico.
-*   **Directorio Ciudadano (CRM):** Motor de alta velocidad para gestion de contactos, captura de habilidades, roles, zonas y disponibilidad operativa.
-*   **Estructura Jerarquica:** Asignacion de equipos, lideres, representantes de casilla y auditores en campo.
-*   **Trazabilidad Inquebrantable:** Transacciones de base de datos protegidas por el patron *Outbox* (consistencia eventual) y validacion estricta de Roles por pagina y endpoint.
+**Tonalá OS** es una plataforma ERP/CRM territorial y electoral de grado institucional diseñada para la coordinación de campañas, administración de brigadas, trazabilidad en territorio, cartografía seccional (INE) y atención inmediata de incidencias ciudadanas en el Área Metropolitana de Guadalajara (AMG).
 
 ---
 
-## Capturas de Pantalla
-
-*(Nota: Reemplaza las imagenes de ejemplo en `docs/assets/` con tus capturas reales).*
-
-| Panel de Control (Dashboard) | Directorio CRM | Mapa Operativo |
-|:---:|:---:|:---:|
-| ![-](./docs/assets/dashboard.png) | ![-](./docs/assets/crm-view.png) | ![-](./docs/assets/map-view.png) |
-| *Metricas agregadas y graficas demograficas* | *Busqueda y paginacion de ciudadanos* | *Incidencias geolocalizadas* |
+## 📑 Tabla de Contenidos
+- [Características Principales](#-características-principales)
+- [Stack Tecnológico](#-stack-tecnológico)
+- [Requisitos Previos](#-requisitos-previos)
+- [Instalación Local Rápida](#-instalación-local-rápida-3-minutos)
+- [Limpieza y Preparación de Base de Datos para Producción](#-limpieza-y-preparación-de-base-de-datos-para-producción)
+- [Despliegue en Producción (VPS / Hostinger / Cloud)](#-despliegue-en-producción-vps--hostinger--cloud)
+- [Scripts Disponibles](#-scripts-disponibles-en-el-proyecto)
+- [Arquitectura y Seguridad](#-arquitectura-y-seguridad)
 
 ---
 
-## Stack Tecnologico
+## 🌟 Características Principales
 
-El sistema esta construido con tecnologias modernas, priorizando la velocidad, escalabilidad y una separacion estricta de responsabilidades:
+### 1. 🗺️ Cartografía Inteligente Metropolitano (AMG) y GPS en Campo
+- **Polígonos Oficiales INE:** Cobertura de secciones electorales en Tonalá (46 secciones clave), Guadalajara, Zapopan, San Pedro Tlaquepaque, Tlajomulco, El Salto y Zapotlanejo.
+- **Geocodificación Inversa Automática:** Detección de calle, colonia, código postal y municipio en tiempo real con OpenStreetMap y algoritmos geoespaciales Turf.js.
+- **Geolocalización GPS Móvil (`📍 Mi GPS`):** Marcador pulsante en tiempo real con zoom asistido para brigadistas operando en la calle.
+- **Agrupamiento Inteligente (Clustering):** Manejo fluido de miles de marcadores territoriales con colores diferenciados por prioridad y estatus.
 
-*   **Core:** [Next.js (App Router)](https://nextjs.org/) + React
-*   **Base de Datos:** PostgreSQL
-*   **ORM:** [Drizzle ORM](https://orm.drizzle.team/)
-*   **Estilos:** CSS Nativo (`globals.css`), siguiendo la convencion de no utilizar frameworks invasivos (Cero Tailwind).
-*   **Arquitectura:** Modular Monolith orientado a Eventos (Clean Architecture).
+### 2. 🚨 Centro Integral de Administración y Despacho de Incidencias
+- **4 Pestañas Operacionales:** *Pendientes por Atender*, *Emergencias Críticas*, *Historial de Resueltas* y *Todas las Incidencias* (con envío estricto de resueltas al final).
+- **Herramientas Masivas:** Selección múltiple para resolver, reabrir, reasignar o purgar reportes en lote.
+- **Exportación CSV & Hoja de Despacho Imprimible:** Generación de órdenes de trabajo listas para brigadas en campo.
 
-## Empezando (Getting Started)
+### 3. 👥 Directorio Ciudadano y CRM
+- Captura de simpatizantes con validación de CURP, clave electoral, sección y geolocalización.
+- Historial de visitas territoriales, registro de compromisos y asignación a coordinadores.
+- Exportación segura en formato CSV UTF-8.
 
-Sigue estos pasos para levantar un entorno de desarrollo local completo.
+### 4. 🛡️ Estructura Electoral y Brigadas
+- Control de Representantes Generales (RG) y Representantes de Casilla (RC) por sección.
+- Organización de cuadrillas y asignación de líderes de equipo con auditoría de movimientos.
+- Trazabilidad y control de inventario/propaganda en almacenes territoriales.
 
-### Requisitos Previos
+---
 
-1.  Node.js v24+
-2.  pnpm v11+
-3.  Docker y Docker Compose
+## 🛠️ Stack Tecnológico
 
-### 1. Instalacion de dependencias
+| Capa | Tecnología |
+| :--- | :--- |
+| **Frontend & Backend** | Next.js 15 (App Router, Server Actions, Route Handlers) + React 19 |
+| **Lenguaje** | TypeScript 5.8 (Estricto con contratos compartidos) |
+| **Base de Datos** | PostgreSQL 16 + Drizzle ORM |
+| **Mapas & Geoespacial** | Leaflet + Turf.js + OpenStreetMap Nominatim |
+| **Seguridad & Sesiones** | Argon2id + iron-session (Cifrado AES-256-GCM) |
+| **Contenedores & Proxy** | Docker, Docker Compose y Caddy (HTTPS automático con Let's Encrypt) |
 
+---
+
+## 💻 Requisitos Previos
+
+Asegúrate de tener instalado en tu computadora o servidor:
+- **Node.js:** Versión 20.x o superior (recomendado v22 LTS o v24).
+- **pnpm:** Versión 9.x, 10.x o 11.x (`corepack enable` o `npm i -g pnpm`).
+- **Docker & Docker Compose:** (Para la base de datos PostgreSQL local o despliegue en servidor).
+- **Git**
+
+---
+
+## 🚀 Instalación Local Rápida (3 minutos)
+
+### 1. Clonar el Repositorio
 ```bash
-corepack enable
+git clone https://github.com/Pandepoder/CRM-EL.git
+cd CRM-EL
+```
+
+### 2. Instalar Dependencias
+```bash
 pnpm install
 ```
 
-### 2. Variables de Entorno
-
-Duplica el archivo de ejemplo:
-
+### 3. Configurar Variables de Entorno
+Copia la plantilla de configuración:
 ```bash
 cp .env.example .env
 ```
 
-### 3. Iniciar el Entorno Local
-
-Todo el flujo de base de datos local esta automatizado. Ejecuta:
-
+### 4. Levantar Base de Datos y Sembrar Datos de Desarrollo
 ```bash
-pnpm db:start     # Levanta PostgreSQL en Docker
-pnpm db:migrate   # Aplica migraciones Drizzle
-pnpm db:seed      # Carga usuarios demo y estructura base
-pnpm web:dev      # Inicia el servidor en http://localhost:3000
+# Iniciar contenedor de PostgreSQL en Docker:
+pnpm db:start
+
+# Aplicar migraciones del esquema:
+pnpm db:migrate
+
+# Sembrar usuarios demo y polígonos base:
+pnpm db:seed
 ```
 
-## Flujo de Trabajo y Pruebas
+### 5. Iniciar Servidor de Desarrollo
+```bash
+pnpm web:dev
+```
+Abre tu navegador en [http://localhost:3000](http://localhost:3000).
 
-Antes de enviar cualquier cambio al repositorio (Push), debes asegurar que tu codigo cumple con los estandares de la arquitectura:
+> **Credenciales de Desarrollo (Demo):**
+> - **Administrador:** `admin@tonala.gob.mx` | Contraseña: `TonalaDemo2026`
+> - **Coordinador Territorial:** `coord.centro@tonala.gob.mx` | Contraseña: `TonalaDemo2026`
+> - **Brigadista:** `brigada.norte@tonala.gob.mx` | Contraseña: `TonalaDemo2026`
+
+---
+
+## 🧹 Limpieza y Preparación de Base de Datos para Producción
+
+Antes de lanzar el sistema en una campaña real o servidor de producción, debes vaciar todos los datos ficticios y sembrar únicamente la estructura limpia:
 
 ```bash
-# Ejecuta la suite de validacion completa
-pnpm validate
+# Ejecuta el limpiador de producción:
+pnpm db:clean
 ```
 
-Para comandos especificos:
-*   `pnpm typecheck`: Valida contratos TypeScript.
-*   `pnpm check:boundaries`: Analizador estatico que previene que los modulos rompan la arquitectura limpia.
-*   `pnpm test:unit`: Pruebas unitarias ultrarrapidas.
-*   `pnpm test:integration`: Pruebas de integracion completas (requiere BD).
+**¿Qué hace `pnpm db:clean`?**
+1. **Borra al 100%:** Contactos de prueba, incidencias ficticias, visitas simuladas, cuadrillas temporales y logs de prueba.
+2. **Carga los catálogos oficiales:** Todos los roles de seguridad, catálogo de colonias y polígonos de secciones electorales metropolitanas (INE).
+3. **Crea la cuenta Administrador Maestro:** Utiliza las variables `ADMIN_EMAIL` y `ADMIN_PASSWORD` definidas en tu archivo `.env`.
 
-## Contribucion al Proyecto
+---
 
-�Bienvenido! Apreciamos mucho las contribuciones. Si deseas aportar al proyecto, corregir bugs o a�adir nuevas funcionalidades, por favor lee nuestra [Guia de Contribucion (CONTRIBUTING.md)](./CONTRIBUTING.md) antes de empezar.
+## 🌐 Despliegue en Producción (VPS / Hostinger / Cloud)
 
-Revisa tambien nuestro [Codigo de Conducta](./CODE_OF_CONDUCT.md).
+El proyecto incluye soporte nativo con **Docker Compose y servidor web Caddy** para emisión automática de certificados SSL (HTTPS gratuito).
 
-## Hoja de Ruta (Roadmap)
+### 1. En tu Servidor Remoto (Ubuntu / Debian VPS):
+```bash
+# Instalar Docker si no lo tienes:
+curl -fsSL https://get.docker.com | sh
 
-Puedes consultar el plan detallado de caracteristicas restantes para la Version 1 en nuestro documento oficial: [`docs/ROADMAP_V1_FEATURES.md`](./docs/ROADMAP_V1_FEATURES.md) (si aplica en tu carpeta actual).
+# Clonar el proyecto:
+git clone https://github.com/Pandepoder/CRM-EL.git
+cd CRM-EL
+
+# Crear tu archivo de entorno de producción:
+cp .env.example .env.production
+nano .env.production
+```
+
+### 2. Configura `.env.production`:
+- Asigna contraseñas seguras a `POSTGRES_PASSWORD`, `SESSION_SECRET` y `ADMIN_PASSWORD`.
+- Deja `NEXT_PUBLIC_ENABLE_DEMO_LOGIN=false`.
+
+### 3. Levantar la Aplicación:
+```bash
+docker compose up -d --build
+```
+
+### 4. Inicializar y Limpiar la Base de Datos en Producción:
+```bash
+docker compose exec web pnpm db:migrate
+docker compose exec web pnpm db:clean
+```
+
+Tu CRM estará en línea con HTTPS seguro configurado automáticamente.
+
+---
+
+## 📜 Scripts Disponibles en el Proyecto
+
+| Comando | Descripción |
+| :--- | :--- |
+| `pnpm web:dev` | Inicia el servidor Next.js en modo desarrollo con Hot-Reload. |
+| `pnpm build` | Compila la aplicación completa para producción y optimiza rutas. |
+| `pnpm typecheck` | Valida todos los tipos TypeScript del monorepo sin compilar. |
+| `pnpm db:start` | Levanta PostgreSQL en Docker en el puerto local configurado. |
+| `pnpm db:stop` | Detiene el contenedor de base de datos local. |
+| `pnpm db:migrate` | Ejecuta las migraciones SQL pendientes con Drizzle ORM. |
+| `pnpm db:seed` | Carga datos de prueba y usuarios demo para desarrollo. |
+| `pnpm db:clean` | **Limpia la base de datos para producción** (deja solo catálogos y admin maestro). |
+| `pnpm db:reset` | Borra la base de datos local por completo y la reinicia desde cero. |
+| `pnpm exec tsx scripts/qa-suite.ts` | Ejecuta la suite de 16 pruebas automatizadas E2E de calidad. |
+
+---
+
+## 🔒 Arquitectura y Seguridad
+
+- **Cifrado de Contraseñas:** Hashes resistentes con `argon2id` (configuración recomendada por OWASP).
+- **Gestión de Sesiones:** Cookies HTTP-Only firmadas y selladas mediante `iron-session` (AES-256-GCM).
+- **Patrón Outbox Transaccional:** Todas las operaciones de creación de contactos y visitas territoriales quedan registradas con consistencia atómica para garantizar que no se pierdan datos en fallas de red.
+- **Control de Acceso Basado en Roles (RBAC):** Middleware y Server Actions protegidos por perfiles estrictos (`admin`, `territorial_coordinator`, `capturist`, `brigadista`, `auditor`, `direction`).
+
+---
+
+## 📄 Licencia
+Propiedad de **Tonalá OS / CRM Territorial**. Todos los derechos reservados.

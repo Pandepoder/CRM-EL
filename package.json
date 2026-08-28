@@ -12,6 +12,7 @@
     "db:migrate": "tsx scripts/db/migrate.ts",
     "db:reset": "tsx scripts/db/reset.ts",
     "db:seed": "tsx scripts/db/seed.ts",
+    "db:clean": "tsx scripts/db/clean-production.ts",
     "db:start": "docker compose up -d db && tsx scripts/db/wait-for-db.ts",
     "db:status": "tsx scripts/db/status.ts",
     "db:stop": "docker compose down",
