@@ -23,7 +23,7 @@ export default async function ContactsPage({
 
   const { q = "", page = "1" } = await searchParams;
   const currentPage = Math.max(1, parseInt(page, 10) || 1);
-  const offset = (currentPage - 1) * PAGE_SIZE;
+  const _offset = (currentPage - 1) * PAGE_SIZE;
 
   const actor = await actorFromSession();
   if (!actor) redirect("/login");
@@ -75,7 +75,7 @@ export default async function ContactsPage({
             <Download size={16} /> Exportar CSV
           </a>
           <Link
-            href="/crm/contacts/nuevo"
+            href="/crm/nuevo"
             style={{ display: "inline-flex", alignItems: "center", gap: "8px", background: "#0f172a", color: "white", padding: "11px 20px", borderRadius: "12px", fontWeight: 700, fontSize: "14px", textDecoration: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
           >
             <Plus size={16} /> Nuevo Ciudadano
@@ -112,9 +112,17 @@ export default async function ContactsPage({
           <h2 style={{ margin: "0 0 8px", color: "var(--blue-950)", fontSize: "20px" }}>
             {q ? `Sin resultados para "${q}"` : "No hay ciudadanos registrados"}
           </h2>
-          <p style={{ margin: 0, color: "var(--muted)", fontSize: "14px" }}>
+          <p style={{ margin: "0 0 20px", color: "var(--muted)", fontSize: "14px" }}>
             {q ? "Intenta con otro nombre o teléfono." : "Comienza registrando el primer contacto."}
           </p>
+          {!q && (
+            <Link
+              href="/crm/nuevo"
+              style={{ display: "inline-flex", alignItems: "center", gap: "8px", background: "#3b82f6", color: "white", padding: "10px 20px", borderRadius: "10px", fontWeight: 700, fontSize: "14px", textDecoration: "none" }}
+            >
+              <Plus size={16} /> Registrar Ciudadano
+            </Link>
+          )}
         </div>
       ) : (
         <div style={{ background: "white", borderRadius: "16px", border: "1px solid #f1f5f9", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>

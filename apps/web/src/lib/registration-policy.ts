@@ -1,3 +1,3 @@
 export function isPublicRegistrationAllowed(): boolean {
-  return false;
+  return process.env.ALLOW_PUBLIC_REGISTRATION === "true";
 }

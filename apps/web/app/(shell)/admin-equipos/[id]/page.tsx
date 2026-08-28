@@ -2,7 +2,7 @@ import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { redirect } from "next/navigation";
-import { eq, notInArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import TeamDetailClient from "./TeamDetailClient";
 
 export default async function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {

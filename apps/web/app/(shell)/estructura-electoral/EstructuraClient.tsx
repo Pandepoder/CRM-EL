@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 // @ts-ignore
-import { Landmark, Users, Search, Plus, Map, Shield, X, Check } from "lucide-react";
+import { Landmark, Users, Search, Plus, Map, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type Representative = {
@@ -127,7 +127,7 @@ export default function EstructuraClient({ representatives, availableUsers, sect
                       <div className="w-8 h-8 bg-indigo-100 text-indigo-700 rounded-lg flex items-center justify-center">
                         <Map size={16} />
                       </div>
-                      Sección {r.sectionNum}
+                      {r.sectionNum}
                     </td>
                     <td className="p-4 text-gray-700 font-medium">
                       {r.displayName}
@@ -169,7 +169,7 @@ export default function EstructuraClient({ representatives, availableUsers, sect
                 >
                   <option value="" disabled>Selecciona una sección...</option>
                   {sections.map(s => (
-                    <option key={s.id} value={s.id}>Sección {s.sectionNum}</option>
+                    <option key={s.id} value={s.id}>{s.sectionNum}</option>
                   ))}
                 </select>
               </div>

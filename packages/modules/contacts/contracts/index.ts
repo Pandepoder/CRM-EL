@@ -5,14 +5,14 @@ export type ContactId = EntityId;
 export type ContactSummary = Readonly<{
   contactId: ContactId;
   displayName: string;
-  status: "active";
+  status: "active" | "inactive";
   createdAt: string;
   version: number;
 }>;
 
 export type ContactStatusView = Readonly<{
   contactId: ContactId;
-  status: "active";
+  status: "active" | "inactive";
   version: number;
 }>;
 
@@ -23,7 +23,7 @@ export type ContactListItem = Readonly<{
   colony: string | null;
   availability: string | null;
   skill: string | null;
-  status: "active";
+  status: "active" | "inactive";
   createdAt: string;
   territoryColonyName: string | null;
   responsibleName: string | null;
@@ -34,13 +34,17 @@ export type ContactDetail = Readonly<{
   contactId: ContactId;
   displayName: string;
   phoneNumber: string | null;
-  status: "active";
+  status: "active" | "inactive";
   createdAt: string;
   territory: {
     colonyId: string;
     colonyName: string | null;
     linkedAt: string;
     linkedByUserId: string | null;
+  } | null;
+  section: {
+    sectionId: string;
+    sectionNum: number;
   } | null;
   assignment: {
     assignedUserId: string;

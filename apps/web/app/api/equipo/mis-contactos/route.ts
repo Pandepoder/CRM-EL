@@ -1,6 +1,5 @@
 import { DevelopmentLogger } from "@tonala/shared/observability";
 import { listContacts } from "@tonala/modules/contacts/application";
-import { createEntityId } from "@tonala/shared/kernel";
 
 import { createCrmDependencies } from "@/lib/crm-deps";
 import { getDatabaseClient } from "@/lib/db-client";

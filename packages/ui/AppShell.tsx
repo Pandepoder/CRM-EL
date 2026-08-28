@@ -4,10 +4,8 @@ import {
   Users, 
   BarChart, 
   MessageSquare, 
-  AlertTriangle, 
   LogOut,
   User,
-  Inbox,
   CalendarCheck,
   FileText,
   Megaphone,
@@ -42,6 +40,7 @@ const getIconForNavKey = (key: string, size = 18) => {
     case "estructura": return <Landmark size={size} />;
     case "inbox": return <Headset size={size} />;
     case "mapa": return <MapIcon size={size} />;
+    case "admin-incidencias": return <FileText size={size} />;
     case "admin-inbox": return <FileText size={size} />;
     case "reportes": return <Megaphone size={size} />;
     case "logistica": return <Package size={size} />;

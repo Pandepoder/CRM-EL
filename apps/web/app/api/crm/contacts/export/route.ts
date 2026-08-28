@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
@@ -37,13 +37,18 @@ export async function GET(req: NextRequest) {
   });
 
   const headers = [
-    "Nombre Completo", "Tel�fono", "Email", "Colonia", "Profesi�n", 
+    "Nombre Completo", "Teléfono", "Email", "Colonia", "Profesión", 
     "Habilidad", "Disponibilidad", "Intereses", "Fecha Registro"
   ];
 
   const escapeCsv = (str: string | null | undefined) => {
     if (!str) return '""';
-    return `"${str.toString().replace(/"/g, '""')}"`;
+    let clean = str.toString();
+    // Neutralize Formula Injection / DDE execution in Excel
+    if (/^[=+\-@\t\r]/.test(clean)) {
+      clean = `'${clean}`;
+    }
+    return `"${clean.replace(/"/g, '""')}"`;
   };
 
   const csvRows = rows.map(r => [

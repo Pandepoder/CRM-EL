@@ -45,6 +45,8 @@ export async function createContactAction(formData: FormData) {
       address: (formData.get("address") as string) || null,
       addressNumber: (formData.get("addressNumber") as string) || null,
       colony: (formData.get("colony") as string) || null,
+      municipality: (formData.get("municipality") as string) || null,
+      sectionId: (formData.get("sectionId") as string) || null,
       profession: (formData.get("profession") as string) || null,
       companyOrWork: (formData.get("companyOrWork") as string) || null,
       yearsKnown: yearsKnownStr ? parseInt(yearsKnownStr, 10) : null,

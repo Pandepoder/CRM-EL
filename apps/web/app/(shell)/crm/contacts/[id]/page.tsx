@@ -4,8 +4,10 @@ import { useEffect, useState, use, useCallback } from "react";
 import Link from "next/link";
 import { 
   MapPin, User, Calendar, CheckCircle, Clock, 
-  AlertCircle, X, ChevronRight, Phone, Shield
+  AlertCircle, X, ChevronRight, Phone, Shield, Trash2
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ColonySelector } from "@/components/ColonySelector";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -15,6 +17,7 @@ type ContactDetail = {
   phoneNumber: string | null;
   status: string;
   createdAt: string;
+  section: { sectionId: string; sectionNum: number } | null;
   territory: { colonyId: string; colonyName: string; territoryStatus: string } | null;
   assignment: { assignedUserId: string; assignedUserName: string; assignedAt: string } | null;
   visits: Array<{
@@ -27,7 +30,6 @@ type ContactDetail = {
   }>;
 };
 
-type Colony = { colonyId: string; name: string };
 type UserItem = { userId: string; displayName: string; roleKey?: string };
 
 type ModalType = "territory" | "assignment" | "schedule" | "complete" | null;
@@ -67,6 +69,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
 
   const [detail, setDetail] = useState<ContactDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,10 +78,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   // Modal-specific state
-  const [colonies, setColonies] = useState<Colony[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
-  const [selectedColonyId, setSelectedColonyId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedColonyId, setSelectedColonyId] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [visitLocation, setVisitLocation] = useState("");
   const [outcomeVisitId, setOutcomeVisitId] = useState("");
@@ -104,14 +106,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
-  // Load colonies when territory modal opens
-  useEffect(() => {
-    if (modal === "territory" && colonies.length === 0) {
-      fetch("/api/crm/colonies")
-        .then(r => r.json())
-        .then((data: Colony[]) => setColonies(data));
-    }
-  }, [modal, colonies.length]);
+  // Load catalog data when modal opens
 
   // Load users when assignment or schedule modal opens
   useEffect(() => {
@@ -213,6 +208,24 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function handleDeleteContact() {
+    if (!confirm("¿Estás seguro de que deseas eliminar este contacto? Esta acción lo desactivará.")) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/crm/contacts/${id}`, {
+        method: "DELETE"
+      });
+      if (!res.ok) throw new Error("Error al eliminar contacto");
+      showToast("success", "Contacto eliminado.");
+      setTimeout(() => {
+        router.push("/crm/contacts");
+      }, 1000);
+    } catch {
+      showToast("error", "No se pudo eliminar el contacto.");
+      setSaving(false);
+    }
+  }
+
   // ── Loading / Error states ───────────────────────────────────────────────
 
   if (loading) return (
@@ -257,8 +270,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         ← Volver al directorio
       </Link>
 
+      {/* Alerta de Inactivo */}
+      {detail.status === "inactive" && (
+        <div style={{ marginBottom: "20px", padding: "16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "12px", color: "#991b1b", display: "flex", alignItems: "center", gap: "10px" }}>
+          <AlertCircle size={20} />
+          <div>
+            <strong style={{ display: "block", fontSize: "14px" }}>Contacto Eliminado</strong>
+            <span style={{ fontSize: "13px", opacity: 0.9 }}>Este registro está desactivado. El perfil se encuentra en modo de solo lectura.</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <div style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)", borderRadius: "20px", padding: "32px", color: "white", marginBottom: "24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "20px", flexWrap: "wrap" }}>
+      <div style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)", borderRadius: "20px", padding: "32px", color: "white", marginBottom: "24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "20px", flexWrap: "wrap", filter: detail.status === "inactive" ? "grayscale(100%) opacity(0.8)" : "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
           <div style={{ width: "64px", height: "64px", background: "rgba(255,255,255,0.15)", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <User size={32} />
@@ -277,22 +301,35 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
         </div>
-        <span style={{ padding: "6px 16px", borderRadius: "999px", background: detail.status === "active" ? "#22c55e" : "#64748b", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-          {detail.status === "active" ? "Activo" : detail.status}
-        </span>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <span style={{ padding: "6px 16px", borderRadius: "999px", background: detail.status === "active" ? "#22c55e" : "#64748b", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            {detail.status === "active" ? "Activo" : detail.status}
+          </span>
+          {detail.status !== "inactive" && (
+            <button onClick={handleDeleteContact} disabled={saving} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.15)", border: "none", color: "white", padding: "8px", borderRadius: "10px", cursor: saving ? "not-allowed" : "pointer" }} title="Eliminar Contacto">
+              <Trash2 size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Cards: Territorio + Responsable */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", marginBottom: "24px" }}>
         
         {/* Territorio */}
-        <div style={{ background: "white", borderRadius: "16px", border: "1px solid #f1f5f9", padding: "24px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+        <div style={{ background: "white", borderRadius: "16px", border: "1px solid #f1f5f9", padding: "24px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", opacity: detail.status === "inactive" ? 0.6 : 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
             <div style={{ width: "36px", height: "36px", background: "#eff6ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <MapPin size={18} color="#2563eb" />
             </div>
             <h3 style={{ margin: 0, fontWeight: 700, color: "var(--blue-950)", fontSize: "15px" }}>Territorio Asignado</h3>
           </div>
+          {detail.section && (
+            <div style={{ marginBottom: "12px" }}>
+              <p style={{ margin: "0 0 4px", fontSize: "13px", color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>Sección Electoral</p>
+              <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--blue-900)" }}>{detail.section.sectionNum}</p>
+            </div>
+          )}
           {detail.territory ? (
             <div style={{ marginBottom: "16px" }}>
               <p style={{ margin: "0 0 6px", fontSize: "20px", fontWeight: 800, color: "var(--blue-950)" }}>{detail.territory.colonyName}</p>
@@ -303,16 +340,18 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           ) : (
             <p style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "16px" }}>Sin colonia asignada aún.</p>
           )}
-          <button
-            onClick={() => setModal("territory")}
-            style={{ display: "flex", alignItems: "center", gap: "6px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 16px", cursor: "pointer", fontSize: "13px", fontWeight: 700, color: "#1e3a8a", width: "100%", justifyContent: "center" }}
-          >
-            {detail.territory ? "Cambiar Colonia" : "Asignar Colonia"} <ChevronRight size={14} />
-          </button>
+          {detail.status !== "inactive" && (
+            <button
+              onClick={() => setModal("territory")}
+              style={{ display: "flex", alignItems: "center", gap: "6px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 16px", cursor: "pointer", fontSize: "13px", fontWeight: 700, color: "#1e3a8a", width: "100%", justifyContent: "center" }}
+            >
+              {detail.territory ? "Cambiar Colonia" : "Asignar Colonia"} <ChevronRight size={14} />
+            </button>
+          )}
         </div>
 
         {/* Responsable */}
-        <div style={{ background: "white", borderRadius: "16px", border: "1px solid #f1f5f9", padding: "24px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+        <div style={{ background: "white", borderRadius: "16px", border: "1px solid #f1f5f9", padding: "24px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", opacity: detail.status === "inactive" ? 0.6 : 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
             <div style={{ width: "36px", height: "36px", background: "#f5f3ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Shield size={18} color="#7c3aed" />
@@ -329,12 +368,14 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           ) : (
             <p style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "16px" }}>Sin responsable asignado.</p>
           )}
-          <button
-            onClick={() => setModal("assignment")}
-            style={{ display: "flex", alignItems: "center", gap: "6px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 16px", cursor: "pointer", fontSize: "13px", fontWeight: 700, color: "#5b21b6", width: "100%", justifyContent: "center" }}
-          >
-            {detail.assignment ? "Reasignar Responsable" : "Asignar Responsable"} <ChevronRight size={14} />
-          </button>
+          {detail.status !== "inactive" && (
+            <button
+              onClick={() => setModal("assignment")}
+              style={{ display: "flex", alignItems: "center", gap: "6px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 16px", cursor: "pointer", fontSize: "13px", fontWeight: 700, color: "#5b21b6", width: "100%", justifyContent: "center" }}
+            >
+              {detail.assignment ? "Reasignar Responsable" : "Asignar Responsable"} <ChevronRight size={14} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -352,19 +393,21 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               </span>
             </h3>
           </div>
-          <button
-            onClick={() => setModal("schedule")}
-            style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0f172a", color: "white", border: "none", borderRadius: "10px", padding: "10px 18px", cursor: "pointer", fontSize: "13px", fontWeight: 700 }}
-          >
-            + Programar Visita
-          </button>
+          {detail.status !== "inactive" && (
+            <button
+              onClick={() => setModal("schedule")}
+              style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0f172a", color: "white", border: "none", borderRadius: "10px", padding: "10px 18px", cursor: "pointer", fontSize: "13px", fontWeight: 700 }}
+            >
+              + Programar Visita
+            </button>
+          )}
         </div>
 
         {detail.visits.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>
             <Calendar size={40} style={{ opacity: 0.3, marginBottom: "12px" }} />
             <p style={{ fontWeight: 600 }}>Sin visitas registradas</p>
-            <p style={{ fontSize: "13px" }}>Programa la primera visita con el botón de arriba.</p>
+            <p style={{ fontSize: "13px" }}>{detail.status !== "inactive" ? "Programa la primera visita con el botón de arriba." : ""}</p>
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -407,7 +450,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                       </span>
                     </td>
                     <td style={{ padding: "12px" }}>
-                      {v.status === "scheduled" && (
+                      {v.status === "scheduled" && detail.status !== "inactive" && (
                         <button
                           onClick={() => { setOutcomeVisitId(v.visitId); setModal("complete"); }}
                           style={{ display: "flex", alignItems: "center", gap: "4px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#1d4ed8", whiteSpace: "nowrap" }}
@@ -432,20 +475,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           <p style={{ color: "var(--muted)", fontSize: "13px", marginBottom: "16px" }}>
             Selecciona la colonia donde reside o trabaja este ciudadano.
           </p>
-          <label style={{ display: "block", fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#64748b", marginBottom: "8px" }}>
-            Colonia
-          </label>
-          <select
-            value={selectedColonyId}
-            onChange={e => setSelectedColonyId(e.target.value)}
-            style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "14px", marginBottom: "20px", background: "#f8fafc", outline: "none" }}
-          >
-            <option value="">Seleccionar colonia...</option>
-            {colonies.map(c => (
-              <option key={c.colonyId} value={c.colonyId}>{c.name}</option>
-            ))}
-          </select>
-          {colonies.length === 0 && <p style={{ color: "var(--muted)", fontSize: "13px", textAlign: "center", marginBottom: "16px" }}>Cargando colonias...</p>}
+          <div className="mb-5">
+            <ColonySelector onSelect={(colonyId) => setSelectedColonyId(colonyId)} />
+          </div>
           <div style={{ display: "flex", gap: "10px" }}>
             <button onClick={() => setModal(null)} style={{ flex: 1, padding: "12px", border: "1px solid #e2e8f0", borderRadius: "10px", background: "white", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
               Cancelar

@@ -1,5 +1,5 @@
 import { sql, type SQL } from "drizzle-orm";
-import { type Database } from "@tonala/shared/database";
+import { type Database, decryptData, encryptData } from "@tonala/shared/database";
 import { createEntityId } from "@tonala/shared/kernel";
 
 import { type ContactsReader, type ContactRegisteredV1 } from "../contracts/index.js";
@@ -60,7 +60,7 @@ export class DrizzleContactRepository implements ContactRepository {
       VALUES (
         ${contact.contactId},
         ${contact.displayName},
-        ${contact.phoneNumber},
+        ${encryptData(contact.phoneNumber ?? null)},
         ${contact.status},
         ${contact.createdByUserId},
         ${contact.createdAt.toISOString()},
@@ -73,7 +73,7 @@ export class DrizzleContactRepository implements ContactRepository {
     const result = await this.db.execute<{
       contact_id: string;
       display_name: string;
-      status: "active";
+      status: "active" | "inactive";
       created_at: Date;
       version: number;
     }>(sql`
@@ -106,7 +106,7 @@ export class DrizzleContactsReader implements ContactsReader {
   public async getContactStatus(contactId: ReturnType<typeof createEntityId>) {
     const result = await this.db.execute<{
       contact_id: string;
-      status: "active";
+      status: "active" | "inactive";
       version: number;
     }>(sql`
       SELECT id::text AS contact_id, status, version
@@ -131,6 +131,7 @@ export class DrizzleContactsReader implements ContactsReader {
     pageSize?: number;
   }) {
     const conditions = [];
+    conditions.push(sql`c.status = 'active'`);
     if (options?.assignedUserId) {
       conditions.push(sql`ca.assigned_user_id = ${options.assignedUserId} AND ca.assignment_status = 'active'`);
     }
@@ -162,7 +163,7 @@ export class DrizzleContactsReader implements ContactsReader {
       colony: string | null;
       availability: string | null;
       skill: string | null;
-      status: "active";
+      status: "active" | "inactive";
       createdAt: Date;
       territoryColonyName: string | null;
       responsibleName: string | null;
@@ -198,6 +199,10 @@ export class DrizzleContactsReader implements ContactsReader {
     return {
       items: result.rows.map(row => ({
         ...row,
+        phone: decryptData(row.phone),
+        colony: decryptData(row.colony),
+        availability: decryptData(row.availability),
+        skill: decryptData(row.skill),
         contactId: createEntityId(row.contactId),
         createdAt: new Date(row.createdAt).toISOString()
       })),
@@ -210,8 +215,10 @@ export class DrizzleContactsReader implements ContactsReader {
       contactId: string;
       displayName: string;
       phoneNumber: string | null;
-      status: "active";
+      status: "active" | "inactive";
       createdAt: Date;
+      sectionId: string | null;
+      sectionNum: number | null;
       colonyId: string | null;
       colonyName: string | null;
       linkedAt: Date | null;
@@ -230,6 +237,8 @@ export class DrizzleContactsReader implements ContactsReader {
         c.phone AS "phoneNumber",
         c.status,
         c.created_at AS "createdAt",
+        c.section_id::text AS "sectionId",
+        es.section_num AS "sectionNum",
         ct.colony_id::text AS "colonyId",
         col.name AS "colonyName",
         ct.linked_at AS "linkedAt",
@@ -240,6 +249,7 @@ export class DrizzleContactsReader implements ContactsReader {
         ca.assigned_at AS "assignedAt",
         ca.assigned_by_user_id::text AS "assignedByUserId"
       FROM contacts c
+      LEFT JOIN electoral_sections es ON es.id = c.section_id
       LEFT JOIN contact_territory ct ON ct.contact_id = c.id AND ct.territory_status = 'confirmed'
       LEFT JOIN colonies col ON col.id = ct.colony_id
       LEFT JOIN contact_assignments ca ON ca.contact_id = c.id
@@ -276,9 +286,13 @@ export class DrizzleContactsReader implements ContactsReader {
     return {
       contactId: createEntityId(row.contactId),
       displayName: row.displayName,
-      phoneNumber: row.phoneNumber,
+      phoneNumber: decryptData(row.phoneNumber),
       status: row.status,
       createdAt: new Date(row.createdAt).toISOString(),
+      section: row.sectionId ? {
+        sectionId: row.sectionId,
+        sectionNum: row.sectionNum!
+      } : null,
       territory: row.colonyId ? {
         colonyId: row.colonyId,
         colonyName: row.colonyName,

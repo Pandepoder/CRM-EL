@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { name, leaderId, zone } = await request.json();
+    const { name, leaderId, zone, municipality, section } = await request.json();
     if (!name || !leaderId) {
       return NextResponse.json({ error: "Name and leaderId are required" }, { status: 400 });
     }
@@ -20,6 +20,8 @@ export async function POST(request: Request) {
       name,
       leaderId,
       zone: zone || null,
+      municipality: municipality || null,
+      section: section || null,
     }).returning({ id: schema.teams.id });
 
     return NextResponse.json({ success: true, id: team!.id });

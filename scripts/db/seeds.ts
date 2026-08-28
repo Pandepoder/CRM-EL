@@ -1,7 +1,7 @@
 import argon2 from "argon2";
 import pg from "pg";
 
-import { catalogSeed, colonySeeds, demoUserSeeds, roleSeeds } from "./seed-data.js";
+import { catalogSeed, colonySeeds, demoUserSeeds, roleSeeds, electoralSectionSeeds } from "./seed-data.js";
 
 export type SeedResult = {
   readonly roles: number;
@@ -50,15 +50,52 @@ export async function seedDatabase(connectionString: string): Promise<SeedResult
       throw new Error("Catalog version seed did not return an id");
     }
 
-    for (const colonyName of colonySeeds) {
-      await pool.query(
+    const colonyIdMap = new Map<string, string>();
+
+    for (const colony of colonySeeds) {
+      const res = await pool.query<{ id: string }>(
         `
-          INSERT INTO colonies (catalog_version_id, name)
-          VALUES ($1, $2)
-          ON CONFLICT (catalog_version_id, name) DO UPDATE SET status = 'active'
+          INSERT INTO colonies (catalog_version_id, name, postal_code, municipality)
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT (catalog_version_id, name) DO UPDATE 
+          SET status = 'active', postal_code = EXCLUDED.postal_code, municipality = EXCLUDED.municipality
+          RETURNING id
         `,
-        [catalogVersionId, colonyName]
+        [catalogVersionId, colony.name, colony.postalCode, colony.municipality]
       );
+      if (res.rows[0]) {
+        colonyIdMap.set(colony.name, res.rows[0].id);
+      }
+    }
+
+    for (const section of electoralSectionSeeds) {
+      const secRes = await pool.query<{ id: string }>(
+        `
+          INSERT INTO electoral_sections (section_num, geom_json)
+          VALUES ($1, $2)
+          ON CONFLICT (section_num) DO UPDATE 
+          SET geom_json = EXCLUDED.geom_json
+          RETURNING id
+        `,
+        [section.sectionNum, JSON.stringify(section.geom)]
+      );
+      
+      const sectionId = secRes.rows[0]?.id;
+      if (sectionId) {
+        for (const colonyName of section.colonies) {
+          const colonyId = colonyIdMap.get(colonyName);
+          if (colonyId) {
+            await pool.query(
+              `
+                INSERT INTO section_colonies (section_id, colony_id)
+                VALUES ($1, $2)
+                ON CONFLICT (section_id, colony_id) DO NOTHING
+              `,
+              [sectionId, colonyId]
+            );
+          }
+        }
+      }
     }
 
     // Hashear la contraseña demo una vez antes de la transacción.

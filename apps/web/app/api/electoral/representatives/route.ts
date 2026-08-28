@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     if (error.code === '23505') {
-       return NextResponse.json({ error: "El usuario ya esto asignado a esta seccin" }, { status: 400 });
+       return NextResponse.json({ error: "El usuario ya está asignado a esta sección" }, { status: 400 });
     }
     console.error("Failed to assign representative:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

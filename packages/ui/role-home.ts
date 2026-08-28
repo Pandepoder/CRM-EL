@@ -42,6 +42,7 @@ export const primaryNavItems: Record<NavSectionKey, NavItemConfig[]> = {
   ],
   territorio: [
     { href: "/mapa", label: "Mapa en Vivo", key: "mapa", allowedRoles: "all" },
+    { href: "/admin-incidencias", label: "Gestión de Incidencias", key: "admin-incidencias", allowedRoles: ["admin"] },
     { href: "/admin-inbox", label: "Auditoría de Eventos", key: "admin-inbox", allowedRoles: ["admin", "direction", "territorial_coordinator"] },
     { href: "/reportes", label: "Alta Eventos", key: "reportes", allowedRoles: "all" },
     { href: "/logistica", label: "Logística e Inventarios", key: "logistica", allowedRoles: [] }

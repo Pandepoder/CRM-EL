@@ -34,6 +34,8 @@ export type ExtendedContactInput = Readonly<{
   availability?: string | null;
   interests?: string | null;
   pastSupport?: string | null;
+  municipality?: string | null;
+  sectionId?: string | null;
 }>;
 
 export interface ExtendedContactRepository {

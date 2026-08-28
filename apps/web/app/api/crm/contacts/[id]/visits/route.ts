@@ -1,8 +1,9 @@
-import { listVisitsByContact } from "@tonala/modules/visits/application";
+import { listVisitsByContact, scheduleVisit } from "@tonala/modules/visits/application";
 import { DevelopmentLogger } from "@tonala/shared/observability";
 
 import { getDatabaseClient } from "@/lib/db-client";
-import { createCrmDependencies } from "@/lib/crm-deps";
+import { createCrmDependencies, createVisitsMutationsDependencies } from "@/lib/crm-deps";
+import { processOutboxInline } from "@/lib/outbox";
 import { actorFromSession, permissionChecker, resultToResponse, unauthorized } from "@/lib/api-helpers";
 
 export async function GET(
@@ -23,10 +24,6 @@ export async function GET(
 
   return resultToResponse(result);
 }
-
-import { scheduleVisit } from "@tonala/modules/visits/application";
-import { createVisitsMutationsDependencies } from "@/lib/crm-deps";
-import { processOutboxInline } from "@/lib/outbox";
 
 export async function POST(
   request: Request,

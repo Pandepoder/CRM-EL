@@ -1,0 +1,2 @@
+ALTER TABLE "contacts" ADD COLUMN "section_id" uuid;--> statement-breakpoint
+ALTER TABLE "contacts" ADD CONSTRAINT "contacts_section_id_electoral_sections_id_fk" FOREIGN KEY ("section_id") REFERENCES "public"."electoral_sections"("id") ON DELETE no action ON UPDATE no action;

@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { encryptData } from "@tonala/shared/database";
 
 import { type ExtendedContactInput, type ExtendedContactRepository } from "../application/register-extended-contact.js";
 import {
@@ -28,29 +29,31 @@ export class DrizzleExtendedContactRepository implements ExtendedContactReposito
       INSERT INTO contacts (
         id, display_name, first_name, last_name, maternal_last_name,
         referred_by_user_id, birth_date, phone, email, address, address_number,
-        colony, profession, company_or_work, years_known, skill, availability,
+        colony, municipality, section_id, profession, company_or_work, years_known, skill, availability,
         interests, past_support, status, created_by_user_id, created_at, version
       )
       VALUES (
         ${contact.contactId},
         ${contact.displayName},
-        ${extended.firstName ?? null},
-        ${extended.lastName ?? null},
-        ${extended.maternalLastName ?? null},
+        ${encryptData(extended.firstName ?? null)},
+        ${encryptData(extended.lastName ?? null)},
+        ${encryptData(extended.maternalLastName ?? null)},
         ${extended.referredByUserId ?? null},
         ${extended.birthDate?.toISOString() ?? null},
-        ${extended.phone ?? null},
-        ${extended.email ?? null},
-        ${extended.address ?? null},
-        ${extended.addressNumber ?? null},
-        ${extended.colony ?? null},
-        ${extended.profession ?? null},
-        ${extended.companyOrWork ?? null},
+        ${encryptData(extended.phone ?? contact.phoneNumber ?? null)},
+        ${encryptData(extended.email ?? null)},
+        ${encryptData(extended.address ?? null)},
+        ${encryptData(extended.addressNumber ?? null)},
+        ${encryptData(extended.colony ?? null)},
+        ${encryptData(extended.municipality ?? null)},
+        ${extended.sectionId ?? null},
+        ${encryptData(extended.profession ?? null)},
+        ${encryptData(extended.companyOrWork ?? null)},
         ${extended.yearsKnown ?? null},
-        ${extended.skill ?? null},
-        ${extended.availability ?? null},
-        ${extended.interests ?? null},
-        ${extended.pastSupport ?? null},
+        ${encryptData(extended.skill ?? null)},
+        ${encryptData(extended.availability ?? null)},
+        ${encryptData(extended.interests ?? null)},
+        ${encryptData(extended.pastSupport ?? null)},
         ${contact.status},
         ${contact.createdByUserId},
         ${contact.createdAt.toISOString()},

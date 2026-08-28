@@ -3,7 +3,7 @@ import {
   type Database
 } from "@tonala/shared/database";
 
-import { getDatabasePool } from "@/lib/db";
+import { getDatabasePool } from "./db.js";
 
 declare global {
   var __tonalaDb: Database | undefined;

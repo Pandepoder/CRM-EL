@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { createContactAction } from "../actions";
 import Link from "next/link";
 import { ArrowLeft, Save, User, MapPin, Briefcase, ChevronDown } from "lucide-react";
+import { ColonySelector } from "@/components/ColonySelector";
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/session-server";
 
@@ -19,6 +20,12 @@ const session = await getServerSession();
     displayName: schema.userProfiles.displayName,
     roleId: schema.userProfiles.roleId
   }).from(schema.userProfiles).where(eq(schema.userProfiles.status, "active"));
+
+  // Fetch electoral sections
+  const sections = await db.select({
+    id: schema.electoralSections.id,
+    sectionNum: schema.electoralSections.sectionNum
+  }).from(schema.electoralSections).orderBy(schema.electoralSections.sectionNum);
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -87,17 +94,33 @@ const session = await getServerSession();
               <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Correo Electrónico</label>
               <input type="email" name="email" placeholder="ejemplo@correo.com" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all" />
             </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Domicilio (Calle)</label>
-              <input type="text" name="address" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all" />
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+            <div className="col-span-1 md:col-span-1">
+              <ColonySelector />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Número Exterior/Interior</label>
-              <input type="text" name="addressNumber" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all" />
+            <div className="col-span-1 md:col-span-1">
+              <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Sección Electoral</label>
+              <div className="relative">
+                <select name="sectionId" defaultValue="" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg appearance-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-gray-800 cursor-pointer">
+                  <option value="">No especificada</option>
+                  {sections.map(s => (
+                    <option key={s.id} value={s.id}>{s.sectionNum}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Colonia</label>
-              <input type="text" name="colony" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all" />
+            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Calle</label>
+                <input type="text" name="address" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Número Exterior / Interior</label>
+                <input type="text" name="addressNumber" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all" />
+              </div>
             </div>
           </div>
         </section>

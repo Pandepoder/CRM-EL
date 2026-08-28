@@ -3,11 +3,9 @@ import { NextResponse } from "next/server";
 
 import {
   Permission,
-  PermissionChecker,
   requirePermission,
   type ActorContext
 } from "@tonala/shared/auth";
-import { type TonalaOsError } from "@tonala/shared/errors";
 
 import { actorFromSession, unauthorized, permissionChecker } from "@/lib/api-helpers";
 import { getHomePathForRole } from "@tonala/ui";

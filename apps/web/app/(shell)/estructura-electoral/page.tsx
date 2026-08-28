@@ -2,14 +2,13 @@ import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import EstructuraClient from "./EstructuraClient";
 
 import { requirePageRole } from "@/lib/authorization";
 
 export default async function EstructuraPage() {
   await requirePageRole("admin", "direction", "territorial_coordinator");
-  const session = await getServerSession();
+  const _session = await getServerSession();
 
   const db = getDatabaseClient();
 
@@ -28,7 +27,7 @@ export default async function EstructuraPage() {
       .from(schema.electoralRepresentatives)
       .innerJoin(schema.electoralSections, eq(schema.electoralRepresentatives.sectionId, schema.electoralSections.id))
       .innerJoin(schema.userProfiles, eq(schema.electoralRepresentatives.userId, schema.userProfiles.id));
-  } catch (err) {
+  } catch (_err) {
     console.warn("Table electoral_representatives not found yet, returning empty list");
     representatives = [];
   }
@@ -44,7 +43,7 @@ export default async function EstructuraPage() {
       id: schema.electoralSections.id,
       sectionNum: schema.electoralSections.sectionNum
     }).from(schema.electoralSections).orderBy(schema.electoralSections.sectionNum);
-  } catch (err) {
+  } catch (_err) {
     console.warn("Table electoral_sections not found yet, returning empty list");
     sections = [];
   }

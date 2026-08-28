@@ -16,6 +16,7 @@
     "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
+      "@/*": ["apps/web/src/*"],
       "@tonala/shared/projections/public": ["packages/shared/projections/public.ts"],
       "@tonala/shared/projections": ["packages/shared/projections/public.ts"],
       "@tonala/shared/projections/infrastructure": ["packages/shared/projections/infrastructure/index.ts"],

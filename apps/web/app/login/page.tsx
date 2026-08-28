@@ -1,15 +1,14 @@
-﻿"use client";
+"use client";
 
 import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ShieldCheck, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const from = searchParams.get("from") || "/crm";
-  
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -20,20 +19,24 @@ function LoginForm() {
     setError("");
     setLoading(true);
 
+    const formData = new FormData(event.currentTarget);
+    const formEmail = formData.get("email") as string;
+    const formPassword = formData.get("password") as string;
+
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: formEmail, password: formPassword })
       });
-      const data = await response.json() as { message?: string };
-      
+      const data = await response.json() as { message?: string; redirectTo?: string };
+
       if (!response.ok) {
         setError(data.message ?? "Credenciales inválidas.");
         return;
       }
-      router.push(from);
-      router.refresh();
+      const target = from && from !== "/login" && from !== "/" ? from : (data.redirectTo || "/crm");
+      window.location.href = target;
     } catch {
       setError("Error de conexión. Intenta de nuevo.");
     } finally {
@@ -49,7 +52,7 @@ function LoginForm() {
           {error}
         </div>
       ) : null}
-      
+
       <div className="modern-input-wrapper">
         <label htmlFor="email">Correo Institucional</label>
         <Mail size={18} className="modern-input-icon" />
@@ -85,8 +88,8 @@ function LoginForm() {
       <div className="modern-checkbox-group">
         <input type="checkbox" id="terms" required />
         <label htmlFor="terms">
-          Al acceder a este sistema, confirmo que tengo autorización estricta para manejar datos ciudadanos y acepto los 
-          <Link href="/terminos"> Términos de Uso</Link> y la 
+          Al acceder a este sistema, confirmo que tengo autorización estricta para manejar datos ciudadanos y acepto los
+          <Link href="/terminos"> Términos de Uso</Link> y la
           <Link href="/privacidad"> Política de Privacidad</Link>.
         </label>
       </div>
@@ -126,8 +129,9 @@ export default function LoginPage() {
           <LoginForm />
         </Suspense>
       </div>
-      
-      <style dangerouslySetInnerHTML={{__html: `
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }

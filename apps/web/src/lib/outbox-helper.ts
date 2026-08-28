@@ -1,6 +1,7 @@
 import { getDatabaseClient } from "./db-client";
 import { schema } from "@tonala/shared/database";
 import { randomUUID } from "crypto";
+import { processOutboxInline } from "./outbox";
 
 export async function withOutbox<T>(
   aggregateType: string,
@@ -12,8 +13,8 @@ export async function withOutbox<T>(
 ): Promise<T> {
   const db = getDatabaseClient();
   
-  return db.transaction(async (tx) => {
-    const result = await transactionCallback(tx);
+  const result = await db.transaction(async (tx) => {
+    const callbackResult = await transactionCallback(tx);
     
     const eventId = randomUUID();
     await tx.insert(schema.transactionalOutbox).values({
@@ -37,6 +38,14 @@ export async function withOutbox<T>(
       attempts: 0
     });
     
-    return result;
+    return callbackResult;
   });
+
+  try {
+    await processOutboxInline(db);
+  } catch (err) {
+    console.warn("Inline outbox processing error (will be picked up by background worker):", err);
+  }
+
+  return result;
 }

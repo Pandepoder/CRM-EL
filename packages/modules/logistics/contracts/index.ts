@@ -3,6 +3,8 @@ export type InventoryItemDTO = {
   warehouseId: string;
   sku: string;
   name: string;
+  description?: string | null;
+  imageUrl?: string | null;
   quantity: number;
   category: string;
   createdAt: Date;

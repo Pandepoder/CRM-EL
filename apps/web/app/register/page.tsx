@@ -30,7 +30,6 @@ export default function RegisterPage() {
         return;
       }
       router.push(data.redirectTo ?? "/onboarding");
-      router.refresh();
     } catch {
       setError("Error de conexion. Intenta de nuevo.");
     } finally {

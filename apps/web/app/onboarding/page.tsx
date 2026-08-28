@@ -2,6 +2,7 @@ import { completeOnboardingAction } from "./actions";
 import { User, MapPin, Briefcase, ChevronRight, ChevronDown } from "lucide-react";
 import { getServerSession } from "@/lib/session-server";
 import { redirect } from "next/navigation";
+import { ColonySelector } from "@/components/ColonySelector";
 
 export default async function OnboardingPage() {
   const session = await getServerSession();
@@ -58,14 +59,13 @@ export default async function OnboardingPage() {
               <h2 className="text-xl font-bold text-gray-800">Contacto y Zona Operativa</h2>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Celular *</label>
                 <input type="tel" name="phone" required placeholder="10 dígitos" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-gray-800" />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Colonia / Zona Asignada *</label>
-                <input type="text" name="colony" required className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-gray-800" placeholder="Ej. Centro Tonalá" />
+              <div className="w-full">
+                <ColonySelector />
               </div>
             </div>
           </section>

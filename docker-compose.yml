@@ -5,16 +5,53 @@ services:
     ports:
       - "54329:5432"
     environment:
-      POSTGRES_DB: tonala_os
-      POSTGRES_USER: tonala
-      POSTGRES_PASSWORD: tonala_dev_password
+      POSTGRES_DB: ${POSTGRES_DB:-tonala_os}
+      POSTGRES_USER: ${POSTGRES_USER:-tonala}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tonala_dev_password}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tonala -d tonala_os"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-tonala} -d $${POSTGRES_DB:-tonala_os}"]
       interval: 5s
       timeout: 3s
       retries: 20
     volumes:
       - tonala_os_postgres_data:/var/lib/postgresql/data
 
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tonala-os-web
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgres://${POSTGRES_USER:-tonala}:${POSTGRES_PASSWORD:-tonala_dev_password}@db:5432/${POSTGRES_DB:-tonala_os}
+      - ALLOW_PUBLIC_REGISTRATION=${ALLOW_PUBLIC_REGISTRATION:-false}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - DATABASE_ENCRYPTION_KEY=${DATABASE_ENCRYPTION_KEY}
+      - PORT=3000
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.7-alpine
+    container_name: tonala-os-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
 volumes:
   tonala_os_postgres_data:
+  caddy_data:
+  caddy_config:

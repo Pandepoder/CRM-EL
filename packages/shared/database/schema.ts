@@ -84,6 +84,8 @@ export const colonies = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     catalogVersionId: uuid("catalog_version_id").notNull().references(() => catalogVersions.id),
     name: text("name").notNull(),
+    postalCode: text("postal_code"),
+    municipality: text("municipality"),
     status: text("status").notNull().default("active"),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -104,6 +106,7 @@ export const contacts = pgTable(
 
     // CRM Extended Fields
     referredByUserId: uuid("referred_by_user_id").references(() => userProfiles.id),
+    sectionId: uuid("section_id").references(() => electoralSections.id),
     firstName: encryptedText("first_name"),
     lastName: encryptedText("last_name"),
     maternalLastName: encryptedText("maternal_last_name"),
@@ -113,6 +116,7 @@ export const contacts = pgTable(
     address: encryptedText("address"),
     addressNumber: encryptedText("address_number"),
     colony: encryptedText("colony"),
+    municipality: encryptedText("municipality"),
     profession: encryptedText("profession"),
     companyOrWork: encryptedText("company_or_work"),
     yearsKnown: integer("years_known"),
@@ -122,7 +126,7 @@ export const contacts = pgTable(
     pastSupport: encryptedText("past_support")
   },
   (table) => [
-    check("contacts_status_check", sql`${table.status} IN ('active')`),
+    check("contacts_status_check", sql`${table.status} IN ('active', 'inactive')`),
     check("contacts_version_check", sql`${table.version} >= 1`)
   ]
 );
@@ -432,12 +436,17 @@ export const eventReports = pgTable(
     latitude: doublePrecision("latitude").notNull(),
     longitude: doublePrecision("longitude").notNull(),
     category: text("category").notNull(),
+    municipality: text("municipality"),
+    district: text("district"),
+    sectionId: uuid("section_id").references(() => electoralSections.id),
+    assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
+    eventDate: timestamp("event_date", { withTimezone: true }),
     status: text("status").notNull().default("active"),
     createdByUserId: uuid("created_by_user_id").notNull().references(() => userProfiles.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
-    check("event_reports_category_check", sql`${table.category} IN ('emergencia', 'incidencia', 'mitin', 'propaganda', 'servicios', 'sospechoso', 'brigada')`)
+    check("event_reports_category_check", sql`${table.category} IN ('emergencia', 'incidencia', 'mitin', 'propaganda', 'servicios', 'sospechoso', 'brigada', 'bache', 'alumbrado', 'fuga_agua', 'inundacion', 'basura', 'seguridad', 'lona_danada')`)
   ]
 );
 
@@ -448,6 +457,8 @@ export const teams = pgTable(
     name: text("name").notNull(),
     leaderId: uuid("leader_id").notNull().references(() => userProfiles.id),
     zone: text("zone"),
+    municipality: text("municipality"),
+    section: text("section"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   }
 );
@@ -495,6 +506,8 @@ export const inventoryItems = pgTable("inventory_items", {
   warehouseId: uuid("warehouse_id").notNull().references(() => warehouses.id),
   sku: text("sku").notNull(),
   name: text("name").notNull(),
+  description: text("description"),
+  imageUrl: text("image_url"),
   quantity: integer("quantity").notNull().default(0),
   category: text("category").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

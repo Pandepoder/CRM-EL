@@ -2,7 +2,6 @@ import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import ProfileClient from "./ProfileClient";
 
 import { requirePageRole } from "@/lib/authorization";

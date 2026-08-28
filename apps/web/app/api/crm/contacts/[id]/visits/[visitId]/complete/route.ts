@@ -13,7 +13,7 @@ export async function POST(
   const actor = await actorFromSession();
   if (!actor) return unauthorized();
 
-  const { id, visitId } = await params;
+  const { visitId } = await params;
   const body = (await request.json()) as { structuredOutcome: string; summary?: string };
   const db = getDatabaseClient();
   const deps = await createVisitsMutationsDependencies(db);

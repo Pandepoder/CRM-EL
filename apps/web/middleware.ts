@@ -8,7 +8,7 @@ const publicPaths = new Set(["/", "/login", "/register"]);
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith("/api/auth") || pathname.startsWith("/_next")) {
+  if (pathname.startsWith("/api/auth") || pathname === "/api/health" || pathname.startsWith("/_next")) {
     return NextResponse.next();
   }
 

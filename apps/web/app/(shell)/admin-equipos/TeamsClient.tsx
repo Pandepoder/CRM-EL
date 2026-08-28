@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 // @ts-ignore
-import { Users, Plus, ShieldAlert, MapPin, Shield, X, MoreVertical, Edit, Trash } from "lucide-react";
+import { Users, Plus, ShieldAlert, MapPin, Shield, X, Edit, Trash } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -12,6 +12,8 @@ type Team = {
   zone: string | null;
   leaderName: string | null;
   leaderId: string;
+  municipality?: string | null;
+  section?: string | null;
 };
 
 type UserProfile = {
@@ -29,19 +31,19 @@ export default function TeamsClient({ teams, users }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", leaderId: "", zone: "" });
+  const [form, setForm] = useState({ name: "", leaderId: "", zone: "", municipality: "Guadalajara", section: "" });
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   function openCreateModal() {
     setEditingId(null);
-    setForm({ name: "", leaderId: "", zone: "" });
+    setForm({ name: "", leaderId: "", zone: "", municipality: "Guadalajara", section: "" });
     setShowModal(true);
   }
 
   function openEditModal(t: Team) {
     setEditingId(t.id);
-    setForm({ name: t.name, leaderId: t.leaderId, zone: t.zone || "" });
+    setForm({ name: t.name, leaderId: t.leaderId, zone: t.zone || "", municipality: t.municipality || "Guadalajara", section: t.section || "" });
     setShowModal(true);
   }
 
@@ -60,7 +62,7 @@ export default function TeamsClient({ teams, users }: Props) {
       });
       if (res.ok) {
         setShowModal(false);
-        setForm({ name: "", leaderId: "", zone: "" });
+        setForm({ name: "", leaderId: "", zone: "", municipality: "Guadalajara", section: "" });
         router.refresh();
       } else {
         alert("Error al guardar equipo");
@@ -140,6 +142,7 @@ export default function TeamsClient({ teams, users }: Props) {
                     </td>
                     <td className="p-4 text-gray-600">
                       <span className="flex items-center gap-1"><MapPin size={16} className="text-gray-400"/> {t.zone || "Global"}</span>
+                      <div className="text-xs text-gray-400 mt-1">{t.municipality || ""} {t.section ? `- Sec. ${t.section}` : ""}</div>
                     </td>
                     <td className="p-4 pr-6 text-right space-x-2">
                       <Link 
@@ -219,6 +222,29 @@ export default function TeamsClient({ teams, users }: Props) {
                   onChange={e => setForm({...form, zone: e.target.value})}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Municipio</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej. Guadalajara"
+                    value={form.municipality}
+                    onChange={e => setForm({...form, municipality: e.target.value})}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Sección</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej. 1234"
+                    value={form.section}
+                    onChange={e => setForm({...form, section: e.target.value})}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  />
+                </div>
               </div>
 
               <div className="pt-2 flex gap-3">

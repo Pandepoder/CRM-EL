@@ -15,14 +15,16 @@ export async function PATCH(
 
   const { id } = await params;
   try {
-    const { name, leaderId, zone } = await request.json();
+    const { name, leaderId, zone, municipality, section } = await request.json();
     
     const db = getDatabaseClient();
     await db.update(schema.teams)
       .set({
         name: name !== undefined ? name : undefined,
         leaderId: leaderId !== undefined ? leaderId : undefined,
-        zone: zone !== undefined ? (zone || null) : undefined
+        zone: zone !== undefined ? (zone || null) : undefined,
+        municipality: municipality !== undefined ? (municipality || null) : undefined,
+        section: section !== undefined ? (section || null) : undefined
       })
       .where(eq(schema.teams.id, id));
 

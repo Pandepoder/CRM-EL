@@ -6,18 +6,20 @@ import { Calendar, MapPin, CheckCircle, Clock, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-type Visit = {
+type AgendaItem = {
   id: string;
+  type: "visit" | "event";
   status: string;
   scheduledAt: Date;
+  title: string;
   location: string;
-  contactName: string;
-  contactId: string;
+  contactId?: string;
+  category?: string;
 };
 
-export default function AgendaClient({ userVisits, filter }: { userVisits: Visit[], filter: string }) {
+export default function AgendaClient({ items, filter }: { items: AgendaItem[], filter: string }) {
   const router = useRouter();
-  const [modalVisit, setModalVisit] = useState<Visit | null>(null);
+  const [modalVisit, setModalVisit] = useState<AgendaItem | null>(null);
   const [outcome, setOutcome] = useState("successful");
   const [outcomeSummary, setOutcomeSummary] = useState("");
   const [saving, setSaving] = useState(false);
@@ -61,7 +63,7 @@ export default function AgendaClient({ userVisits, filter }: { userVisits: Visit
         </div>
       </div>
 
-      {userVisits.length === 0 ? (
+      {items.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-3xl p-12 text-center shadow-sm flex flex-col items-center">
           <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mb-4">
             <CheckCircle size={40} />
@@ -76,14 +78,14 @@ export default function AgendaClient({ userVisits, filter }: { userVisits: Visit
         </div>
       ) : (
         <div className="grid gap-4">
-          {userVisits.map(v => (
+          {items.map(v => (
             <div key={v.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-md transition-all">
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center shrink-0">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${v.type === 'event' ? 'bg-red-50 text-red-600' : 'bg-orange-50 text-orange-600'}`}>
                   <Calendar size={24} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">{v.contactName}</h3>
+                  <h3 className="text-lg font-bold text-gray-900">{v.title}</h3>
                   <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
                     <span className="flex items-center gap-1"><Clock size={16} /> {new Date(v.scheduledAt).toLocaleString("es-MX", {dateStyle: 'medium', timeStyle: 'short'})}</span>
                     <span className="flex items-center gap-1"><MapPin size={16} /> {v.location}</span>
@@ -93,17 +95,26 @@ export default function AgendaClient({ userVisits, filter }: { userVisits: Visit
               
               <div className="flex flex-col sm:flex-row items-center gap-3">
                 <span className={`px-3 py-1 text-xs font-bold uppercase rounded-full ${v.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                  {v.status === 'completed' ? 'Completada' : 'Pendiente'}
+                  {v.status === 'completed' ? 'Completada' : (v.type === 'event' ? 'Reporte' : 'Pendiente')}
                 </span>
-                <Link href={`/crm/${v.contactId}`} className="px-4 py-2 bg-gray-50 text-gray-700 font-bold rounded-lg border border-gray-200 hover:bg-gray-100 transition-all text-sm">
-                  Ver Ficha
-                </Link>
-                {v.status !== 'completed' && (
+                
+                {v.type === 'visit' && v.contactId && (
+                  <Link href={`/crm/${v.contactId}`} className="px-4 py-2 bg-gray-50 text-gray-700 font-bold rounded-lg border border-gray-200 hover:bg-gray-100 transition-all text-sm">
+                    Ver Ficha
+                  </Link>
+                )}
+                
+                {v.type === 'visit' && v.status !== 'completed' && (
                   <button 
                     onClick={() => setModalVisit(v)}
                     className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-sm transition-all text-sm"
                   >
                     Reportar Resultado
+                  </button>
+                )}
+                {v.type === 'event' && v.status !== 'resolved' && (
+                  <button className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 shadow-sm transition-all text-sm">
+                    Atender
                   </button>
                 )}
               </div>
@@ -122,7 +133,7 @@ export default function AgendaClient({ userVisits, filter }: { userVisits: Visit
             </div>
             <form onSubmit={handleCompleteVisit} className="p-6 space-y-5">
               <p className="text-sm text-gray-500 mb-2">
-                Reporta la visita realizada a <strong>{modalVisit.contactName}</strong> el {new Date(modalVisit.scheduledAt).toLocaleDateString("es-MX")}.
+                Reporta la visita realizada a <strong>{modalVisit.title}</strong> el {new Date(modalVisit.scheduledAt).toLocaleDateString("es-MX")}.
               </p>
               
               <div>

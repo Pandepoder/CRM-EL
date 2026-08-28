@@ -5,6 +5,7 @@ import { requirePageRole } from "@/lib/authorization";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { RoleSelector } from "./RoleSelector";
+import { UserActions } from "./UserActions";
 
 export default async function AdminUsuariosPage() {
   await requirePageRole("admin");
@@ -40,7 +41,7 @@ export default async function AdminUsuariosPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {users.map((u) => (
-                <tr key={u.userId} className="hover:bg-gray-50/50 transition-colors">
+                <tr key={u.userId} className={`hover:bg-gray-50/50 transition-colors ${u.status === "inactive" ? "opacity-50 grayscale" : ""}`}>
                   <td className="px-6 py-4">
                     <div className="font-bold text-gray-900">{u.displayName}</div>
                     <div className="text-xs text-gray-500 mt-0.5">{u.email}</div>
@@ -61,11 +62,14 @@ export default async function AdminUsuariosPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <RoleSelector 
-                      userId={u.userId} 
-                      currentRoleId={u.roleId} 
-                      roles={allRoles.map(r => ({ id: r.id, name: r.name }))} 
-                    />
+                    <div className="flex items-center justify-end gap-3">
+                      <RoleSelector 
+                        userId={u.userId} 
+                        currentRoleId={u.roleId} 
+                        roles={allRoles.map(r => ({ id: r.id, name: r.name }))} 
+                      />
+                      <UserActions user={{ userId: u.userId, displayName: u.displayName, status: u.status }} />
+                    </div>
                   </td>
                 </tr>
               ))}

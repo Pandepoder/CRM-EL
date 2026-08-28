@@ -36,41 +36,40 @@ export const demoUserSeeds = [
 
 export const catalogSeed = {
   catalogType: "colonies",
-  sourceName: "tonala-jalisco-v1",
-  sourceVersion: "2026-08-14-v1"
+  sourceName: "jalisco-metropolitan-official",
+  sourceVersion: "2026-08-28-metro-v1"
 } as const;
 
-export const colonySeeds = [
-  "Centro de Tonalá",
-  "Loma Dorada Delegación A",
-  "Loma Dorada Delegación B",
-  "Loma Dorada Delegación C",
-  "Loma Dorada Delegación D",
-  "Coyula",
-  "Puente Grande",
-  "El Rosario",
-  "Colonia Jalisco",
-  "San Gaspar de las Flores",
-  "Santa Cruz de las Huertas",
-  "Santa Paula",
-  "Tololotlán",
-  "Zalatitán",
-  "Alamedas de Zalatitán",
-  "Arcos de Zalatitán",
-  "Arroyo Seco",
-  "Educadores Jaliscienses",
-  "Misión de la Cantera",
-  "Rincón del Mezquite",
-  "20 de Noviembre",
-  "Alfareros",
-  "Barrio Nuevo",
-  "Colonia del Sur",
-  "Cihualpilli",
-  "Agua Escondida",
-  "Arroyo de Enmedio",
-  "Basilio Badillo",
-  "Bosques de Tonalá",
-  "Buenavista",
-  "Ciudad Aztlán",
-  "Colinas de Tonalá"
+import { METROPOLITAN_SECTIONS } from "./generate-metropolitan-sections.js";
+
+// Extract all unique colonies with their municipality
+const uniqueColoniesMap = new Map<string, string>();
+for (const sec of METROPOLITAN_SECTIONS) {
+  for (const c of sec.colonies) {
+    if (!uniqueColoniesMap.has(c)) {
+      uniqueColoniesMap.set(c, sec.municipality);
+    }
+  }
+}
+
+export const colonySeeds = Array.from(uniqueColoniesMap.entries()).map(([name, municipality]) => ({
+  name,
+  postalCode: "45400",
+  municipality
+}));
+
+import { boundsToRealisticPolygon } from "./generate-official-sections.js";
+
+export const electoralSectionSeeds = METROPOLITAN_SECTIONS.map((sec) => ({
+  sectionNum: sec.sectionNum,
+  colonies: sec.colonies,
+  municipality: sec.municipality,
+  geom: boundsToRealisticPolygon(sec.sectionNum, sec.bounds)
+}));
+
+export const incidentReportCategorySeeds = [
+  "logistics",
+  "security",
+  "irregularity",
+  "general"
 ] as const;

@@ -1,5 +1,5 @@
-import type { Result} from "@tonala/shared/kernel";
-import { ok, err } from "@tonala/shared/kernel";
+import type { Result } from "@tonala/shared/kernel";
+import { ok } from "@tonala/shared/kernel";
 import type { Database} from "@tonala/shared/database";
 import { schema } from "@tonala/shared/database";
 import type { ReceiveMessageCommand, SendMessageCommand } from "../contracts/index.js";

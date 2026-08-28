@@ -10,15 +10,21 @@ export async function processOutboxInline(db: Database): Promise<void> {
   const logger = new DevelopmentLogger();
   
   try {
-    // Importamos dinámicamente para no ensuciar el grafo de dependencias estático
-    // (igual que hacemos con los repositorios en crm-deps.ts)
     const { createOutboxWorkerComposition } = await import("@tonala/shared/outbox/infrastructure");
+    const { registerProjectionEngineConsumer } = await import("../../../../scripts/composition/projection-engine.js");
     
-    const { worker, workerId } = createOutboxWorkerComposition({ db, logger });
+    const composition = createOutboxWorkerComposition({ db, logger });
+    
+    // Conectamos el motor de proyecciones para que los dashboards (Command Center) se actualicen inmediatamente
+    registerProjectionEngineConsumer({
+      db,
+      logger,
+      registry: composition.registry
+    });
     
     // Ejecutamos 1 lote (batch) inline
-    await worker.runOnce({
-      workerId,
+    await composition.worker.runOnce({
+      workerId: composition.workerId,
       batchSize: 50,
       abandonedTimeoutSeconds: 300
     });

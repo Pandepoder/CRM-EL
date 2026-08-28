@@ -29,3 +29,42 @@ export async function changeUserRoleAction(formData: FormData) {
 
   revalidatePath("/admin-usuarios");
 }
+
+export async function deactivateUserAction(userId: string) {
+  const actor = await actorFromSession();
+  if (!actor || !actor.roles.includes("admin")) throw new Error("Unauthorized");
+
+  const db = getDatabaseClient();
+  const { schema } = await import("@tonala/shared/database");
+  const { eq } = await import("drizzle-orm");
+
+  await db
+    .update(schema.userProfiles)
+    .set({ status: "inactive" })
+    .where(eq(schema.userProfiles.id, userId));
+
+  revalidatePath("/admin-usuarios");
+}
+
+export async function updateUserAction(formData: FormData) {
+  const actor = await actorFromSession();
+  if (!actor || !actor.roles.includes("admin")) throw new Error("Unauthorized");
+
+  const userId = formData.get("userId") as string;
+  const displayName = formData.get("displayName") as string;
+
+  if (!userId || !displayName) {
+    throw new Error("Missing data");
+  }
+
+  const db = getDatabaseClient();
+  const { schema } = await import("@tonala/shared/database");
+  const { eq } = await import("drizzle-orm");
+
+  await db
+    .update(schema.userProfiles)
+    .set({ displayName })
+    .where(eq(schema.userProfiles.id, userId));
+
+  revalidatePath("/admin-usuarios");
+}

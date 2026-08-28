@@ -2,6 +2,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { createLogisticsDependencies } from "@/lib/logistics-deps";
 import { Package, Inbox, LogOut, Search } from "lucide-react";
 import { AssignModal } from "./AssignModal";
+import { CreateItemModal } from "./CreateItemModal";
 
 export default async function LogisticaPage() {
   const db = getDatabaseClient();
@@ -22,7 +23,10 @@ export default async function LogisticaPage() {
           </h1>
           <p className="text-gray-500 mt-2">Gestión de almacén y distribución de materiales operativos.</p>
         </div>
-        <AssignModal items={items.map(i => ({ id: i.id, name: i.name, quantity: i.quantity }))} />
+        <div className="flex gap-2">
+          <CreateItemModal />
+          <AssignModal items={items.map(i => ({ id: i.id, name: i.name, quantity: i.quantity }))} />
+        </div>
       </header>
 
       {/* Stats */}
@@ -100,8 +104,20 @@ export default async function LogisticaPage() {
                     items.map(item => (
                       <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-6 py-4">
-                          <div className="font-bold text-gray-900">{item.name}</div>
-                          <div className="text-xs text-gray-500 font-mono mt-0.5">{item.sku}</div>
+                          <div className="flex items-center gap-3">
+                            {item.imageUrl ? (
+                              <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded-md object-cover border border-gray-200" />
+                            ) : (
+                              <div className="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center text-gray-400 border border-gray-200">
+                                <Package size={16} />
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-bold text-gray-900">{item.name}</div>
+                              <div className="text-xs text-gray-500 font-mono mt-0.5">{item.sku}</div>
+                              {item.description && <div className="text-xs text-gray-400 mt-1 max-w-xs truncate" title={item.description}>{item.description}</div>}
+                            </div>
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-md text-xs font-semibold uppercase tracking-wider">

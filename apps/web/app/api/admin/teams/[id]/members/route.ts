@@ -28,8 +28,15 @@ export async function POST(
     });
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    if (error.code === '23505') { // Unique violation in PG
-       return NextResponse.json({ error: "Usuario ya es miembro de este equipo" }, { status: 400 });
+    const isUniqueViolation =
+      error?.code === "23505" ||
+      error?.cause?.code === "23505" ||
+      error?.message?.includes("23505") ||
+      error?.message?.includes("team_members_pk") ||
+      error?.message?.includes("unique constraint");
+
+    if (isUniqueViolation) {
+      return NextResponse.json({ error: "Usuario ya es miembro de este equipo" }, { status: 400 });
     }
     console.error("Failed to add team member:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
