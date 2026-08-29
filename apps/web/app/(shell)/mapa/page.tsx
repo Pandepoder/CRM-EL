@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import "leaflet/dist/leaflet.css";
 import Link from "next/link";
 import { 
@@ -14,7 +14,6 @@ import {
   ChevronRight, 
   ListFilter, 
   Trash2, 
-  MousePointerClick, 
   SlidersHorizontal, 
   Loader2, 
   Download, 
@@ -24,10 +23,12 @@ import {
   LocateFixed,
   Users,
   Compass,
-  Check
+  Check,
+  Eye,
+  Minimize2
 } from "lucide-react";
 
-// Lucide icon SVGs baked for fast rendering in Leaflet HTML markers
+// Lucide icon SVGs baked for crisp Leaflet HTML markers
 const SVGS = {
   TriangleAlert: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`,
   AlertCircle: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>`,
@@ -153,7 +154,6 @@ export default function MapaPage() {
   const [markersLayer, setMarkersLayer] = useState<any>(null);
   const [geoJsonLayer, setGeoJsonLayer] = useState<any>(null);
   const [labelsLayer, setLabelsLayer] = useState<any>(null);
-  const [tempMarkerLayer, setTempMarkerLayer] = useState<any>(null);
   const [userLocationMarker, setUserLocationMarker] = useState<any>(null);
   const [allReports, setAllReports] = useState<ReportFeature[]>([]);
   const [sectionsData, setSectionsData] = useState<any>(null);
@@ -165,22 +165,28 @@ export default function MapaPage() {
   // Operational Category Sub-Tab in Incident Center:
   const [incidentSubTab, setIncidentSubTab] = useState<"active" | "emergency" | "resolved" | "all">("active");
 
-  // Mobile Drawer & Locate State
-  const [isQuickIncidentsDrawerOpen, setIsQuickIncidentsDrawerOpen] = useState(false);
+  // =========================================================================
+  // INFORMATION DENSITY SLIDER (0 = Solo Incidencias, 1 = Territorial, 2 = Completo)
+  // =========================================================================
+  const [infoDensity, setInfoDensity] = useState<number>(1);
+
+  // =========================================================================
+  // ZERO-OVERLAP UNIFIED DRAWER STATE
+  // ("none" | "search" | "section" | "incidents" | "layers")
+  // =========================================================================
+  const [activeDrawer, setActiveDrawer] = useState<"none" | "search" | "section" | "incidents" | "layers">("none");
+
+  // Selected Section for floating detail card / drawer
+  const [selectedSection, setSelectedSection] = useState<SectionProperties | null>(null);
+
+  // GPS State
   const [isLocatingGPS, setIsLocatingGPS] = useState(false);
 
-  // Interaction Mode in Map: 'select' or 'report'
-  const [mapClickMode, setMapClickMode] = useState<"select" | "report">("select");
-  const mapClickModeRef = useRef<"select" | "report">("select");
-  mapClickModeRef.current = mapClickMode;
-
-  // Layer Toggles & Map View Settings (Default to clean Carto Positron)
-  const [isLayersMenuOpen, setIsLayersMenuOpen] = useState(false);
+  // Layer Toggles & Map View Settings
   const [selectedTileStyle, setSelectedTileStyle] = useState<string>("positron");
   const [showSections, setShowSections] = useState(true);
-  const [showIncidents, setShowIncidents] = useState(true);
-  const [enableClustering, setEnableClustering] = useState(true);
   const [showSectionLabels, setShowSectionLabels] = useState(true);
+  const [enableClustering, setEnableClustering] = useState(true);
 
   // Filters & Search for Map
   const [searchQuery, setSearchQuery] = useState("");
@@ -191,9 +197,6 @@ export default function MapaPage() {
   const [incidentSearchQuery, setIncidentSearchQuery] = useState("");
   const [incidentMunicipalityFilter, setIncidentMunicipalityFilter] = useState<string>("all");
   const [incidentCategoryFilter, setIncidentCategoryFilter] = useState<string>("all");
-
-  // Selected Section for floating detail card / bottom sheet
-  const [selectedSection, setSelectedSection] = useState<SectionProperties | null>(null);
 
   // New report creation modal & Reverse Geocoding State
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -240,7 +243,16 @@ export default function MapaPage() {
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Open / Toggle Drawer uniquely without overlapping
+  const toggleDrawer = (drawerName: "search" | "section" | "incidents" | "layers") => {
+    if (activeDrawer === drawerName) {
+      setActiveDrawer("none");
+    } else {
+      setActiveDrawer(drawerName);
+    }
   };
 
   // Perform Live Reverse Geocoding with Nominatim & INE Section Matching
@@ -296,7 +308,7 @@ export default function MapaPage() {
     }
 
     setIsLocatingGPS(true);
-    showToast("📍 Obteniendo tu ubicación GPS en campo...");
+    showToast("📍 Obteniendo tu ubicación GPS...");
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -306,7 +318,6 @@ export default function MapaPage() {
         if (mapRef && L) {
           mapRef.flyTo([latitude, longitude], 16, { duration: 1.2 });
 
-          // Remove old GPS marker if any
           if (userLocationMarker) userLocationMarker.remove();
 
           const gpsIcon = L.divIcon({
@@ -326,7 +337,7 @@ export default function MapaPage() {
             .addTo(mapRef);
 
           setUserLocationMarker(marker);
-          showToast(`✓ Ubicación GPS fijada (±${Math.round(accuracy)}m)`);
+          showToast(`✓ GPS fijado (±${Math.round(accuracy)}m)`);
         }
       },
       (error) => {
@@ -342,16 +353,16 @@ export default function MapaPage() {
   const handleFocusOnMap = (r: ReportFeature) => {
     const [lng, lat] = r.geometry.coordinates;
     setActiveTab("map");
-    setIsQuickIncidentsDrawerOpen(false);
+    setActiveDrawer("none");
     setTimeout(() => {
       if (mapRef) {
         mapRef.flyTo([lat, lng], 16, { duration: 1.0 });
-        showToast(`📍 Centrado en: ${r.properties.title}`);
+        showToast(`📍 Incidencia: ${r.properties.title}`);
       }
-    }, 100);
+    }, 150);
   };
 
-  // 1. Load Leaflet dynamically with robust resize handling
+  // 1. Initialize Leaflet Map
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -370,7 +381,7 @@ export default function MapaPage() {
 
       leafletModule.control.zoom({ position: "bottomright" }).addTo(map);
 
-      // Default to CartoDB Positron for ultra clean look
+      // Default base layer: CartoDB Positron
       const initialTiles = leafletModule.tileLayer(TILE_STYLES.positron.url, {
         attribution: TILE_STYLES.positron.attribution,
         maxZoom: 19,
@@ -381,27 +392,23 @@ export default function MapaPage() {
 
       const layer = leafletModule.layerGroup().addTo(map);
       const labels = leafletModule.layerGroup().addTo(map);
-      const tempLayer = leafletModule.layerGroup().addTo(map);
       setMarkersLayer(layer);
       setLabelsLayer(labels);
-      setTempMarkerLayer(tempLayer);
       setMapRef(map);
 
-      // Ensure leaflet tiles render immediately across all display resolutions
       setTimeout(() => map.invalidateSize(), 150);
       setTimeout(() => map.invalidateSize(), 400);
 
       const handleResize = () => map.invalidateSize();
       window.addEventListener("resize", handleResize);
 
-      map.on("click", (e: any) => {
-        if (mapClickModeRef.current === "report") {
-          void triggerIncidentCreation(e.latlng.lat, e.latlng.lng);
-        }
-      });
-
       map.on("dblclick", (e: any) => {
         void triggerIncidentCreation(e.latlng.lat, e.latlng.lng);
+      });
+
+      map.on("click", () => {
+        // Auto-close open drawer on map tap if empty
+        // so user has uninterrupted view
       });
 
       return () => {
@@ -425,7 +432,7 @@ export default function MapaPage() {
     setSelectedTileStyle(styleKey);
     tileLayerRef.setUrl(style.url);
     tileLayerRef.options.attribution = style.attribution;
-    showToast(`🗺️ Capa base: ${style.name}`);
+    showToast(`🗺️ Capa: ${style.name}`);
   };
 
   // 2. Fetch Incidents
@@ -483,7 +490,7 @@ export default function MapaPage() {
       });
 
       if (res.ok) {
-        showToast(newStatus === "resolved" ? "✓ Incidencia atendida (enviada al historial)" : "↺ Incidencia reabierta");
+        showToast(newStatus === "resolved" ? "✓ Incidencia marcada como atendida" : "↺ Incidencia reabierta");
         await fetchReports();
         await fetchSections();
         if (mapRef) mapRef.closePopup();
@@ -529,7 +536,7 @@ export default function MapaPage() {
     };
   }, [handleToggleReportStatus, handleDeleteReport]);
 
-  // 8. Purge All Resolved Incidents
+  // 7. Purge All Resolved Incidents
   const handlePurgeResolved = async () => {
     setIsPurging(true);
     try {
@@ -559,7 +566,7 @@ export default function MapaPage() {
     }
   };
 
-  // 9. Open Edit Modal
+  // 8. Open Edit Modal
   const handleOpenEdit = (r: ReportFeature) => {
     setEditingReport(r);
     setEditForm({
@@ -572,7 +579,7 @@ export default function MapaPage() {
     });
   };
 
-  // 10. Save Edited Incident
+  // 9. Save Edited Incident
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingReport) return;
@@ -608,14 +615,15 @@ export default function MapaPage() {
     }
   };
 
-  // 11. Render Sections Layer with Seamless Voronoi Styling
+  // 10. Render Sections Layer based on Information Density (infoDensity)
   useEffect(() => {
     if (!L || !mapRef || !sectionsData) return;
 
     if (geoJsonLayer) geoJsonLayer.remove();
     if (labelsLayer) labelsLayer.clearLayers();
 
-    if (!showSections) {
+    // If infoDensity is 0 (Solo Incidencias) or showSections is false, do not draw polygons
+    if (infoDensity === 0 || !showSections) {
       setGeoJsonLayer(null);
       return;
     }
@@ -632,12 +640,15 @@ export default function MapaPage() {
         const theme = MUNICIPALITY_COLORS[mun] || { stroke: "#4f46e5", fill: "#6366f1" };
         const isSelected = selectedSection?.section_num === feature?.properties?.section_num;
 
+        // Density 1: Subtle line, low fill. Density 2: Full contrast
+        const isLevel1 = infoDensity === 1;
+
         return {
           color: isSelected ? "#1e1b4b" : theme.stroke,
-          weight: isSelected ? 3.5 : 1.8,
-          opacity: isSelected ? 1.0 : 0.85,
+          weight: isSelected ? 3.5 : isLevel1 ? 1.2 : 1.8,
+          opacity: isSelected ? 1.0 : isLevel1 ? 0.6 : 0.85,
           fillColor: isSelected ? "#312e81" : theme.fill,
-          fillOpacity: isSelected ? 0.42 : 0.20,
+          fillOpacity: isSelected ? 0.40 : isLevel1 ? 0.08 : 0.22,
           lineJoin: "round",
           lineCap: "round"
         };
@@ -660,7 +671,8 @@ export default function MapaPage() {
           { sticky: true, className: "section-map-tooltip" }
         );
 
-        if (showSectionLabels && labelsLayer) {
+        // Show centroid labels if density >= 1 and toggle is enabled
+        if (infoDensity >= 1 && showSectionLabels && labelsLayer) {
           const bounds = layerItem.getBounds();
           const center = bounds.getCenter();
           const labelIcon = L.divIcon({
@@ -674,25 +686,16 @@ export default function MapaPage() {
 
         layerItem.on({
           mouseover: (e: any) => {
-            if (mapClickModeRef.current === "select") {
-              e.target.setStyle({ weight: 3.2, fillOpacity: 0.38, opacity: 1.0 });
-            }
+            e.target.setStyle({ weight: 3.2, fillOpacity: 0.35, opacity: 1.0 });
           },
           mouseout: (e: any) => {
             layer.resetStyle(e.target);
           },
           click: (e: any) => {
             L.DomEvent.stopPropagation(e);
-            if (mapClickModeRef.current === "report") {
-              void triggerIncidentCreation(e.latlng.lat, e.latlng.lng, mun);
-            } else {
-              setSelectedSection(p);
-              mapRef.fitBounds(e.target.getBounds(), { padding: [50, 50], maxZoom: 15 });
-            }
-          },
-          dblclick: (e: any) => {
-            L.DomEvent.stopPropagation(e);
-            void triggerIncidentCreation(e.latlng.lat, e.latlng.lng, mun);
+            setSelectedSection(p);
+            setActiveDrawer("section");
+            mapRef.fitBounds(e.target.getBounds(), { padding: [50, 50], maxZoom: 15 });
           }
         });
       }
@@ -700,7 +703,7 @@ export default function MapaPage() {
 
     layer.bringToBack();
     setGeoJsonLayer(layer);
-  }, [L, mapRef, labelsLayer, sectionsData, showSections, showSectionLabels, selectedSection, selectedMunicipality, triggerIncidentCreation]);
+  }, [L, mapRef, labelsLayer, sectionsData, showSections, showSectionLabels, infoDensity, selectedSection, selectedMunicipality]);
 
   const handleMunicipalityChange = (muni: string) => {
     setSelectedMunicipality(muni);
@@ -710,13 +713,11 @@ export default function MapaPage() {
     mapRef.flyTo(config.center, config.zoom, { duration: 1.2 });
   };
 
-  // 12. Render Incident Markers with High-Tech Icons
+  // 11. Render Incident Markers with Guaranteed Prominence & Category Logos
   useEffect(() => {
     if (!L || !markersLayer || !mapRef) return;
 
     markersLayer.clearLayers();
-
-    if (!showIncidents) return;
 
     const filtered = allReports.filter((r) => {
       return activeCategories.has(r.properties.category);
@@ -749,7 +750,7 @@ export default function MapaPage() {
           const hasEmergency = c.reports.some(r => r.properties.category === "emergencia" && r.properties.status === "active");
           const clusterIcon = L.divIcon({
             html: `
-              <div style="position:relative; width:38px; height:38px; border-radius:50%; background:${hasEmergency ? '#dc2626' : '#4f46e5'}; color:white; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; border:3px solid white; box-shadow:0 4px 12px rgba(0,0,0,0.25); cursor:pointer;">
+              <div style="position:relative; width:38px; height:38px; border-radius:50%; background:${hasEmergency ? '#dc2626' : '#2563eb'}; color:white; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; border:3px solid white; box-shadow:0 4px 14px rgba(0,0,0,0.3); cursor:pointer;">
                 ${count}
                 ${hasEmergency ? `<div style="position:absolute; inset:-4px; border-radius:50%; border:2px solid #ef4444; animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>` : ''}
               </div>
@@ -773,6 +774,11 @@ export default function MapaPage() {
       });
     }
 
+    // Incidents layer must ALWAYS be in front of everything
+    if (markersLayer && markersLayer.bringToFront) {
+      markersLayer.bringToFront();
+    }
+
     function renderSingleMarker(report: ReportFeature, lat: number, lng: number) {
       const cat = CATEGORIES[report.properties.category] ?? {
         label: report.properties.category,
@@ -786,16 +792,16 @@ export default function MapaPage() {
 
       const icon = L.divIcon({
         html: `
-          <div style="position:relative; width:34px; height:34px; border-radius:50%; background-color:${isResolved ? '#f0fdf4' : cat.bg}; display:flex; align-items:center; justify-content:center; color:${isResolved ? '#16a34a' : cat.color}; border: 2.5px solid ${isResolved ? '#16a34a' : isEmergency ? '#ef4444' : 'white'}; box-shadow: 0 4px 10px rgba(0,0,0,0.2); opacity: ${isResolved ? 0.85 : 1}; cursor: pointer;">
+          <div style="position:relative; width:36px; height:36px; border-radius:50%; background-color:${isResolved ? '#f0fdf4' : cat.bg}; display:flex; align-items:center; justify-content:center; color:${isResolved ? '#16a34a' : cat.color}; border: 2.5px solid ${isResolved ? '#16a34a' : isEmergency ? '#ef4444' : 'white'}; box-shadow: 0 4px 12px rgba(0,0,0,0.28); opacity: ${isResolved ? 0.85 : 1}; cursor: pointer; transform: scale(1.05);">
             ${cat.svg}
             ${isResolved ? `<div style="position:absolute; bottom:-2px; right:-2px; background:#16a34a; color:white; width:14px; height:14px; border-radius:50%; font-size:10px; display:flex; align-items:center; justify-content:center; border:1.5px solid white;">✓</div>` : ''}
             ${isEmergency ? `<div style="position:absolute; inset:-3px; border-radius:50%; border:2px solid #ef4444; animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>` : ''}
           </div>
         `,
         className: "custom-incident-marker",
-        iconSize: [34, 34],
-        iconAnchor: [17, 17],
-        popupAnchor: [0, -18]
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+        popupAnchor: [0, -20]
       });
 
       const date = new Date(report.properties.createdAt).toLocaleString("es-MX", {
@@ -831,7 +837,7 @@ export default function MapaPage() {
           <p style="margin:0 0 8px; font-size:12px; color:#475569; line-height:1.4;">${report.properties.description}</p>
           
           <div style="display:flex; align-items:center; justify-content:space-between; padding-top:6px; border-top:1px solid #f1f5f9; font-size:11px; color:#64748b;">
-            <span>${report.properties.sectionNum ? `📍 Sección ${report.properties.sectionNum}` : `📍 ${report.properties.municipality || 'Territorio'}`}</span>
+            <span>${report.properties.sectionNum ? `📍 Sección #${report.properties.sectionNum}` : `📍 ${report.properties.municipality || 'Territorio'}`}</span>
             <span>${date}</span>
           </div>
 
@@ -848,7 +854,7 @@ export default function MapaPage() {
         .bindPopup(popupHtml, { closeButton: true, maxWidth: 320, offset: [0, -5] })
         .addTo(markersLayer);
     }
-  }, [L, markersLayer, mapRef, allReports, activeCategories, showIncidents, enableClustering]);
+  }, [L, markersLayer, mapRef, allReports, activeCategories, enableClustering]);
 
   // Filtered sections for search
   const filteredSectionsList = useMemo(() => {
@@ -872,6 +878,7 @@ export default function MapaPage() {
 
   const handleSelectSection = (p: SectionProperties) => {
     setSelectedSection(p);
+    setActiveDrawer("section");
     if (!geoJsonLayer || !mapRef) return;
     
     geoJsonLayer.eachLayer((layer: any) => {
@@ -906,7 +913,6 @@ export default function MapaPage() {
       });
       if (res.ok) {
         setReportSuccess(true);
-        if (tempMarkerLayer) tempMarkerLayer.clearLayers();
         await fetchReports();
         await fetchSections();
         showToast(`✓ Incidencia registrada en ${reportForm.municipality}`);
@@ -933,7 +939,7 @@ export default function MapaPage() {
   const emergencyReportsCount = allReports.filter(r => r.properties.category === "emergencia" && r.properties.status === "active").length;
   const resolutionRate = allReports.length > 0 ? Math.round((resolvedReportsCount / allReports.length) * 100) : 100;
 
-  // Filtered & Strictly Sorted Incidents for the Incident Management Center
+  // Filtered & Sorted Incidents for the Incident Management Center
   const displayIncidents = useMemo(() => {
     let base = [...allReports];
 
@@ -1004,23 +1010,26 @@ export default function MapaPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `incidencias_territorio_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `incidencias_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast("✓ Archivo CSV exportado con éxito");
+    showToast("✓ CSV exportado");
   };
 
   return (
     <div style={{ position: "relative", width: "100%", height: "calc(100vh - 64px)", minHeight: "600px", display: "flex", flexDirection: "column", background: "#0f172a", overflow: "hidden", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
       
       {/* Top Floating Command Bar */}
-      <header style={{ position: "absolute", top: "12px", left: "12px", right: "12px", zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "8px 12px", borderRadius: "14px", background: "rgba(255, 255, 255, 0.92)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(226, 232, 240, 0.8)", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15)", flexWrap: "wrap" }}>
+      <header style={{ position: "absolute", top: "12px", left: "12px", right: "12px", zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "8px 12px", borderRadius: "14px", background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(226, 232, 240, 0.9)", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15)", flexWrap: "wrap" }}>
         
         {/* Left: View Tabs */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <button
-            onClick={() => setActiveTab("map")}
+            onClick={() => {
+              setActiveTab("map");
+              setActiveDrawer("none");
+            }}
             style={{
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "10px", border: "none",
               backgroundColor: activeTab === "map" ? "#2563eb" : "#f1f5f9",
@@ -1033,7 +1042,10 @@ export default function MapaPage() {
           </button>
           
           <button
-            onClick={() => setActiveTab("list")}
+            onClick={() => {
+              setActiveTab("list");
+              setActiveDrawer("none");
+            }}
             style={{
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "10px", border: "none",
               backgroundColor: activeTab === "list" ? "#2563eb" : "#f1f5f9",
@@ -1042,35 +1054,50 @@ export default function MapaPage() {
             }}
           >
             <ListFilter size={15} />
-            <span>Centro de Gestión</span>
+            <span>Centro de Mando</span>
             <span style={{ backgroundColor: activeTab === "list" ? "rgba(255,255,255,0.25)" : "#e2e8f0", color: activeTab === "list" ? "white" : "#334155", padding: "1px 6px", borderRadius: "9999px", fontSize: "11px", fontWeight: "800" }}>
               {activeReportsCount}
             </span>
           </button>
         </div>
 
-        {/* Center: Municipal quick buttons */}
+        {/* Center: Information Density Slider (Slide de Información) */}
         {activeTab === "map" && (
-          <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "rgba(241, 245, 249, 0.9)", padding: "3px 6px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
-            {["all", "Tonalá", "Guadalajara", "Zapopan", "San Pedro Tlaquepaque"].map((m) => (
-              <button
-                key={m}
-                onClick={() => handleMunicipalityChange(m)}
-                style={{
-                  padding: "4px 8px", borderRadius: "6px", border: "none",
-                  backgroundColor: selectedMunicipality === m ? "#ffffff" : "transparent",
-                  color: selectedMunicipality === m ? "#0f172a" : "#64748b",
-                  boxShadow: selectedMunicipality === m ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                  fontSize: "11px", fontWeight: "700", cursor: "pointer"
-                }}
-              >
-                {m === "all" ? "Todo el AMG" : m}
-              </button>
-            ))}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f8fafc", padding: "5px 12px", borderRadius: "10px", border: "1px solid #cbd5e1" }}>
+            <span style={{ fontSize: "11px", fontWeight: "800", color: "#475569", display: "flex", alignItems: "center", gap: "4px" }}>
+              <Eye size={13} style={{ color: "#2563eb" }} />
+              <span>Nivel de Información:</span>
+            </span>
+
+            <input
+              type="range"
+              min="0"
+              max="2"
+              step="1"
+              value={infoDensity}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setInfoDensity(val);
+                if (val === 0) {
+                  setActiveDrawer("none");
+                  showToast("📍 Modo Limpio: Solo Incidencias & Calles activas");
+                } else if (val === 1) {
+                  showToast("🗺️ Modo Territorial: Incidencias + Secciones sutiles");
+                } else {
+                  showToast("📊 Modo Detallado: Mapa completo con métricas");
+                }
+              }}
+              style={{ width: "85px", accentColor: "#2563eb", cursor: "pointer" }}
+              title="Desliza para ver más o menos capas e información"
+            />
+
+            <span style={{ fontSize: "11px", fontWeight: "800", color: infoDensity === 0 ? "#dc2626" : infoDensity === 1 ? "#0284c7" : "#4f46e5", minWidth: "105px" }}>
+              {infoDensity === 0 ? "📍 Solo Incidencias" : infoDensity === 1 ? "🗺️ Territorial" : "📊 Todo Detallado"}
+            </span>
           </div>
         )}
 
-        {/* Right: Actions and Controls */}
+        {/* Right: Drawer Triggers and Actions */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           {activeTab === "map" && (
             <>
@@ -1082,34 +1109,50 @@ export default function MapaPage() {
                 style={{ display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px", border: "1px solid #bfdbfe", background: "#eff6ff", color: "#1d4ed8", fontSize: "11px", fontWeight: "800", cursor: "pointer" }}
               >
                 <LocateFixed size={14} className={isLocatingGPS ? "animate-spin" : ""} />
-                <span>Mi GPS</span>
+                <span>GPS</span>
               </button>
 
-              {/* Incidents Drawer toggle */}
+              {/* Search Drawer Button */}
               <button
-                onClick={() => setIsQuickIncidentsDrawerOpen(!isQuickIncidentsDrawerOpen)}
+                onClick={() => toggleDrawer("search")}
                 style={{
                   display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px",
                   border: "1px solid",
-                  borderColor: isQuickIncidentsDrawerOpen ? "#fca5a5" : "#cbd5e1",
-                  backgroundColor: isQuickIncidentsDrawerOpen ? "#fef2f2" : "#f8fafc",
-                  color: isQuickIncidentsDrawerOpen ? "#b91c1c" : "#334155",
+                  borderColor: activeDrawer === "search" ? "#93c5fd" : "#cbd5e1",
+                  backgroundColor: activeDrawer === "search" ? "#eff6ff" : "#f8fafc",
+                  color: activeDrawer === "search" ? "#1d4ed8" : "#334155",
                   fontSize: "11px", fontWeight: "800", cursor: "pointer"
                 }}
               >
-                <AlertCircle size={14} style={{ color: isQuickIncidentsDrawerOpen ? "#dc2626" : "#64748b" }} />
-                <span>Incidencias ({activeReportsCount})</span>
+                <Search size={14} />
+                <span>Buscar</span>
               </button>
 
-              {/* Layers Button */}
+              {/* Incidents Drawer Button */}
               <button
-                onClick={() => setIsLayersMenuOpen(!isLayersMenuOpen)}
+                onClick={() => toggleDrawer("incidents")}
                 style={{
                   display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px",
                   border: "1px solid",
-                  borderColor: isLayersMenuOpen ? "#c7d2fe" : "#cbd5e1",
-                  backgroundColor: isLayersMenuOpen ? "#eef2ff" : "#f8fafc",
-                  color: isLayersMenuOpen ? "#4338ca" : "#334155",
+                  borderColor: activeDrawer === "incidents" ? "#fca5a5" : "#cbd5e1",
+                  backgroundColor: activeDrawer === "incidents" ? "#fef2f2" : "#f8fafc",
+                  color: activeDrawer === "incidents" ? "#b91c1c" : "#334155",
+                  fontSize: "11px", fontWeight: "800", cursor: "pointer"
+                }}
+              >
+                <AlertCircle size={14} style={{ color: activeDrawer === "incidents" ? "#dc2626" : "#64748b" }} />
+                <span>Incidencias ({activeReportsCount})</span>
+              </button>
+
+              {/* Layers Drawer Button */}
+              <button
+                onClick={() => toggleDrawer("layers")}
+                style={{
+                  display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px",
+                  border: "1px solid",
+                  borderColor: activeDrawer === "layers" ? "#c7d2fe" : "#cbd5e1",
+                  backgroundColor: activeDrawer === "layers" ? "#eef2ff" : "#f8fafc",
+                  color: activeDrawer === "layers" ? "#4338ca" : "#334155",
                   fontSize: "11px", fontWeight: "800", cursor: "pointer"
                 }}
               >
@@ -1117,42 +1160,17 @@ export default function MapaPage() {
                 <span>Capas</span>
               </button>
 
-              {/* Mode Toggle */}
-              <div style={{ display: "flex", alignItems: "center", background: "#f1f5f9", padding: "2px", borderRadius: "9px", border: "1px solid #e2e8f0" }}>
+              {/* Hide All Drawers Button */}
+              {activeDrawer !== "none" && (
                 <button
-                  onClick={() => {
-                    setMapClickMode("select");
-                    showToast("🔍 Modo Consulta: Clic en polígono para ver métricas");
-                  }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "4px", padding: "5px 8px", borderRadius: "7px", border: "none",
-                    backgroundColor: mapClickMode === "select" ? "white" : "transparent",
-                    color: mapClickMode === "select" ? "#0f172a" : "#64748b",
-                    boxShadow: mapClickMode === "select" ? "0 1px 2px rgba(0,0,0,0.1)" : "none",
-                    fontSize: "11px", fontWeight: "700", cursor: "pointer"
-                  }}
+                  onClick={() => setActiveDrawer("none")}
+                  title="Ocultar paneles y ver mapa limpio"
+                  style={{ display: "flex", alignItems: "center", gap: "4px", padding: "7px 10px", borderRadius: "9px", border: "1px solid #e2e8f0", background: "#ffffff", color: "#64748b", fontSize: "11px", fontWeight: "800", cursor: "pointer" }}
                 >
-                  <Layers size={13} />
-                  <span>Consultar</span>
+                  <Minimize2 size={13} />
+                  <span>Ocultar Menú</span>
                 </button>
-
-                <button
-                  onClick={() => {
-                    setMapClickMode("report");
-                    showToast("📍 Modo 1-Clic: Toca cualquier calle para levantar reporte");
-                  }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "4px", padding: "5px 8px", borderRadius: "7px", border: "none",
-                    backgroundColor: mapClickMode === "report" ? "#dc2626" : "transparent",
-                    color: mapClickMode === "report" ? "white" : "#64748b",
-                    boxShadow: mapClickMode === "report" ? "0 1px 2px rgba(220,38,38,0.3)" : "none",
-                    fontSize: "11px", fontWeight: "700", cursor: "pointer"
-                  }}
-                >
-                  <MousePointerClick size={13} />
-                  <span>1-Clic</span>
-                </button>
-              </div>
+              )}
             </>
           )}
 
@@ -1177,7 +1195,7 @@ export default function MapaPage() {
             </>
           )}
 
-          {/* Quick Create Button */}
+          {/* Quick Create Report Button */}
           <button
             onClick={() => {
               const defaultCoords = mapRef ? mapRef.getCenter() : { lat: 20.6248, lng: -103.2422 };
@@ -1207,70 +1225,95 @@ export default function MapaPage() {
             height: "100%", 
             minHeight: "500px",
             zIndex: 1,
-            cursor: mapClickMode === "report" ? "crosshair" : "default",
             visibility: activeTab === "map" ? "visible" : "hidden"
           }} 
         />
 
         {/* Floating Toast Notification */}
         {toastMessage && (
-          <div style={{ position: "absolute", top: "70px", left: "50%", transform: "translateX(-50%)", zIndex: 1200, background: "rgba(15, 23, 42, 0.92)", color: "white", padding: "8px 18px", borderRadius: "30px", boxShadow: "0 10px 25px rgba(0,0,0,0.3)", fontSize: "12px", fontWeight: "700", border: "1px solid rgba(255,255,255,0.2)", backdropFilter: "blur(8px)" }}>
+          <div style={{ position: "absolute", top: "72px", left: "50%", transform: "translateX(-50%)", zIndex: 1200, background: "rgba(15, 23, 42, 0.92)", color: "white", padding: "8px 18px", borderRadius: "30px", boxShadow: "0 10px 25px rgba(0,0,0,0.3)", fontSize: "12px", fontWeight: "700", border: "1px solid rgba(255,255,255,0.2)", backdropFilter: "blur(8px)" }}>
             {toastMessage}
           </div>
         )}
 
-        {/* Left Floating Search & Quick Jumper Panel */}
-        {activeTab === "map" && (
-          <div style={{ position: "absolute", top: "72px", left: "12px", zIndex: 20, width: "320px", maxWidth: "calc(100vw - 24px)" }}>
-            <div style={{ background: "rgba(255, 255, 255, 0.94)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(226, 232, 240, 0.9)", borderRadius: "14px", padding: "10px", boxShadow: "0 15px 30px -5px rgba(0,0,0,0.15)" }}>
+        {/* =========================================================================
+            UNIFIED SLIDE-OVER DRAWER (NEVER OVERLAPS - HOSTS ONE ACTIVE PANEL)
+            ========================================================================= */}
+        {activeTab === "map" && activeDrawer !== "none" && (
+          <div style={{ position: "absolute", top: "72px", right: "12px", bottom: "24px", width: "370px", maxWidth: "calc(100vw - 24px)", background: "rgba(255, 255, 255, 0.96)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderRadius: "16px", border: "1px solid #cbd5e1", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", zIndex: 30, display: "flex", flexDirection: "column", overflow: "hidden", animation: "float-up 0.2s ease" }}>
+            
+            {/* 1. DRAWER HEADER */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc" }}>
+              <h3 style={{ margin: 0, fontWeight: "900", fontSize: "13px", color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" }}>
+                {activeDrawer === "search" && <><Search size={15} style={{ color: "#2563eb" }} /> Buscar Secciones y Territorio</>}
+                {activeDrawer === "section" && <><Layers size={15} style={{ color: "#4f46e5" }} /> Detalle de Sección Electoral</>}
+                {activeDrawer === "incidents" && <><AlertCircle size={15} style={{ color: "#dc2626" }} /> Incidencias Activas ({allReports.length})</>}
+                {activeDrawer === "layers" && <><SlidersHorizontal size={15} style={{ color: "#2563eb" }} /> Configuración de Capas</>}
+              </h3>
+              <button 
+                onClick={() => setActiveDrawer("none")} 
+                style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: "4px" }}
+                title="Cerrar panel"
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            {/* 2. DRAWER BODY */}
+            <div style={{ flex: 1, padding: "14px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
               
-              {/* Municipality Select */}
-              <div style={{ marginBottom: "6px" }}>
-                <select
-                  value={selectedMunicipality}
-                  onChange={(e) => handleMunicipalityChange(e.target.value)}
-                  style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", color: "#0f172a", outline: "none", cursor: "pointer" }}
-                >
-                  <option value="all">🗺️ Todo el Área Metropolitana</option>
-                  <option value="Tonalá">📍 Tonalá (46 secciones)</option>
-                  <option value="Guadalajara">📍 Guadalajara (10 secciones)</option>
-                  <option value="San Pedro Tlaquepaque">📍 San Pedro Tlaquepaque (8 secciones)</option>
-                  <option value="Zapopan">📍 Zapopan (8 secciones)</option>
-                  <option value="Tlajomulco de Zúñiga">📍 Tlajomulco de Zúñiga (5 secciones)</option>
-                  <option value="El Salto">📍 El Salto (4 secciones)</option>
-                  <option value="Zapotlanejo">📍 Zapotlanejo (3 secciones)</option>
-                  <option value="Ixtlahuacán de los Membrillos">📍 Ixtlahuacán</option>
-                  <option value="Juanacatlán">📍 Juanacatlán</option>
-                </select>
-              </div>
+              {/* SEARCH PANEL */}
+              {activeDrawer === "search" && (
+                <>
+                  <div>
+                    <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Municipio</label>
+                    <select
+                      value={selectedMunicipality}
+                      onChange={(e) => handleMunicipalityChange(e.target.value)}
+                      style={{ width: "100%", padding: "8px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", color: "#0f172a", outline: "none", cursor: "pointer" }}
+                    >
+                      <option value="all">🗺️ Todo el Área Metropolitana</option>
+                      <option value="Tonalá">📍 Tonalá (46 secciones)</option>
+                      <option value="Guadalajara">📍 Guadalajara (10 secciones)</option>
+                      <option value="San Pedro Tlaquepaque">📍 Tlaquepaque (8 secciones)</option>
+                      <option value="Zapopan">📍 Zapopan (8 secciones)</option>
+                      <option value="Tlajomulco de Zúñiga">📍 Tlajomulco (5 secciones)</option>
+                      <option value="El Salto">📍 El Salto (4 secciones)</option>
+                      <option value="Zapotlanejo">📍 Zapotlanejo (3 secciones)</option>
+                      <option value="Ixtlahuacán de los Membrillos">📍 Ixtlahuacán</option>
+                      <option value="Juanacatlán">📍 Juanacatlán</option>
+                    </select>
+                  </div>
 
-              {/* Section Search */}
-              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                <Search size={14} style={{ position: "absolute", left: "9px", color: "#94a3b8" }} />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar Sección o Colonia..."
-                  style={{ width: "100%", padding: "7px 28px 7px 30px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
-                />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery("")} style={{ position: "absolute", right: "8px", background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
-                    <X size={13} />
-                  </button>
-                )}
-              </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Búsqueda Rápida</label>
+                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                      <Search size={14} style={{ position: "absolute", left: "9px", color: "#94a3b8" }} />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Número de sección o colonia..."
+                        style={{ width: "100%", padding: "8px 28px 8px 30px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
+                      />
+                      {searchQuery && (
+                        <button onClick={() => setSearchQuery("")} style={{ position: "absolute", right: "8px", background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
+                          <X size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-              {/* Search Results Dropdown */}
-              {searchQuery && (
-                <div style={{ marginTop: "6px", maxHeight: "180px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "3px", borderTop: "1px solid #f1f5f9", paddingTop: "4px" }}>
-                  {filteredSectionsList.length > 0 ? (
-                    filteredSectionsList.map((sec: SectionProperties) => (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
+                    <div style={{ fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase" }}>
+                      Secciones Encontradas ({filteredSectionsList.length})
+                    </div>
+                    {filteredSectionsList.map((sec: SectionProperties) => (
                       <button
                         key={sec.section_num}
                         onClick={() => handleSelectSection(sec)}
                         style={{
-                          display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", borderRadius: "8px",
+                          display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", borderRadius: "8px",
                           backgroundColor: selectedSection?.section_num === sec.section_num ? "#dbeafe" : "#f8fafc",
                           border: "1px solid", borderColor: selectedSection?.section_num === sec.section_num ? "#bfdbfe" : "#e2e8f0",
                           cursor: "pointer", textAlign: "left", width: "100%"
@@ -1278,211 +1321,199 @@ export default function MapaPage() {
                       >
                         <div>
                           <div style={{ fontSize: "11px", fontWeight: "800", color: "#0f172a" }}>
-                            Sección {sec.section_num} <span style={{ fontSize: "10px", color: "#2563eb", fontWeight: "600" }}>({sec.municipality || 'Tonalá'})</span>
+                            Sección #{sec.section_num} <span style={{ fontSize: "10px", color: "#2563eb", fontWeight: "600" }}>({sec.municipality || 'Tonalá'})</span>
                           </div>
-                          <div style={{ fontSize: "10px", color: "#64748b" }}>{sec.colonies.slice(0, 2).join(", ")}</div>
+                          <div style={{ fontSize: "10px", color: "#64748b" }}>{sec.colonies.slice(0, 3).join(", ") || sec.municipality}</div>
                         </div>
                         <ChevronRight size={13} style={{ color: "#94a3b8" }} />
                       </button>
-                    ))
-                  ) : (
-                    <div style={{ padding: "8px", textAlign: "center", fontSize: "11px", color: "#94a3b8" }}>Sin secciones coincidentes</div>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                </>
               )}
-            </div>
-          </div>
-        )}
 
-        {/* Floating Section Detail Card (Bottom Left / Responsive) */}
-        {activeTab === "map" && selectedSection && (
-          <div style={{ position: "absolute", bottom: "24px", left: "12px", zIndex: 30, width: "360px", maxWidth: "calc(100vw - 24px)", background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: "16px", padding: "16px", border: "1px solid #cbd5e1", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "10px" }}>
-              <div>
-                <span style={{ display: "inline-block", background: "#dbeafe", color: "#1e40af", fontWeight: "800", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.5px", padding: "2px 6px", borderRadius: "4px", marginBottom: "4px" }}>
-                  {selectedSection.municipality || "Tonalá"}
-                </span>
-                <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "900", color: "#0f172a" }}>
-                  Sección Electoral #{selectedSection.section_num}
-                </h2>
-              </div>
-              <button 
-                onClick={() => setSelectedSection(null)} 
-                style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", padding: "4px", cursor: "pointer", color: "#64748b" }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Quick Stats Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", marginBottom: "12px" }}>
-              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
-                <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Simpatizantes</div>
-                <div style={{ fontSize: "16px", fontWeight: "900", color: "#4f46e5", marginTop: "2px" }}>{selectedSection.contactsCount}</div>
-              </div>
-
-              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
-                <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Visitas</div>
-                <div style={{ fontSize: "16px", fontWeight: "900", color: "#059669", marginTop: "2px" }}>{selectedSection.visitsCompleted}</div>
-              </div>
-
-              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
-                <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Incidencias</div>
-                <div style={{ fontSize: "16px", fontWeight: "900", color: "#d97706", marginTop: "2px" }}>{selectedSection.incidentsActive}</div>
-              </div>
-            </div>
-
-            {/* Colonies List */}
-            <div style={{ marginBottom: "12px" }}>
-              <div style={{ fontSize: "10px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>
-                Colonias en esta Sección:
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", maxHeight: "80px", overflowY: "auto" }}>
-                {selectedSection.colonies.length > 0 ? (
-                  selectedSection.colonies.map((c) => (
-                    <span key={c} style={{ background: "#f1f5f9", color: "#334155", fontSize: "10px", fontWeight: "600", padding: "2px 6px", borderRadius: "6px" }}>
-                      {c}
-                    </span>
-                  ))
-                ) : (
-                  <span style={{ fontSize: "11px", color: "#94a3b8", fontStyle: "italic" }}>Colonia principal del municipio</span>
-                )}
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{ display: "flex", gap: "6px", paddingTop: "8px", borderTop: "1px solid #f1f5f9" }}>
-              <Link
-                href={`/crm?seccion=${selectedSection.section_num}`}
-                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", background: "#2563eb", color: "white", textDecoration: "none", fontWeight: "800", padding: "8px", borderRadius: "8px", fontSize: "11px" }}
-              >
-                <Users size={13} />
-                Ver Contactos
-              </Link>
-
-              <button
-                onClick={() => {
-                  const defaultCoords = mapRef ? mapRef.getCenter() : { lat: 20.6248, lng: -103.2422 };
-                  void triggerIncidentCreation(defaultCoords.lat, defaultCoords.lng, selectedSection.municipality);
-                }}
-                style={{ display: "flex", alignItems: "center", gap: "4px", background: "#dc2626", color: "white", border: "none", fontWeight: "800", padding: "8px 12px", borderRadius: "8px", fontSize: "11px", cursor: "pointer" }}
-              >
-                <PlusCircle size={13} />
-                Reportar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Slide-Over Incidents Drawer */}
-        {activeTab === "map" && isQuickIncidentsDrawerOpen && (
-          <div style={{ position: "absolute", top: "72px", right: "12px", bottom: "24px", width: "360px", maxWidth: "calc(100vw - 24px)", background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: "16px", border: "1px solid #cbd5e1", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", zIndex: 30, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc" }}>
-              <h3 style={{ margin: 0, fontWeight: "800", fontSize: "13px", color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" }}>
-                <AlertCircle size={16} style={{ color: "#dc2626" }} />
-                Incidencias Registradas ({allReports.length})
-              </h3>
-              <button onClick={() => setIsQuickIncidentsDrawerOpen(false)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <div style={{ flex: 1, padding: "10px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
-              {allReports.map((r) => {
-                const cat = CATEGORIES[r.properties.category] ?? { label: r.properties.category, color: "#64748b", bg: "#f8fafc", svg: SVGS.AlertCircle };
-                const isResolved = r.properties.status === "resolved";
-                return (
-                  <div key={r.properties.id} style={{ background: "#f8fafc", padding: "10px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "3px" }}>
-                      <span style={{ fontSize: "10px", fontWeight: "800", textTransform: "uppercase", padding: "2px 5px", borderRadius: "4px", color: cat.color, background: cat.bg }}>
-                        {cat.label}
+              {/* SECTION DETAIL PANEL */}
+              {activeDrawer === "section" && (
+                selectedSection ? (
+                  <>
+                    <div>
+                      <span style={{ display: "inline-block", background: "#dbeafe", color: "#1e40af", fontWeight: "800", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.5px", padding: "2px 6px", borderRadius: "4px", marginBottom: "4px" }}>
+                        {selectedSection.municipality || "Tonalá"}
                       </span>
-                      <span style={{ fontSize: "10px", fontWeight: "700", color: isResolved ? "#16a34a" : "#dc2626" }}>
-                        {isResolved ? "✓ Atendida" : "● Pendiente"}
-                      </span>
+                      <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "900", color: "#0f172a" }}>
+                        Sección Electoral #{selectedSection.section_num}
+                      </h2>
                     </div>
-                    <h4 style={{ margin: "0 0 2px", fontWeight: "800", fontSize: "12px", color: "#0f172a" }}>{r.properties.title}</h4>
-                    <p style={{ margin: "0 0 6px", fontSize: "11px", color: "#475569", lineHeight: "1.3" }}>{r.properties.description}</p>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #e2e8f0", paddingTop: "6px" }}>
-                      <span style={{ fontSize: "10px", fontWeight: "700", color: "#1d4ed8" }}>📍 {r.properties.municipality || "Tonalá"}</span>
-                      <button
-                        onClick={() => handleFocusOnMap(r)}
-                        style={{ display: "flex", alignItems: "center", gap: "3px", background: "#2563eb", color: "white", border: "none", fontWeight: "700", padding: "4px 8px", borderRadius: "6px", fontSize: "10px", cursor: "pointer" }}
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px" }}>
+                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
+                        <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Simpatizantes</div>
+                        <div style={{ fontSize: "16px", fontWeight: "900", color: "#4f46e5", marginTop: "2px" }}>{selectedSection.contactsCount}</div>
+                      </div>
+
+                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
+                        <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Visitas</div>
+                        <div style={{ fontSize: "16px", fontWeight: "900", color: "#059669", marginTop: "2px" }}>{selectedSection.visitsCompleted}</div>
+                      </div>
+
+                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
+                        <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Incidencias</div>
+                        <div style={{ fontSize: "16px", fontWeight: "900", color: "#d97706", marginTop: "2px" }}>{selectedSection.incidentsActive}</div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: "10px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>
+                        Colonias en esta Sección:
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", maxHeight: "110px", overflowY: "auto" }}>
+                        {selectedSection.colonies.length > 0 ? (
+                          selectedSection.colonies.map((c) => (
+                            <span key={c} style={{ background: "#f1f5f9", color: "#334155", fontSize: "10px", fontWeight: "600", padding: "3px 6px", borderRadius: "6px" }}>
+                              {c}
+                            </span>
+                          ))
+                        ) : (
+                          <span style={{ fontSize: "11px", color: "#94a3b8", fontStyle: "italic" }}>Colonia principal del municipio</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "6px", paddingTop: "8px", borderTop: "1px solid #f1f5f9" }}>
+                      <Link
+                        href={`/crm?seccion=${selectedSection.section_num}`}
+                        style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", background: "#2563eb", color: "white", textDecoration: "none", fontWeight: "800", padding: "9px", borderRadius: "8px", fontSize: "11px" }}
                       >
-                        <MapPin size={10} />
-                        Centrar Mapa
+                        <Users size={13} />
+                        Ver Contactos CRM
+                      </Link>
+
+                      <button
+                        onClick={() => {
+                          const defaultCoords = mapRef ? mapRef.getCenter() : { lat: 20.6248, lng: -103.2422 };
+                          void triggerIncidentCreation(defaultCoords.lat, defaultCoords.lng, selectedSection.municipality);
+                        }}
+                        style={{ display: "flex", alignItems: "center", gap: "4px", background: "#dc2626", color: "white", border: "none", fontWeight: "800", padding: "9px 12px", borderRadius: "8px", fontSize: "11px", cursor: "pointer" }}
+                      >
+                        <PlusCircle size={13} />
+                        + Reportar
                       </button>
                     </div>
+                  </>
+                ) : (
+                  <div style={{ textAlign: "center", padding: "30px 10px", color: "#94a3b8" }}>
+                    <Layers size={28} style={{ margin: "0 auto 8px" }} />
+                    <p style={{ fontSize: "12px", margin: 0 }}>Haz clic en una sección en el mapa para ver sus métricas.</p>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                )
+              )}
 
-        {/* Map Layers Menu */}
-        {isLayersMenuOpen && (
-          <div style={{ position: "absolute", top: "72px", right: "12px", zIndex: 30, width: "290px", maxWidth: "calc(100vw - 24px)", background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: "16px", padding: "14px", border: "1px solid #cbd5e1", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-              <h3 style={{ margin: 0, fontWeight: "800", fontSize: "12px", color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
-                <SlidersHorizontal size={14} style={{ color: "#2563eb" }} />
-                Configuración del Mapa
-              </h3>
-              <button onClick={() => setIsLayersMenuOpen(false)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
-                <X size={15} />
-              </button>
-            </div>
+              {/* INCIDENTS LIST PANEL */}
+              {activeDrawer === "incidents" && (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#64748b" }}>Filtro rápido por municipio:</span>
+                    <select
+                      value={selectedMunicipality}
+                      onChange={(e) => handleMunicipalityChange(e.target.value)}
+                      style={{ padding: "4px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "10px", fontWeight: "700", outline: "none" }}
+                    >
+                      <option value="all">Todos</option>
+                      <option value="Tonalá">Tonalá</option>
+                      <option value="Guadalajara">Guadalajara</option>
+                      <option value="San Pedro Tlaquepaque">Tlaquepaque</option>
+                      <option value="Zapopan">Zapopan</option>
+                    </select>
+                  </div>
 
-            {/* Base Layer Switcher */}
-            <div style={{ marginBottom: "12px" }}>
-              <span style={{ fontSize: "10px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
-                Estilo de Mapa Base
-              </span>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                {Object.entries(TILE_STYLES).map(([key, style]) => (
-                  <button
-                    key={key}
-                    onClick={() => handleChangeTileStyle(key)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "4px", padding: "7px 8px", borderRadius: "8px", border: "1px solid",
-                      borderColor: selectedTileStyle === key ? "#2563eb" : "#e2e8f0",
-                      backgroundColor: selectedTileStyle === key ? "#eff6ff" : "#f8fafc",
-                      color: selectedTileStyle === key ? "#1d4ed8" : "#334155",
-                      fontSize: "11px", fontWeight: "700", cursor: "pointer"
-                    }}
-                  >
-                    <span>{style.icon}</span>
-                    <span>{style.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+                  {allReports.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "30px 10px", color: "#94a3b8" }}>
+                      <CheckCircle2 size={28} style={{ margin: "0 auto 8px", color: "#16a34a" }} />
+                      <p style={{ fontSize: "12px", margin: 0 }}>No hay incidencias pendientes en este momento.</p>
+                    </div>
+                  ) : (
+                    allReports.map((r) => {
+                      const cat = CATEGORIES[r.properties.category] ?? { label: r.properties.category, color: "#64748b", bg: "#f8fafc", svg: SVGS.AlertCircle };
+                      const isResolved = r.properties.status === "resolved";
+                      return (
+                        <div key={r.properties.id} style={{ background: "#f8fafc", padding: "10px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "3px" }}>
+                            <span style={{ fontSize: "10px", fontWeight: "800", textTransform: "uppercase", padding: "2px 5px", borderRadius: "4px", color: cat.color, background: cat.bg }}>
+                              {cat.label}
+                            </span>
+                            <span style={{ fontSize: "10px", fontWeight: "700", color: isResolved ? "#16a34a" : "#dc2626" }}>
+                              {isResolved ? "✓ Atendida" : "● Pendiente"}
+                            </span>
+                          </div>
+                          <h4 style={{ margin: "0 0 2px", fontWeight: "800", fontSize: "12px", color: "#0f172a" }}>{r.properties.title}</h4>
+                          <p style={{ margin: "0 0 6px", fontSize: "11px", color: "#475569", lineHeight: "1.3" }}>{r.properties.description}</p>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #e2e8f0", paddingTop: "6px" }}>
+                            <span style={{ fontSize: "10px", fontWeight: "700", color: "#1d4ed8" }}>📍 {r.properties.municipality || "Tonalá"}</span>
+                            <button
+                              onClick={() => handleFocusOnMap(r)}
+                              style={{ display: "flex", alignItems: "center", gap: "3px", background: "#2563eb", color: "white", border: "none", fontWeight: "700", padding: "4px 8px", borderRadius: "6px", fontSize: "10px", cursor: "pointer" }}
+                            >
+                              <MapPin size={10} />
+                              Centrar Mapa
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </>
+              )}
 
-            {/* Layer Toggles */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "8px", borderTop: "1px solid #f1f5f9", fontSize: "11px", fontWeight: "600", color: "#334155" }}>
-              <span style={{ fontSize: "10px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", marginBottom: "2px" }}>
-                Capas Visibles
-              </span>
-              
-              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-                <span>Polígonos Seccionales</span>
-                <input type="checkbox" checked={showSections} onChange={(e) => setShowSections(e.target.checked)} style={{ accentColor: "#2563eb" }} />
-              </label>
+              {/* LAYERS & CONTROLS PANEL */}
+              {activeDrawer === "layers" && (
+                <>
+                  <div>
+                    <span style={{ fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
+                      Estilo de Mapa Base
+                    </span>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                      {Object.entries(TILE_STYLES).map(([key, style]) => (
+                        <button
+                          key={key}
+                          onClick={() => handleChangeTileStyle(key)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: "6px", padding: "8px", borderRadius: "8px", border: "1px solid",
+                            borderColor: selectedTileStyle === key ? "#2563eb" : "#e2e8f0",
+                            backgroundColor: selectedTileStyle === key ? "#eff6ff" : "#f8fafc",
+                            color: selectedTileStyle === key ? "#1d4ed8" : "#334155",
+                            fontSize: "11px", fontWeight: "700", cursor: "pointer"
+                          }}
+                        >
+                          <span>{style.icon}</span>
+                          <span>{style.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-                <span>Números de Sección</span>
-                <input type="checkbox" checked={showSectionLabels} onChange={(e) => setShowSectionLabels(e.target.checked)} style={{ accentColor: "#2563eb" }} />
-              </label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingTop: "10px", borderTop: "1px solid #f1f5f9", fontSize: "11px", fontWeight: "600", color: "#334155" }}>
+                    <span style={{ fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase" }}>
+                      Capas y Elementos
+                    </span>
+                    
+                    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", background: "#f8fafc", padding: "8px", borderRadius: "8px" }}>
+                      <span>Polígonos Seccionales</span>
+                      <input type="checkbox" checked={showSections} onChange={(e) => setShowSections(e.target.checked)} style={{ accentColor: "#2563eb" }} />
+                    </label>
 
-              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-                <span>Marcadores de Incidencias</span>
-                <input type="checkbox" checked={showIncidents} onChange={(e) => setShowIncidents(e.target.checked)} style={{ accentColor: "#dc2626" }} />
-              </label>
+                    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", background: "#f8fafc", padding: "8px", borderRadius: "8px" }}>
+                      <span>Números de Sección</span>
+                      <input type="checkbox" checked={showSectionLabels} onChange={(e) => setShowSectionLabels(e.target.checked)} style={{ accentColor: "#2563eb" }} />
+                    </label>
 
-              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-                <span>Agrupamiento (Clusters)</span>
-                <input type="checkbox" checked={enableClustering} onChange={(e) => setEnableClustering(e.target.checked)} style={{ accentColor: "#2563eb" }} />
-              </label>
+                    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", background: "#f8fafc", padding: "8px", borderRadius: "8px" }}>
+                      <span>Agrupamiento Inteligente (Clusters)</span>
+                      <input type="checkbox" checked={enableClustering} onChange={(e) => setEnableClustering(e.target.checked)} style={{ accentColor: "#2563eb" }} />
+                    </label>
+                  </div>
+                </>
+              )}
+
             </div>
           </div>
         )}
