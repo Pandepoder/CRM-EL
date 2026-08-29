@@ -7,6 +7,7 @@ RUN apk add --no-cache python3 make g++
 FROM base AS builder
 WORKDIR /app
 COPY . .
+RUN mkdir -p apps/web/public
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @tonala/web build
 
@@ -21,6 +22,7 @@ COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /app/db ./db
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/packages ./packages
+RUN mkdir -p apps/web/public
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
