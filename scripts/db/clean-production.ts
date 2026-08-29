@@ -25,18 +25,23 @@ async function cleanProductionDatabase() {
     console.log("1. Vaciando datos transaccionales de prueba...");
     await pool.query(`
       TRUNCATE TABLE 
-        contact_interactions,
-        contact_tags,
+        visit_results,
         visits,
+        contact_assignments,
+        contact_territory,
         contacts,
         event_reports,
         electoral_representatives,
         team_members,
         teams,
         inbox_messages,
-        inventory_movements,
+        inbox_conversations,
+        inventory_transactions,
         inventory_items,
-        outbox_events
+        warehouses,
+        transactional_outbox,
+        processed_event_log,
+        walking_skeleton_projection_v1
       CASCADE;
     `);
 
