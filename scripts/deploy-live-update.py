@@ -71,8 +71,18 @@ def update_live():
     if not ok:
         sys.exit(1)
 
-    # 3. Wait 5s and test health
-    time.sleep(5)
+    # 3. Regenerate seamless Voronoi sections in Postgres
+    time.sleep(3)
+    cmd_voronoi = """
+    cd /opt/crm-el
+    docker compose exec -T web npx tsx scripts/db/generate-clean-voronoi-sections.ts
+    """
+    ok, _ = run_remote_command(client, cmd_voronoi, "3. Generación de Secciones Voronoi Continuas")
+    if not ok:
+        print("[WARN] Voronoi script inside container had a warning, continuing...")
+
+    # 4. Wait 5s and test health
+    time.sleep(4)
     cmd_test = """
     echo "Verificando respuesta local..."
     curl -s http://localhost:3000/api/health
@@ -81,7 +91,7 @@ def update_live():
     curl -s https://elapp.com.mx/api/health
     echo ""
     """
-    ok, _ = run_remote_command(client, cmd_test, "3. Verificación de Salud en Vivo")
+    ok, _ = run_remote_command(client, cmd_test, "4. Verificación de Salud en Vivo")
     if not ok:
         sys.exit(1)
 
