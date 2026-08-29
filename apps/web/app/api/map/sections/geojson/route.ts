@@ -5,6 +5,20 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
 
+function inferMunicipalityFromSection(secNum: number, currentMunicipality?: string | null): string {
+  if (currentMunicipality && currentMunicipality !== "Tonalá") return currentMunicipality;
+  if (secNum >= 2700 && secNum <= 2800) return "Tonalá";
+  if (secNum >= 900 && secNum <= 1450) return "Guadalajara";
+  if (secNum >= 3000 && secNum <= 3500) return "Zapopan";
+  if (secNum >= 2500 && secNum <= 2699) return "San Pedro Tlaquepaque";
+  if (secNum >= 2400 && secNum <= 2499) return "Tlajomulco de Zúñiga";
+  if (secNum >= 1950 && secNum <= 2050) return "El Salto";
+  if (secNum >= 3600 && secNum <= 3650) return "Zapotlanejo";
+  if (secNum >= 1750 && secNum <= 1800) return "Ixtlahuacán de los Membrillos";
+  if (secNum >= 1850 && secNum <= 1900) return "Juanacatlán";
+  return currentMunicipality || "Tonalá";
+}
+
 /**
  * GET /api/map/sections/geojson
  * Returns a GeoJSON FeatureCollection of electoral sections.
@@ -22,6 +36,7 @@ export async function GET() {
       section_num: number;
       geom_json: any;
       colonies: string[];
+      municipality: string;
       contacts_count: string;
       visits_scheduled: string;
       visits_completed: string;
@@ -69,6 +84,7 @@ export async function GET() {
         } catch {
           return null;
         }
+        const resolvedMuni = inferMunicipalityFromSection(row.section_num, row.municipality);
         return {
           type: "Feature",
           id: row.section_num,
@@ -76,7 +92,7 @@ export async function GET() {
             id: row.id,
             section_num: row.section_num,
             name: `Sección ${row.section_num}`,
-            municipality: (row as any).municipality || "Tonalá",
+            municipality: resolvedMuni,
             colonies: row.colonies || [],
             contactsCount: Number(row.contacts_count || 0),
             visitsScheduled: Number(row.visits_scheduled || 0),

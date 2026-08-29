@@ -6,6 +6,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { actorFromSession } from "@/lib/api-helpers";
 import { point } from "@turf/helpers";
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
+import { sql } from "drizzle-orm";
 
 // High-precision bounding box heuristic for Metropolitan Municipalities of Jalisco
 const METRO_BOUNDS: Array<{
@@ -58,6 +59,20 @@ function resolveMunicipalityByCoords(lat: number, lng: number): string {
   return "Tonalá";
 }
 
+function inferMunicipalityFromSection(secNum: number, currentMunicipality?: string | null): string {
+  if (currentMunicipality && currentMunicipality !== "Tonalá") return currentMunicipality;
+  if (secNum >= 2700 && secNum <= 2800) return "Tonalá";
+  if (secNum >= 900 && secNum <= 1450) return "Guadalajara";
+  if (secNum >= 3000 && secNum <= 3500) return "Zapopan";
+  if (secNum >= 2500 && secNum <= 2699) return "San Pedro Tlaquepaque";
+  if (secNum >= 2400 && secNum <= 2499) return "Tlajomulco de Zúñiga";
+  if (secNum >= 1950 && secNum <= 2050) return "El Salto";
+  if (secNum >= 3600 && secNum <= 3650) return "Zapotlanejo";
+  if (secNum >= 1750 && secNum <= 1800) return "Ixtlahuacán de los Membrillos";
+  if (secNum >= 1850 && secNum <= 1900) return "Juanacatlán";
+  return currentMunicipality || "Tonalá";
+}
+
 /**
  * GET /api/map/reverse-geocode?lat=20.624&lng=-103.235
  * Accurately detects street address, colony, municipality, and electoral section for any coordinate in Jalisco AMG.
@@ -98,7 +113,7 @@ export async function GET(request: Request) {
       geom_json: any;
       colonies: string[];
       municipality: string;
-    }>(`
+    }>(sql`
       SELECT 
         es.id::text,
         es.section_num,
@@ -122,7 +137,7 @@ export async function GET(request: Request) {
         if (booleanPointInPolygon(pt, polyFeature)) {
           sectionId = row.id;
           sectionNum = row.section_num;
-          sectionMunicipality = row.municipality;
+          sectionMunicipality = inferMunicipalityFromSection(row.section_num, row.municipality);
           sectionColonies = row.colonies || [];
           break;
         }
@@ -178,32 +193,30 @@ export async function GET(request: Request) {
         if (road) parts.push(`${road}${houseNum}`);
         if (detectedColony) parts.push(`Col. ${detectedColony}`);
         if (detectedMunicipality) parts.push(detectedMunicipality);
-        if (postcode) parts.push(`C.P. ${postcode}`);
-        parts.push("Jalisco");
-
-        streetAddress = parts.join(", ");
+        
+        streetAddress = parts.join(", ") || data.display_name || "";
       }
     }
   } catch (_e) {
-    // Nominatim timeout or offline — generate robust fallback address
+    // OpenStreetMap fetch failed or timed out — fallback to coordinates
+    streetAddress = `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
   }
 
-  // Fallback street address if Nominatim did not return
   if (!streetAddress) {
-    const colName = detectedColony ? `Col. ${detectedColony}, ` : "";
-    const secName = sectionNum ? ` (Sección ${sectionNum})` : "";
-    streetAddress = `Ubicación en ${colName}${detectedMunicipality}${secName}, Jalisco`;
+    streetAddress = `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
   }
 
   return NextResponse.json({
     success: true,
-    coordinates: { lat, lng },
-    address: streetAddress,
+    latitude: lat,
+    longitude: lng,
+    formattedAddress: streetAddress,
     colony: detectedColony,
     municipality: detectedMunicipality,
-    postcode,
+    postalCode: postcode,
     sectionId,
     sectionNum,
+    sectionName: sectionNum ? `Sección ${sectionNum}` : undefined,
     colonies: sectionColonies
   });
 }
