@@ -357,39 +357,119 @@ export const OFFICIAL_TONALA_SECTIONS: SectionDefinition[] = [
   }
 ];
 
-export function boundsToRealisticPolygon(sectionNum: number, b: { minLng: number; maxLng: number; minLat: number; maxLat: number }) {
-  const cLng = (b.minLng + b.maxLng) / 2;
-  const cLat = (b.minLat + b.maxLat) / 2;
-  const rx = (b.maxLng - b.minLng) / 2;
-  const ry = (b.maxLat - b.minLat) / 2;
+type Point = [number, number];
+type Polygon = Point[];
 
-  // 12 to 16 non-orthogonal vertices creating organic, authentic electoral block boundaries
-  const numPoints = 12 + (sectionNum % 5);
-  const coords: [number, number][] = [];
+function clipPolygonAgainstBisector(
+  subjectPoly: Polygon,
+  pSeed: Point,
+  pOther: Point
+): Polygon {
+  if (subjectPoly.length < 3) return subjectPoly;
 
-  let seed = ((sectionNum * 2654435761) ^ (Math.round(cLat * 10000) * 31) ^ (Math.round(cLng * 10000) * 17)) >>> 0;
-  const pseudoRand = (i: number) => {
-    seed = (seed ^ (i * 1664525 + 1013904223)) >>> 0;
-    return ((seed >> 8) % 1000) / 1000;
+  const mx = (pSeed[0] + pOther[0]) / 2;
+  const my = (pSeed[1] + pOther[1]) / 2;
+  const nx = pSeed[0] - pOther[0];
+  const ny = pSeed[1] - pOther[1];
+
+  const isInside = (p: Point): boolean => {
+    return (p[0] - mx) * nx + (p[1] - my) * ny >= -1e-10;
   };
 
-  for (let i = 0; i < numPoints; i++) {
-    const angle = (i / numPoints) * 2 * Math.PI;
-    const noise = (pseudoRand(i) - 0.5) * 0.22;
-    const harmonic = Math.sin(2 * angle + (sectionNum % 4)) * 0.12 + Math.cos(3 * angle) * 0.08;
-    const factor = Math.max(0.75, Math.min(1.04, 0.98 + noise + harmonic));
+  const computeIntersection = (p1: Point, p2: Point): Point => {
+    const dx = p2[0] - p1[0];
+    const dy = p2[1] - p1[1];
+    const denom = dx * nx + dy * ny;
+    if (Math.abs(denom) < 1e-12) return p1;
+    const t = ((mx - p1[0]) * nx + (my - p1[1]) * ny) / denom;
+    return [
+      Number((p1[0] + t * dx).toFixed(6)),
+      Number((p1[1] + t * dy).toFixed(6))
+    ];
+  };
 
-    const lng = Number((cLng + rx * Math.cos(angle) * factor).toFixed(6));
-    const lat = Number((cLat + ry * Math.sin(angle) * factor).toFixed(6));
-    coords.push([lng, lat]);
+  const outputList: Point[] = [];
+  const len = subjectPoly.length;
+
+  for (let i = 0; i < len; i++) {
+    const current = subjectPoly[i]!;
+    const prev = subjectPoly[(i + len - 1) % len]!;
+
+    const currentInside = isInside(current);
+    const prevInside = isInside(prev);
+
+    if (currentInside) {
+      if (!prevInside) {
+        outputList.push(computeIntersection(prev, current));
+      }
+      outputList.push(current);
+    } else if (prevInside) {
+      outputList.push(computeIntersection(prev, current));
+    }
   }
 
-  coords.push([coords[0]![0], coords[0]![1]]);
+  return outputList;
+}
 
+export function computeVoronoiGeometryForSection(
+  targetSec: SectionDefinition,
+  allSecs: SectionDefinition[]
+) {
+  let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  for (const s of allSecs) {
+    minLng = Math.min(minLng, s.bounds.minLng);
+    maxLng = Math.max(maxLng, s.bounds.maxLng);
+    minLat = Math.min(minLat, s.bounds.minLat);
+    maxLat = Math.max(maxLat, s.bounds.maxLat);
+  }
+
+  const padLng = (maxLng - minLng) * 0.08 || 0.01;
+  const padLat = (maxLat - minLat) * 0.08 || 0.01;
+  const bMinLng = minLng - padLng;
+  const bMaxLng = maxLng + padLng;
+  const bMinLat = minLat - padLat;
+  const bMaxLat = maxLat + padLat;
+
+  let poly: Polygon = [
+    [bMinLng, bMinLat],
+    [bMaxLng, bMinLat],
+    [bMaxLng, bMaxLat],
+    [bMinLng, bMaxLat]
+  ];
+
+  const targetCentroid: Point = [
+    (targetSec.bounds.minLng + targetSec.bounds.maxLng) / 2,
+    (targetSec.bounds.minLat + targetSec.bounds.maxLat) / 2
+  ];
+
+  for (const other of allSecs) {
+    if (other.sectionNum === targetSec.sectionNum) continue;
+    const otherCentroid: Point = [
+      (other.bounds.minLng + other.bounds.maxLng) / 2,
+      (other.bounds.minLat + other.bounds.maxLat) / 2
+    ];
+    poly = clipPolygonAgainstBisector(poly, targetCentroid, otherCentroid);
+  }
+
+  if (poly.length < 3) {
+    poly = [
+      [targetSec.bounds.minLng, targetSec.bounds.minLat],
+      [targetSec.bounds.maxLng, targetSec.bounds.minLat],
+      [targetSec.bounds.maxLng, targetSec.bounds.maxLat],
+      [targetSec.bounds.minLng, targetSec.bounds.maxLat]
+    ];
+  }
+
+  const closedPoly = [...poly, poly[0]!];
   return {
     type: "Polygon" as const,
-    coordinates: [coords]
+    coordinates: [closedPoly]
   };
+}
+
+export function boundsToRealisticPolygon(sectionNum: number, b: { minLng: number; maxLng: number; minLat: number; maxLat: number }) {
+  const dummySec: SectionDefinition = { sectionNum, nominalListCount: 2000, district: 7, colonies: [], bounds: b };
+  return computeVoronoiGeometryForSection(dummySec, OFFICIAL_TONALA_SECTIONS);
 }
 
 export async function runGenerateOfficialSections() {

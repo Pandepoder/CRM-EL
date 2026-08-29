@@ -8,13 +8,11 @@ import {
   CheckCircle2, 
   MapPin, 
   Layers, 
-  ExternalLink, 
   X, 
   PlusCircle, 
   Search, 
   ChevronRight, 
   ListFilter, 
-  Map as MapIcon, 
   Trash2, 
   MousePointerClick, 
   SlidersHorizontal, 
@@ -23,7 +21,10 @@ import {
   Edit3, 
   ShieldAlert, 
   Flame, 
-  LocateFixed 
+  LocateFixed,
+  Users,
+  Compass,
+  Check
 } from "lucide-react";
 
 // Lucide icon SVGs baked for fast rendering in Leaflet HTML markers
@@ -51,39 +52,39 @@ const CATEGORIES: Record<string, { label: string; svg: string; color: string; bg
 const MUNICIPALITY_COLORS: Record<string, { stroke: string; fill: string }> = {
   "Tonalá": { stroke: "#4f46e5", fill: "#6366f1" },
   "Guadalajara": { stroke: "#7e22ce", fill: "#a855f7" },
-  "San Pedro Tlaquepaque": { stroke: "#b45309", fill: "#f59e0b" },
-  "Zapopan": { stroke: "#047857", fill: "#10b981" },
-  "Tlajomulco de Zúñiga": { stroke: "#0e7490", fill: "#06b6d4" },
-  "El Salto": { stroke: "#be123c", fill: "#f43f5e" },
-  "Zapotlanejo": { stroke: "#334155", fill: "#64748b" },
-  "Ixtlahuacán de los Membrillos": { stroke: "#0f766e", fill: "#14b8a6" },
+  "San Pedro Tlaquepaque": { stroke: "#d97706", fill: "#f59e0b" },
+  "Zapopan": { stroke: "#059669", fill: "#10b981" },
+  "Tlajomulco de Zúñiga": { stroke: "#0891b2", fill: "#06b6d4" },
+  "El Salto": { stroke: "#e11d48", fill: "#f43f5e" },
+  "Zapotlanejo": { stroke: "#475569", fill: "#64748b" },
+  "Ixtlahuacán de los Membrillos": { stroke: "#0d9488", fill: "#14b8a6" },
   "Juanacatlán": { stroke: "#4338ca", fill: "#818cf8" },
 };
 
 const TILE_STYLES = {
-  osm: {
-    name: "Estándar",
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: "&copy; OpenStreetMap Contributors",
-    icon: "🗺️"
-  },
   positron: {
-    name: "Positron Claro",
+    name: "Carto Claro",
     url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    attribution: "&copy; CartoDB",
+    attribution: "&copy; CartoDB & OpenStreetMap",
     icon: "🏙️"
   },
   dark: {
-    name: "Táctico Oscuro",
+    name: "Táctico Nocturno",
     url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    attribution: "&copy; CartoDB",
+    attribution: "&copy; CartoDB Dark Matter",
     icon: "🌙"
   },
   satellite: {
-    name: "Satélite",
+    name: "Satélite HD",
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     attribution: "&copy; Esri World Imagery",
     icon: "🛰️"
+  },
+  osm: {
+    name: "Calles Clásico",
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: "&copy; OpenStreetMap Contributors",
+    icon: "🗺️"
   }
 } as const;
 
@@ -173,9 +174,9 @@ export default function MapaPage() {
   const mapClickModeRef = useRef<"select" | "report">("select");
   mapClickModeRef.current = mapClickMode;
 
-  // Layer Toggles & Map View Settings
+  // Layer Toggles & Map View Settings (Default to clean Carto Positron)
   const [isLayersMenuOpen, setIsLayersMenuOpen] = useState(false);
-  const [selectedTileStyle, setSelectedTileStyle] = useState<string>("osm");
+  const [selectedTileStyle, setSelectedTileStyle] = useState<string>("positron");
   const [showSections, setShowSections] = useState(true);
   const [showIncidents, setShowIncidents] = useState(true);
   const [enableClustering, setEnableClustering] = useState(true);
@@ -310,14 +311,14 @@ export default function MapaPage() {
 
           const gpsIcon = L.divIcon({
             html: `
-              <div style="position:relative; width:28px; height:28px; display:flex; align-items:center; justify-content:center;">
-                <div style="position:absolute; width:28px; height:28px; border-radius:50%; background:rgba(59,130,246,0.35); animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>
-                <div style="width:16px; height:16px; border-radius:50%; background:#2563eb; border:3px solid white; box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>
+              <div style="position:relative; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">
+                <div style="position:absolute; width:30px; height:30px; border-radius:50%; background:rgba(37,99,235,0.35); animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>
+                <div style="width:16px; height:16px; border-radius:50%; background:#2563eb; border:3px solid white; box-shadow:0 3px 8px rgba(0,0,0,0.35);"></div>
               </div>
             `,
             className: "gps-user-marker",
-            iconSize: [28, 28],
-            iconAnchor: [14, 14]
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
           });
 
           const marker = L.marker([latitude, longitude], { icon: gpsIcon })
@@ -369,9 +370,11 @@ export default function MapaPage() {
 
       leafletModule.control.zoom({ position: "bottomright" }).addTo(map);
 
-      const initialTiles = leafletModule.tileLayer(TILE_STYLES.osm.url, {
-        attribution: TILE_STYLES.osm.attribution,
+      // Default to CartoDB Positron for ultra clean look
+      const initialTiles = leafletModule.tileLayer(TILE_STYLES.positron.url, {
+        attribution: TILE_STYLES.positron.attribution,
         maxZoom: 19,
+        subdomains: "abcd"
       }).addTo(map);
 
       setTileLayerRef(initialTiles);
@@ -398,44 +401,50 @@ export default function MapaPage() {
 
   const handleChangeTileStyle = (styleKey: string) => {
     const style = (TILE_STYLES as Record<string, { name: string; url: string; attribution: string; icon: string }>)[styleKey];
-    if (!L || !mapRef || !tileLayerRef || !style) return;
+    if (!style || !mapRef || !L || !tileLayerRef) return;
+
     setSelectedTileStyle(styleKey);
     tileLayerRef.setUrl(style.url);
-    showToast(`🗺️ Vista de mapa: ${style.name}`);
+    tileLayerRef.options.attribution = style.attribution;
+    showToast(`🗺️ Capa base: ${style.name}`);
   };
 
-  // 2. Fetch Reports
+  // 2. Fetch Incidents
   const fetchReports = useCallback(async () => {
     try {
-      const res = await fetch("/api/map/reports");
-      const data = await res.json();
-      setAllReports(data.features || []);
-    } catch (e) {
-      console.error("Failed to fetch reports:", e);
+      const res = await fetch("/api/map/reports", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setAllReports(data.features || []);
+      }
+    } catch (error) {
+      console.error("Failed to load map reports:", error);
     }
   }, []);
 
   // 3. Fetch Sections GeoJSON
   const fetchSections = useCallback(async () => {
     try {
-      const res = await fetch("/api/map/sections/geojson");
-      const data = await res.json();
-      setSectionsData(data);
-    } catch (e) {
-      console.error("Failed to fetch sections:", e);
+      const res = await fetch("/api/map/sections/geojson", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setSectionsData(data);
+      }
+    } catch (error) {
+      console.error("Failed to load sections GeoJSON:", error);
     }
   }, []);
 
   // 4. Fetch Users for Assignment
   const fetchUsers = useCallback(async () => {
     try {
-      const res = await fetch("/api/crm/users");
+      const res = await fetch("/api/map/users", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        setSystemUsers(data || []);
+        setSystemUsers(data.users || []);
       }
-    } catch (e) {
-      console.error("Failed to fetch users:", e);
+    } catch (error) {
+      console.error("Failed to load system users:", error);
     }
   }, []);
 
@@ -580,7 +589,7 @@ export default function MapaPage() {
     }
   };
 
-  // 11. Render Sections Layer with Centroid Badges
+  // 11. Render Sections Layer with Seamless Voronoi Styling
   useEffect(() => {
     if (!L || !mapRef || !sectionsData) return;
 
@@ -606,10 +615,10 @@ export default function MapaPage() {
 
         return {
           color: isSelected ? "#1e1b4b" : theme.stroke,
-          weight: isSelected ? 4 : 2,
+          weight: isSelected ? 3.5 : 1.8,
           opacity: isSelected ? 1.0 : 0.85,
           fillColor: isSelected ? "#312e81" : theme.fill,
-          fillOpacity: isSelected ? 0.38 : 0.18,
+          fillOpacity: isSelected ? 0.42 : 0.20,
           lineJoin: "round",
           lineCap: "round"
         };
@@ -619,7 +628,16 @@ export default function MapaPage() {
         const mun = p.municipality || "Tonalá";
         
         layerItem.bindTooltip(
-          `<strong>Sección ${p.section_num} (${mun})</strong><br/><span style="font-size:11px;color:#475569">${p.colonies.slice(0, 2).join(", ") || mun}</span>`,
+          `
+            <div style="font-family:system-ui,sans-serif; padding:4px;">
+              <div style="font-size:12px; font-weight:800; color:#0f172a;">Sección ${p.section_num} <span style="font-weight:600; color:#6366f1;">(${mun})</span></div>
+              <div style="font-size:10px; color:#475569; margin-top:2px;">${p.colonies.slice(0, 3).join(", ") || mun}</div>
+              <div style="display:flex; gap:8px; margin-top:4px; font-size:10px; font-weight:700; color:#1e293b;">
+                <span>👥 ${p.contactsCount} simpatizantes</span>
+                <span>📋 ${p.visitsCompleted} visitas</span>
+              </div>
+            </div>
+          `,
           { sticky: true, className: "section-map-tooltip" }
         );
 
@@ -627,10 +645,10 @@ export default function MapaPage() {
           const bounds = layerItem.getBounds();
           const center = bounds.getCenter();
           const labelIcon = L.divIcon({
-            html: `<div style="background:rgba(15,23,42,0.8); color:white; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px; border:1px solid rgba(255,255,255,0.4); text-align:center; white-space:nowrap; pointer-events:none; box-shadow:0 1px 3px rgba(0,0,0,0.2); backdrop-filter:blur(2px);">${p.section_num}</div>`,
+            html: `<div style="background:rgba(15,23,42,0.85); color:#ffffff; font-size:10px; font-weight:800; padding:1.5px 5px; border-radius:5px; border:1px solid rgba(255,255,255,0.4); text-align:center; white-space:nowrap; pointer-events:none; box-shadow:0 2px 5px rgba(0,0,0,0.3); backdrop-filter:blur(4px);">${p.section_num}</div>`,
             className: "section-centroid-label",
-            iconSize: [30, 16],
-            iconAnchor: [15, 8]
+            iconSize: [28, 16],
+            iconAnchor: [14, 8]
           });
           L.marker(center, { icon: labelIcon, interactive: false }).addTo(labelsLayer);
         }
@@ -638,7 +656,7 @@ export default function MapaPage() {
         layerItem.on({
           mouseover: (e: any) => {
             if (mapClickModeRef.current === "select") {
-              e.target.setStyle({ weight: 3.5, fillOpacity: 0.32, opacity: 1.0 });
+              e.target.setStyle({ weight: 3.2, fillOpacity: 0.38, opacity: 1.0 });
             }
           },
           mouseout: (e: any) => {
@@ -650,7 +668,7 @@ export default function MapaPage() {
               void triggerIncidentCreation(e.latlng.lat, e.latlng.lng, mun);
             } else {
               setSelectedSection(p);
-              mapRef.fitBounds(e.target.getBounds(), { padding: [40, 40], maxZoom: 15 });
+              mapRef.fitBounds(e.target.getBounds(), { padding: [50, 50], maxZoom: 15 });
             }
           },
           dblclick: (e: any) => {
@@ -673,7 +691,7 @@ export default function MapaPage() {
     mapRef.flyTo(config.center, config.zoom, { duration: 1.2 });
   };
 
-  // 12. Render Incident Markers with Clustering
+  // 12. Render Incident Markers with High-Tech Icons
   useEffect(() => {
     if (!L || !markersLayer || !mapRef) return;
 
@@ -700,47 +718,43 @@ export default function MapaPage() {
         clusters[key].lngSum += lng;
       });
 
-      Object.values(clusters).forEach((cluster) => {
-        const count = cluster.reports.length;
-        const avgLat = cluster.latSum / count;
-        const avgLng = cluster.lngSum / count;
+      Object.values(clusters).forEach((c) => {
+        const count = c.reports.length;
+        const avgLat = c.latSum / count;
+        const avgLng = c.lngSum / count;
 
         if (count === 1) {
-          renderSingleMarker(cluster.reports[0]!);
+          const report = c.reports[0]!;
+          renderSingleMarker(report, avgLat, avgLng);
         } else {
-          const hasEmergency = cluster.reports.some(r => r.properties.category === "emergencia");
-          const hasPending = cluster.reports.some(r => r.properties.status === "active");
-
-          const clusterColor = hasEmergency ? "#ef4444" : hasPending ? "#f59e0b" : "#10b981";
-          const clusterBg = hasEmergency ? "rgba(239, 68, 68, 0.25)" : hasPending ? "rgba(245, 158, 11, 0.25)" : "rgba(16, 185, 129, 0.25)";
-
+          const hasEmergency = c.reports.some(r => r.properties.category === "emergencia" && r.properties.status === "active");
           const clusterIcon = L.divIcon({
             html: `
-              <div style="position:relative; width:44px; height:44px; border-radius:50%; background:${clusterBg}; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); cursor: pointer; transition: transform 0.2s;">
-                <div style="width:32px; height:32px; border-radius:50%; background:${clusterColor}; color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; border:2.5px solid white;">
-                  ${count}
-                </div>
+              <div style="position:relative; width:38px; height:38px; border-radius:50%; background:${hasEmergency ? '#dc2626' : '#4f46e5'}; color:white; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; border:3px solid white; box-shadow:0 4px 12px rgba(0,0,0,0.25); cursor:pointer;">
+                ${count}
+                ${hasEmergency ? `<div style="position:absolute; inset:-4px; border-radius:50%; border:2px solid #ef4444; animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>` : ''}
               </div>
             `,
-            className: "custom-cluster-badge",
-            iconSize: [44, 44],
-            iconAnchor: [22, 22]
+            className: "incident-cluster-marker",
+            iconSize: [38, 38],
+            iconAnchor: [19, 19]
           });
 
-          const clusterMarker = L.marker([avgLat, avgLng], { icon: clusterIcon }).addTo(markersLayer);
-          clusterMarker.on("click", () => {
-            mapRef.flyTo([avgLat, avgLng], Math.min(zoom + 2, 16), { duration: 0.8 });
-          });
+          L.marker([avgLat, avgLng], { icon: clusterIcon })
+            .on("click", () => {
+              mapRef.flyTo([avgLat, avgLng], zoom + 2, { duration: 0.8 });
+            })
+            .addTo(markersLayer);
         }
       });
     } else {
       filtered.forEach((report) => {
-        renderSingleMarker(report);
+        const [lng, lat] = report.geometry.coordinates;
+        renderSingleMarker(report, lat, lng);
       });
     }
 
-    function renderSingleMarker(report: ReportFeature) {
-      const [lng, lat] = report.geometry.coordinates;
+    function renderSingleMarker(report: ReportFeature, lat: number, lng: number) {
       const cat = CATEGORIES[report.properties.category] ?? {
         label: report.properties.category,
         svg: SVGS.AlertCircle,
@@ -749,12 +763,14 @@ export default function MapaPage() {
       };
 
       const isResolved = report.properties.status === "resolved";
+      const isEmergency = report.properties.category === "emergencia" && !isResolved;
 
       const icon = L.divIcon({
         html: `
-          <div style="position:relative; width:34px; height:34px; border-radius:50%; background-color:${isResolved ? '#f0fdf4' : cat.bg}; display:flex; align-items:center; justify-content:center; color:${isResolved ? '#16a34a' : cat.color}; border: 2.5px solid ${isResolved ? '#16a34a' : 'white'}; box-shadow: 0 4px 8px rgba(0,0,0,0.15); opacity: ${isResolved ? 0.85 : 1}; cursor: pointer;">
+          <div style="position:relative; width:34px; height:34px; border-radius:50%; background-color:${isResolved ? '#f0fdf4' : cat.bg}; display:flex; align-items:center; justify-content:center; color:${isResolved ? '#16a34a' : cat.color}; border: 2.5px solid ${isResolved ? '#16a34a' : isEmergency ? '#ef4444' : 'white'}; box-shadow: 0 4px 10px rgba(0,0,0,0.2); opacity: ${isResolved ? 0.85 : 1}; cursor: pointer;">
             ${cat.svg}
             ${isResolved ? `<div style="position:absolute; bottom:-2px; right:-2px; background:#16a34a; color:white; width:14px; height:14px; border-radius:50%; font-size:10px; display:flex; align-items:center; justify-content:center; border:1.5px solid white;">✓</div>` : ''}
+            ${isEmergency ? `<div style="position:absolute; inset:-3px; border-radius:50%; border:2px solid #ef4444; animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>` : ''}
           </div>
         `,
         className: "custom-incident-marker",
@@ -770,22 +786,24 @@ export default function MapaPage() {
 
       const statusBadge = isResolved
         ? `<span style="background:#dcfce7; color:#15803d; padding:3px 8px; border-radius:9999px; font-size:10px; font-weight:700; text-transform:uppercase;">✓ Atendida</span>`
+        : isEmergency
+        ? `<span style="background:#fee2e2; color:#dc2626; padding:3px 8px; border-radius:9999px; font-size:10px; font-weight:700; text-transform:uppercase;">● Emergencia</span>`
         : `<span style="background:#fef3c7; color:#b45309; padding:3px 8px; border-radius:9999px; font-size:10px; font-weight:700; text-transform:uppercase;">● Pendiente</span>`;
 
       const actionButton = isResolved
-        ? `<button onclick="window.__toggleReportStatus('${report.properties.id}', 'active')" style="flex:1; padding:7px 10px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px;">
+        ? `<button onclick="window.__toggleReportStatus('${report.properties.id}', 'active')" style="flex:1; padding:8px 10px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px;">
             ↺ Reabrir
           </button>`
-        : `<button onclick="window.__toggleReportStatus('${report.properties.id}', 'resolved')" style="flex:1; padding:7px 10px; background:#16a34a; color:white; border:none; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px; box-shadow:0 2px 4px rgba(22,163,74,0.3);">
-            ✓ Atendida
+        : `<button onclick="window.__toggleReportStatus('${report.properties.id}', 'resolved')" style="flex:1; padding:8px 10px; background:#16a34a; color:white; border:none; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px; box-shadow:0 2px 6px rgba(22,163,74,0.3);">
+            ✓ Marcar Atendida
           </button>`;
 
       const popupHtml = `
-        <div style="font-family:system-ui,-apple-system,sans-serif; min-width:250px; max-width:300px; padding:4px;">
+        <div style="font-family:system-ui,-apple-system,sans-serif; min-width:260px; max-width:320px; padding:6px;">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
             <div style="display:flex; align-items:center; gap:6px;">
               <div style="width:24px; height:24px; border-radius:6px; background:${cat.bg}; color:${cat.color}; display:flex; align-items:center; justify-content:center;">${cat.svg}</div>
-              <span style="font-size:11px; font-weight:700; color:${cat.color}; text-transform:uppercase;">${cat.label}</span>
+              <span style="font-size:11px; font-weight:800; color:${cat.color}; text-transform:uppercase;">${cat.label}</span>
             </div>
             ${statusBadge}
           </div>
@@ -800,7 +818,7 @@ export default function MapaPage() {
 
           <div style="display:flex; gap:6px; margin-top:10px;">
             ${actionButton}
-            <button onclick="window.__deleteReport('${report.properties.id}')" title="Eliminar Incidencia" style="padding:7px 10px; background:#fee2e2; color:#dc2626; border:1px solid #fecaca; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            <button onclick="window.__deleteReport('${report.properties.id}')" title="Eliminar Incidencia" style="padding:8px 10px; background:#fee2e2; color:#dc2626; border:1px solid #fecaca; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">
               ${SVGS.Trash}
             </button>
           </div>
@@ -839,7 +857,7 @@ export default function MapaPage() {
     
     geoJsonLayer.eachLayer((layer: any) => {
       if (layer.feature?.properties?.section_num === p.section_num) {
-        mapRef.fitBounds(layer.getBounds(), { padding: [40, 40], maxZoom: 15 });
+        mapRef.fitBounds(layer.getBounds(), { padding: [50, 50], maxZoom: 15 });
       }
     });
   };
@@ -951,7 +969,7 @@ export default function MapaPage() {
       return;
     }
 
-    const headers = ["ID", "Titulo", "Categoria", "Estatus", "Municipio", "Seccion", "Latitud", "Longitud", "Fecha_Creacion", "Descripcion"];
+    const headers = ["ID", "Título", "Categoría", "Estatus", "Municipio", "Sección", "Fecha"];
     const rows = displayIncidents.map((r) => [
       r.properties.id,
       `"${r.properties.title.replace(/"/g, '""')}"`,
@@ -959,144 +977,150 @@ export default function MapaPage() {
       r.properties.status,
       r.properties.municipality || "Tonalá",
       r.properties.sectionNum || "",
-      r.geometry.coordinates[1],
-      r.geometry.coordinates[0],
-      r.properties.createdAt,
-      `"${r.properties.description.replace(/"/g, '""').replace(/\n/g, ' ')}"`
+      new Date(r.properties.createdAt).toISOString()
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const csvContent = [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `incidencias_territoriales_${incidentSubTab}_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `incidencias_territorio_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast("📊 Reporte CSV exportado exitosamente");
+    showToast("✓ Archivo CSV exportado con éxito");
   };
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: "720px", display: "flex", flexDirection: "column" }}>
+    <div className="relative flex flex-col w-full h-[calc(100vh-68px)] min-h-[640px] bg-slate-900 overflow-hidden select-none font-sans">
       
-      {/* Top Header Navigation Bar with Responsive Flex-Wrap */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", background: "white", borderBottom: "1px solid #e2e8f0", zIndex: 30, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", flexWrap: "wrap", gap: "8px" }}>
+      {/* Top Floating Command Bar */}
+      <header className="absolute top-3 left-3 right-3 z-30 flex items-center justify-between gap-3 p-2.5 rounded-2xl bg-white/90 backdrop-blur-md border border-slate-200/80 shadow-lg transition-all">
         
-        {/* Left: View Switcher */}
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        {/* Left: View Tabs */}
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setActiveTab("map")}
-            style={{
-              display: "flex", alignItems: "center", gap: "5px", padding: "7px 12px", borderRadius: "8px", border: "none",
-              backgroundColor: activeTab === "map" ? "#4f46e5" : "#f1f5f9",
-              color: activeTab === "map" ? "white" : "#475569",
-              fontSize: "12px", fontWeight: "700", cursor: "pointer", transition: "all 0.15s"
-            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "map"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
           >
-            <MapIcon size={15} />
-            <span className="hidden sm:inline">Mapa Cartográfico</span>
-            <span className="sm:hidden">Mapa</span>
+            <Compass size={16} />
+            <span>Mapa Cartográfico</span>
           </button>
           
           <button
             onClick={() => setActiveTab("list")}
-            style={{
-              display: "flex", alignItems: "center", gap: "5px", padding: "7px 12px", borderRadius: "8px", border: "none",
-              backgroundColor: activeTab === "list" ? "#4f46e5" : "#f1f5f9",
-              color: activeTab === "list" ? "white" : "#475569",
-              fontSize: "12px", fontWeight: "700", cursor: "pointer", transition: "all 0.15s"
-            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "list"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
           >
-            <ListFilter size={15} />
+            <ListFilter size={16} />
             <span className="hidden sm:inline">Centro de Gestión</span>
             <span className="sm:hidden">Incidencias</span>
-            <span style={{ background: activeTab === "list" ? "rgba(255,255,255,0.25)" : "#e2e8f0", padding: "1px 6px", borderRadius: "9999px", fontSize: "11px", fontWeight: "800" }}>
+            <span className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
+              activeTab === "list" ? "bg-white/25 text-white" : "bg-slate-200 text-slate-700"
+            }`}>
               {activeReportsCount}
             </span>
           </button>
         </div>
 
+        {/* Center: Municipal pills (Desktop) */}
+        {activeTab === "map" && (
+          <div className="hidden lg:flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/60">
+            {["all", "Tonalá", "Guadalajara", "Zapopan", "San Pedro Tlaquepaque"].map((m) => (
+              <button
+                key={m}
+                onClick={() => handleMunicipalityChange(m)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  selectedMunicipality === m
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                {m === "all" ? "Todo el AMG" : m}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Right: Actions and Controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-          
+        <div className="flex items-center gap-2">
           {activeTab === "map" && (
             <>
-              {/* GPS Locate Me Button for Mobile Field Operators */}
+              {/* GPS Button */}
               <button
                 onClick={handleLocateMe}
                 disabled={isLocatingGPS}
                 title="Centrar en mi ubicación GPS"
-                style={{
-                  display: "flex", alignItems: "center", gap: "4px", padding: "7px 10px", borderRadius: "8px",
-                  border: "1px solid #bfdbfe", background: "#eff6ff", color: "#1d4ed8",
-                  fontSize: "12px", fontWeight: "700", cursor: "pointer"
-                }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition-all active:scale-95"
               >
-                <LocateFixed size={14} className={isLocatingGPS ? "animate-spin" : ""} />
+                <LocateFixed size={15} className={isLocatingGPS ? "animate-spin" : ""} />
                 <span className="hidden md:inline">Mi GPS</span>
               </button>
 
+              {/* Incidents Drawer toggle */}
               <button
                 onClick={() => setIsQuickIncidentsDrawerOpen(!isQuickIncidentsDrawerOpen)}
-                style={{
-                  display: "flex", alignItems: "center", gap: "4px", padding: "7px 10px", borderRadius: "8px",
-                  border: "1px solid",
-                  borderColor: isQuickIncidentsDrawerOpen ? "#ef4444" : "#cbd5e1",
-                  backgroundColor: isQuickIncidentsDrawerOpen ? "#fef2f2" : "#f8fafc",
-                  color: isQuickIncidentsDrawerOpen ? "#dc2626" : "#334155",
-                  fontSize: "12px", fontWeight: "700", cursor: "pointer"
-                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                  isQuickIncidentsDrawerOpen
+                    ? "bg-red-50 text-red-700 border-red-200"
+                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                }`}
               >
-                <AlertCircle size={14} className={isQuickIncidentsDrawerOpen ? "text-red-600" : "text-slate-500"} />
-                <span className="hidden md:inline">Panel</span> ({activeReportsCount})
+                <AlertCircle size={15} className={isQuickIncidentsDrawerOpen ? "text-red-600" : "text-slate-500"} />
+                <span className="hidden md:inline">Incidencias</span>
+                <span className="font-extrabold text-[11px]">({activeReportsCount})</span>
               </button>
 
+              {/* Layers Button */}
               <button
                 onClick={() => setIsLayersMenuOpen(!isLayersMenuOpen)}
-                style={{
-                  display: "flex", alignItems: "center", gap: "4px", padding: "7px 10px", borderRadius: "8px",
-                  border: "1px solid",
-                  borderColor: isLayersMenuOpen ? "#6366f1" : "#cbd5e1",
-                  backgroundColor: isLayersMenuOpen ? "#eef2ff" : "#f8fafc",
-                  color: isLayersMenuOpen ? "#4338ca" : "#334155",
-                  fontSize: "12px", fontWeight: "700", cursor: "pointer"
-                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                  isLayersMenuOpen
+                    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                }`}
               >
-                <SlidersHorizontal size={14} />
+                <SlidersHorizontal size={15} />
                 <span className="hidden md:inline">Capas</span>
               </button>
 
-              <div style={{ display: "flex", alignItems: "center", background: "#f1f5f9", padding: "2px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              {/* Mode Toggle */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
                 <button
                   onClick={() => {
                     setMapClickMode("select");
-                    showToast("🔍 Modo Consulta: Clic en polígono para ver estadísticas de sección");
+                    showToast("🔍 Modo Consulta: Clic en cualquier polígono para ver métricas");
                   }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "4px", padding: "5px 8px", borderRadius: "6px", border: "none",
-                    backgroundColor: mapClickMode === "select" ? "white" : "transparent",
-                    color: mapClickMode === "select" ? "#0f172a" : "#64748b",
-                    fontWeight: "700", fontSize: "11px", cursor: "pointer"
-                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                    mapClickMode === "select"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
                 >
-                  <Layers size={13} />
+                  <Layers size={14} />
                   <span className="hidden sm:inline">Consultar</span>
                 </button>
 
                 <button
                   onClick={() => {
                     setMapClickMode("report");
-                    showToast("📍 Modo 1-Clic: Toca cualquier calle para detectar dirección exacta");
+                    showToast("📍 Modo 1-Clic: Toca cualquier calle para levantar reporte geolocalizado");
                   }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "4px", padding: "5px 8px", borderRadius: "6px", border: "none",
-                    backgroundColor: mapClickMode === "report" ? "#ef4444" : "transparent",
-                    color: mapClickMode === "report" ? "white" : "#64748b",
-                    fontWeight: "700", fontSize: "11px", cursor: "pointer"
-                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                    mapClickMode === "report"
+                      ? "bg-red-600 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
                 >
-                  <MousePointerClick size={13} />
+                  <MousePointerClick size={14} />
                   <span className="hidden sm:inline">1-Clic</span>
                 </button>
               </div>
@@ -1108,119 +1132,246 @@ export default function MapaPage() {
               <button
                 onClick={() => setIsPurgeModalOpen(true)}
                 title="Depurar y limpiar incidencias resueltas"
-                style={{
-                  display: "flex", alignItems: "center", gap: "4px", padding: "7px 10px", borderRadius: "8px",
-                  border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626",
-                  fontSize: "12px", fontWeight: "700", cursor: "pointer"
-                }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-all"
               >
-                <Trash2 size={14} />
+                <Trash2 size={15} />
                 <span className="hidden sm:inline">Purgar</span>
               </button>
 
               <button
                 onClick={handleExportCSV}
-                style={{
-                  display: "flex", alignItems: "center", gap: "4px", padding: "7px 10px", borderRadius: "8px",
-                  border: "1px solid #cbd5e1", background: "#f8fafc", color: "#334155",
-                  fontSize: "12px", fontWeight: "700", cursor: "pointer"
-                }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all"
               >
-                <Download size={14} />
-                <span className="hidden sm:inline">CSV</span>
+                <Download size={15} />
+                <span className="hidden sm:inline">Exportar CSV</span>
               </button>
             </>
           )}
 
+          {/* Quick Create Button */}
           <button
             onClick={() => {
               const defaultCoords = mapRef ? mapRef.getCenter() : { lat: 20.6248, lng: -103.2422 };
               void triggerIncidentCreation(defaultCoords.lat, defaultCoords.lng);
             }}
-            style={{
-              display: "flex", alignItems: "center", gap: "5px", padding: "7px 14px", borderRadius: "8px", border: "none",
-              background: "linear-gradient(135deg, #ef4444, #dc2626)",
-              color: "white", fontSize: "12px", fontWeight: "800", cursor: "pointer",
-              boxShadow: "0 2px 6px rgba(239,68,68,0.3)"
-            }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl text-xs font-extrabold shadow-md hover:shadow-lg transition-all active:scale-95"
           >
-            <PlusCircle size={15} />
+            <PlusCircle size={16} />
             <span>+ Reportar</span>
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* Main Content View */}
-      <div style={{ position: "relative", flex: 1, width: "100%", height: "100%", minHeight: "660px" }}>
+      {/* Main Container */}
+      <div className="relative flex-1 w-full h-full">
         
         {/* Leaflet Map Canvas */}
         <div 
           id="leaflet-map-container" 
-          style={{ 
-            position: "absolute", inset: 0, overflow: "hidden", background: "#e5e7eb", zIndex: 0,
-            cursor: mapClickMode === "report" ? "crosshair" : "default",
-            visibility: activeTab === "map" ? "visible" : "hidden"
-          }} 
+          className={`absolute inset-0 w-full h-full z-0 transition-opacity duration-300 ${
+            activeTab === "map" ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
+          }`}
+          style={{ cursor: mapClickMode === "report" ? "crosshair" : "default" }}
         />
 
         {/* Floating Toast Notification */}
         {toastMessage && (
-          <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 1200, background: "#0f172a", color: "white", padding: "8px 16px", borderRadius: "30px", boxShadow: "0 10px 20px rgba(0,0,0,0.25)", fontSize: "12px", fontWeight: "700", display: "flex", alignItems: "center", gap: "8px", maxWidth: "90%", textAlign: "center" }}>
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-md text-white text-xs font-bold px-4 py-2 rounded-full shadow-2xl border border-white/20 animate-in fade-in slide-in-from-top-4 duration-200">
             {toastMessage}
           </div>
         )}
 
-        {/* Mobile Quick Floating GPS / Mode Action Buttons */}
+        {/* Left Floating Search & Quick Jumper Panel */}
         {activeTab === "map" && (
-          <div style={{ position: "absolute", bottom: 20, right: 16, zIndex: 15, display: "flex", flexDirection: "column", gap: "8px" }}>
-            <button
-              onClick={handleLocateMe}
-              title="Mi Ubicación GPS"
-              style={{
-                width: "44px", height: "44px", borderRadius: "50%", background: "white", color: "#2563eb",
-                border: "1px solid #cbd5e1", boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer"
-              }}
-            >
-              <LocateFixed size={20} className={isLocatingGPS ? "animate-spin" : ""} />
-            </button>
+          <div className="absolute top-20 left-3 z-20 w-80 max-w-[calc(100vw-24px)] flex flex-col gap-2">
+            <div className="bg-white/90 backdrop-blur-md border border-slate-200/80 rounded-2xl p-3 shadow-xl space-y-2">
+              
+              {/* Municipality Select */}
+              <div>
+                <select
+                  value={selectedMunicipality}
+                  onChange={(e) => handleMunicipalityChange(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-100 cursor-pointer"
+                >
+                  <option value="all">🗺️ Todo el Área Metropolitana</option>
+                  <option value="Tonalá">📍 Tonalá (46 secciones)</option>
+                  <option value="Guadalajara">📍 Guadalajara (10 secciones)</option>
+                  <option value="San Pedro Tlaquepaque">📍 San Pedro Tlaquepaque (8 secciones)</option>
+                  <option value="Zapopan">📍 Zapopan (8 secciones)</option>
+                  <option value="Tlajomulco de Zúñiga">📍 Tlajomulco de Zúñiga (5 secciones)</option>
+                  <option value="El Salto">📍 El Salto (4 secciones)</option>
+                  <option value="Zapotlanejo">📍 Zapotlanejo (3 secciones)</option>
+                  <option value="Ixtlahuacán de los Membrillos">📍 Ixtlahuacán</option>
+                  <option value="Juanacatlán">📍 Juanacatlán</option>
+                </select>
+              </div>
+
+              {/* Section Search */}
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar Sección o Colonia..."
+                  className="w-full pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:ring-2 focus:ring-blue-100"
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Search Results Dropdown */}
+              {searchQuery && (
+                <div className="max-h-48 overflow-y-auto space-y-1 pt-1 border-t border-slate-100">
+                  {filteredSectionsList.length > 0 ? (
+                    filteredSectionsList.map((sec: SectionProperties) => (
+                      <button
+                        key={sec.section_num}
+                        onClick={() => handleSelectSection(sec)}
+                        className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all ${
+                          selectedSection?.section_num === sec.section_num
+                            ? "bg-blue-50 border border-blue-200"
+                            : "bg-slate-50 hover:bg-slate-100 border border-slate-100"
+                        }`}
+                      >
+                        <div>
+                          <div className="text-xs font-bold text-slate-900">
+                            Sección {sec.section_num} <span className="text-[10px] text-blue-600 font-semibold">({sec.municipality || 'Tonalá'})</span>
+                          </div>
+                          <div className="text-[10px] text-slate-500 line-clamp-1">{sec.colonies.slice(0, 2).join(", ")}</div>
+                        </div>
+                        <ChevronRight size={14} className="text-slate-400" />
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-3 text-center text-xs text-slate-400">Sin secciones coincidentes</div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Floating Section Detail Card (Bottom Left / Responsive) */}
+        {activeTab === "map" && selectedSection && (
+          <div className="absolute bottom-6 left-3 z-30 w-96 max-w-[calc(100vw-24px)] bg-white/95 backdrop-blur-md rounded-2xl p-5 border border-slate-200 shadow-2xl animate-in slide-in-from-bottom-4 duration-200">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <span className="inline-block bg-blue-100 text-blue-800 font-extrabold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md mb-1">
+                  {selectedSection.municipality || "Tonalá"}
+                </span>
+                <h2 className="text-xl font-black text-slate-900">
+                  Sección Electoral #{selectedSection.section_num}
+                </h2>
+              </div>
+              <button 
+                onClick={() => setSelectedSection(null)} 
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-3 gap-2 mb-3.5">
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Simpatizantes</div>
+                <div className="text-lg font-black text-indigo-600">{selectedSection.contactsCount}</div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Visitas</div>
+                <div className="text-lg font-black text-emerald-600">{selectedSection.visitsCompleted}</div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Incidencias</div>
+                <div className="text-lg font-black text-amber-600">{selectedSection.incidentsActive}</div>
+              </div>
+            </div>
+
+            {/* Colonies List */}
+            <div className="mb-4">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                Colonias en esta Sección:
+              </div>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                {selectedSection.colonies.length > 0 ? (
+                  selectedSection.colonies.map((c) => (
+                    <span key={c} className="bg-slate-100 text-slate-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-lg">
+                      {c}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-400 italic">Colonia principal del municipio</span>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-2 border-t border-slate-100">
+              <Link
+                href={`/crm?seccion=${selectedSection.section_num}`}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-xl text-xs transition-all shadow-sm"
+              >
+                <Users size={14} />
+                Ver Contactos
+              </Link>
+
+              <button
+                onClick={() => {
+                  const defaultCoords = mapRef ? mapRef.getCenter() : { lat: 20.6248, lng: -103.2422 };
+                  void triggerIncidentCreation(defaultCoords.lat, defaultCoords.lng, selectedSection.municipality);
+                }}
+                className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition-all shadow-sm"
+              >
+                <PlusCircle size={14} />
+                Reportar
+              </button>
+            </div>
           </div>
         )}
 
         {/* Slide-Over Incidents Drawer */}
         {activeTab === "map" && isQuickIncidentsDrawerOpen && (
-          <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "360px", maxWidth: "88vw", background: "white", zIndex: 25, boxShadow: "-10px 0 25px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", borderLeft: "1px solid #cbd5e1" }}>
-            <div style={{ padding: "14px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc" }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "800", color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <AlertCircle size={16} className="text-red-500" />
-                  Incidencias ({allReports.length})
-                </h3>
-              </div>
-              <button onClick={() => setIsQuickIncidentsDrawerOpen(false)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
+          <div className="absolute top-20 right-3 bottom-6 w-96 max-w-[calc(100vw-24px)] bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200 z-30 flex flex-col overflow-hidden animate-in slide-in-from-right-4 duration-200">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                <AlertCircle size={18} className="text-red-500" />
+                Incidencias Registradas ({allReports.length})
+              </h3>
+              <button onClick={() => setIsQuickIncidentsDrawerOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ flex: 1, padding: "10px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div className="flex-1 p-3 overflow-y-auto space-y-2">
               {allReports.map((r) => {
                 const cat = CATEGORIES[r.properties.category] ?? { label: r.properties.category, color: "#64748b", bg: "#f8fafc", svg: SVGS.AlertCircle };
                 const isResolved = r.properties.status === "resolved";
                 return (
-                  <div key={r.properties.id} style={{ background: "#f8fafc", padding: "10px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "3px" }}>
-                      <span style={{ fontSize: "10px", fontWeight: "800", color: cat.color, textTransform: "uppercase" }}>{cat.label}</span>
-                      <span style={{ fontSize: "10px", color: isResolved ? "#16a34a" : "#dc2626", fontWeight: "700" }}>{isResolved ? "✓ Atendida" : "● Pendiente"}</span>
+                  <div key={r.properties.id} className="bg-slate-50 hover:bg-slate-100/80 p-3 rounded-xl border border-slate-200/70 transition-all">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md" style={{ color: cat.color, background: cat.bg }}>
+                        {cat.label}
+                      </span>
+                      <span className={`text-[10px] font-bold ${isResolved ? "text-emerald-600" : "text-amber-600"}`}>
+                        {isResolved ? "✓ Atendida" : "● Pendiente"}
+                      </span>
                     </div>
-                    <h4 style={{ margin: "0 0 2px", fontSize: "12px", fontWeight: "700", color: "#0f172a" }}>{r.properties.title}</h4>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "6px" }}>
-                      <span style={{ fontSize: "10px", color: "#1e40af", fontWeight: "600" }}>📍 {r.properties.municipality || "Tonalá"}</span>
+                    <h4 className="font-bold text-xs text-slate-900 mb-1">{r.properties.title}</h4>
+                    <p className="text-[11px] text-slate-600 line-clamp-2 mb-2">{r.properties.description}</p>
+                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/50">
+                      <span className="text-[10px] font-bold text-blue-700">📍 {r.properties.municipality || "Tonalá"}</span>
                       <button
                         onClick={() => handleFocusOnMap(r)}
-                        style={{ padding: "4px 8px", background: "#4f46e5", color: "white", border: "none", borderRadius: "6px", fontSize: "10px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
+                        className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] transition-all shadow-sm"
                       >
-                        <MapPin size={10} />
-                        Foco
+                        <MapPin size={11} />
+                        Centrar Mapa
                       </button>
                     </div>
                   </div>
@@ -1230,36 +1381,34 @@ export default function MapaPage() {
           </div>
         )}
 
-        {/* Map Layers Drawer */}
+        {/* Map Layers Menu */}
         {isLayersMenuOpen && (
-          <div style={{ position: "absolute", top: 12, right: 12, zIndex: 25, width: "290px", maxWidth: "90vw", background: "white", borderRadius: "14px", padding: "14px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.15)", border: "1px solid #cbd5e1" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-              <h3 style={{ margin: 0, fontSize: "13px", fontWeight: "800", color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" }}>
-                <SlidersHorizontal size={15} className="text-indigo-600" />
-                Capas y Vistas del Mapa
+          <div className="absolute top-20 right-3 z-30 w-80 max-w-[calc(100vw-24px)] bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <SlidersHorizontal size={15} className="text-blue-600" />
+                Configuración del Mapa
               </h3>
-              <button onClick={() => setIsLayersMenuOpen(false)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
+              <button onClick={() => setIsLayersMenuOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
                 <X size={16} />
               </button>
             </div>
 
-            <div style={{ marginBottom: "12px" }}>
-              <span style={{ fontSize: "10px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
+            {/* Base Layer Switcher */}
+            <div className="mb-3.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
                 Estilo de Mapa Base
               </span>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}>
+              <div className="grid grid-cols-2 gap-1.5">
                 {Object.entries(TILE_STYLES).map(([key, style]) => (
                   <button
                     key={key}
                     onClick={() => handleChangeTileStyle(key)}
-                    style={{
-                      padding: "6px 8px", borderRadius: "6px", border: "1px solid",
-                      borderColor: selectedTileStyle === key ? "#4f46e5" : "#e2e8f0",
-                      backgroundColor: selectedTileStyle === key ? "#eef2ff" : "#f8fafc",
-                      color: selectedTileStyle === key ? "#4338ca" : "#334155",
-                      fontSize: "10px", fontWeight: "700", cursor: "pointer",
-                      display: "flex", alignItems: "center", gap: "4px"
-                    }}
+                    className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold border transition-all ${
+                      selectedTileStyle === key
+                        ? "bg-blue-50 text-blue-700 border-blue-300 shadow-sm"
+                        : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                    }`}
                   >
                     <span>{style.icon}</span>
                     <span>{style.name}</span>
@@ -1268,266 +1417,119 @@ export default function MapaPage() {
               </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", borderTop: "1px solid #f1f5f9", paddingTop: "10px" }}>
-              <span style={{ fontSize: "10px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Capas Activas</span>
+            {/* Layer Toggles */}
+            <div className="space-y-2 pt-3 border-t border-slate-100 text-xs font-semibold text-slate-700">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Capas Visibles
+              </span>
               
-              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "11px", color: "#1e293b", fontWeight: "600", cursor: "pointer" }}>
+              <label className="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg">
                 <span>Polígonos Seccionales</span>
-                <input type="checkbox" checked={showSections} onChange={(e) => setShowSections(e.target.checked)} style={{ accentColor: "#4f46e5" }} />
+                <input type="checkbox" checked={showSections} onChange={(e) => setShowSections(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
               </label>
 
-              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "11px", color: "#1e293b", fontWeight: "600", cursor: "pointer" }}>
+              <label className="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg">
                 <span>Números de Sección</span>
-                <input type="checkbox" checked={showSectionLabels} onChange={(e) => setShowSectionLabels(e.target.checked)} style={{ accentColor: "#4f46e5" }} />
+                <input type="checkbox" checked={showSectionLabels} onChange={(e) => setShowSectionLabels(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
               </label>
 
-              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "11px", color: "#1e293b", fontWeight: "600", cursor: "pointer" }}>
+              <label className="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg">
                 <span>Marcadores de Incidencias</span>
-                <input type="checkbox" checked={showIncidents} onChange={(e) => setShowIncidents(e.target.checked)} style={{ accentColor: "#ef4444" }} />
+                <input type="checkbox" checked={showIncidents} onChange={(e) => setShowIncidents(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
               </label>
 
-              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "11px", color: "#1e293b", fontWeight: "600", cursor: "pointer" }}>
-                <span>Agrupamiento (Clustering)</span>
-                <input type="checkbox" checked={enableClustering} onChange={(e) => setEnableClustering(e.target.checked)} style={{ accentColor: "#f59e0b" }} />
+              <label className="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg">
+                <span>Agrupamiento Inteligente (Clusters)</span>
+                <input type="checkbox" checked={enableClustering} onChange={(e) => setEnableClustering(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
               </label>
             </div>
           </div>
         )}
 
-        {/* Floating Search / Municipality Select on Map */}
-        {activeTab === "map" && (
-          <>
-            <div style={{ position: "absolute", top: 12, left: 12, zIndex: 10, width: "320px", maxWidth: "calc(100vw - 24px)", display: "flex", flexDirection: "column", gap: "6px", pointerEvents: "none" }}>
-              <div style={{ background: "white", borderRadius: "12px", padding: "10px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)", pointerEvents: "auto", border: "1px solid rgba(0,0,0,0.06)" }}>
-                <div style={{ marginBottom: "6px" }}>
-                  <select
-                    value={selectedMunicipality}
-                    onChange={(e) => handleMunicipalityChange(e.target.value)}
-                    style={{ width: "100%", padding: "6px 8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: "700", color: "#0f172a", outline: "none", backgroundColor: "#f8fafc" }}
-                  >
-                    <option value="all">🗺️ Todos los Municipios (AMG)</option>
-                    <option value="Tonalá">📍 Tonalá (46 secciones)</option>
-                    <option value="Guadalajara">📍 Guadalajara (10 secciones)</option>
-                    <option value="San Pedro Tlaquepaque">📍 San Pedro Tlaquepaque (8 secciones)</option>
-                    <option value="Zapopan">📍 Zapopan (8 secciones)</option>
-                    <option value="Tlajomulco de Zúñiga">📍 Tlajomulco de Zúñiga (5 secciones)</option>
-                    <option value="El Salto">📍 El Salto (4 secciones)</option>
-                    <option value="Zapotlanejo">📍 Zapotlanejo (3 secciones)</option>
-                    <option value="Ixtlahuacán de los Membrillos">📍 Ixtlahuacán</option>
-                    <option value="Juanacatlán">📍 Juanacatlán</option>
-                  </select>
-                </div>
-
-                <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                  <Search size={14} style={{ position: "absolute", left: "8px", color: "#94a3b8" }} />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Buscar Sección o Colonia..."
-                    style={{ width: "100%", padding: "6px 8px 6px 28px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none" }}
-                  />
-                  {searchQuery && (
-                    <button onClick={() => setSearchQuery("")} style={{ position: "absolute", right: "6px", background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
-                      <X size={13} />
-                    </button>
-                  )}
-                </div>
-
-                {searchQuery && (
-                  <div style={{ marginTop: "6px", maxHeight: "180px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "3px" }}>
-                    {filteredSectionsList.length > 0 ? (
-                      filteredSectionsList.map((sec: SectionProperties) => (
-                        <button
-                          key={sec.section_num}
-                          onClick={() => handleSelectSection(sec)}
-                          style={{
-                            display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", borderRadius: "6px",
-                            background: selectedSection?.section_num === sec.section_num ? "#e0e7ff" : "#f8fafc",
-                            border: "1px solid #e2e8f0", cursor: "pointer", textAlign: "left", width: "100%"
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontSize: "11px", fontWeight: "700", color: "#0f172a" }}>
-                              Sección {sec.section_num} <span style={{ fontSize: "9px", color: "#6366f1" }}>({sec.municipality || 'Tonalá'})</span>
-                            </div>
-                            <div style={{ fontSize: "10px", color: "#64748b" }}>{sec.colonies.slice(0, 2).join(", ")}</div>
-                          </div>
-                          <ChevronRight size={13} style={{ color: "#6366f1" }} />
-                        </button>
-                      ))
-                    ) : (
-                      <div style={{ padding: "6px", fontSize: "11px", color: "#94a3b8", textAlign: "center" }}>Sin coincidencias</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Floating Section Detail Card (Responsive Bottom Sheet on Mobile) */}
-            {selectedSection && (
-              <div style={{ position: "absolute", bottom: 16, left: 16, zIndex: 20, width: "340px", maxWidth: "calc(100vw - 32px)", background: "white", borderRadius: "14px", padding: "14px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.15)", border: "1px solid #cbd5e1" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "8px" }}>
-                  <div>
-                    <span style={{ display: "inline-block", background: "#dbeafe", color: "#1e40af", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: "800", textTransform: "uppercase", marginBottom: "2px" }}>
-                      Municipio de {selectedSection.municipality || "Tonalá"}
-                    </span>
-                    <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
-                      Sección #{selectedSection.section_num}
-                    </h2>
-                  </div>
-                  <button onClick={() => setSelectedSection(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "24px", height: "24px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b" }}>
-                    <X size={14} />
-                  </button>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginBottom: "10px" }}>
-                  <div style={{ background: "#f8fafc", padding: "8px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-                    <div style={{ fontSize: "10px", fontWeight: "700", color: "#4f46e5" }}>Simpatizantes</div>
-                    <div style={{ fontSize: "15px", fontWeight: "800", color: "#0f172a" }}>{selectedSection.contactsCount}</div>
-                  </div>
-
-                  <div style={{ background: "#f8fafc", padding: "8px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-                    <div style={{ fontSize: "10px", fontWeight: "700", color: "#10b981" }}>Visitas</div>
-                    <div style={{ fontSize: "15px", fontWeight: "800", color: "#0f172a" }}>{selectedSection.visitsCompleted}</div>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: "6px" }}>
-                  <Link
-                    href={`/crm?seccion=${selectedSection.section_num}`}
-                    style={{ flex: 1, padding: "7px 10px", background: "#4f46e5", color: "white", borderRadius: "6px", textDecoration: "none", fontSize: "11px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
-                  >
-                    <ExternalLink size={12} />
-                    Ver en CRM
-                  </Link>
-                  <button
-                    onClick={() => {
-                      const defaultCoords = mapRef ? mapRef.getCenter() : { lat: 20.6248, lng: -103.2422 };
-                      void triggerIncidentCreation(defaultCoords.lat, defaultCoords.lng, selectedSection.municipality);
-                    }}
-                    style={{ padding: "7px 10px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
-                  >
-                    <PlusCircle size={12} />
-                    Reportar
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Dedicated Incident Management Center */}
+        {/* Tab 2: Incident Operations Management Center */}
         {activeTab === "list" && (
-          <div style={{ position: "absolute", inset: 0, background: "#f8fafc", zIndex: 10, padding: "14px 16px", overflowY: "auto" }}>
-            <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+          <div className="absolute inset-0 bg-slate-50 z-20 p-6 overflow-y-auto">
+            <div className="max-w-6xl mx-auto space-y-6">
               
               {/* Header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h1 style={{ margin: 0, fontSize: "19px", fontWeight: "800", color: "#0f172a" }}>
-                    Centro de Administración de Incidencias
+                  <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                    Centro de Mando e Incidencias Territoriales
                   </h1>
-                  <span style={{ fontSize: "12px", color: "#64748b" }}>Despacho, reasignación y resolución</span>
+                  <p className="text-slate-500 text-xs mt-1">
+                    Control operativo, seguimiento y resolución de reportes de campo en tiempo real.
+                  </p>
                 </div>
               </div>
 
               {/* KPI Cards Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "8px", marginBottom: "14px" }}>
-                <div style={{ background: "white", padding: "12px", borderRadius: "10px", border: "1px solid #fde68a" }}>
-                  <span style={{ fontSize: "11px", fontWeight: "700", color: "#b45309" }}>Por Atender</span>
-                  <div style={{ fontSize: "20px", fontWeight: "800", color: "#b45309" }}>{activeReportsCount}</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-white border border-amber-200/80 rounded-2xl p-4 shadow-sm">
+                  <div className="text-xs font-bold text-amber-800 uppercase tracking-wider">Por Atender</div>
+                  <div className="text-2xl font-black text-amber-900 mt-1">{activeReportsCount}</div>
                 </div>
 
-                <div style={{ background: "white", padding: "12px", borderRadius: "10px", border: "1px solid #fecaca" }}>
-                  <span style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626" }}>Emergencias</span>
-                  <div style={{ fontSize: "20px", fontWeight: "800", color: "#dc2626" }}>{emergencyReportsCount}</div>
+                <div className="bg-white border border-red-200/80 rounded-2xl p-4 shadow-sm">
+                  <div className="text-xs font-bold text-red-800 uppercase tracking-wider">Emergencias Críticas</div>
+                  <div className="text-2xl font-black text-red-700 mt-1">{emergencyReportsCount}</div>
                 </div>
 
-                <div style={{ background: "white", padding: "12px", borderRadius: "10px", border: "1px solid #bbf7d0" }}>
-                  <span style={{ fontSize: "11px", fontWeight: "700", color: "#15803d" }}>Resueltas</span>
-                  <div style={{ fontSize: "20px", fontWeight: "800", color: "#15803d" }}>{resolvedReportsCount}</div>
+                <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 shadow-sm">
+                  <div className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Resueltas</div>
+                  <div className="text-2xl font-black text-emerald-700 mt-1">{resolvedReportsCount}</div>
                 </div>
 
-                <div style={{ background: "white", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
-                  <span style={{ fontSize: "11px", fontWeight: "700", color: "#4f46e5" }}>Efectividad</span>
-                  <div style={{ fontSize: "20px", fontWeight: "800", color: "#0f172a" }}>{resolutionRate}%</div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tasa de Resolución</div>
+                  <div className="text-2xl font-black text-blue-600 mt-1">{resolutionRate}%</div>
                 </div>
               </div>
 
-              {/* Operational Sub-Tabs with Smooth Horizontal Scrolling */}
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", borderBottom: "2px solid #e2e8f0", paddingBottom: "6px", marginBottom: "12px", overflowX: "auto", whiteSpace: "nowrap" }}>
-                <button
-                  onClick={() => setIncidentSubTab("active")}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "6px", border: "none",
-                    backgroundColor: incidentSubTab === "active" ? "#4f46e5" : "transparent",
-                    color: incidentSubTab === "active" ? "white" : "#475569",
-                    fontSize: "12px", fontWeight: "700", cursor: "pointer"
-                  }}
-                >
-                  <Flame size={14} />
-                  Pendientes ({activeReportsCount})
-                </button>
+              {/* Filters & SubTabs */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
+                  {[
+                    { key: "active", label: `Pendientes (${activeReportsCount})`, icon: Flame, color: "blue" },
+                    { key: "emergency", label: `Emergencias (${emergencyReportsCount})`, icon: ShieldAlert, color: "red" },
+                    { key: "resolved", label: `Resueltas (${resolvedReportsCount})`, icon: CheckCircle2, color: "emerald" },
+                    { key: "all", label: `Todas (${allReports.length})`, icon: ListFilter, color: "slate" },
+                  ].map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = incidentSubTab === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => setIncidentSubTab(tab.key as any)}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                          isActive
+                            ? "bg-slate-900 text-white shadow-sm"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        <Icon size={14} />
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
 
-                <button
-                  onClick={() => setIncidentSubTab("emergency")}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "6px", border: "none",
-                    backgroundColor: incidentSubTab === "emergency" ? "#dc2626" : "transparent",
-                    color: incidentSubTab === "emergency" ? "white" : "#dc2626",
-                    fontSize: "12px", fontWeight: "700", cursor: "pointer"
-                  }}
-                >
-                  <ShieldAlert size={14} />
-                  Emergencias ({emergencyReportsCount})
-                </button>
-
-                <button
-                  onClick={() => setIncidentSubTab("resolved")}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "6px", border: "none",
-                    backgroundColor: incidentSubTab === "resolved" ? "#16a34a" : "transparent",
-                    color: incidentSubTab === "resolved" ? "white" : "#475569",
-                    fontSize: "12px", fontWeight: "700", cursor: "pointer"
-                  }}
-                >
-                  <CheckCircle2 size={14} />
-                  Resueltas ({resolvedReportsCount})
-                </button>
-
-                <button
-                  onClick={() => setIncidentSubTab("all")}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "6px", border: "none",
-                    backgroundColor: incidentSubTab === "all" ? "#0f172a" : "transparent",
-                    color: incidentSubTab === "all" ? "white" : "#475569",
-                    fontSize: "12px", fontWeight: "700", cursor: "pointer"
-                  }}
-                >
-                  <ListFilter size={14} />
-                  Todas ({allReports.length})
-                </button>
-              </div>
-
-              {/* Filters */}
-              <div style={{ background: "white", padding: "10px", borderRadius: "10px", border: "1px solid #e2e8f0", marginBottom: "12px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "8px", alignItems: "center" }}>
-                  <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                    <Search size={14} style={{ position: "absolute", left: "8px", color: "#94a3b8" }} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="relative">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="text"
                       value={incidentSearchQuery}
                       onChange={(e) => setIncidentSearchQuery(e.target.value)}
-                      placeholder="Buscar por texto..."
-                      style={{ width: "100%", padding: "6px 8px 6px 28px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none", backgroundColor: "#f8fafc" }}
+                      placeholder="Buscar por texto o colonia..."
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-blue-100"
                     />
                   </div>
 
                   <select
                     value={incidentMunicipalityFilter}
                     onChange={(e) => setIncidentMunicipalityFilter(e.target.value)}
-                    style={{ width: "100%", padding: "6px 8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none", backgroundColor: "#f8fafc", fontWeight: "600" }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer"
                   >
                     <option value="all">🗺️ Todos los Municipios</option>
                     <option value="Tonalá">📍 Tonalá</option>
@@ -1542,7 +1544,7 @@ export default function MapaPage() {
                   <select
                     value={incidentCategoryFilter}
                     onChange={(e) => setIncidentCategoryFilter(e.target.value)}
-                    style={{ width: "100%", padding: "6px 8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none", backgroundColor: "#f8fafc", fontWeight: "600" }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer"
                   >
                     <option value="all">🏷️ Todas las Categorías</option>
                     {Object.entries(CATEGORIES).map(([k, v]) => (
@@ -1554,14 +1556,14 @@ export default function MapaPage() {
 
               {/* Incidents Cards List */}
               {displayIncidents.length === 0 ? (
-                <div style={{ background: "white", padding: "36px 16px", borderRadius: "12px", textAlign: "center", border: "1px solid #e2e8f0" }}>
-                  <AlertCircle size={32} className="text-slate-300 mx-auto mb-2" />
-                  <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "700", color: "#0f172a" }}>No hay incidencias que mostrar</h3>
+                <div className="bg-white p-12 rounded-2xl text-center border border-slate-200">
+                  <AlertCircle size={36} className="text-slate-300 mx-auto mb-2" />
+                  <h3 className="font-bold text-sm text-slate-800">No hay incidencias que coincidan con los filtros</h3>
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div className="space-y-3">
                   {displayIncidents.map((r) => {
-                    const cat = CATEGORIES[r.properties.category] ?? { label: r.properties.category, color: "#64748b", bg: "#f8fafc", border: "#e2e8f0", svg: SVGS.AlertCircle };
+                    const cat = CATEGORIES[r.properties.category] ?? { label: r.properties.category, color: "#64748b", bg: "#f8fafc", svg: SVGS.AlertCircle };
                     const isResolved = r.properties.status === "resolved";
                     const isEmergency = r.properties.category === "emergencia" && !isResolved;
                     const date = new Date(r.properties.createdAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
@@ -1569,67 +1571,65 @@ export default function MapaPage() {
                     return (
                       <div 
                         key={r.properties.id}
-                        style={{
-                          background: "white", padding: "12px", borderRadius: "12px",
-                          border: "1px solid",
-                          borderColor: isEmergency ? "#fca5a5" : isResolved ? "#bbf7d0" : "#e2e8f0",
-                          backgroundColor: isResolved ? "#fafdfb" : "white",
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.04)"
-                        }}
+                        className={`bg-white p-4 rounded-2xl border shadow-sm transition-all ${
+                          isEmergency ? "border-red-300 bg-red-50/20" : isResolved ? "border-emerald-200 bg-emerald-50/10" : "border-slate-200"
+                        }`}
                       >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-                          <span style={{ fontSize: "10px", fontWeight: "800", color: cat.color, background: cat.bg, padding: "2px 6px", borderRadius: "4px" }}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-md" style={{ color: cat.color, background: cat.bg }}>
                             {cat.label}
                           </span>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span style={{ fontSize: "10px", color: "#94a3b8" }}>{date}</span>
-                            <span style={{ fontSize: "10px", color: isResolved ? "#16a34a" : isEmergency ? "#dc2626" : "#b45309", fontWeight: "700" }}>
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-[11px] text-slate-400 font-medium">{date}</span>
+                            <span className={`text-[11px] font-extrabold ${isResolved ? "text-emerald-600" : isEmergency ? "text-red-600" : "text-amber-600"}`}>
                               {isResolved ? "✓ Atendida" : isEmergency ? "● Emergencia" : "● Pendiente"}
                             </span>
                           </div>
                         </div>
 
-                        <h3 style={{ margin: "0 0 4px", fontSize: "14px", fontWeight: "800", color: "#0f172a" }}>
+                        <h3 className="font-extrabold text-sm text-slate-900 mb-1">
                           {r.properties.title}
                         </h3>
 
-                        <p style={{ margin: "0 0 8px", fontSize: "12px", color: "#475569", lineHeight: "1.4" }}>
+                        <p className="text-xs text-slate-600 leading-relaxed mb-3">
                           {r.properties.description}
                         </p>
 
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #f1f5f9", paddingTop: "8px", flexWrap: "wrap", gap: "6px" }}>
-                          <span style={{ fontSize: "10px", color: "#1e40af", fontWeight: "700" }}>
-                            📍 {r.properties.municipality || "Tonalá"} {r.properties.sectionNum ? `(Sec. ${r.properties.sectionNum})` : ""}
+                        <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-100 gap-2">
+                          <span className="text-xs font-bold text-blue-700">
+                            📍 {r.properties.municipality || "Tonalá"} {r.properties.sectionNum ? `· Sección #${r.properties.sectionNum}` : ""}
                           </span>
 
-                          <div style={{ display: "flex", gap: "4px" }}>
+                          <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleFocusOnMap(r)}
-                              style={{ padding: "4px 8px", background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "3px" }}
+                              className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl text-xs transition-all"
                             >
-                              <MapPin size={11} />
-                              Mapa
+                              <MapPin size={13} />
+                              Ver en Mapa
                             </button>
 
                             <button
                               onClick={() => handleOpenEdit(r)}
-                              style={{ padding: "4px 8px", background: "#f1f5f9", color: "#4f46e5", border: "1px solid #c7d2fe", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer" }}
+                              className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-colors"
+                              title="Editar o Reasignar"
                             >
-                              <Edit3 size={11} />
+                              <Edit3 size={15} />
                             </button>
 
                             {isResolved ? (
                               <button
                                 onClick={() => handleToggleReportStatus(r.properties.id, "active")}
-                                style={{ padding: "4px 8px", background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer" }}
+                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all"
                               >
                                 Reabrir
                               </button>
                             ) : (
                               <button
                                 onClick={() => handleToggleReportStatus(r.properties.id, "resolved")}
-                                style={{ padding: "4px 8px", background: "#16a34a", color: "white", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer" }}
+                                className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs transition-all shadow-sm"
                               >
+                                <Check size={14} />
                                 Resolver
                               </button>
                             )}
@@ -1647,34 +1647,34 @@ export default function MapaPage() {
 
       {/* EDIT MODAL */}
       {editingReport && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(15,23,42,0.6)", backdropFilter: "blur(5px)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: "12px" }}>
-          <div style={{ background: "white", padding: "20px", borderRadius: "16px", width: "100%", maxWidth: "480px", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>Administrar Incidencia</h3>
-              <button onClick={() => setEditingReport(null)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
-                <X size={18} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+              <h3 className="font-extrabold text-base text-slate-900">Administrar Incidencia</h3>
+              <button onClick={() => setEditingReport(null)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-3.5">
               <div>
-                <label style={{ display: "block", fontSize: "11px", fontWeight: "700", marginBottom: "3px", color: "#334155" }}>Título *</label>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Título *</label>
                 <input
                   type="text"
                   required
                   value={editForm.title}
                   onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px", outline: "none" }}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-blue-100"
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", marginBottom: "3px", color: "#334155" }}>Municipio *</label>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Municipio *</label>
                   <select
                     value={editForm.municipality}
                     onChange={(e) => setEditForm({ ...editForm, municipality: e.target.value })}
-                    style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none", backgroundColor: "white" }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
                   >
                     <option value="Tonalá">Tonalá</option>
                     <option value="Guadalajara">Guadalajara</option>
@@ -1687,11 +1687,11 @@ export default function MapaPage() {
                 </div>
 
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", marginBottom: "3px", color: "#334155" }}>Categoría *</label>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Categoría *</label>
                   <select
                     value={editForm.category}
                     onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                    style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none", backgroundColor: "white" }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
                   >
                     {Object.entries(CATEGORIES).map(([key, cat]) => (
                       <option key={key} value={key}>{cat.label}</option>
@@ -1700,13 +1700,13 @@ export default function MapaPage() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", marginBottom: "3px", color: "#334155" }}>Estatus *</label>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Estatus *</label>
                   <select
                     value={editForm.status}
                     onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none", backgroundColor: "white", fontWeight: "700" }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
                   >
                     <option value="active">● Pendiente</option>
                     <option value="resolved">✓ Resuelta</option>
@@ -1714,11 +1714,11 @@ export default function MapaPage() {
                 </div>
 
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", marginBottom: "3px", color: "#334155" }}>Asignar Responsable</label>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Asignar Responsable</label>
                   <select
                     value={editForm.assignedToUserId}
                     onChange={(e) => setEditForm({ ...editForm, assignedToUserId: e.target.value })}
-                    style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none", backgroundColor: "white" }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
                   >
                     <option value="">-- Sin Asignar --</option>
                     {systemUsers.map((u) => (
@@ -1729,30 +1729,30 @@ export default function MapaPage() {
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "11px", fontWeight: "700", marginBottom: "3px", color: "#334155" }}>Descripción / Seguimiento *</label>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Descripción / Seguimiento *</label>
                 <textarea
                   required
                   rows={3}
                   value={editForm.description}
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none", resize: "none" }}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:bg-white resize-none"
                 />
               </div>
 
-              <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+              <div className="flex gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setEditingReport(null)}
-                  style={{ flex: 1, padding: "9px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
+                  className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isEditingSubmitting}
-                  style={{ flex: 1, padding: "9px", background: "#4f46e5", color: "white", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
+                  className="flex-1 py-2.5 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm"
                 >
-                  {isEditingSubmitting ? "Guardando..." : "Guardar"}
+                  {isEditingSubmitting ? "Guardando..." : "Guardar Cambios"}
                 </button>
               </div>
             </form>
@@ -1762,20 +1762,20 @@ export default function MapaPage() {
 
       {/* PURGE MODAL */}
       {isPurgeModalOpen && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(15,23,42,0.6)", backdropFilter: "blur(5px)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px" }}>
-          <div style={{ background: "white", padding: "20px", borderRadius: "14px", width: "100%", maxWidth: "380px", textAlign: "center" }}>
-            <div style={{ width: "44px", height: "44px", borderRadius: "50%", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-              <Trash2 size={22} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center border border-slate-100">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-3">
+              <Trash2 size={24} />
             </div>
-            <h3 style={{ margin: "0 0 6px", fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>¿Depurar Incidencias Resueltas?</h3>
-            <p style={{ margin: "0 0 14px", fontSize: "12px", color: "#64748b" }}>
-              Se eliminarán de forma definitiva todas las incidencias marcadas como atendidas.
+            <h3 className="font-black text-base text-slate-900 mb-1">¿Depurar Incidencias Resueltas?</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Se eliminarán de forma definitiva todas las incidencias marcadas como atendidas en el filtro seleccionado.
             </p>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={() => setIsPurgeModalOpen(false)} style={{ flex: 1, padding: "9px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
+            <div className="flex gap-2">
+              <button onClick={() => setIsPurgeModalOpen(false)} className="flex-1 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl">
                 Cancelar
               </button>
-              <button onClick={handlePurgeResolved} disabled={isPurging} style={{ flex: 1, padding: "9px", background: "#dc2626", color: "white", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
+              <button onClick={handlePurgeResolved} disabled={isPurging} className="flex-1 py-2 text-xs font-extrabold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm">
                 {isPurging ? "Purgando..." : "Sí, Purgar"}
               </button>
             </div>
@@ -1785,14 +1785,14 @@ export default function MapaPage() {
 
       {/* NEW REPORT MODAL */}
       {isReportModalOpen && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(15,23,42,0.55)", backdropFilter: "blur(5px)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px" }}>
-          <div style={{ background: "white", padding: "22px", borderRadius: "18px", width: "100%", maxWidth: "460px", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-red-50 text-red-600 rounded-lg">
                   <AlertCircle size={18} />
                 </div>
-                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", color: "#0f172a" }}>Reportar Incidencia</h3>
+                <h3 className="font-extrabold text-sm text-slate-900">Registrar Incidencia</h3>
               </div>
               <button 
                 onClick={() => {
@@ -1800,37 +1800,38 @@ export default function MapaPage() {
                   setNewReportCoords(null);
                   setDetectedLocationInfo(null);
                 }}
-                style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}
+                className="text-slate-400 hover:text-slate-600 p-1"
               >
                 <X size={18} />
               </button>
             </div>
 
             {reportSuccess ? (
-              <div style={{ textAlign: "center", padding: "20px 0", color: "#10b981" }}>
-                <CheckCircle2 size={30} style={{ margin: "0 auto 10px" }} />
-                <div style={{ fontWeight: "800", fontSize: "15px" }}>¡Incidencia registrada con éxito!</div>
+              <div className="text-center py-8 text-emerald-600 space-y-2">
+                <CheckCircle2 size={36} className="mx-auto" />
+                <div className="font-black text-base">¡Incidencia registrada con éxito!</div>
               </div>
             ) : (
-              <form onSubmit={handleSubmitReport} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <form onSubmit={handleSubmitReport} className="p-6 space-y-3.5">
                 
-                <div style={{ background: "#f8fafc", padding: "10px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+                {/* Location Detection Box */}
+                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3">
                   {isGeocodingLoading ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#6366f1", fontSize: "11px", fontWeight: "600" }}>
-                      <Loader2 size={14} className="animate-spin" />
+                    <div className="flex items-center gap-2 text-blue-600 text-xs font-bold">
+                      <Loader2 size={15} className="animate-spin" />
                       <span>Detectando dirección GPS y sección...</span>
                     </div>
                   ) : (
                     <div>
-                      <div style={{ fontSize: "12px", fontWeight: "700", color: "#0f172a" }}>
+                      <div className="text-xs font-bold text-slate-900">
                         📍 {reportForm.address}
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap", marginTop: "4px" }}>
-                        <span style={{ background: "#dbeafe", color: "#1e40af", padding: "1px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: "800" }}>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
                           {reportForm.municipality}
                         </span>
                         {detectedLocationInfo?.sectionNum && (
-                          <span style={{ background: "#dcfce7", color: "#15803d", padding: "1px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: "800" }}>
+                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
                             Sección #{detectedLocationInfo.sectionNum}
                           </span>
                         )}
@@ -1840,23 +1841,23 @@ export default function MapaPage() {
                 </div>
 
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", marginBottom: "3px", color: "#334155" }}>Dirección / Calle *</label>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Dirección / Calle *</label>
                   <input
                     type="text"
                     required
                     value={reportForm.address}
                     onChange={(e) => setReportForm({ ...reportForm, address: e.target.value })}
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none" }}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: "700", marginBottom: "3px", color: "#334155" }}>Municipio *</label>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Municipio *</label>
                     <select
                       value={reportForm.municipality}
                       onChange={(e) => setReportForm({ ...reportForm, municipality: e.target.value })}
-                      style={{ width: "100%", padding: "7px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none", backgroundColor: "white" }}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
                     >
                       <option value="Tonalá">Tonalá</option>
                       <option value="Guadalajara">Guadalajara</option>
@@ -1869,11 +1870,11 @@ export default function MapaPage() {
                   </div>
 
                   <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: "700", marginBottom: "3px", color: "#334155" }}>Categoría *</label>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Categoría *</label>
                     <select
                       value={reportForm.category}
                       onChange={(e) => setReportForm({ ...reportForm, category: e.target.value })}
-                      style={{ width: "100%", padding: "7px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none", backgroundColor: "white" }}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
                     >
                       {Object.entries(CATEGORIES).map(([key, cat]) => (
                         <option key={key} value={key}>{cat.label}</option>
@@ -1883,30 +1884,30 @@ export default function MapaPage() {
                 </div>
 
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", marginBottom: "3px", color: "#334155" }}>Título *</label>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Título del Reporte *</label>
                   <input
                     type="text"
                     required
                     value={reportForm.title}
                     onChange={(e) => setReportForm({ ...reportForm, title: e.target.value })}
-                    placeholder="Ej. Bache profundo / Falla de alumbrado"
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none" }}
+                    placeholder="Ej. Falla de alumbrado / Bache peligroso"
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", marginBottom: "3px", color: "#334155" }}>Descripción *</label>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Descripción de Campo *</label>
                   <textarea
                     required
                     rows={3}
                     value={reportForm.description}
                     onChange={(e) => setReportForm({ ...reportForm, description: e.target.value })}
-                    placeholder="Detalles de la situación en campo..."
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none", resize: "none" }}
+                    placeholder="Detalles sobre lo observado en el territorio..."
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:bg-white resize-none"
                   />
                 </div>
 
-                <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                <div className="flex gap-2 pt-3 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => {
@@ -1914,16 +1915,16 @@ export default function MapaPage() {
                       setNewReportCoords(null);
                       setDetectedLocationInfo(null);
                     }}
-                    style={{ flex: 1, padding: "9px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
+                    className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting || isGeocodingLoading}
-                    style={{ flex: 1, padding: "9px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
+                    className="flex-1 py-2.5 text-xs font-extrabold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm"
                   >
-                    {isSubmitting ? "Guardando..." : "Guardar"}
+                    {isSubmitting ? "Guardando..." : "Registrar Reporte"}
                   </button>
                 </div>
               </form>

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import pg from "pg";
 import { loadAppEnv } from "../../packages/config/index.js";
-import { OFFICIAL_TONALA_SECTIONS, type SectionDefinition, boundsToRealisticPolygon } from "./generate-official-sections.js";
+import { OFFICIAL_TONALA_SECTIONS, type SectionDefinition, computeVoronoiGeometryForSection } from "./generate-official-sections.js";
 
 const env = loadAppEnv();
 const pool = new pg.Pool({ connectionString: env.private.DATABASE_URL });
@@ -389,26 +389,35 @@ export async function runGenerateMetropolitanSections() {
       }
     }
 
-    // 3. Upsert all electoral sections with accurate realistic geometries
-    console.log(`Upserting ${METROPOLITAN_SECTIONS.length} metropolitan electoral sections...`);
+    // 3. Compute seamless non-overlapping Voronoi geometries and upsert sections
+    console.log(`Computing seamless Voronoi polygons and upserting ${METROPOLITAN_SECTIONS.length} metropolitan sections...`);
     const sectionIdMap = new Map<number, string>();
 
+    // Group sections by municipality for Voronoi calculation
+    const muniGroups = new Map<string, MetropolitanSectionDefinition[]>();
     for (const sec of METROPOLITAN_SECTIONS) {
-      const geom = boundsToRealisticPolygon(sec.sectionNum, sec.bounds);
-      const secRes = await pool.query<{ id: string }>(
-        `
-          INSERT INTO electoral_sections (section_num, geom_json)
-          VALUES ($1, $2)
-          ON CONFLICT (section_num) DO UPDATE 
-          SET geom_json = EXCLUDED.geom_json
-          RETURNING id
-        `,
-        [sec.sectionNum, JSON.stringify(geom)]
-      );
+      const muni = sec.municipality || "Tonalá";
+      if (!muniGroups.has(muni)) muniGroups.set(muni, []);
+      muniGroups.get(muni)!.push(sec);
+    }
 
-      const sectionId = secRes.rows[0]?.id;
-      if (sectionId) {
-        sectionIdMap.set(sec.sectionNum, sectionId);
+    for (const [_muni, secGroup] of muniGroups.entries()) {
+      for (const sec of secGroup) {
+        const geom = computeVoronoiGeometryForSection(sec, secGroup);
+        const secRes = await pool.query<{ id: string }>(
+          `
+            INSERT INTO electoral_sections (section_num, geom_json)
+            VALUES ($1, $2)
+            ON CONFLICT (section_num) DO UPDATE 
+            SET geom_json = EXCLUDED.geom_json
+            RETURNING id
+          `,
+          [sec.sectionNum, JSON.stringify(geom)]
+        );
+
+        const sectionId = secRes.rows[0]?.id;
+        if (sectionId) {
+          sectionIdMap.set(sec.sectionNum, sectionId);
 
         // Link section to its colonies
         for (const colName of sec.colonies) {
@@ -426,6 +435,7 @@ export async function runGenerateMetropolitanSections() {
         }
       }
     }
+  }
 
     // 4. Get demo users to assign as representatives
     const usersRes = await pool.query<{ id: string }>("SELECT id FROM user_profiles ORDER BY created_at ASC");
