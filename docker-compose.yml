@@ -29,9 +29,20 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgres://${POSTGRES_USER:-tonala}:${POSTGRES_PASSWORD:-tonala_dev_password}@db:5432/${POSTGRES_DB:-tonala_os}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-tonala_os}
+      - POSTGRES_USER=${POSTGRES_USER:-tonala}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-tonala_dev_password}
       - ALLOW_PUBLIC_REGISTRATION=${ALLOW_PUBLIC_REGISTRATION:-false}
       - SESSION_SECRET=${SESSION_SECRET}
       - DATABASE_ENCRYPTION_KEY=${DATABASE_ENCRYPTION_KEY}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@elapp.com.mx}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - DEMO_PASSWORD=${DEMO_PASSWORD}
+      - NEXT_PUBLIC_ENABLE_DEMO_LOGIN=${NEXT_PUBLIC_ENABLE_DEMO_LOGIN:-false}
+      - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-Tonala OS}
+      - NEXT_PUBLIC_APP_ENV=production
       - PORT=3000
     restart: unless-stopped
 
