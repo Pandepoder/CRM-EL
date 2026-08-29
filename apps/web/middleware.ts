@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getEdgeSession } from "@/lib/session-server";
-import { isPublicRegistrationAllowed } from "@/lib/registration-policy";
 
 const publicPaths = new Set(["/", "/login", "/register"]);
 
@@ -25,10 +24,6 @@ export async function middleware(request: NextRequest) {
 
   if (pathname.startsWith("/api/auth") || pathname === "/api/health" || pathname.startsWith("/_next")) {
     return NextResponse.next();
-  }
-
-  if (pathname === "/register" && !isPublicRegistrationAllowed()) {
-    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   const response = NextResponse.next();

@@ -4,26 +4,29 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { saveServerSession } from "@/lib/session-server";
-import { isPublicRegistrationAllowed } from "@/lib/registration-policy";
 
 export async function POST(request: Request) {
-  if (!isPublicRegistrationAllowed()) {
-    return NextResponse.json(
-      { code: "registration_disabled", message: "El registro público no está habilitado." },
-      { status: 403 }
-    );
-  }
-
   try {
-    const body = (await request.json()) as { displayName?: string; email?: string; password?: string };
+    const body = (await request.json()) as { 
+      displayName?: string; 
+      email?: string; 
+      password?: string;
+      phone?: string;
+    };
     const displayName = body.displayName?.trim() ?? "";
     const email = body.email?.trim().toLowerCase() ?? "";
     const password = body.password ?? "";
 
     if (!displayName || !email || !password) {
       return NextResponse.json(
-        { code: "validation_error", message: "Todos los campos son requeridos." },
+        { code: "validation_error", message: "Todos los campos obligatorios deben completarse." },
+        { status: 400 }
+      );
+    }
+
+    if (password.length < 6) {
+      return NextResponse.json(
+        { code: "validation_error", message: "La contraseña debe tener al menos 6 caracteres." },
         { status: 400 }
       );
     }
@@ -31,56 +34,67 @@ export async function POST(request: Request) {
     const db = getDatabaseClient();
 
     // Check if email already exists
-    const existing = await db.select({ id: schema.userProfiles.id }).from(schema.userProfiles).where(eq(schema.userProfiles.email, email)).limit(1);
-    
+    const existing = await db
+      .select({ id: schema.userProfiles.id, status: schema.userProfiles.status })
+      .from(schema.userProfiles)
+      .where(eq(schema.userProfiles.email, email))
+      .limit(1);
+
     if (existing.length > 0) {
+      if (existing[0]?.status === "pending") {
+        return NextResponse.json(
+          { code: "email_pending", message: "Ya existe una solicitud pendiente con este correo. Espera la autorización del Administrador." },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
-        { code: "email_taken", message: "Este correo ya está registrado." },
+        { code: "email_taken", message: "Este correo ya está registrado en el sistema." },
         { status: 400 }
       );
     }
 
-    // Get the default role for new users: 'visit_responsible' (Organizador)
-    const roles = await db.select().from(schema.roles).where(eq(schema.roles.key, "visit_responsible")).limit(1);
-    
-    if (roles.length === 0) {
-      return NextResponse.json(
-        { code: "internal_error", message: "Error interno: No se encontró el rol por defecto." },
-        { status: 500 }
-      );
-    }
+    // Default role for new registration requests: 'visit_responsible' (Brigadista/Organizador)
+    const roles = await db
+      .select()
+      .from(schema.roles)
+      .where(eq(schema.roles.key, "visit_responsible"))
+      .limit(1);
 
-    const role = roles[0]!;
+    let roleId: string;
+    if (roles.length > 0 && roles[0]) {
+      roleId = roles[0].id;
+    } else {
+      const anyRole = await db.select().from(schema.roles).limit(1);
+      if (anyRole.length === 0 || !anyRole[0]) {
+        return NextResponse.json(
+          { code: "internal_error", message: "Error interno: Catálogo de roles no inicializado." },
+          { status: 500 }
+        );
+      }
+      roleId = anyRole[0].id;
+    }
 
     const passwordHash = await hashPassword(password);
     const userId = randomUUID();
 
+    // Insert user with status 'pending'
     await db.insert(schema.userProfiles).values({
       id: userId,
       email,
       displayName,
       passwordHash,
-      roleId: role.id,
-      status: "active",
+      roleId,
+      status: "pending",
       version: 1
-    });
-
-    // Automatically log them in
-    await saveServerSession({
-      userId: userId,
-      email: email,
-      displayName: displayName,
-      roleKey: role.key,
-      roleName: role.name,
-      isLoggedIn: true
     });
 
     return NextResponse.json({
       ok: true,
-      redirectTo: "/onboarding"
+      pending: true,
+      message: "¡Solicitud enviada con éxito! Tu cuenta está registrada y el Administrador revisará tu solicitud para activar tus privilegios."
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Registration failed.";
+    const message = error instanceof Error ? error.message : "Error al procesar el registro.";
     return NextResponse.json({ code: "registration_failed", message }, { status: 500 });
   }
 }

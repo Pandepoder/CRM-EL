@@ -9,6 +9,10 @@ export type AuthenticatedUser = Readonly<{
   roleName: string;
 }>;
 
+export type AuthResult =
+  | { success: true; user: AuthenticatedUser }
+  | { success: false; reason: "invalid_credentials" | "pending_approval" | "inactive_account" };
+
 type UserRow = {
   readonly id: string;
   readonly email: string;
@@ -16,18 +20,17 @@ type UserRow = {
   readonly role_key: string;
   readonly role_name: string;
   readonly password_hash: string | null;
+  readonly status: string;
 };
 
 /**
- * Busca un usuario activo por email y verifica su contraseña con argon2id.
- * Retorna el usuario autenticado o null si las credenciales son inválidas.
- * El tiempo de respuesta es constante para emails no encontrados (protege contra timing attacks).
+ * Busca un usuario por email y verifica su contraseña y estatus de cuenta.
  */
-export async function authenticateUser(
+export async function authenticateUserDetailed(
   pool: pg.Pool,
   email: string,
   password: string
-): Promise<AuthenticatedUser | null> {
+): Promise<AuthResult> {
   const normalized = email.trim().toLowerCase();
 
   const result = await pool.query<UserRow>(
@@ -37,12 +40,12 @@ export async function authenticateUser(
         user_profiles.email,
         user_profiles.display_name,
         user_profiles.password_hash,
+        user_profiles.status,
         roles.key  AS role_key,
         roles.name AS role_name
       FROM user_profiles
       INNER JOIN roles ON roles.id = user_profiles.role_id
       WHERE lower(user_profiles.email) = $1
-        AND user_profiles.status = 'active'
       LIMIT 1
     `,
     [normalized]
@@ -50,23 +53,46 @@ export async function authenticateUser(
 
   const row = result.rows[0];
 
-  // Si no existe el usuario, igual hacemos una verificación dummy para evitar
-  // timing attacks que revelen si el email existe en la BD.
   if (!row?.password_hash) {
     await argon2.hash("dummy-timing-protection");
-    return null;
+    return { success: false, reason: "invalid_credentials" };
   }
 
   const valid = await argon2.verify(row.password_hash, password);
-  if (!valid) return null;
+  if (!valid) {
+    return { success: false, reason: "invalid_credentials" };
+  }
+
+  if (row.status === "pending") {
+    return { success: false, reason: "pending_approval" };
+  }
+
+  if (row.status !== "active") {
+    return { success: false, reason: "inactive_account" };
+  }
 
   return {
-    id: row.id,
-    email: row.email,
-    displayName: row.display_name,
-    roleKey: row.role_key,
-    roleName: row.role_name
+    success: true,
+    user: {
+      id: row.id,
+      email: row.email,
+      displayName: row.display_name,
+      roleKey: row.role_key,
+      roleName: row.role_name
+    }
   };
+}
+
+/**
+ * Retorna el usuario autenticado o null si las credenciales son inválidas o no está activo.
+ */
+export async function authenticateUser(
+  pool: pg.Pool,
+  email: string,
+  password: string
+): Promise<AuthenticatedUser | null> {
+  const res = await authenticateUserDetailed(pool, email, password);
+  return res.success ? res.user : null;
 }
 
 /**

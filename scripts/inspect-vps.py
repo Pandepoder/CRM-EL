@@ -1,0 +1,26 @@
+import paramiko
+import sys
+
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
+def inspect():
+    host = "45.80.153.22"
+    user = "root"
+    password = "***REMOVED-VPS-SSH-PASSWORD***"
+    
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.connect(host, port=22, username=user, password=password, timeout=10)
+    
+    stdin, stdout, stderr = client.exec_command("cd /opt/crm-el && docker compose ps && echo '--- DB LOGS ---' && docker compose logs db --tail 20 && echo '--- WEB LOGS ---' && docker compose logs web --tail 20 && echo '--- CADDY LOGS ---' && docker compose logs caddy --tail 20")
+    print(stdout.read().decode('utf-8', errors='replace'))
+    print(stderr.read().decode('utf-8', errors='replace'))
+    client.close()
+
+if __name__ == "__main__":
+    inspect()

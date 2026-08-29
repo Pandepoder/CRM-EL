@@ -107,6 +107,15 @@ function LoginForm() {
           </>
         )}
       </button>
+
+      <div style={{ textAlign: "center", marginTop: "24px", paddingTop: "16px", borderTop: "1px solid #f1f5f9" }}>
+        <p style={{ fontSize: "14px", color: "#64748b", margin: 0 }}>
+          ¿Eres nuevo brigadista u operador?{" "}
+          <Link href="/register" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "none" }}>
+            Solicitar Acceso
+          </Link>
+        </p>
+      </div>
     </form>
   );
 }

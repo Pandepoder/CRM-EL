@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { authenticateUser } from "@/lib/auth";
+import { authenticateUserDetailed } from "@/lib/auth";
 import { getDatabasePool } from "@/lib/db";
 import { getHomePathForRole } from "@tonala/ui";
 import { saveServerSession } from "@/lib/session-server";
@@ -19,14 +19,28 @@ export async function POST(request: Request) {
     }
 
     const pool = getDatabasePool();
-    const user = await authenticateUser(pool, email, password);
+    const result = await authenticateUserDetailed(pool, email, password);
 
-    if (!user) {
+    if (!result.success) {
+      if (result.reason === "pending_approval") {
+        return NextResponse.json(
+          { code: "pending_approval", message: "Tu solicitud de cuenta está registrada y pendiente de aprobación por el Administrador." },
+          { status: 403 }
+        );
+      }
+      if (result.reason === "inactive_account") {
+        return NextResponse.json(
+          { code: "inactive_account", message: "Esta cuenta está inactiva. Contacta al Administrador." },
+          { status: 403 }
+        );
+      }
       return NextResponse.json(
         { code: "invalid_credentials", message: "Credenciales incorrectas." },
         { status: 401 }
       );
     }
+
+    const user = result.user;
 
     await saveServerSession({
       userId: user.id,
