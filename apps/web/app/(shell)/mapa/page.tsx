@@ -167,8 +167,9 @@ export default function MapaPage() {
 
   // =========================================================================
   // INFORMATION DENSITY SLIDER (0 = Solo Incidencias, 1 = Territorial, 2 = Completo)
+  // Vista inicial predeterminada en 0 (Limpia con solo incidencias)
   // =========================================================================
-  const [infoDensity, setInfoDensity] = useState<number>(1);
+  const [infoDensity, setInfoDensity] = useState<number>(0);
 
   // =========================================================================
   // ZERO-OVERLAP UNIFIED DRAWER STATE
@@ -182,10 +183,10 @@ export default function MapaPage() {
   // GPS State
   const [isLocatingGPS, setIsLocatingGPS] = useState(false);
 
-  // Layer Toggles & Map View Settings
+  // Layer Toggles & Map View Settings (Inicialmente limpias)
   const [selectedTileStyle, setSelectedTileStyle] = useState<string>("positron");
-  const [showSections, setShowSections] = useState(true);
-  const [showSectionLabels, setShowSectionLabels] = useState(true);
+  const [showSections, setShowSections] = useState(false);
+  const [showSectionLabels, setShowSectionLabels] = useState(false);
   const [enableClustering, setEnableClustering] = useState(true);
 
   // Filters & Search for Map
@@ -879,13 +880,26 @@ export default function MapaPage() {
   const handleSelectSection = (p: SectionProperties) => {
     setSelectedSection(p);
     setActiveDrawer("section");
-    if (!geoJsonLayer || !mapRef) return;
+    if (infoDensity === 0) {
+      setInfoDensity(1);
+      setShowSections(true);
+      setShowSectionLabels(true);
+    }
+    if (!mapRef) return;
     
-    geoJsonLayer.eachLayer((layer: any) => {
-      if (layer.feature?.properties?.section_num === p.section_num) {
-        mapRef.fitBounds(layer.getBounds(), { padding: [50, 50], maxZoom: 15 });
+    if (geoJsonLayer) {
+      geoJsonLayer.eachLayer((layer: any) => {
+        if (layer.feature?.properties?.section_num === p.section_num) {
+          mapRef.fitBounds(layer.getBounds(), { padding: [50, 50], maxZoom: 15 });
+        }
+      });
+    } else if (sectionsData && L) {
+      const feat = sectionsData.features?.find((f: any) => f.properties?.section_num === p.section_num);
+      if (feat) {
+        const tempGeo = L.geoJSON(feat);
+        mapRef.fitBounds(tempGeo.getBounds(), { padding: [50, 50], maxZoom: 15 });
       }
-    });
+    }
   };
 
   const handleSubmitReport = async (e: React.FormEvent) => {
@@ -1079,11 +1093,17 @@ export default function MapaPage() {
                 const val = Number(e.target.value);
                 setInfoDensity(val);
                 if (val === 0) {
+                  setShowSections(false);
+                  setShowSectionLabels(false);
                   setActiveDrawer("none");
                   showToast("📍 Modo Limpio: Solo Incidencias & Calles activas");
                 } else if (val === 1) {
+                  setShowSections(true);
+                  setShowSectionLabels(true);
                   showToast("🗺️ Modo Territorial: Incidencias + Secciones sutiles");
                 } else {
+                  setShowSections(true);
+                  setShowSectionLabels(true);
                   showToast("📊 Modo Detallado: Mapa completo con métricas");
                 }
               }}
