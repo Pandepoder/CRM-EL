@@ -89,7 +89,7 @@ const TILE_STYLES = {
 } as const;
 
 const MUNICIPALITY_CENTERS = {
-  "all": { center: [20.6300, -103.3000] as [number, number], zoom: 11 },
+  "all": { center: [20.6300, -103.2800] as [number, number], zoom: 11 },
   "Tonalá": { center: [20.6240, -103.2350] as [number, number], zoom: 13 },
   "Guadalajara": { center: [20.6750, -103.3450] as [number, number], zoom: 13 },
   "San Pedro Tlaquepaque": { center: [20.6050, -103.3250] as [number, number], zoom: 13 },
@@ -351,7 +351,7 @@ export default function MapaPage() {
     }, 100);
   };
 
-  // 1. Load Leaflet dynamically
+  // 1. Load Leaflet dynamically with robust resize handling
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -387,6 +387,13 @@ export default function MapaPage() {
       setTempMarkerLayer(tempLayer);
       setMapRef(map);
 
+      // Ensure leaflet tiles render immediately across all display resolutions
+      setTimeout(() => map.invalidateSize(), 150);
+      setTimeout(() => map.invalidateSize(), 400);
+
+      const handleResize = () => map.invalidateSize();
+      window.addEventListener("resize", handleResize);
+
       map.on("click", (e: any) => {
         if (mapClickModeRef.current === "report") {
           void triggerIncidentCreation(e.latlng.lat, e.latlng.lng);
@@ -396,8 +403,20 @@ export default function MapaPage() {
       map.on("dblclick", (e: any) => {
         void triggerIncidentCreation(e.latlng.lat, e.latlng.lng);
       });
+
+      return () => {
+        window.removeEventListener("resize", handleResize);
+      };
     });
   }, [triggerIncidentCreation]);
+
+  // Invalidate map size when tab switches back to map
+  useEffect(() => {
+    if (activeTab === "map" && mapRef) {
+      setTimeout(() => mapRef.invalidateSize(), 100);
+      setTimeout(() => mapRef.invalidateSize(), 300);
+    }
+  }, [activeTab, mapRef]);
 
   const handleChangeTileStyle = (styleKey: string) => {
     const style = (TILE_STYLES as Record<string, { name: string; url: string; attribution: string; icon: string }>)[styleKey];
@@ -993,56 +1012,57 @@ export default function MapaPage() {
   };
 
   return (
-    <div className="relative flex flex-col w-full h-[calc(100vh-68px)] min-h-[640px] bg-slate-900 overflow-hidden select-none font-sans">
+    <div style={{ position: "relative", width: "100%", height: "calc(100vh - 64px)", minHeight: "600px", display: "flex", flexDirection: "column", background: "#0f172a", overflow: "hidden", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
       
       {/* Top Floating Command Bar */}
-      <header className="absolute top-3 left-3 right-3 z-30 flex items-center justify-between gap-3 p-2.5 rounded-2xl bg-white/90 backdrop-blur-md border border-slate-200/80 shadow-lg transition-all">
+      <header style={{ position: "absolute", top: "12px", left: "12px", right: "12px", zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "8px 12px", borderRadius: "14px", background: "rgba(255, 255, 255, 0.92)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(226, 232, 240, 0.8)", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15)", flexWrap: "wrap" }}>
         
         {/* Left: View Tabs */}
-        <div className="flex items-center gap-1.5">
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <button
             onClick={() => setActiveTab("map")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === "map"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "10px", border: "none",
+              backgroundColor: activeTab === "map" ? "#2563eb" : "#f1f5f9",
+              color: activeTab === "map" ? "#ffffff" : "#475569",
+              fontSize: "12px", fontWeight: "800", cursor: "pointer", transition: "all 0.15s"
+            }}
           >
-            <Compass size={16} />
+            <Compass size={15} />
             <span>Mapa Cartográfico</span>
           </button>
           
           <button
             onClick={() => setActiveTab("list")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === "list"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "10px", border: "none",
+              backgroundColor: activeTab === "list" ? "#2563eb" : "#f1f5f9",
+              color: activeTab === "list" ? "#ffffff" : "#475569",
+              fontSize: "12px", fontWeight: "800", cursor: "pointer", transition: "all 0.15s"
+            }}
           >
-            <ListFilter size={16} />
-            <span className="hidden sm:inline">Centro de Gestión</span>
-            <span className="sm:hidden">Incidencias</span>
-            <span className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
-              activeTab === "list" ? "bg-white/25 text-white" : "bg-slate-200 text-slate-700"
-            }`}>
+            <ListFilter size={15} />
+            <span>Centro de Gestión</span>
+            <span style={{ backgroundColor: activeTab === "list" ? "rgba(255,255,255,0.25)" : "#e2e8f0", color: activeTab === "list" ? "white" : "#334155", padding: "1px 6px", borderRadius: "9999px", fontSize: "11px", fontWeight: "800" }}>
               {activeReportsCount}
             </span>
           </button>
         </div>
 
-        {/* Center: Municipal pills (Desktop) */}
+        {/* Center: Municipal quick buttons */}
         {activeTab === "map" && (
-          <div className="hidden lg:flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/60">
+          <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "rgba(241, 245, 249, 0.9)", padding: "3px 6px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
             {["all", "Tonalá", "Guadalajara", "Zapopan", "San Pedro Tlaquepaque"].map((m) => (
               <button
                 key={m}
                 onClick={() => handleMunicipalityChange(m)}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                  selectedMunicipality === m
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
+                style={{
+                  padding: "4px 8px", borderRadius: "6px", border: "none",
+                  backgroundColor: selectedMunicipality === m ? "#ffffff" : "transparent",
+                  color: selectedMunicipality === m ? "#0f172a" : "#64748b",
+                  boxShadow: selectedMunicipality === m ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                  fontSize: "11px", fontWeight: "700", cursor: "pointer"
+                }}
               >
                 {m === "all" ? "Todo el AMG" : m}
               </button>
@@ -1051,7 +1071,7 @@ export default function MapaPage() {
         )}
 
         {/* Right: Actions and Controls */}
-        <div className="flex items-center gap-2">
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           {activeTab === "map" && (
             <>
               {/* GPS Button */}
@@ -1059,69 +1079,78 @@ export default function MapaPage() {
                 onClick={handleLocateMe}
                 disabled={isLocatingGPS}
                 title="Centrar en mi ubicación GPS"
-                className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition-all active:scale-95"
+                style={{ display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px", border: "1px solid #bfdbfe", background: "#eff6ff", color: "#1d4ed8", fontSize: "11px", fontWeight: "800", cursor: "pointer" }}
               >
-                <LocateFixed size={15} className={isLocatingGPS ? "animate-spin" : ""} />
-                <span className="hidden md:inline">Mi GPS</span>
+                <LocateFixed size={14} className={isLocatingGPS ? "animate-spin" : ""} />
+                <span>Mi GPS</span>
               </button>
 
               {/* Incidents Drawer toggle */}
               <button
                 onClick={() => setIsQuickIncidentsDrawerOpen(!isQuickIncidentsDrawerOpen)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
-                  isQuickIncidentsDrawerOpen
-                    ? "bg-red-50 text-red-700 border-red-200"
-                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-                }`}
+                style={{
+                  display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px",
+                  border: "1px solid",
+                  borderColor: isQuickIncidentsDrawerOpen ? "#fca5a5" : "#cbd5e1",
+                  backgroundColor: isQuickIncidentsDrawerOpen ? "#fef2f2" : "#f8fafc",
+                  color: isQuickIncidentsDrawerOpen ? "#b91c1c" : "#334155",
+                  fontSize: "11px", fontWeight: "800", cursor: "pointer"
+                }}
               >
-                <AlertCircle size={15} className={isQuickIncidentsDrawerOpen ? "text-red-600" : "text-slate-500"} />
-                <span className="hidden md:inline">Incidencias</span>
-                <span className="font-extrabold text-[11px]">({activeReportsCount})</span>
+                <AlertCircle size={14} style={{ color: isQuickIncidentsDrawerOpen ? "#dc2626" : "#64748b" }} />
+                <span>Incidencias ({activeReportsCount})</span>
               </button>
 
               {/* Layers Button */}
               <button
                 onClick={() => setIsLayersMenuOpen(!isLayersMenuOpen)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
-                  isLayersMenuOpen
-                    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-                }`}
+                style={{
+                  display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px",
+                  border: "1px solid",
+                  borderColor: isLayersMenuOpen ? "#c7d2fe" : "#cbd5e1",
+                  backgroundColor: isLayersMenuOpen ? "#eef2ff" : "#f8fafc",
+                  color: isLayersMenuOpen ? "#4338ca" : "#334155",
+                  fontSize: "11px", fontWeight: "800", cursor: "pointer"
+                }}
               >
-                <SlidersHorizontal size={15} />
-                <span className="hidden md:inline">Capas</span>
+                <SlidersHorizontal size={14} />
+                <span>Capas</span>
               </button>
 
               {/* Mode Toggle */}
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <div style={{ display: "flex", alignItems: "center", background: "#f1f5f9", padding: "2px", borderRadius: "9px", border: "1px solid #e2e8f0" }}>
                 <button
                   onClick={() => {
                     setMapClickMode("select");
-                    showToast("🔍 Modo Consulta: Clic en cualquier polígono para ver métricas");
+                    showToast("🔍 Modo Consulta: Clic en polígono para ver métricas");
                   }}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                    mapClickMode === "select"
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-500 hover:text-slate-900"
-                  }`}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "4px", padding: "5px 8px", borderRadius: "7px", border: "none",
+                    backgroundColor: mapClickMode === "select" ? "white" : "transparent",
+                    color: mapClickMode === "select" ? "#0f172a" : "#64748b",
+                    boxShadow: mapClickMode === "select" ? "0 1px 2px rgba(0,0,0,0.1)" : "none",
+                    fontSize: "11px", fontWeight: "700", cursor: "pointer"
+                  }}
                 >
-                  <Layers size={14} />
-                  <span className="hidden sm:inline">Consultar</span>
+                  <Layers size={13} />
+                  <span>Consultar</span>
                 </button>
 
                 <button
                   onClick={() => {
                     setMapClickMode("report");
-                    showToast("📍 Modo 1-Clic: Toca cualquier calle para levantar reporte geolocalizado");
+                    showToast("📍 Modo 1-Clic: Toca cualquier calle para levantar reporte");
                   }}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                    mapClickMode === "report"
-                      ? "bg-red-600 text-white shadow-sm"
-                      : "text-slate-500 hover:text-slate-900"
-                  }`}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "4px", padding: "5px 8px", borderRadius: "7px", border: "none",
+                    backgroundColor: mapClickMode === "report" ? "#dc2626" : "transparent",
+                    color: mapClickMode === "report" ? "white" : "#64748b",
+                    boxShadow: mapClickMode === "report" ? "0 1px 2px rgba(220,38,38,0.3)" : "none",
+                    fontSize: "11px", fontWeight: "700", cursor: "pointer"
+                  }}
                 >
-                  <MousePointerClick size={14} />
-                  <span className="hidden sm:inline">1-Clic</span>
+                  <MousePointerClick size={13} />
+                  <span>1-Clic</span>
                 </button>
               </div>
             </>
@@ -1132,18 +1161,18 @@ export default function MapaPage() {
               <button
                 onClick={() => setIsPurgeModalOpen(true)}
                 title="Depurar y limpiar incidencias resueltas"
-                className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-all"
+                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "7px 10px", borderRadius: "9px", border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontSize: "11px", fontWeight: "800", cursor: "pointer" }}
               >
-                <Trash2 size={15} />
-                <span className="hidden sm:inline">Purgar</span>
+                <Trash2 size={14} />
+                <span>Purgar</span>
               </button>
 
               <button
                 onClick={handleExportCSV}
-                className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all"
+                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "7px 10px", borderRadius: "9px", border: "1px solid #cbd5e1", background: "#f8fafc", color: "#334155", fontSize: "11px", fontWeight: "800", cursor: "pointer" }}
               >
-                <Download size={15} />
-                <span className="hidden sm:inline">Exportar CSV</span>
+                <Download size={14} />
+                <span>Exportar CSV</span>
               </button>
             </>
           )}
@@ -1154,44 +1183,53 @@ export default function MapaPage() {
               const defaultCoords = mapRef ? mapRef.getCenter() : { lat: 20.6248, lng: -103.2422 };
               void triggerIncidentCreation(defaultCoords.lat, defaultCoords.lng);
             }}
-            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl text-xs font-extrabold shadow-md hover:shadow-lg transition-all active:scale-95"
+            style={{ display: "flex", alignItems: "center", gap: "4px", padding: "8px 14px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #ef4444, #dc2626)", color: "white", fontSize: "11px", fontWeight: "800", cursor: "pointer", boxShadow: "0 2px 6px rgba(220,38,38,0.35)" }}
           >
-            <PlusCircle size={16} />
+            <PlusCircle size={15} />
             <span>+ Reportar</span>
           </button>
         </div>
       </header>
 
-      {/* Main Container */}
-      <div className="relative flex-1 w-full h-full">
+      {/* Main Map Container */}
+      <div style={{ position: "relative", width: "100%", height: "100%", flex: 1, minHeight: "500px" }}>
         
         {/* Leaflet Map Canvas */}
         <div 
           id="leaflet-map-container" 
-          className={`absolute inset-0 w-full h-full z-0 transition-opacity duration-300 ${
-            activeTab === "map" ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
-          }`}
-          style={{ cursor: mapClickMode === "report" ? "crosshair" : "default" }}
+          style={{ 
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: "100%", 
+            height: "100%", 
+            minHeight: "500px",
+            zIndex: 1,
+            cursor: mapClickMode === "report" ? "crosshair" : "default",
+            visibility: activeTab === "map" ? "visible" : "hidden"
+          }} 
         />
 
         {/* Floating Toast Notification */}
         {toastMessage && (
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-md text-white text-xs font-bold px-4 py-2 rounded-full shadow-2xl border border-white/20 animate-in fade-in slide-in-from-top-4 duration-200">
+          <div style={{ position: "absolute", top: "70px", left: "50%", transform: "translateX(-50%)", zIndex: 1200, background: "rgba(15, 23, 42, 0.92)", color: "white", padding: "8px 18px", borderRadius: "30px", boxShadow: "0 10px 25px rgba(0,0,0,0.3)", fontSize: "12px", fontWeight: "700", border: "1px solid rgba(255,255,255,0.2)", backdropFilter: "blur(8px)" }}>
             {toastMessage}
           </div>
         )}
 
         {/* Left Floating Search & Quick Jumper Panel */}
         {activeTab === "map" && (
-          <div className="absolute top-20 left-3 z-20 w-80 max-w-[calc(100vw-24px)] flex flex-col gap-2">
-            <div className="bg-white/90 backdrop-blur-md border border-slate-200/80 rounded-2xl p-3 shadow-xl space-y-2">
+          <div style={{ position: "absolute", top: "72px", left: "12px", zIndex: 20, width: "320px", maxWidth: "calc(100vw - 24px)" }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.94)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(226, 232, 240, 0.9)", borderRadius: "14px", padding: "10px", boxShadow: "0 15px 30px -5px rgba(0,0,0,0.15)" }}>
               
               {/* Municipality Select */}
-              <div>
+              <div style={{ marginBottom: "6px" }}>
                 <select
                   value={selectedMunicipality}
                   onChange={(e) => handleMunicipalityChange(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-100 cursor-pointer"
+                  style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", color: "#0f172a", outline: "none", cursor: "pointer" }}
                 >
                   <option value="all">🗺️ Todo el Área Metropolitana</option>
                   <option value="Tonalá">📍 Tonalá (46 secciones)</option>
@@ -1207,47 +1245,48 @@ export default function MapaPage() {
               </div>
 
               {/* Section Search */}
-              <div className="relative">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <Search size={14} style={{ position: "absolute", left: "9px", color: "#94a3b8" }} />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Buscar Sección o Colonia..."
-                  className="w-full pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:ring-2 focus:ring-blue-100"
+                  style={{ width: "100%", padding: "7px 28px 7px 30px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
                 />
                 {searchQuery && (
-                  <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <X size={14} />
+                  <button onClick={() => setSearchQuery("")} style={{ position: "absolute", right: "8px", background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
+                    <X size={13} />
                   </button>
                 )}
               </div>
 
               {/* Search Results Dropdown */}
               {searchQuery && (
-                <div className="max-h-48 overflow-y-auto space-y-1 pt-1 border-t border-slate-100">
+                <div style={{ marginTop: "6px", maxHeight: "180px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "3px", borderTop: "1px solid #f1f5f9", paddingTop: "4px" }}>
                   {filteredSectionsList.length > 0 ? (
                     filteredSectionsList.map((sec: SectionProperties) => (
                       <button
                         key={sec.section_num}
                         onClick={() => handleSelectSection(sec)}
-                        className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all ${
-                          selectedSection?.section_num === sec.section_num
-                            ? "bg-blue-50 border border-blue-200"
-                            : "bg-slate-50 hover:bg-slate-100 border border-slate-100"
-                        }`}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", borderRadius: "8px",
+                          backgroundColor: selectedSection?.section_num === sec.section_num ? "#dbeafe" : "#f8fafc",
+                          border: "1px solid", borderColor: selectedSection?.section_num === sec.section_num ? "#bfdbfe" : "#e2e8f0",
+                          cursor: "pointer", textAlign: "left", width: "100%"
+                        }}
                       >
                         <div>
-                          <div className="text-xs font-bold text-slate-900">
-                            Sección {sec.section_num} <span className="text-[10px] text-blue-600 font-semibold">({sec.municipality || 'Tonalá'})</span>
+                          <div style={{ fontSize: "11px", fontWeight: "800", color: "#0f172a" }}>
+                            Sección {sec.section_num} <span style={{ fontSize: "10px", color: "#2563eb", fontWeight: "600" }}>({sec.municipality || 'Tonalá'})</span>
                           </div>
-                          <div className="text-[10px] text-slate-500 line-clamp-1">{sec.colonies.slice(0, 2).join(", ")}</div>
+                          <div style={{ fontSize: "10px", color: "#64748b" }}>{sec.colonies.slice(0, 2).join(", ")}</div>
                         </div>
-                        <ChevronRight size={14} className="text-slate-400" />
+                        <ChevronRight size={13} style={{ color: "#94a3b8" }} />
                       </button>
                     ))
                   ) : (
-                    <div className="p-3 text-center text-xs text-slate-400">Sin secciones coincidentes</div>
+                    <div style={{ padding: "8px", textAlign: "center", fontSize: "11px", color: "#94a3b8" }}>Sin secciones coincidentes</div>
                   )}
                 </div>
               )}
@@ -1257,67 +1296,67 @@ export default function MapaPage() {
 
         {/* Floating Section Detail Card (Bottom Left / Responsive) */}
         {activeTab === "map" && selectedSection && (
-          <div className="absolute bottom-6 left-3 z-30 w-96 max-w-[calc(100vw-24px)] bg-white/95 backdrop-blur-md rounded-2xl p-5 border border-slate-200 shadow-2xl animate-in slide-in-from-bottom-4 duration-200">
-            <div className="flex items-start justify-between mb-3">
+          <div style={{ position: "absolute", bottom: "24px", left: "12px", zIndex: 30, width: "360px", maxWidth: "calc(100vw - 24px)", background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: "16px", padding: "16px", border: "1px solid #cbd5e1", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "10px" }}>
               <div>
-                <span className="inline-block bg-blue-100 text-blue-800 font-extrabold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md mb-1">
+                <span style={{ display: "inline-block", background: "#dbeafe", color: "#1e40af", fontWeight: "800", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.5px", padding: "2px 6px", borderRadius: "4px", marginBottom: "4px" }}>
                   {selectedSection.municipality || "Tonalá"}
                 </span>
-                <h2 className="text-xl font-black text-slate-900">
+                <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "900", color: "#0f172a" }}>
                   Sección Electoral #{selectedSection.section_num}
                 </h2>
               </div>
               <button 
                 onClick={() => setSelectedSection(null)} 
-                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", padding: "4px", cursor: "pointer", color: "#64748b" }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
             {/* Quick Stats Grid */}
-            <div className="grid grid-cols-3 gap-2 mb-3.5">
-              <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Simpatizantes</div>
-                <div className="text-lg font-black text-indigo-600">{selectedSection.contactsCount}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", marginBottom: "12px" }}>
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
+                <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Simpatizantes</div>
+                <div style={{ fontSize: "16px", fontWeight: "900", color: "#4f46e5", marginTop: "2px" }}>{selectedSection.contactsCount}</div>
               </div>
 
-              <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Visitas</div>
-                <div className="text-lg font-black text-emerald-600">{selectedSection.visitsCompleted}</div>
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
+                <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Visitas</div>
+                <div style={{ fontSize: "16px", fontWeight: "900", color: "#059669", marginTop: "2px" }}>{selectedSection.visitsCompleted}</div>
               </div>
 
-              <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Incidencias</div>
-                <div className="text-lg font-black text-amber-600">{selectedSection.incidentsActive}</div>
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
+                <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Incidencias</div>
+                <div style={{ fontSize: "16px", fontWeight: "900", color: "#d97706", marginTop: "2px" }}>{selectedSection.incidentsActive}</div>
               </div>
             </div>
 
             {/* Colonies List */}
-            <div className="mb-4">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            <div style={{ marginBottom: "12px" }}>
+              <div style={{ fontSize: "10px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>
                 Colonias en esta Sección:
               </div>
-              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", maxHeight: "80px", overflowY: "auto" }}>
                 {selectedSection.colonies.length > 0 ? (
                   selectedSection.colonies.map((c) => (
-                    <span key={c} className="bg-slate-100 text-slate-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-lg">
+                    <span key={c} style={{ background: "#f1f5f9", color: "#334155", fontSize: "10px", fontWeight: "600", padding: "2px 6px", borderRadius: "6px" }}>
                       {c}
                     </span>
                   ))
                 ) : (
-                  <span className="text-xs text-slate-400 italic">Colonia principal del municipio</span>
+                  <span style={{ fontSize: "11px", color: "#94a3b8", fontStyle: "italic" }}>Colonia principal del municipio</span>
                 )}
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-2 pt-2 border-t border-slate-100">
+            <div style={{ display: "flex", gap: "6px", paddingTop: "8px", borderTop: "1px solid #f1f5f9" }}>
               <Link
                 href={`/crm?seccion=${selectedSection.section_num}`}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-xl text-xs transition-all shadow-sm"
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", background: "#2563eb", color: "white", textDecoration: "none", fontWeight: "800", padding: "8px", borderRadius: "8px", fontSize: "11px" }}
               >
-                <Users size={14} />
+                <Users size={13} />
                 Ver Contactos
               </Link>
 
@@ -1326,9 +1365,9 @@ export default function MapaPage() {
                   const defaultCoords = mapRef ? mapRef.getCenter() : { lat: 20.6248, lng: -103.2422 };
                   void triggerIncidentCreation(defaultCoords.lat, defaultCoords.lng, selectedSection.municipality);
                 }}
-                className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition-all shadow-sm"
+                style={{ display: "flex", alignItems: "center", gap: "4px", background: "#dc2626", color: "white", border: "none", fontWeight: "800", padding: "8px 12px", borderRadius: "8px", fontSize: "11px", cursor: "pointer" }}
               >
-                <PlusCircle size={14} />
+                <PlusCircle size={13} />
                 Reportar
               </button>
             </div>
@@ -1337,40 +1376,40 @@ export default function MapaPage() {
 
         {/* Slide-Over Incidents Drawer */}
         {activeTab === "map" && isQuickIncidentsDrawerOpen && (
-          <div className="absolute top-20 right-3 bottom-6 w-96 max-w-[calc(100vw-24px)] bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200 z-30 flex flex-col overflow-hidden animate-in slide-in-from-right-4 duration-200">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-                <AlertCircle size={18} className="text-red-500" />
+          <div style={{ position: "absolute", top: "72px", right: "12px", bottom: "24px", width: "360px", maxWidth: "calc(100vw - 24px)", background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: "16px", border: "1px solid #cbd5e1", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", zIndex: 30, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc" }}>
+              <h3 style={{ margin: 0, fontWeight: "800", fontSize: "13px", color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" }}>
+                <AlertCircle size={16} style={{ color: "#dc2626" }} />
                 Incidencias Registradas ({allReports.length})
               </h3>
-              <button onClick={() => setIsQuickIncidentsDrawerOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
-                <X size={18} />
+              <button onClick={() => setIsQuickIncidentsDrawerOpen(false)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
+                <X size={16} />
               </button>
             </div>
 
-            <div className="flex-1 p-3 overflow-y-auto space-y-2">
+            <div style={{ flex: 1, padding: "10px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
               {allReports.map((r) => {
                 const cat = CATEGORIES[r.properties.category] ?? { label: r.properties.category, color: "#64748b", bg: "#f8fafc", svg: SVGS.AlertCircle };
                 const isResolved = r.properties.status === "resolved";
                 return (
-                  <div key={r.properties.id} className="bg-slate-50 hover:bg-slate-100/80 p-3 rounded-xl border border-slate-200/70 transition-all">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md" style={{ color: cat.color, background: cat.bg }}>
+                  <div key={r.properties.id} style={{ background: "#f8fafc", padding: "10px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "3px" }}>
+                      <span style={{ fontSize: "10px", fontWeight: "800", textTransform: "uppercase", padding: "2px 5px", borderRadius: "4px", color: cat.color, background: cat.bg }}>
                         {cat.label}
                       </span>
-                      <span className={`text-[10px] font-bold ${isResolved ? "text-emerald-600" : "text-amber-600"}`}>
+                      <span style={{ fontSize: "10px", fontWeight: "700", color: isResolved ? "#16a34a" : "#dc2626" }}>
                         {isResolved ? "✓ Atendida" : "● Pendiente"}
                       </span>
                     </div>
-                    <h4 className="font-bold text-xs text-slate-900 mb-1">{r.properties.title}</h4>
-                    <p className="text-[11px] text-slate-600 line-clamp-2 mb-2">{r.properties.description}</p>
-                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/50">
-                      <span className="text-[10px] font-bold text-blue-700">📍 {r.properties.municipality || "Tonalá"}</span>
+                    <h4 style={{ margin: "0 0 2px", fontWeight: "800", fontSize: "12px", color: "#0f172a" }}>{r.properties.title}</h4>
+                    <p style={{ margin: "0 0 6px", fontSize: "11px", color: "#475569", lineHeight: "1.3" }}>{r.properties.description}</p>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #e2e8f0", paddingTop: "6px" }}>
+                      <span style={{ fontSize: "10px", fontWeight: "700", color: "#1d4ed8" }}>📍 {r.properties.municipality || "Tonalá"}</span>
                       <button
                         onClick={() => handleFocusOnMap(r)}
-                        className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] transition-all shadow-sm"
+                        style={{ display: "flex", alignItems: "center", gap: "3px", background: "#2563eb", color: "white", border: "none", fontWeight: "700", padding: "4px 8px", borderRadius: "6px", fontSize: "10px", cursor: "pointer" }}
                       >
-                        <MapPin size={11} />
+                        <MapPin size={10} />
                         Centrar Mapa
                       </button>
                     </div>
@@ -1383,32 +1422,34 @@ export default function MapaPage() {
 
         {/* Map Layers Menu */}
         {isLayersMenuOpen && (
-          <div className="absolute top-20 right-3 z-30 w-80 max-w-[calc(100vw-24px)] bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                <SlidersHorizontal size={15} className="text-blue-600" />
+          <div style={{ position: "absolute", top: "72px", right: "12px", zIndex: 30, width: "290px", maxWidth: "calc(100vw - 24px)", background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: "16px", padding: "14px", border: "1px solid #cbd5e1", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+              <h3 style={{ margin: 0, fontWeight: "800", fontSize: "12px", color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <SlidersHorizontal size={14} style={{ color: "#2563eb" }} />
                 Configuración del Mapa
               </h3>
-              <button onClick={() => setIsLayersMenuOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
-                <X size={16} />
+              <button onClick={() => setIsLayersMenuOpen(false)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
+                <X size={15} />
               </button>
             </div>
 
             {/* Base Layer Switcher */}
-            <div className="mb-3.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+            <div style={{ marginBottom: "12px" }}>
+              <span style={{ fontSize: "10px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
                 Estilo de Mapa Base
               </span>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
                 {Object.entries(TILE_STYLES).map(([key, style]) => (
                   <button
                     key={key}
                     onClick={() => handleChangeTileStyle(key)}
-                    className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold border transition-all ${
-                      selectedTileStyle === key
-                        ? "bg-blue-50 text-blue-700 border-blue-300 shadow-sm"
-                        : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-                    }`}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "4px", padding: "7px 8px", borderRadius: "8px", border: "1px solid",
+                      borderColor: selectedTileStyle === key ? "#2563eb" : "#e2e8f0",
+                      backgroundColor: selectedTileStyle === key ? "#eff6ff" : "#f8fafc",
+                      color: selectedTileStyle === key ? "#1d4ed8" : "#334155",
+                      fontSize: "11px", fontWeight: "700", cursor: "pointer"
+                    }}
                   >
                     <span>{style.icon}</span>
                     <span>{style.name}</span>
@@ -1418,29 +1459,29 @@ export default function MapaPage() {
             </div>
 
             {/* Layer Toggles */}
-            <div className="space-y-2 pt-3 border-t border-slate-100 text-xs font-semibold text-slate-700">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "8px", borderTop: "1px solid #f1f5f9", fontSize: "11px", fontWeight: "600", color: "#334155" }}>
+              <span style={{ fontSize: "10px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", marginBottom: "2px" }}>
                 Capas Visibles
               </span>
               
-              <label className="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg">
+              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
                 <span>Polígonos Seccionales</span>
-                <input type="checkbox" checked={showSections} onChange={(e) => setShowSections(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
+                <input type="checkbox" checked={showSections} onChange={(e) => setShowSections(e.target.checked)} style={{ accentColor: "#2563eb" }} />
               </label>
 
-              <label className="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg">
+              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
                 <span>Números de Sección</span>
-                <input type="checkbox" checked={showSectionLabels} onChange={(e) => setShowSectionLabels(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
+                <input type="checkbox" checked={showSectionLabels} onChange={(e) => setShowSectionLabels(e.target.checked)} style={{ accentColor: "#2563eb" }} />
               </label>
 
-              <label className="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg">
+              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
                 <span>Marcadores de Incidencias</span>
-                <input type="checkbox" checked={showIncidents} onChange={(e) => setShowIncidents(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
+                <input type="checkbox" checked={showIncidents} onChange={(e) => setShowIncidents(e.target.checked)} style={{ accentColor: "#dc2626" }} />
               </label>
 
-              <label className="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg">
-                <span>Agrupamiento Inteligente (Clusters)</span>
-                <input type="checkbox" checked={enableClustering} onChange={(e) => setEnableClustering(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
+              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+                <span>Agrupamiento (Clusters)</span>
+                <input type="checkbox" checked={enableClustering} onChange={(e) => setEnableClustering(e.target.checked)} style={{ accentColor: "#2563eb" }} />
               </label>
             </div>
           </div>
@@ -1448,52 +1489,50 @@ export default function MapaPage() {
 
         {/* Tab 2: Incident Operations Management Center */}
         {activeTab === "list" && (
-          <div className="absolute inset-0 bg-slate-50 z-20 p-6 overflow-y-auto">
-            <div className="max-w-6xl mx-auto space-y-6">
+          <div style={{ position: "absolute", inset: 0, background: "#f8fafc", zIndex: 20, padding: "20px", overflowY: "auto" }}>
+            <div style={{ maxWidth: "1100px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "16px" }}>
               
               {/* Header */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                    Centro de Mando e Incidencias Territoriales
-                  </h1>
-                  <p className="text-slate-500 text-xs mt-1">
-                    Control operativo, seguimiento y resolución de reportes de campo en tiempo real.
-                  </p>
-                </div>
+              <div>
+                <h1 style={{ margin: 0, fontSize: "22px", fontWeight: "900", color: "#0f172a" }}>
+                  Centro de Mando e Incidencias Territoriales
+                </h1>
+                <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "12px" }}>
+                  Control operativo, seguimiento y resolución de reportes de campo en tiempo real.
+                </p>
               </div>
 
               {/* KPI Cards Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-white border border-amber-200/80 rounded-2xl p-4 shadow-sm">
-                  <div className="text-xs font-bold text-amber-800 uppercase tracking-wider">Por Atender</div>
-                  <div className="text-2xl font-black text-amber-900 mt-1">{activeReportsCount}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px" }}>
+                <div style={{ background: "white", border: "1px solid #fde68a", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                  <div style={{ fontSize: "11px", fontWeight: "800", color: "#92400e", textTransform: "uppercase" }}>Por Atender</div>
+                  <div style={{ fontSize: "24px", fontWeight: "900", color: "#78350f", marginTop: "2px" }}>{activeReportsCount}</div>
                 </div>
 
-                <div className="bg-white border border-red-200/80 rounded-2xl p-4 shadow-sm">
-                  <div className="text-xs font-bold text-red-800 uppercase tracking-wider">Emergencias Críticas</div>
-                  <div className="text-2xl font-black text-red-700 mt-1">{emergencyReportsCount}</div>
+                <div style={{ background: "white", border: "1px solid #fecaca", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                  <div style={{ fontSize: "11px", fontWeight: "800", color: "#991b1b", textTransform: "uppercase" }}>Emergencias Críticas</div>
+                  <div style={{ fontSize: "24px", fontWeight: "900", color: "#b91c1c", marginTop: "2px" }}>{emergencyReportsCount}</div>
                 </div>
 
-                <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 shadow-sm">
-                  <div className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Resueltas</div>
-                  <div className="text-2xl font-black text-emerald-700 mt-1">{resolvedReportsCount}</div>
+                <div style={{ background: "white", border: "1px solid #bbf7d0", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                  <div style={{ fontSize: "11px", fontWeight: "800", color: "#166534", textTransform: "uppercase" }}>Resueltas</div>
+                  <div style={{ fontSize: "24px", fontWeight: "900", color: "#15803d", marginTop: "2px" }}>{resolvedReportsCount}</div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tasa de Resolución</div>
-                  <div className="text-2xl font-black text-blue-600 mt-1">{resolutionRate}%</div>
+                <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                  <div style={{ fontSize: "11px", fontWeight: "800", color: "#64748b", textTransform: "uppercase" }}>Efectividad</div>
+                  <div style={{ fontSize: "24px", fontWeight: "900", color: "#2563eb", marginTop: "2px" }}>{resolutionRate}%</div>
                 </div>
               </div>
 
               {/* Filters & SubTabs */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
-                <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
+              <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "14px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px", borderBottom: "1px solid #f1f5f9", paddingBottom: "8px" }}>
                   {[
-                    { key: "active", label: `Pendientes (${activeReportsCount})`, icon: Flame, color: "blue" },
-                    { key: "emergency", label: `Emergencias (${emergencyReportsCount})`, icon: ShieldAlert, color: "red" },
-                    { key: "resolved", label: `Resueltas (${resolvedReportsCount})`, icon: CheckCircle2, color: "emerald" },
-                    { key: "all", label: `Todas (${allReports.length})`, icon: ListFilter, color: "slate" },
+                    { key: "active", label: `Pendientes (${activeReportsCount})`, icon: Flame },
+                    { key: "emergency", label: `Emergencias (${emergencyReportsCount})`, icon: ShieldAlert },
+                    { key: "resolved", label: `Resueltas (${resolvedReportsCount})`, icon: CheckCircle2 },
+                    { key: "all", label: `Todas (${allReports.length})`, icon: ListFilter },
                   ].map((tab) => {
                     const Icon = tab.icon;
                     const isActive = incidentSubTab === tab.key;
@@ -1501,35 +1540,36 @@ export default function MapaPage() {
                       <button
                         key={tab.key}
                         onClick={() => setIncidentSubTab(tab.key as any)}
-                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                          isActive
-                            ? "bg-slate-900 text-white shadow-sm"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                        }`}
+                        style={{
+                          display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "8px", border: "none",
+                          backgroundColor: isActive ? "#0f172a" : "#f1f5f9",
+                          color: isActive ? "#ffffff" : "#475569",
+                          fontSize: "11px", fontWeight: "800", cursor: "pointer"
+                        }}
                       >
-                        <Icon size={14} />
+                        <Icon size={13} />
                         {tab.label}
                       </button>
                     );
                   })}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="relative">
-                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "8px" }}>
+                  <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                    <Search size={14} style={{ position: "absolute", left: "9px", color: "#94a3b8" }} />
                     <input
                       type="text"
                       value={incidentSearchQuery}
                       onChange={(e) => setIncidentSearchQuery(e.target.value)}
                       placeholder="Buscar por texto o colonia..."
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-blue-100"
+                      style={{ width: "100%", padding: "7px 10px 7px 30px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
                     />
                   </div>
 
                   <select
                     value={incidentMunicipalityFilter}
                     onChange={(e) => setIncidentMunicipalityFilter(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer"
+                    style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none", cursor: "pointer" }}
                   >
                     <option value="all">🗺️ Todos los Municipios</option>
                     <option value="Tonalá">📍 Tonalá</option>
@@ -1544,7 +1584,7 @@ export default function MapaPage() {
                   <select
                     value={incidentCategoryFilter}
                     onChange={(e) => setIncidentCategoryFilter(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer"
+                    style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none", cursor: "pointer" }}
                   >
                     <option value="all">🏷️ Todas las Categorías</option>
                     {Object.entries(CATEGORIES).map(([k, v]) => (
@@ -1556,12 +1596,12 @@ export default function MapaPage() {
 
               {/* Incidents Cards List */}
               {displayIncidents.length === 0 ? (
-                <div className="bg-white p-12 rounded-2xl text-center border border-slate-200">
-                  <AlertCircle size={36} className="text-slate-300 mx-auto mb-2" />
-                  <h3 className="font-bold text-sm text-slate-800">No hay incidencias que coincidan con los filtros</h3>
+                <div style={{ background: "white", padding: "40px 20px", borderRadius: "14px", textAlign: "center", border: "1px solid #e2e8f0" }}>
+                  <AlertCircle size={32} style={{ color: "#94a3b8", margin: "0 auto 8px" }} />
+                  <h3 style={{ margin: 0, fontSize: "13px", fontWeight: "700", color: "#0f172a" }}>No hay incidencias que coincidan con los filtros</h3>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {displayIncidents.map((r) => {
                     const cat = CATEGORIES[r.properties.category] ?? { label: r.properties.category, color: "#64748b", bg: "#f8fafc", svg: SVGS.AlertCircle };
                     const isResolved = r.properties.status === "resolved";
@@ -1571,65 +1611,70 @@ export default function MapaPage() {
                     return (
                       <div 
                         key={r.properties.id}
-                        className={`bg-white p-4 rounded-2xl border shadow-sm transition-all ${
-                          isEmergency ? "border-red-300 bg-red-50/20" : isResolved ? "border-emerald-200 bg-emerald-50/10" : "border-slate-200"
-                        }`}
+                        style={{
+                          background: isResolved ? "#fafdfb" : "white",
+                          padding: "14px",
+                          borderRadius: "12px",
+                          border: "1px solid",
+                          borderColor: isEmergency ? "#fca5a5" : isResolved ? "#bbf7d0" : "#e2e8f0",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.04)"
+                        }}
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-md" style={{ color: cat.color, background: cat.bg }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                          <span style={{ fontSize: "10px", fontWeight: "800", textTransform: "uppercase", padding: "2px 6px", borderRadius: "4px", color: cat.color, background: cat.bg }}>
                             {cat.label}
                           </span>
-                          <div className="flex items-center gap-2.5">
-                            <span className="text-[11px] text-slate-400 font-medium">{date}</span>
-                            <span className={`text-[11px] font-extrabold ${isResolved ? "text-emerald-600" : isEmergency ? "text-red-600" : "text-amber-600"}`}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ fontSize: "11px", color: "#94a3b8" }}>{date}</span>
+                            <span style={{ fontSize: "11px", fontWeight: "800", color: isResolved ? "#16a34a" : isEmergency ? "#dc2626" : "#d97706" }}>
                               {isResolved ? "✓ Atendida" : isEmergency ? "● Emergencia" : "● Pendiente"}
                             </span>
                           </div>
                         </div>
 
-                        <h3 className="font-extrabold text-sm text-slate-900 mb-1">
+                        <h3 style={{ margin: "0 0 3px", fontSize: "14px", fontWeight: "800", color: "#0f172a" }}>
                           {r.properties.title}
                         </h3>
 
-                        <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                        <p style={{ margin: "0 0 10px", fontSize: "12px", color: "#475569", lineHeight: "1.4" }}>
                           {r.properties.description}
                         </p>
 
-                        <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-100 gap-2">
-                          <span className="text-xs font-bold text-blue-700">
+                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #f1f5f9", paddingTop: "8px", gap: "6px" }}>
+                          <span style={{ fontSize: "11px", fontWeight: "700", color: "#1d4ed8" }}>
                             📍 {r.properties.municipality || "Tonalá"} {r.properties.sectionNum ? `· Sección #${r.properties.sectionNum}` : ""}
                           </span>
 
-                          <div className="flex items-center gap-2">
+                          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                             <button
                               onClick={() => handleFocusOnMap(r)}
-                              className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl text-xs transition-all"
+                              style={{ display: "flex", alignItems: "center", gap: "4px", background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1", fontWeight: "700", padding: "5px 10px", borderRadius: "8px", fontSize: "11px", cursor: "pointer" }}
                             >
-                              <MapPin size={13} />
+                              <MapPin size={12} />
                               Ver en Mapa
                             </button>
 
                             <button
                               onClick={() => handleOpenEdit(r)}
-                              className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-colors"
+                              style={{ background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: "8px", padding: "5px 8px", cursor: "pointer" }}
                               title="Editar o Reasignar"
                             >
-                              <Edit3 size={15} />
+                              <Edit3 size={13} />
                             </button>
 
                             {isResolved ? (
                               <button
                                 onClick={() => handleToggleReportStatus(r.properties.id, "active")}
-                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all"
+                                style={{ background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1", fontWeight: "700", padding: "5px 10px", borderRadius: "8px", fontSize: "11px", cursor: "pointer" }}
                               >
                                 Reabrir
                               </button>
                             ) : (
                               <button
                                 onClick={() => handleToggleReportStatus(r.properties.id, "resolved")}
-                                className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs transition-all shadow-sm"
+                                style={{ display: "flex", alignItems: "center", gap: "4px", background: "#16a34a", color: "white", border: "none", fontWeight: "700", padding: "5px 12px", borderRadius: "8px", fontSize: "11px", cursor: "pointer" }}
                               >
-                                <Check size={14} />
+                                <Check size={13} />
                                 Resolver
                               </button>
                             )}
@@ -1647,34 +1692,34 @@ export default function MapaPage() {
 
       {/* EDIT MODAL */}
       {editingReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-              <h3 className="font-extrabold text-base text-slate-900">Administrar Incidencia</h3>
-              <button onClick={() => setEditingReport(null)} className="text-slate-400 hover:text-slate-600 p-1">
-                <X size={20} />
+        <div style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "480px", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+              <h3 style={{ margin: 0, fontWeight: "900", fontSize: "15px", color: "#0f172a" }}>Administrar Incidencia</h3>
+              <button onClick={() => setEditingReport(null)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} className="p-6 space-y-3.5">
+            <form onSubmit={handleSaveEdit} style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "12px" }}>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Título *</label>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Título *</label>
                 <input
                   type="text"
                   required
                   value={editForm.title}
                   onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-blue-100"
+                  style={{ width: "100%", padding: "8px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "12px", fontWeight: "600", outline: "none" }}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Municipio *</label>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Municipio *</label>
                   <select
                     value={editForm.municipality}
                     onChange={(e) => setEditForm({ ...editForm, municipality: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
+                    style={{ width: "100%", padding: "7px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none" }}
                   >
                     <option value="Tonalá">Tonalá</option>
                     <option value="Guadalajara">Guadalajara</option>
@@ -1687,11 +1732,11 @@ export default function MapaPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Categoría *</label>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Categoría *</label>
                   <select
                     value={editForm.category}
                     onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
+                    style={{ width: "100%", padding: "7px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none" }}
                   >
                     {Object.entries(CATEGORIES).map(([key, cat]) => (
                       <option key={key} value={key}>{cat.label}</option>
@@ -1700,13 +1745,13 @@ export default function MapaPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Estatus *</label>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Estatus *</label>
                   <select
                     value={editForm.status}
                     onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
+                    style={{ width: "100%", padding: "7px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "800", outline: "none" }}
                   >
                     <option value="active">● Pendiente</option>
                     <option value="resolved">✓ Resuelta</option>
@@ -1714,11 +1759,11 @@ export default function MapaPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Asignar Responsable</label>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Asignar Responsable</label>
                   <select
                     value={editForm.assignedToUserId}
                     onChange={(e) => setEditForm({ ...editForm, assignedToUserId: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
+                    style={{ width: "100%", padding: "7px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none" }}
                   >
                     <option value="">-- Sin Asignar --</option>
                     {systemUsers.map((u) => (
@@ -1729,28 +1774,28 @@ export default function MapaPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Descripción / Seguimiento *</label>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Descripción / Seguimiento *</label>
                 <textarea
                   required
                   rows={3}
                   value={editForm.description}
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:bg-white resize-none"
+                  style={{ width: "100%", padding: "8px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "12px", outline: "none", resize: "none" }}
                 />
               </div>
 
-              <div className="flex gap-2 pt-3 border-t border-slate-100">
+              <div style={{ display: "flex", gap: "8px", paddingTop: "8px", borderTop: "1px solid #f1f5f9" }}>
                 <button
                   type="button"
                   onClick={() => setEditingReport(null)}
-                  className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl"
+                  style={{ flex: 1, padding: "9px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isEditingSubmitting}
-                  className="flex-1 py-2.5 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm"
+                  style={{ flex: 1, padding: "9px", background: "#2563eb", color: "white", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "800", cursor: "pointer" }}
                 >
                   {isEditingSubmitting ? "Guardando..." : "Guardar Cambios"}
                 </button>
@@ -1762,20 +1807,20 @@ export default function MapaPage() {
 
       {/* PURGE MODAL */}
       {isPurgeModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center border border-slate-100">
-            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-3">
-              <Trash2 size={24} />
+        <div style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "380px", padding: "20px", textAlign: "center", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
+            <div style={{ width: "44px", height: "44px", borderRadius: "50%", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
+              <Trash2 size={22} />
             </div>
-            <h3 className="font-black text-base text-slate-900 mb-1">¿Depurar Incidencias Resueltas?</h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Se eliminarán de forma definitiva todas las incidencias marcadas como atendidas en el filtro seleccionado.
+            <h3 style={{ margin: "0 0 4px", fontSize: "16px", fontWeight: "900", color: "#0f172a" }}>¿Depurar Incidencias Resueltas?</h3>
+            <p style={{ margin: "0 0 14px", fontSize: "12px", color: "#64748b", lineHeight: "1.4" }}>
+              Se eliminarán de forma definitiva todas las incidencias marcadas como atendidas.
             </p>
-            <div className="flex gap-2">
-              <button onClick={() => setIsPurgeModalOpen(false)} className="flex-1 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl">
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button onClick={() => setIsPurgeModalOpen(false)} style={{ flex: 1, padding: "8px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
                 Cancelar
               </button>
-              <button onClick={handlePurgeResolved} disabled={isPurging} className="flex-1 py-2 text-xs font-extrabold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm">
+              <button onClick={handlePurgeResolved} disabled={isPurging} style={{ flex: 1, padding: "8px", background: "#dc2626", color: "white", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "800", cursor: "pointer" }}>
                 {isPurging ? "Purgando..." : "Sí, Purgar"}
               </button>
             </div>
@@ -1785,14 +1830,14 @@ export default function MapaPage() {
 
       {/* NEW REPORT MODAL */}
       {isReportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-red-50 text-red-600 rounded-lg">
-                  <AlertCircle size={18} />
+        <div style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "440px", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <AlertCircle size={16} />
                 </div>
-                <h3 className="font-extrabold text-sm text-slate-900">Registrar Incidencia</h3>
+                <h3 style={{ margin: 0, fontWeight: "900", fontSize: "14px", color: "#0f172a" }}>Registrar Incidencia</h3>
               </div>
               <button 
                 onClick={() => {
@@ -1800,38 +1845,38 @@ export default function MapaPage() {
                   setNewReportCoords(null);
                   setDetectedLocationInfo(null);
                 }}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}
               >
                 <X size={18} />
               </button>
             </div>
 
             {reportSuccess ? (
-              <div className="text-center py-8 text-emerald-600 space-y-2">
-                <CheckCircle2 size={36} className="mx-auto" />
-                <div className="font-black text-base">¡Incidencia registrada con éxito!</div>
+              <div style={{ textAlign: "center", padding: "28px 16px", color: "#16a34a" }}>
+                <CheckCircle2 size={34} style={{ margin: "0 auto 8px" }} />
+                <div style={{ fontWeight: "900", fontSize: "15px" }}>¡Incidencia registrada con éxito!</div>
               </div>
             ) : (
-              <form onSubmit={handleSubmitReport} className="p-6 space-y-3.5">
+              <form onSubmit={handleSubmitReport} style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "12px" }}>
                 
                 {/* Location Detection Box */}
-                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3">
+                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "10px" }}>
                   {isGeocodingLoading ? (
-                    <div className="flex items-center gap-2 text-blue-600 text-xs font-bold">
-                      <Loader2 size={15} className="animate-spin" />
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#2563eb", fontSize: "11px", fontWeight: "700" }}>
+                      <Loader2 size={14} className="animate-spin" />
                       <span>Detectando dirección GPS y sección...</span>
                     </div>
                   ) : (
                     <div>
-                      <div className="text-xs font-bold text-slate-900">
+                      <div style={{ fontSize: "11px", fontWeight: "800", color: "#0f172a" }}>
                         📍 {reportForm.address}
                       </div>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span className="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "4px" }}>
+                        <span style={{ background: "#dbeafe", color: "#1e40af", fontSize: "10px", fontWeight: "800", padding: "1px 5px", borderRadius: "4px" }}>
                           {reportForm.municipality}
                         </span>
                         {detectedLocationInfo?.sectionNum && (
-                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                          <span style={{ background: "#dcfce7", color: "#15803d", fontSize: "10px", fontWeight: "800", padding: "1px 5px", borderRadius: "4px" }}>
                             Sección #{detectedLocationInfo.sectionNum}
                           </span>
                         )}
@@ -1841,23 +1886,23 @@ export default function MapaPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Dirección / Calle *</label>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Dirección / Calle *</label>
                   <input
                     type="text"
                     required
                     value={reportForm.address}
                     onChange={(e) => setReportForm({ ...reportForm, address: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-blue-100"
+                    style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Municipio *</label>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Municipio *</label>
                     <select
                       value={reportForm.municipality}
                       onChange={(e) => setReportForm({ ...reportForm, municipality: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
+                      style={{ width: "100%", padding: "7px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none" }}
                     >
                       <option value="Tonalá">Tonalá</option>
                       <option value="Guadalajara">Guadalajara</option>
@@ -1870,11 +1915,11 @@ export default function MapaPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Categoría *</label>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Categoría *</label>
                     <select
                       value={reportForm.category}
                       onChange={(e) => setReportForm({ ...reportForm, category: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
+                      style={{ width: "100%", padding: "7px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none" }}
                     >
                       {Object.entries(CATEGORIES).map(([key, cat]) => (
                         <option key={key} value={key}>{cat.label}</option>
@@ -1884,30 +1929,30 @@ export default function MapaPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Título del Reporte *</label>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Título del Reporte *</label>
                   <input
                     type="text"
                     required
                     value={reportForm.title}
                     onChange={(e) => setReportForm({ ...reportForm, title: e.target.value })}
                     placeholder="Ej. Falla de alumbrado / Bache peligroso"
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-blue-100"
+                    style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Descripción de Campo *</label>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Descripción de Campo *</label>
                   <textarea
                     required
                     rows={3}
                     value={reportForm.description}
                     onChange={(e) => setReportForm({ ...reportForm, description: e.target.value })}
                     placeholder="Detalles sobre lo observado en el territorio..."
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:bg-white resize-none"
+                    style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", outline: "none", resize: "none" }}
                   />
                 </div>
 
-                <div className="flex gap-2 pt-3 border-t border-slate-100">
+                <div style={{ display: "flex", gap: "8px", paddingTop: "8px", borderTop: "1px solid #f1f5f9" }}>
                   <button
                     type="button"
                     onClick={() => {
@@ -1915,14 +1960,14 @@ export default function MapaPage() {
                       setNewReportCoords(null);
                       setDetectedLocationInfo(null);
                     }}
-                    className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl"
+                    style={{ flex: 1, padding: "9px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting || isGeocodingLoading}
-                    className="flex-1 py-2.5 text-xs font-extrabold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm"
+                    style={{ flex: 1, padding: "9px", background: "#dc2626", color: "white", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "800", cursor: "pointer" }}
                   >
                     {isSubmitting ? "Guardando..." : "Registrar Reporte"}
                   </button>
