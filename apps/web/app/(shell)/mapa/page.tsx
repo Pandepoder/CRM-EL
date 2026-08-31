@@ -1558,7 +1558,7 @@ export default function MapaPage() {
 
         {/* Floating Toast Notification */}
         {toastMessage && (
-          <div style={{ position: "absolute", top: "72px", left: "50%", transform: "translateX(-50%)", zIndex: 1200, background: "rgba(15, 23, 42, 0.92)", color: "white", padding: "8px 18px", borderRadius: "30px", boxShadow: "0 10px 25px rgba(0,0,0,0.3)", fontSize: "12px", fontWeight: "700", border: "1px solid rgba(255,255,255,0.2)", backdropFilter: "blur(8px)" }}>
+          <div style={{ position: "absolute", top: "72px", left: "50%", transform: "translateX(-50%)", zIndex: 1200, background: "rgba(15, 23, 42, 0.92)", color: "white", padding: "8px 18px", borderRadius: "30px", boxShadow: "0 10px 25px rgba(0,0,0,0.3)", fontSize: "12px", fontWeight: "700", border: "1px solid rgba(255,255,255,0.2)", backdropFilter: "blur(8px)", width: "max-content", maxWidth: "90vw", textAlign: "center" }}>
             {toastMessage}
           </div>
         )}
@@ -2050,8 +2050,8 @@ export default function MapaPage() {
 
       {/* EDIT MODAL */}
       {editingReport && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
-          <div style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "480px", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
+        <div onClick={() => setEditingReport(null)} style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "480px", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
               <h3 style={{ margin: 0, fontWeight: "900", fontSize: "15px", color: "#0f172a" }}>Administrar Incidencia</h3>
               <button onClick={() => setEditingReport(null)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
@@ -2059,7 +2059,7 @@ export default function MapaPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "12px" }}>
+            <form onSubmit={handleSaveEdit} style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "12px", overflowY: "auto" }}>
               <div>
                 <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Título *</label>
                 <input
@@ -2172,8 +2172,8 @@ export default function MapaPage() {
 
       {/* PURGE MODAL */}
       {isPurgeModalOpen && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
-          <div style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "380px", padding: "20px", textAlign: "center", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
+        <div onClick={() => setIsPurgeModalOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "380px", padding: "20px", textAlign: "center", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
             <div style={{ width: "44px", height: "44px", borderRadius: "50%", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
               <Trash2 size={22} />
             </div>
@@ -2195,8 +2195,12 @@ export default function MapaPage() {
 
       {/* NEW REPORT MODAL - A PRUEBA DE ERRORES */}
       {isReportModalOpen && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
-          <div style={{ background: "white", borderRadius: "18px", width: "100%", maxWidth: "480px", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.35)", border: "1px solid #e2e8f0" }}>
+        <div onClick={() => {
+          setIsReportModalOpen(false);
+          setNewReportCoords(null);
+          setDetectedLocationInfo(null);
+        }} style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "18px", width: "100%", maxWidth: "480px", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.35)", border: "1px solid #e2e8f0" }}>
             
             {/* Modal Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>

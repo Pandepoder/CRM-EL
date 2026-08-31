@@ -274,8 +274,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
       {/* Toast notification */}
       {toast && (
-        <div className={`fixed top-6 right-6 z-50 flex items-center gap-3 p-4 rounded-2xl shadow-xl font-bold text-xs max-w-sm border ${
-          toast.type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-900" : "bg-rose-50 border-rose-200 text-rose-900"
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-auto md:right-6 w-[90vw] md:w-auto z-[1200] flex items-center justify-center gap-3 p-4 rounded-2xl shadow-xl font-bold text-xs max-w-sm border backdrop-blur-md ${
+          toast.type === "success" ? "bg-emerald-50/95 border-emerald-200 text-emerald-900" : "bg-rose-50/95 border-rose-200 text-rose-900"
         }`}>
           {toast.type === "success" ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
           <span>{toast.msg}</span>
@@ -542,8 +542,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
       {/* MODALS */}
       {modal === "territory" && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center">
               <h3 className="font-black text-sm text-gray-900">Editar Territorio y Colonia</h3>
               <button type="button" onClick={() => setModal(null)} className="cursor-pointer text-gray-400 hover:text-gray-600">
@@ -592,8 +592,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       )}
 
       {modal === "assignment" && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center">
               <h3 className="font-black text-sm text-gray-900">Asignar Responsable de Enlace</h3>
               <button type="button" onClick={() => setModal(null)} className="cursor-pointer text-gray-400 hover:text-gray-600">

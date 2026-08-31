@@ -185,10 +185,10 @@ export default function ResumenClient({
       {/* FLOATING TOAST */}
       {toast && (
         <div
-          className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-lg text-sm max-w-sm border ${
+          className={`fixed top-4 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-auto md:right-4 w-[90vw] md:w-auto z-[1200] flex items-center justify-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-sm max-w-sm border backdrop-blur-md ${
             toast.type === "success"
-              ? "bg-white border-emerald-200 text-emerald-800"
-              : "bg-white border-rose-200 text-rose-800"
+              ? "bg-emerald-50/95 border-emerald-200 text-emerald-800"
+              : "bg-rose-50/95 border-rose-200 text-rose-800"
           }`}
           style={{ animation: "slideDown .25s ease-out" }}
         >
@@ -737,8 +737,8 @@ export default function ResumenClient({
 
       {/* ─── 6. PROMOTION MODAL ─── */}
       {promotingUser && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden border border-gray-200">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setPromotingUser(null)}>
+          <div className="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-y-auto max-h-[90vh] border border-gray-200" onClick={e => e.stopPropagation()}>
             <div
               className="px-5 py-4 flex justify-between items-center"
               style={{ background: "linear-gradient(135deg, #0b1f3a, #183d6e)" }}

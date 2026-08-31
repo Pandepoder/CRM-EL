@@ -156,16 +156,16 @@ export default function DirectorioClient({
       ) : (
         <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-xs border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-gray-50/80 border-b border-gray-200 text-[10px] font-black uppercase tracking-wider text-gray-500">
-                  <th className="py-3 px-4">Ciudadano</th>
-                  <th className="py-3 px-4">Militancia PAN</th>
-                  <th className="py-3 px-4">Contacto</th>
-                  <th className="py-3 px-4">Colonia & Sección</th>
-                  <th className="py-3 px-4">Ocupación / Área</th>
-                  <th className="py-3 px-4">Origen</th>
-                  <th className="py-3 px-4 text-right">Acción</th>
+                  <th className="py-2 px-3 md:py-3 md:px-4 whitespace-nowrap">Ciudadano</th>
+                  <th className="py-2 px-3 md:py-3 md:px-4 whitespace-nowrap">Militancia PAN</th>
+                  <th className="py-2 px-3 md:py-3 md:px-4 whitespace-nowrap">Contacto</th>
+                  <th className="py-2 px-3 md:py-3 md:px-4 whitespace-nowrap">Colonia & Sección</th>
+                  <th className="py-2 px-3 md:py-3 md:px-4 whitespace-nowrap">Ocupación / Área</th>
+                  <th className="py-2 px-3 md:py-3 md:px-4 whitespace-nowrap">Origen</th>
+                  <th className="py-2 px-3 md:py-3 md:px-4 text-right whitespace-nowrap">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -175,19 +175,19 @@ export default function DirectorioClient({
 
                   return (
                     <tr key={c.contactId || c.id} className="hover:bg-blue-50/40 transition-colors">
-                      <td className="py-3.5 px-4">
+                      <td className="py-2 px-3 md:py-3.5 md:px-4">
                         <Link
                           href={`/crm/contacts/${c.contactId || c.id}`}
-                          className="font-extrabold text-sm text-gray-900 hover:text-blue-600 transition-colors block"
+                          className="font-extrabold text-sm text-gray-900 hover:text-blue-600 transition-colors block whitespace-nowrap"
                         >
                           {c.displayName}
                         </Link>
-                        <span className="text-[10px] text-gray-400 font-medium">
+                        <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">
                           Reg: {c.createdAt ? new Date(c.createdAt).toLocaleDateString("es-MX") : "—"}
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4">
+                      <td className="py-2 px-3 md:py-3.5 md:px-4 whitespace-nowrap">
                         {isPan ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-600 text-white shadow-xs">
                             <span>Ⓜ️</span> PAN Confirmado
@@ -201,7 +201,7 @@ export default function DirectorioClient({
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 font-semibold text-gray-700">
+                      <td className="py-2 px-3 md:py-3.5 md:px-4 font-semibold text-gray-700 whitespace-nowrap">
                         {c.phone ? (
                           <div className="flex items-center gap-1">
                             <Phone size={12} className="text-gray-400" />
@@ -212,25 +212,25 @@ export default function DirectorioClient({
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4">
-                        <div className="font-bold text-gray-800">{c.colony || "Por identificar"}</div>
-                        <div className="text-[10px] text-gray-400">
+                      <td className="py-2 px-3 md:py-3.5 md:px-4">
+                        <div className="font-bold text-gray-800 whitespace-nowrap">{c.colony || "Por identificar"}</div>
+                        <div className="text-[10px] text-gray-400 whitespace-nowrap">
                           {c.sectionNum ? `Secc. ${c.sectionNum}` : "Sección por definir"}
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-gray-800">{c.profession || "Ciudadano"}</div>
-                        <div className="text-[10px] text-blue-600 font-bold">{c.interests || "General"}</div>
+                      <td className="py-2 px-3 md:py-3.5 md:px-4">
+                        <div className="font-semibold text-gray-800 whitespace-nowrap">{c.profession || "Ciudadano"}</div>
+                        <div className="text-[10px] text-blue-600 font-bold whitespace-nowrap">{c.interests || "General"}</div>
                       </td>
 
-                      <td className="py-3.5 px-4">
+                      <td className="py-2 px-3 md:py-3.5 md:px-4 whitespace-nowrap">
                         <span className="px-2 py-0.5 bg-gray-100 rounded-md text-[10px] font-bold text-gray-600 uppercase">
                           {c.origin ? c.origin.replace("_", " ") : "Toca toca"}
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-2 px-3 md:py-3.5 md:px-4 text-right whitespace-nowrap">
                         <Link
                           href={`/crm/contacts/${c.contactId || c.id}`}
                           className="px-3 py-1.5 bg-gray-100 hover:bg-blue-600 hover:text-white rounded-xl text-[11px] font-extrabold text-gray-700 transition-all inline-block"

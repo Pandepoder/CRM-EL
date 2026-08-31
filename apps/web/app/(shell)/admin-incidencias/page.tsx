@@ -117,14 +117,14 @@ export default async function AdminIncidenciasPage() {
       {/* Reports Table */}
       <div className="bg-white border border-gray-200 shadow-sm rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-100">
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Incidencia / Categoría</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Ubicación & Coordenadas</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Sección Electoral (Autoselector)</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Fecha</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Estatus</th>
+                <th className="px-4 py-3 md:px-6 md:py-4 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Incidencia / Categoría</th>
+                <th className="px-4 py-3 md:px-6 md:py-4 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Ubicación & Coordenadas</th>
+                <th className="px-4 py-3 md:px-6 md:py-4 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Sección Electoral (Autoselector)</th>
+                <th className="px-4 py-3 md:px-6 md:py-4 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Fecha</th>
+                <th className="px-4 py-3 md:px-6 md:py-4 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider text-right whitespace-nowrap">Estatus</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -132,21 +132,21 @@ export default async function AdminIncidenciasPage() {
                 <tr key={r.id} className="hover:bg-gray-50/60 transition-colors">
                   
                   {/* Title & Category */}
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-gray-900 text-sm">{r.title}</div>
+                  <td className="px-4 py-3 md:px-6 md:py-4">
+                    <div className="font-bold text-gray-900 text-sm whitespace-nowrap">{r.title}</div>
                     {r.description && (
                       <div className="text-xs text-gray-500 mt-0.5 max-w-xs truncate" title={r.description}>
                         {r.description}
                       </div>
                     )}
-                    <span className="inline-block mt-1.5 px-2.5 py-0.5 bg-gray-100 text-gray-700 text-[11px] font-bold rounded-md uppercase tracking-wider">
+                    <span className="inline-block mt-1.5 px-2.5 py-0.5 bg-gray-100 text-gray-700 text-[11px] font-bold rounded-md uppercase tracking-wider whitespace-nowrap">
                       {r.category}
                     </span>
                   </td>
 
                   {/* Location & Coords */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-start gap-1.5 text-xs text-gray-700">
+                  <td className="px-4 py-3 md:px-6 md:py-4">
+                    <div className="flex items-start gap-1.5 text-xs text-gray-700 whitespace-nowrap">
                       <MapPin size={14} className="text-gray-400 shrink-0 mt-0.5" />
                       <div>
                         <div className="font-semibold text-gray-800">{r.municipality || "Tonalá"}</div>
@@ -162,7 +162,7 @@ export default async function AdminIncidenciasPage() {
                   </td>
 
                   {/* Section Electoral Autoselector */}
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                     <IncidentSectionAssigner
                       reportId={r.id}
                       reportTitle={r.title}
@@ -176,15 +176,15 @@ export default async function AdminIncidenciasPage() {
                   </td>
 
                   {/* Date */}
-                  <td className="px-6 py-4">
-                    <div className="text-xs text-gray-600 flex items-center gap-1" suppressHydrationWarning>
+                  <td className="px-4 py-3 md:px-6 md:py-4">
+                    <div className="text-xs text-gray-600 flex items-center gap-1 whitespace-nowrap" suppressHydrationWarning>
                       <Calendar size={13} className="text-gray-400" />
                       {r.createdAt ? new Date(r.createdAt).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : "N/A"}
                     </div>
                   </td>
 
                   {/* Status */}
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-4 py-3 md:px-6 md:py-4 text-right whitespace-nowrap">
                     <StatusSelector reportId={r.id} currentStatus={r.status || "active"} />
                   </td>
                 </tr>

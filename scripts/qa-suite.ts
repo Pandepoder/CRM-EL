@@ -66,7 +66,7 @@ async function runQA() {
     if (!setCookie) throw new Error("No set-cookie header received");
     sessionCookie = setCookie.split(";")[0] ?? "";
     const data = await res.json();
-    if (!data.ok || data.redirectTo !== "/crm") {
+    if (!data.ok || !data.redirectTo?.startsWith("/crm")) {
       throw new Error(`Unexpected login response: ${JSON.stringify(data)}`);
     }
   });

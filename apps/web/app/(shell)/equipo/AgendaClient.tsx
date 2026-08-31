@@ -968,8 +968,8 @@ export default function AgendaClient({
 
       {/* MODAL REGISTRO RÁPIDO */}
       {showProspectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100 animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowProspectModal(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-y-auto max-h-[90vh] border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-slate-900 text-white">
               <div className="flex items-center gap-2">
                 <Sparkles size={18} />
@@ -1099,8 +1099,8 @@ export default function AgendaClient({
 
       {/* 5. MODAL DE REGISTRO DE ACTIVIDADES (PARA CADA LÍDER) */}
       {showTaskModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto border border-gray-100 animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowTaskModal(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-t-3xl">
               <div className="flex items-center gap-2.5">
@@ -1347,8 +1347,8 @@ export default function AgendaClient({
 
       {/* 6. MODAL DE COMPLETAR / REPORTAR RESULTADO DE ACTIVIDAD */}
       {modalVisit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100 animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => setModalVisit(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-y-auto max-h-[90vh] border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-emerald-600 text-white">
               <div className="flex items-center gap-2">
                 <CheckCircle size={20} />

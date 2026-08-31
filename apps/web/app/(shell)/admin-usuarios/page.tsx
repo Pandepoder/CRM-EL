@@ -104,31 +104,31 @@ export default async function AdminUsuariosPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-100">
-                <th className="px-6 py-3.5 text-xs font-bold text-gray-400 uppercase tracking-wider">Usuario / Correo</th>
-                <th className="px-6 py-3.5 text-xs font-bold text-gray-400 uppercase tracking-wider">Rol y Nivel</th>
-                <th className="px-6 py-3.5 text-xs font-bold text-gray-400 uppercase tracking-wider">Estatus</th>
-                <th className="px-6 py-3.5 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Acciones</th>
+                <th className="px-4 py-3 md:px-6 md:py-3.5 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Usuario / Correo</th>
+                <th className="px-4 py-3 md:px-6 md:py-3.5 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Rol y Nivel</th>
+                <th className="px-4 py-3 md:px-6 md:py-3.5 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Estatus</th>
+                <th className="px-4 py-3 md:px-6 md:py-3.5 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider text-right whitespace-nowrap">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {registeredUsers.map((u) => (
                 <tr key={u.userId} className={`hover:bg-blue-50/40 transition-colors ${u.status === "inactive" ? "opacity-50 grayscale" : ""}`}>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3 md:px-6 md:py-4">
                     <Link
                       href={`/perfil/${u.userId}`}
                       className="group block cursor-pointer"
                       title="Ver perfil 360°, personas que ha subido y agenda"
                     >
-                      <div className="font-bold text-gray-900 text-sm group-hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                      <div className="font-bold text-gray-900 text-sm group-hover:text-blue-600 transition-colors flex items-center gap-1.5 whitespace-nowrap">
                         <span>{u.displayName}</span>
                       </div>
-                      <div className="text-xs text-gray-500 mt-0.5">{u.email}</div>
+                      <div className="text-xs text-gray-500 mt-0.5 whitespace-nowrap">{u.email}</div>
                     </Link>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${
                       u.roleKey === "admin" ? "bg-red-100 text-red-700" :
                       u.roleKey === "direction" ? "bg-orange-100 text-orange-700" :
@@ -140,7 +140,7 @@ export default async function AdminUsuariosPage() {
                       {u.roleName}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
                       u.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"
                     }`}>
@@ -148,7 +148,7 @@ export default async function AdminUsuariosPage() {
                       {u.status === "active" ? "Activo" : "Inactivo"}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-4 py-3 md:px-6 md:py-4 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-2">
                       <Link
                         href={`/perfil/${u.userId}`}

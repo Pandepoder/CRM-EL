@@ -46,8 +46,8 @@ export function CreateItemModal() {
         Nuevo Artículo
       </button>
 
-      <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setIsOpen(false); setStep(1); }}>
+        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-y-auto flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
           
           <div className="flex justify-between items-center p-6 border-b border-gray-100">
             <h2 className="text-xl font-extrabold text-gray-900 flex items-center gap-2">

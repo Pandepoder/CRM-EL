@@ -332,8 +332,8 @@ export default function ReportesClient({ sections, users }: { sections: any[], u
 
       {/* Modal: Registrar Nueva Sección Electoral */}
       {showNewSectionModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowNewSectionModal(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
               <h2 className="text-xl font-bold text-blue-950 flex items-center gap-2">
                 <Landmark size={20} className="text-indigo-600" /> Registrar Sección Electoral

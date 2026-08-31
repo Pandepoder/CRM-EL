@@ -321,8 +321,8 @@ export default function EscuchaSocialClient({
 
       {/* CREATE MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsModalOpen(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
               <div>
                 <h3 className="text-base font-black">Registrar Escucha Social</h3>
@@ -429,8 +429,8 @@ export default function EscuchaSocialClient({
 
       {/* DETAIL / RESOLUTION MODAL */}
       {selectedItem && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 space-y-4">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedItem(null)}>
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
               <div>
                 <span className="text-[10px] font-black uppercase tracking-wider text-blue-300">Detalle de Escucha</span>

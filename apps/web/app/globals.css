@@ -215,7 +215,7 @@ button {
   flex: 1;
   min-width: 0;
   padding: 16px;
-  padding-bottom: 80px; /* Space for mobile nav */
+  padding-bottom: calc(80px + env(safe-area-inset-bottom)); /* Space for mobile nav */
   display: flex;
   flex-direction: column;
 }
@@ -232,7 +232,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 16px;
+  padding-bottom: 16px;
 }
 
 @media (min-width: 768px) {

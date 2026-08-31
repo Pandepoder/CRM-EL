@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useState, type ReactNode } from "react";
 import { 
   Map as MapIcon, 
   Users, 
@@ -16,7 +18,9 @@ import {
   Landmark,
   Headset,
   Package,
-  Shield
+  Shield,
+  Menu,
+  X
 } from "lucide-react";
 import type { NavItemConfig } from "./role-home.js";
 import { getNavSection } from "./role-home.js";
@@ -61,6 +65,7 @@ export function AppShell({
   activeNavKey,
   logoutAction = "/api/auth/logout"
 }: AppShellProps) {
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const filterNavItems = (items: NavItemConfig[]) => {
     return items
@@ -202,10 +207,49 @@ export function AppShell({
         </header>
 
         {/* CHILDREN (VIEWS) */}
-        <div style={{ height: "calc(100vh - 64px)", overflowY: "auto" }}>
+        <div style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}>
           {children}
         </div>
       </main>
+
+      {/* MOBILE DRAWER */}
+      {isDrawerOpen && (
+        <div className="mobile-drawer-overlay" onClick={() => setIsDrawerOpen(false)}>
+          <div className="mobile-drawer" onClick={e => e.stopPropagation()}>
+            <div className="mobile-drawer-header">
+              <div className="brand" style={{ padding: "0", border: "none" }}>
+                <div className="brand-mark" aria-hidden="true" style={{ borderRadius: "8px", width: 36, height: 36 }} />
+                <div>
+                  <h1 className="brand-title" style={{ fontSize: "16px", color: "var(--blue-950)" }}>Tonalá OS</h1>
+                  <p className="brand-subtitle" style={{ color: "var(--muted)", margin: 0, fontSize: "10px" }}>Gestor de Campaña</p>
+                </div>
+              </div>
+              <button className="mobile-drawer-close" onClick={() => setIsDrawerOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="mobile-drawer-content sidebar-scrollable">
+              {/* All Items */}
+              <nav className="nav-list">
+                {allItems.map((item) => (
+                  <a key={item.key} className={`nav-button ${item.active ? "is-active" : ""}`} href={item.href} onClick={() => setIsDrawerOpen(false)} style={{ color: item.active ? "var(--blue-700)" : "var(--blue-900)" }}>
+                    {getIconForNavKey(item.key)} {item.label}
+                  </a>
+                ))}
+              </nav>
+            </div>
+
+            <div style={{ padding: "16px", borderTop: "1px solid var(--line)" }}>
+              <form action={logoutAction} method="post">
+                <button className="nav-button" type="submit" style={{ color: 'var(--danger)', width: '100%', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <LogOut size={18} /> Cerrar Sesión
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MOBILE BOTTOM NAV */}
       <nav className="mobile-bottom-nav" aria-label="Navegación movil">
@@ -216,6 +260,11 @@ export function AppShell({
             <span style={{ fontSize: '10px', marginTop: '4px', fontWeight: item.active ? 700 : 500 }}>{item.label}</span>
           </a>
         ))}
+        {/* 'Más' button to open the drawer */}
+        <button className="mobile-nav-button" onClick={() => setIsDrawerOpen(true)}>
+          <Menu size={22} />
+          <span style={{ fontSize: '10px', marginTop: '4px', fontWeight: 500 }}>Más</span>
+        </button>
       </nav>
     </div>
   );
