@@ -4,9 +4,15 @@ import { authenticateUserDetailed } from "@/lib/auth";
 import { getDatabasePool } from "@/lib/db";
 import { getHomePathForRole } from "@tonala/ui";
 import { saveServerSession } from "@/lib/session-server";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { safeErrorMessage } from "@/lib/safe-error";
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+    const rl = checkRateLimit(`login:${ip}`, 10, 15 * 60 * 1000); // 10 intentos por 15 minutos
+    if (!rl.allowed) return rateLimitResponse(rl);
+
     const body = (await request.json()) as { email?: string; password?: string };
     const email = body.email?.trim() ?? "";
     const password = body.password ?? "";
@@ -55,8 +61,10 @@ export async function POST(request: Request) {
       ok: true,
       redirectTo: getHomePathForRole(user.roleKey)
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Login failed.";
+  } catch (error: unknown) {
+    console.error("Login route error:", error);
+    const message = safeErrorMessage(error, "Error al iniciar sesión.");
     return NextResponse.json({ code: "login_failed", message }, { status: 500 });
   }
 }
+

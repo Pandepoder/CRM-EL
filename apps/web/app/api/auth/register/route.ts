@@ -4,9 +4,15 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { safeErrorMessage } from "@/lib/safe-error";
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+    const rl = checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000); // 5 intentos por hora
+    if (!rl.allowed) return rateLimitResponse(rl);
+
     const body = (await request.json()) as { 
       displayName?: string; 
       email?: string; 
@@ -93,8 +99,10 @@ export async function POST(request: Request) {
       pending: true,
       message: "¡Solicitud enviada con éxito! Tu cuenta está registrada y el Administrador revisará tu solicitud para activar tus privilegios."
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Error al procesar el registro.";
+  } catch (error: unknown) {
+    console.error("Register route error:", error);
+    const message = safeErrorMessage(error, "Error al procesar el registro.");
     return NextResponse.json({ code: "registration_failed", message }, { status: 500 });
   }
 }
+

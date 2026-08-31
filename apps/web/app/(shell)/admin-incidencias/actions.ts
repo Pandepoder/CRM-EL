@@ -8,7 +8,8 @@ import { actorFromSession } from "@/lib/api-helpers";
 
 export async function updateReportStatusAction(reportId: string, newStatus: string) {
   const actor = await actorFromSession();
-  if (!actor || !actor.roles.includes("admin")) {
+  const isAllowed = actor && (actor.roles.includes("admin") || actor.roles.includes("direction") || actor.roles.includes("territorial_coordinator"));
+  if (!actor || !isAllowed) {
     return { error: "No tienes permisos para modificar incidencias." };
   }
 

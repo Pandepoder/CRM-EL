@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createUsersReader } from "@tonala/modules/governance/application";
 import { UserCog, ShieldAlert, Users, UserCheck, Clock, UserX } from "lucide-react";
 
@@ -114,10 +115,18 @@ export default async function AdminUsuariosPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {registeredUsers.map((u) => (
-                <tr key={u.userId} className={`hover:bg-gray-50/50 transition-colors ${u.status === "inactive" ? "opacity-50 grayscale" : ""}`}>
+                <tr key={u.userId} className={`hover:bg-blue-50/40 transition-colors ${u.status === "inactive" ? "opacity-50 grayscale" : ""}`}>
                   <td className="px-6 py-4">
-                    <div className="font-bold text-gray-900 text-sm">{u.displayName}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{u.email}</div>
+                    <Link
+                      href={`/perfil/${u.userId}`}
+                      className="group block cursor-pointer"
+                      title="Ver perfil 360°, personas que ha subido y agenda"
+                    >
+                      <div className="font-bold text-gray-900 text-sm group-hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                        <span>{u.displayName}</span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">{u.email}</div>
+                    </Link>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${
@@ -140,7 +149,15 @@ export default async function AdminUsuariosPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2.5">
+                    <div className="flex items-center justify-end gap-2">
+                      <Link
+                        href={`/perfil/${u.userId}`}
+                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs transition-colors flex items-center gap-1"
+                        title="Ver todo lo que este usuario ha subido o realizado"
+                      >
+                        <UserCog size={13} />
+                        <span>Ver Perfil 360°</span>
+                      </Link>
                       <RoleSelector 
                         userId={u.userId} 
                         currentRoleId={u.roleId} 

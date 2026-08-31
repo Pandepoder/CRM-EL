@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { PlusCircle, X, CheckCircle2, Image as ImageIcon } from "lucide-react";
+import { PlusCircle, X, CheckCircle2, Image as ImageIcon, Tag } from "lucide-react";
 import { createInventoryItemAction } from "./actions";
+import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 
 export function CreateItemModal() {
   const [isOpen, setIsOpen] = useState(false);
@@ -73,13 +74,23 @@ export function CreateItemModal() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Categoría *</label>
-                  <select name="category" required className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors appearance-none">
-                    <option value="propaganda">Propaganda</option>
-                    <option value="equipo">Equipo de Oficina</option>
-                    <option value="papeleria">Papelería</option>
-                    <option value="otros">Otros</option>
-                  </select>
+                  <PredictiveCombobox
+                    name="category"
+                    label="Categoría de Material"
+                    required
+                    allowCustom={true}
+                    defaultValue="propaganda"
+                    placeholder="Escribe o selecciona categoría..."
+                    options={[
+                      { value: "propaganda", label: "Propaganda Electoral", badge: "Campaña" },
+                      { value: "equipo", label: "Equipo de Oficina", badge: "Operación" },
+                      { value: "papeleria", label: "Papelería e Insumos", badge: "Insumos" },
+                      { value: "uniformes", label: "Uniformes y Chalecos", badge: "Brigada" },
+                      { value: "tecnologia", label: "Tecnología y Dispositivos", badge: "TI" },
+                      { value: "otros", label: "Otros / General", badge: "General" }
+                    ]}
+                    icon={<Tag size={14} className="text-blue-600" />}
+                  />
                 </div>
 
                 <div>

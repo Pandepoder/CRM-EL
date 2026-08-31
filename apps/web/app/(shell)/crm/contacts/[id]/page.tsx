@@ -4,12 +4,10 @@ import { useEffect, useState, use, useCallback } from "react";
 import Link from "next/link";
 import { 
   MapPin, User, Calendar, CheckCircle, Clock, 
-  AlertCircle, X, ChevronRight, Phone, Shield, Trash2
+  AlertCircle, X, Phone, Trash2, MessageSquare, Sparkles, Send, ImageIcon
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ColonySelector } from "@/components/ColonySelector";
-
-// ─── Types ──────────────────────────────────────────────────────────────────
 
 type ContactDetail = {
   contactId: string;
@@ -28,10 +26,30 @@ type ContactDetail = {
     summary: string | null;
     assignedUserName: string | null;
   }>;
+  origin?: string;
+  actualContactUserId?: string;
+  firstContactDate?: string;
+  preferredContactMethod?: string;
+  preferredContactTime?: string;
+  panMilitancy?: string;
+  panMilitancyVerifiedAt?: string;
+  knowMeBetter?: string;
+  bardaPhotoUrl?: string;
+  exactLatitude?: number;
+  exactLongitude?: number;
+  creator?: { name: string; accessType: string };
+  notes?: Array<{
+    id: string;
+    noteText: string;
+    createdAt: string;
+    authorId: string;
+    authorName: string;
+    authorAccessType: string;
+  }>;
+  survey?: any;
 };
 
 type UserItem = { userId: string; displayName: string; roleKey?: string };
-
 type ModalType = "territory" | "assignment" | "schedule" | "complete" | null;
 
 const OUTCOME_LABELS: Record<string, string> = {
@@ -40,32 +58,6 @@ const OUTCOME_LABELS: Record<string, string> = {
   follow_up_required: "🔄 Requiere Seguimiento",
   rejected: "❌ Rechazada",
 };
-
-// ─── Modal Component ─────────────────────────────────────────────────────────
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div 
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
-      onClick={onClose}
-    >
-      <div 
-        style={{ background: "white", borderRadius: "20px", padding: "28px", width: "100%", maxWidth: "480px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", position: "relative" }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "var(--blue-950)" }}>{title}</h3>
-          <button onClick={onClose} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "32px", height: "32px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <X size={16} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -77,10 +69,17 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
+  // New note form state
+  const [newNoteText, setNewNoteText] = useState("");
+  const [addingNote, setAddingNote] = useState(false);
+
   // Modal-specific state
   const [users, setUsers] = useState<UserItem[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedColonyId, setSelectedColonyId] = useState("");
+  const [selectedColonyName, setSelectedColonyName] = useState("");
+  const [selectedMunicipality, setSelectedMunicipality] = useState("Tonalá");
+  const [selectedSectionNum, setSelectedSectionNum] = useState<number | undefined>(undefined);
   const [scheduledAt, setScheduledAt] = useState("");
   const [visitLocation, setVisitLocation] = useState("");
   const [outcomeVisitId, setOutcomeVisitId] = useState("");
@@ -106,9 +105,6 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
-  // Load catalog data when modal opens
-
-  // Load users when assignment or schedule modal opens
   useEffect(() => {
     if ((modal === "assignment" || modal === "schedule") && users.length === 0) {
       fetch("/api/crm/users")
@@ -117,22 +113,49 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     }
   }, [modal, users.length]);
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
+  async function handleAddNote(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newNoteText.trim()) return;
+    setAddingNote(true);
+    try {
+      const res = await fetch(`/api/crm/contacts/${id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ noteText: newNoteText })
+      });
+      if (res.ok) {
+        setNewNoteText("");
+        showToast("success", "Nota fechada registrada exitosamente.");
+        fetchDetail();
+      } else {
+        showToast("error", "No se pudo guardar la nota.");
+      }
+    } catch {
+      showToast("error", "Error de conexión al guardar nota.");
+    } finally {
+      setAddingNote(false);
+    }
+  }
 
   async function handleAssignTerritory() {
-    if (!selectedColonyId) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/crm/contacts/${id}/territory`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ colonyId: selectedColonyId }),
+        body: JSON.stringify({ 
+          colonyId: selectedColonyId,
+          colonyName: selectedColonyName || selectedColonyId,
+          municipality: selectedMunicipality,
+          sectionNum: selectedSectionNum
+        }),
       });
       if (!res.ok) throw new Error("Error al asignar territorio");
       await fetchDetail();
       setModal(null);
       setSelectedColonyId("");
-      showToast("success", "Territorio asignado correctamente.");
+      setSelectedColonyName("");
+      showToast("success", "Territorio y sección actualizados correctamente.");
     } catch {
       showToast("error", "No se pudo asignar el territorio.");
     } finally {
@@ -226,374 +249,387 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  // ── Loading / Error states ───────────────────────────────────────────────
-
   if (loading) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh", flexDirection: "column", gap: "12px" }}>
-      <div style={{ width: "40px", height: "40px", border: "3px solid #e2e8f0", borderTop: "3px solid var(--blue-600)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-      <p style={{ color: "var(--muted)", fontSize: "14px" }}>Cargando ficha...</p>
+    <div className="flex items-center justify-center min-h-[60vh] flex-col gap-3">
+      <div className="w-10 h-10 border-3 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+      <p className="text-gray-500 text-xs font-bold">Cargando ficha 360°...</p>
     </div>
   );
 
   if (!detail) return (
-    <div style={{ textAlign: "center", padding: "80px 24px" }}>
-      <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔍</div>
-      <h2 style={{ color: "var(--blue-950)", marginBottom: "8px" }}>Contacto no encontrado</h2>
-      <p style={{ color: "var(--muted)" }}>El ID no es válido o fue eliminado.</p>
-      <Link href="/crm/contacts" style={{ display: "inline-block", marginTop: "20px", color: "var(--blue-600)", fontWeight: 700 }}>← Volver al directorio</Link>
+    <div className="text-center py-20 px-4">
+      <div className="text-5xl mb-4">🔍</div>
+      <h2 className="text-xl font-bold text-gray-900 mb-2">Contacto no encontrado</h2>
+      <p className="text-xs text-gray-500">El ID no es válido o fue eliminado.</p>
+      <Link href="/crm/contacts" className="inline-block mt-5 text-blue-600 font-bold text-xs">
+        ← Volver al directorio
+      </Link>
     </div>
   );
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  const isPan = detail.panMilitancy === "confirmada";
+  const isPanDeclared = detail.panMilitancy === "declarada";
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px" }}>
-
+    <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
       {/* Toast notification */}
       {toast && (
-        <div style={{
-          position: "fixed", top: "24px", right: "24px", zIndex: 100,
-          display: "flex", alignItems: "center", gap: "12px",
-          background: toast.type === "success" ? "#f0fdf4" : "#fef2f2",
-          border: `1px solid ${toast.type === "success" ? "#bbf7d0" : "#fecaca"}`,
-          color: toast.type === "success" ? "#166534" : "#991b1b",
-          padding: "14px 20px", borderRadius: "12px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-          fontWeight: 600, fontSize: "14px", maxWidth: "380px"
-        }}>
+        <div className={`fixed top-6 right-6 z-50 flex items-center gap-3 p-4 rounded-2xl shadow-xl font-bold text-xs max-w-sm border ${
+          toast.type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-900" : "bg-rose-50 border-rose-200 text-rose-900"
+        }`}>
           {toast.type === "success" ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-          {toast.msg}
+          <span>{toast.msg}</span>
         </div>
       )}
 
       {/* Back link */}
-      <Link href="/crm/contacts" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--muted)", fontSize: "14px", fontWeight: 600, marginBottom: "24px", textDecoration: "none" }}>
-        ← Volver al directorio
+      <Link
+        href="/crm/contacts"
+        className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-xs font-extrabold transition-colors"
+      >
+        ← Volver al Directorio General
       </Link>
 
-      {/* Alerta de Inactivo */}
-      {detail.status === "inactive" && (
-        <div style={{ marginBottom: "20px", padding: "16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "12px", color: "#991b1b", display: "flex", alignItems: "center", gap: "10px" }}>
-          <AlertCircle size={20} />
-          <div>
-            <strong style={{ display: "block", fontSize: "14px" }}>Contacto Eliminado</strong>
-            <span style={{ fontSize: "13px", opacity: 0.9 }}>Este registro está desactivado. El perfil se encuentra en modo de solo lectura.</span>
+      {/* HEADER HERO */}
+      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center shrink-0 border border-white/15">
+            <User size={32} className="text-white" />
           </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)", borderRadius: "20px", padding: "32px", color: "white", marginBottom: "24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "20px", flexWrap: "wrap", filter: detail.status === "inactive" ? "grayscale(100%) opacity(0.8)" : "none" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-          <div style={{ width: "64px", height: "64px", background: "rgba(255,255,255,0.15)", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <User size={32} />
-          </div>
-          <div>
-            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, letterSpacing: "-0.5px" }}>{detail.displayName}</h1>
-            <div style={{ display: "flex", gap: "16px", marginTop: "6px", opacity: 0.8, fontSize: "14px" }}>
-              {detail.phoneNumber && (
-                <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <Phone size={14} /> {detail.phoneNumber}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">
+                {detail.displayName}
+              </h1>
+              {isPan && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-[11px] font-black rounded-full shadow-sm">
+                  <span>Ⓜ️</span> PAN Confirmado
                 </span>
               )}
-              <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <Calendar size={14} /> Registrado: {new Date(detail.createdAt).toLocaleDateString("es-MX")}
+              {isPanDeclared && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-400/20 text-blue-200 text-[10px] font-bold rounded-full border border-blue-400/30">
+                  PAN Declarada
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-4 text-xs text-blue-200/80 font-medium flex-wrap">
+              {detail.phoneNumber && (
+                <span className="flex items-center gap-1">
+                  <Phone size={13} /> {detail.phoneNumber}
+                </span>
+              )}
+              <span className="flex items-center gap-1">
+                <Calendar size={13} /> Reg: {new Date(detail.createdAt).toLocaleDateString("es-MX")}
+              </span>
+              <span className="px-2 py-0.5 bg-white/10 rounded-md text-[10px] uppercase font-bold text-cyan-200">
+                Origen: {detail.origin ? detail.origin.replace("_", " ") : "Toca toca"}
               </span>
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <span style={{ padding: "6px 16px", borderRadius: "999px", background: detail.status === "active" ? "#22c55e" : "#64748b", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            {detail.status === "active" ? "Activo" : detail.status}
-          </span>
+
+        <div className="flex items-center gap-2">
           {detail.status !== "inactive" && (
-            <button onClick={handleDeleteContact} disabled={saving} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.15)", border: "none", color: "white", padding: "8px", borderRadius: "10px", cursor: saving ? "not-allowed" : "pointer" }} title="Eliminar Contacto">
-              <Trash2 size={18} />
+            <button
+              type="button"
+              onClick={handleDeleteContact}
+              disabled={saving}
+              className="p-2.5 bg-white/10 hover:bg-rose-600 rounded-xl text-white transition-colors cursor-pointer"
+              title="Eliminar contacto"
+            >
+              <Trash2 size={16} />
             </button>
           )}
         </div>
       </div>
 
-      {/* Cards: Territorio + Responsable */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-        
-        {/* Territorio */}
-        <div style={{ background: "white", borderRadius: "16px", border: "1px solid #f1f5f9", padding: "24px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", opacity: detail.status === "inactive" ? 0.6 : 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-            <div style={{ width: "36px", height: "36px", background: "#eff6ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <MapPin size={18} color="#2563eb" />
+      {/* GRID: TERRITORIO, RESPONSABLE, MILITANCIA */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* TERRITORIO */}
+        <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MapPin size={16} className="text-blue-600" />
+              <h3 className="font-extrabold text-xs text-gray-900 uppercase">Territorio</h3>
             </div>
-            <h3 style={{ margin: 0, fontWeight: 700, color: "var(--blue-950)", fontSize: "15px" }}>Territorio Asignado</h3>
-          </div>
-          {detail.section && (
-            <div style={{ marginBottom: "12px" }}>
-              <p style={{ margin: "0 0 4px", fontSize: "13px", color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>Sección Electoral</p>
-              <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--blue-900)" }}>{detail.section.sectionNum}</p>
-            </div>
-          )}
-          {detail.territory ? (
-            <div style={{ marginBottom: "16px" }}>
-              <p style={{ margin: "0 0 6px", fontSize: "20px", fontWeight: 800, color: "var(--blue-950)" }}>{detail.territory.colonyName}</p>
-              <span style={{ display: "inline-block", padding: "2px 10px", background: "#dcfce7", color: "#166534", borderRadius: "999px", fontSize: "12px", fontWeight: 700 }}>
-                {detail.territory.territoryStatus}
-              </span>
-            </div>
-          ) : (
-            <p style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "16px" }}>Sin colonia asignada aún.</p>
-          )}
-          {detail.status !== "inactive" && (
             <button
+              type="button"
               onClick={() => setModal("territory")}
-              style={{ display: "flex", alignItems: "center", gap: "6px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 16px", cursor: "pointer", fontSize: "13px", fontWeight: 700, color: "#1e3a8a", width: "100%", justifyContent: "center" }}
+              className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
             >
-              {detail.territory ? "Cambiar Colonia" : "Asignar Colonia"} <ChevronRight size={14} />
+              Editar
             </button>
-          )}
+          </div>
+
+          <div>
+            <div className="text-lg font-black text-gray-900">
+              {detail.territory?.colonyName || "Por identificar"}
+            </div>
+            <div className="text-xs text-gray-500 font-medium">
+              {detail.section?.sectionNum ? `Sección ${detail.section.sectionNum}` : "Sección no asignada"} · Tonalá
+            </div>
+          </div>
         </div>
 
-        {/* Responsable */}
-        <div style={{ background: "white", borderRadius: "16px", border: "1px solid #f1f5f9", padding: "24px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", opacity: detail.status === "inactive" ? 0.6 : 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-            <div style={{ width: "36px", height: "36px", background: "#f5f3ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Shield size={18} color="#7c3aed" />
+        {/* RESPONSABLE / RED */}
+        <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <User size={16} className="text-indigo-600" />
+              <h3 className="font-extrabold text-xs text-gray-900 uppercase">Enlace Responsable</h3>
             </div>
-            <h3 style={{ margin: 0, fontWeight: 700, color: "var(--blue-950)", fontSize: "15px" }}>Responsable Operativo</h3>
-          </div>
-          {detail.assignment ? (
-            <div style={{ marginBottom: "16px" }}>
-              <p style={{ margin: "0 0 4px", fontSize: "20px", fontWeight: 800, color: "var(--blue-950)" }}>{detail.assignment.assignedUserName}</p>
-              <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)" }}>
-                Asignado el {new Date(detail.assignment.assignedAt).toLocaleDateString("es-MX")}
-              </p>
-            </div>
-          ) : (
-            <p style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "16px" }}>Sin responsable asignado.</p>
-          )}
-          {detail.status !== "inactive" && (
             <button
+              type="button"
               onClick={() => setModal("assignment")}
-              style={{ display: "flex", alignItems: "center", gap: "6px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 16px", cursor: "pointer", fontSize: "13px", fontWeight: 700, color: "#5b21b6", width: "100%", justifyContent: "center" }}
+              className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
             >
-              {detail.assignment ? "Reasignar Responsable" : "Asignar Responsable"} <ChevronRight size={14} />
+              Asignar
             </button>
-          )}
+          </div>
+
+          <div>
+            <div className="text-lg font-black text-gray-900">
+              {detail.assignment?.assignedUserName || detail.creator?.name || "Sin asignar"}
+            </div>
+            <div className="text-xs text-gray-500 font-medium">
+              Red: {detail.creator?.accessType?.toUpperCase() || "CONEXIÓN"}
+            </div>
+          </div>
+        </div>
+
+        {/* PREFERENCIAS DE CONTACTO */}
+        <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-3">
+          <div className="flex items-center gap-2">
+            <Clock size={16} className="text-emerald-600" />
+            <h3 className="font-extrabold text-xs text-gray-900 uppercase">Contacto Óptimo</h3>
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-xs font-bold text-gray-800">
+              Medio: <span className="capitalize font-semibold text-gray-600">{detail.preferredContactMethod || "WhatsApp"}</span>
+            </div>
+            <div className="text-xs font-bold text-gray-800">
+              Horario: <span className="capitalize font-semibold text-gray-600">{detail.preferredContactTime || "Indiferente"}</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Historial de Visitas */}
-      <div style={{ background: "white", borderRadius: "16px", border: "1px solid #f1f5f9", padding: "24px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{ width: "36px", height: "36px", background: "#fff7ed", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Calendar size={18} color="#ea580c" />
+      {/* CONÓCEME MEJOR & FOTO DE BARDA */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {detail.knowMeBetter && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-3xl border border-blue-100 space-y-2">
+            <div className="flex items-center gap-2 text-blue-900 font-extrabold text-xs uppercase">
+              <Sparkles size={14} className="text-blue-600" />
+              <span>Conóceme Mejor (Gustos e Intereses)</span>
             </div>
-            <h3 style={{ margin: 0, fontWeight: 700, color: "var(--blue-950)", fontSize: "15px" }}>
-              Historial de Visitas
-              <span style={{ marginLeft: "8px", background: "#f1f5f9", color: "#64748b", fontSize: "12px", fontWeight: 700, padding: "2px 8px", borderRadius: "999px" }}>
-                {detail.visits.length}
-              </span>
-            </h3>
+            <p className="text-xs text-blue-950 font-medium leading-relaxed">
+              "{detail.knowMeBetter}"
+            </p>
           </div>
-          {detail.status !== "inactive" && (
-            <button
-              onClick={() => setModal("schedule")}
-              style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0f172a", color: "white", border: "none", borderRadius: "10px", padding: "10px 18px", cursor: "pointer", fontSize: "13px", fontWeight: 700 }}
-            >
-              + Programar Visita
-            </button>
-          )}
-        </div>
+        )}
 
-        {detail.visits.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>
-            <Calendar size={40} style={{ opacity: 0.3, marginBottom: "12px" }} />
-            <p style={{ fontWeight: 600 }}>Sin visitas registradas</p>
-            <p style={{ fontSize: "13px" }}>{detail.status !== "inactive" ? "Programa la primera visita con el botón de arriba." : ""}</p>
-          </div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid #f1f5f9" }}>
-                  {["Fecha Programada", "Responsable", "Estado", "Resultado", "Resumen", "Acciones"].map(h => (
-                    <th key={h} style={{ textAlign: "left", padding: "8px 12px", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px", color: "#64748b", fontWeight: 700 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {detail.visits.map(v => (
-                  <tr key={v.visitId} style={{ borderBottom: "1px solid #f8fafc" }}>
-                    <td style={{ padding: "12px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <Clock size={14} color="#94a3b8" />
-                        <span style={{ fontWeight: 600 }}>{new Date(v.scheduledAt).toLocaleDateString("es-MX")}</span>
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#94a3b8", paddingLeft: "20px" }}>
-                        {new Date(v.scheduledAt).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
-                      </div>
-                    </td>
-                    <td style={{ padding: "12px", color: "#475569" }}>{v.assignedUserName || "—"}</td>
-                    <td style={{ padding: "12px" }}>
-                      <span style={{
-                        padding: "3px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-                        background: v.status === "completed" ? "#dcfce7" : "#fef9c3",
-                        color: v.status === "completed" ? "#166534" : "#854d0e"
-                      }}>
-                        {v.status === "completed" ? "Completada" : "Pendiente"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px", fontSize: "13px", color: "#475569" }}>
-                      {v.outcome ? OUTCOME_LABELS[v.outcome] ?? v.outcome : "—"}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: "13px", color: "#475569", maxWidth: "200px" }}>
-                      <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                        {v.summary || "—"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px" }}>
-                      {v.status === "scheduled" && detail.status !== "inactive" && (
-                        <button
-                          onClick={() => { setOutcomeVisitId(v.visitId); setModal("complete"); }}
-                          style={{ display: "flex", alignItems: "center", gap: "4px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#1d4ed8", whiteSpace: "nowrap" }}
-                        >
-                          <CheckCircle size={13} /> Reportar
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {detail.bardaPhotoUrl && (
+          <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-2">
+            <div className="flex items-center gap-2 text-gray-900 font-extrabold text-xs uppercase">
+              <ImageIcon size={14} className="text-blue-600" />
+              <span>Espacio Ofrecido / Barda</span>
+            </div>
+            <a
+              href={detail.bardaPhotoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:underline font-bold block truncate"
+            >
+              📷 Ver Fotografía de Barda / Espacio
+            </a>
           </div>
         )}
       </div>
 
-      {/* ── MODALES ─────────────────────────────────────────────────────────── */}
+      {/* RESULTADOS DE LA ENCUESTA (SI CONTESTÓ) */}
+      {detail.survey && (
+        <div className="bg-white p-6 rounded-3xl border border-indigo-100 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+            <span className="text-lg">📋</span>
+            <h3 className="font-extrabold text-sm text-gray-900 uppercase">Respuestas de Encuesta Ciudadana</h3>
+          </div>
 
-      {/* Modal: Asignar Territorio */}
-      {modal === "territory" && (
-        <Modal title="🗺️ Asignar Colonia" onClose={() => setModal(null)}>
-          <p style={{ color: "var(--muted)", fontSize: "13px", marginBottom: "16px" }}>
-            Selecciona la colonia donde reside o trabaja este ciudadano.
-          </p>
-          <div className="mb-5">
-            <ColonySelector onSelect={(colonyId) => setSelectedColonyId(colonyId)} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div className="p-3 bg-gray-50 rounded-2xl">
+              <span className="font-extrabold text-gray-500 uppercase text-[10px] block mb-1">1. Prioridad en su colonia</span>
+              <p className="font-bold text-gray-900">{detail.survey.colonyPriorityNeed || "No especificado"}</p>
+            </div>
+
+            <div className="p-3 bg-gray-50 rounded-2xl">
+              <span className="font-extrabold text-gray-500 uppercase text-[10px] block mb-1">2. Lo que más valora de Tonalá</span>
+              <p className="font-bold text-gray-900">{detail.survey.tonalaValues || "No especificado"}</p>
+            </div>
+
+            <div className="p-3 bg-gray-50 rounded-2xl">
+              <span className="font-extrabold text-gray-500 uppercase text-[10px] block mb-1">3. Calificación de Servicios</span>
+              <p className="font-bold text-gray-900">{detail.survey.servicesRating ? `${detail.survey.servicesRating} / 5` : "Sin calificar"} {detail.survey.servicesRatingWhy ? `· "${detail.survey.servicesRatingWhy}"` : ""}</p>
+            </div>
+
+            <div className="p-3 bg-gray-50 rounded-2xl">
+              <span className="font-extrabold text-gray-500 uppercase text-[10px] block mb-1">4. Expectativa del Proyecto</span>
+              <p className="font-bold text-gray-900">{detail.survey.projectExpectations || "No especificado"}</p>
+            </div>
+
+            <div className="p-3 bg-gray-50 rounded-2xl sm:col-span-2">
+              <span className="font-extrabold text-gray-500 uppercase text-[10px] block mb-1">5. Forma de Participación</span>
+              <p className="font-bold text-gray-900">{detail.survey.participationForm || "No especificado"}</p>
+            </div>
+
+            {detail.survey.openProposal && (
+              <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl sm:col-span-2">
+                <span className="font-extrabold text-indigo-800 uppercase text-[10px] block mb-1">6. Propuesta Libre</span>
+                <p className="font-bold text-indigo-950 italic">"{detail.survey.openProposal}"</p>
+              </div>
+            )}
           </div>
-          <div style={{ display: "flex", gap: "10px" }}>
-            <button onClick={() => setModal(null)} style={{ flex: 1, padding: "12px", border: "1px solid #e2e8f0", borderRadius: "10px", background: "white", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
-              Cancelar
-            </button>
-            <button onClick={handleAssignTerritory} disabled={!selectedColonyId || saving} style={{ flex: 1, padding: "12px", border: "none", borderRadius: "10px", background: selectedColonyId ? "#1e3a8a" : "#cbd5e1", color: "white", cursor: selectedColonyId ? "pointer" : "not-allowed", fontWeight: 700, fontSize: "14px" }}>
-              {saving ? "Guardando..." : "Confirmar"}
-            </button>
-          </div>
-        </Modal>
+        </div>
       )}
 
-      {/* Modal: Asignar Responsable */}
-      {modal === "assignment" && (
-        <Modal title="👤 Asignar Responsable" onClose={() => setModal(null)}>
-          <p style={{ color: "var(--muted)", fontSize: "13px", marginBottom: "16px" }}>
-            Elige el operador que se hará cargo de este ciudadano.
-          </p>
-          <label style={{ display: "block", fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#64748b", marginBottom: "8px" }}>
-            Operador
-          </label>
-          <select
-            value={selectedUserId}
-            onChange={e => setSelectedUserId(e.target.value)}
-            style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "14px", marginBottom: "20px", background: "#f8fafc", outline: "none" }}
-          >
-            <option value="">Seleccionar operador...</option>
-            {users.map(u => (
-              <option key={u.userId} value={u.userId}>{u.displayName}</option>
-            ))}
-          </select>
-          {users.length === 0 && <p style={{ color: "var(--muted)", fontSize: "13px", textAlign: "center", marginBottom: "16px" }}>Cargando usuarios...</p>}
-          <div style={{ display: "flex", gap: "10px" }}>
-            <button onClick={() => setModal(null)} style={{ flex: 1, padding: "12px", border: "1px solid #e2e8f0", borderRadius: "10px", background: "white", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
-              Cancelar
-            </button>
-            <button onClick={handleAssignResponsible} disabled={!selectedUserId || saving} style={{ flex: 1, padding: "12px", border: "none", borderRadius: "10px", background: selectedUserId ? "#5b21b6" : "#cbd5e1", color: "white", cursor: selectedUserId ? "pointer" : "not-allowed", fontWeight: 700, fontSize: "14px" }}>
-              {saving ? "Guardando..." : "Confirmar"}
-            </button>
-          </div>
-        </Modal>
-      )}
+      {/* TIMELINE DE NOTAS INMUTABLES CON AUTOR */}
+      <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm space-y-5">
+        <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+          <MessageSquare size={18} className="text-blue-600" />
+          <h3 className="font-extrabold text-sm text-gray-900 uppercase tracking-wider">
+            Bitácora de Notas Fechadas ({detail.notes?.length || 0})
+          </h3>
+        </div>
 
-      {/* Modal: Programar Visita */}
-      {modal === "schedule" && (
-        <Modal title="📅 Programar Visita" onClose={() => setModal(null)}>
-          <p style={{ color: "var(--muted)", fontSize: "13px", marginBottom: "16px" }}>
-            Programa una visita a <strong>{detail.displayName}</strong>.
-          </p>
-          <label style={{ display: "block", fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#64748b", marginBottom: "8px" }}>
-            Fecha y hora *
-          </label>
-          <input
-            type="datetime-local"
-            value={scheduledAt}
-            onChange={e => setScheduledAt(e.target.value)}
-            min={new Date().toISOString().slice(0, 16)}
-            style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "14px", marginBottom: "16px", background: "#f8fafc", outline: "none", boxSizing: "border-box" }}
-          />
-          <label style={{ display: "block", fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#64748b", marginBottom: "8px" }}>
-            Lugar de la visita
-          </label>
-          <input
-            type="text"
-            value={visitLocation}
-            onChange={e => setVisitLocation(e.target.value)}
-            placeholder="Ej. Casa del ciudadano, Colonia Centro"
-            style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "14px", marginBottom: "20px", background: "#f8fafc", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
-          />
-          <div style={{ display: "flex", gap: "10px" }}>
-            <button onClick={() => setModal(null)} style={{ flex: 1, padding: "12px", border: "1px solid #e2e8f0", borderRadius: "10px", background: "white", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
-              Cancelar
-            </button>
-            <button onClick={handleScheduleVisit} disabled={!scheduledAt || saving} style={{ flex: 1, padding: "12px", border: "none", borderRadius: "10px", background: scheduledAt ? "#ea580c" : "#cbd5e1", color: "white", cursor: scheduledAt ? "pointer" : "not-allowed", fontWeight: 700, fontSize: "14px" }}>
-              {saving ? "Guardando..." : "Programar"}
-            </button>
-          </div>
-        </Modal>
-      )}
-
-      {/* Modal: Reportar Resultado */}
-      {modal === "complete" && (
-        <Modal title="✅ Reportar Resultado de Visita" onClose={() => setModal(null)}>
-          <label style={{ display: "block", fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#64748b", marginBottom: "10px" }}>
-            Resultado obtenido
-          </label>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>
-            {Object.entries(OUTCOME_LABELS).map(([value, label]) => (
-              <label key={value} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 14px", border: `2px solid ${outcome === value ? "#1d4ed8" : "#e2e8f0"}`, borderRadius: "10px", cursor: "pointer", background: outcome === value ? "#eff6ff" : "white", transition: "all 0.15s" }}>
-                <input type="radio" name="outcome" value={value} checked={outcome === value} onChange={() => setOutcome(value)} style={{ accentColor: "#1d4ed8" }} />
-                <span style={{ fontWeight: outcome === value ? 700 : 500, color: outcome === value ? "#1d4ed8" : "#374151" }}>{label}</span>
-              </label>
-            ))}
-          </div>
-          <label style={{ display: "block", fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#64748b", marginBottom: "8px" }}>
-            Notas del campo *
-          </label>
+        {/* ADD NOTE FORM */}
+        <form onSubmit={handleAddNote} className="space-y-2">
           <textarea
-            rows={3}
-            value={outcomeSummary}
-            onChange={e => setOutcomeSummary(e.target.value)}
-            placeholder="Describe brevemente lo que ocurrió durante la visita..."
-            style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "14px", marginBottom: "20px", background: "#f8fafc", outline: "none", resize: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+            rows={2}
+            value={newNoteText}
+            onChange={e => setNewNoteText(e.target.value)}
+            placeholder="Agregar una nueva nota fechada sobre este contacto..."
+            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-medium text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
           />
-          <div style={{ display: "flex", gap: "10px" }}>
-            <button onClick={() => setModal(null)} style={{ flex: 1, padding: "12px", border: "1px solid #e2e8f0", borderRadius: "10px", background: "white", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
-              Cancelar
-            </button>
-            <button onClick={handleCompleteVisit} disabled={!outcomeSummary.trim() || saving} style={{ flex: 1, padding: "12px", border: "none", borderRadius: "10px", background: outcomeSummary.trim() ? "#059669" : "#cbd5e1", color: "white", cursor: outcomeSummary.trim() ? "pointer" : "not-allowed", fontWeight: 700, fontSize: "14px" }}>
-              {saving ? "Guardando..." : "Completar Visita"}
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={addingNote || !newNoteText.trim()}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <Send size={13} />
+              <span>{addingNote ? "Guardando..." : "Agregar Nota"}</span>
             </button>
           </div>
-        </Modal>
+        </form>
+
+        {/* NOTES LIST */}
+        {detail.notes && detail.notes.length > 0 ? (
+          <div className="space-y-3 pt-2">
+            {detail.notes.map(n => (
+              <div key={n.id} className="p-4 bg-gray-50/80 rounded-2xl border border-gray-100 space-y-1">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="font-black text-gray-900">{n.authorName || "Integrante"}</span>
+                  <span className="text-gray-400 font-semibold">{new Date(n.createdAt).toLocaleString("es-MX")}</span>
+                </div>
+                <p className="text-xs text-gray-700 font-medium whitespace-pre-wrap">{n.noteText}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 text-center py-4">No hay notas registradas para este contacto.</p>
+        )}
+      </div>
+
+      {/* MODALS */}
+      {modal === "territory" && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-black text-sm text-gray-900">Editar Territorio y Colonia</h3>
+              <button type="button" onClick={() => setModal(null)} className="cursor-pointer text-gray-400 hover:text-gray-600">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <ColonySelector
+                municipality="Tonalá"
+                defaultValue={detail.territory?.colonyName || ""}
+                onChange={(c, s) => {
+                  setSelectedColonyName(c);
+                  setSelectedColonyId(c);
+                  if (s) setSelectedSectionNum(typeof s === "number" ? s : parseInt(s, 10));
+                }}
+              />
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sección Electoral</label>
+                <input
+                  type="number"
+                  placeholder="Número de sección"
+                  defaultValue={detail.section?.sectionNum || ""}
+                  onChange={e => setSelectedSectionNum(parseInt(e.target.value, 10))}
+                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 bg-gray-100 rounded-xl text-xs font-bold">
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAssignTerritory}
+                  disabled={saving}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
+      {modal === "assignment" && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-black text-sm text-gray-900">Asignar Responsable de Enlace</h3>
+              <button type="button" onClick={() => setModal(null)} className="cursor-pointer text-gray-400 hover:text-gray-600">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <select
+                value={selectedUserId}
+                onChange={e => setSelectedUserId(e.target.value)}
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold"
+              >
+                <option value="">Selecciona un integrante...</option>
+                {users.map(u => (
+                  <option key={u.userId} value={u.userId}>{u.displayName}</option>
+                ))}
+              </select>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 bg-gray-100 rounded-xl text-xs font-bold">
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAssignResponsible}
+                  disabled={saving || !selectedUserId}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                >
+                  Asignar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-

@@ -36,18 +36,18 @@ export default async function AnalyticsPage() {
   }
 
   // 2. Availability Distribution
-  const availabilityData = Object.entries(availabilityCount)
+  const availabilityData = Object.entries(availabilityCount || {})
     .sort((a, b) => b[1] - a[1])
     .map(([name, value]) => ({ name, value }));
 
   // 3. Skills Distribution (Top 10)
-  const skillData = Object.entries(skillCount)
+  const skillData = Object.entries(skillCount || {})
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
     .map(([name, value]) => ({ name, value }));
 
   // 4. Top Colonies (Top 9)
-  const topColonies = Object.entries(colonyCount)
+  const topColonies = Object.entries(colonyCount || {})
     .sort((a, b) => b[1] - a[1])
     .slice(0, 9)
     .map(([name, value]) => ({ name, value }));

@@ -6,8 +6,10 @@ import {
   MessageSquare, 
   LogOut,
   User,
+  UserPlus,
   CalendarCheck,
   FileText,
+  AlertTriangle,
   Megaphone,
   Settings,
   PieChart,
@@ -18,7 +20,6 @@ import {
 } from "lucide-react";
 import type { NavItemConfig } from "./role-home.js";
 import { getNavSection } from "./role-home.js";
-import "./styles.css";
 
 export type AppShellProps = Readonly<{
   children: ReactNode;
@@ -34,13 +35,15 @@ const getIconForNavKey = (key: string, size = 18) => {
     case "resumen": return <BarChart size={size} />;
     case "analytics": return <PieChart size={size} />;
     case "crm": return <Users size={size} />;
+    case "crm-nuevo": return <UserPlus size={size} />;
     case "equipo": return <CalendarCheck size={size} />;
     case "admin-equipos": return <Users size={size} />;
     case "admin-usuarios": return <Shield size={size} />;
     case "estructura": return <Landmark size={size} />;
     case "inbox": return <Headset size={size} />;
     case "mapa": return <MapIcon size={size} />;
-    case "admin-incidencias": return <FileText size={size} />;
+    case "admin-incidencias": return <AlertTriangle size={size} />;
+    case "escucha-social": return <MessageSquare size={size} />;
     case "admin-inbox": return <FileText size={size} />;
     case "reportes": return <Megaphone size={size} />;
     case "logistica": return <Package size={size} />;

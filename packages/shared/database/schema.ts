@@ -49,6 +49,10 @@ export const userProfiles = pgTable(
     displayName: text("display_name").notNull(),
     passwordHash: text("password_hash"),
     roleId: uuid("role_id").notNull().references(() => roles.id),
+    accessType: text("access_type").notNull().default("conexion"), // 'coordinacion', 'enlace', 'conexion'
+    invitedByUserId: uuid("invited_by_user_id"),
+    parentEnlaceId: uuid("parent_enlace_id"),
+    personalSlug: text("personal_slug"),
     status: text("status").notNull().default("active"),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -56,7 +60,8 @@ export const userProfiles = pgTable(
   },
   (table) => [
     uniqueIndex("user_profiles_email_unique").on(table.email),
-    uniqueIndex("user_profiles_auth_user_id_unique").on(table.authUserId)
+    uniqueIndex("user_profiles_auth_user_id_unique").on(table.authUserId),
+    uniqueIndex("user_profiles_slug_unique").on(table.personalSlug)
   ]
 );
 
@@ -94,6 +99,13 @@ export const colonies = pgTable(
   (table) => [uniqueIndex("colonies_catalog_name_unique").on(table.catalogVersionId, table.name)]
 );
 
+export const electoralSections = pgTable("electoral_sections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sectionNum: integer("section_num").notNull().unique(),
+  geomJson: jsonb("geom_json"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+});
+
 export const contacts = pgTable(
   "contacts",
   {
@@ -123,7 +135,20 @@ export const contacts = pgTable(
     skill: encryptedText("skill"),
     availability: encryptedText("availability"),
     interests: encryptedText("interests"),
-    pastSupport: encryptedText("past_support")
+    pastSupport: encryptedText("past_support"),
+
+    // New Fields (ElApp Primera Etapa)
+    origin: text("origin").default("toca_toca"),
+    actualContactUserId: uuid("actual_contact_user_id").references(() => userProfiles.id),
+    firstContactDate: timestamp("first_contact_date", { withTimezone: true }),
+    preferredContactMethod: text("preferred_contact_method"),
+    preferredContactTime: text("preferred_contact_time"),
+    panMilitancy: text("pan_militancy").default("no_registrada"),
+    panMilitancyVerifiedAt: timestamp("pan_militancy_verified_at", { withTimezone: true }),
+    knowMeBetter: encryptedText("know_me_better"),
+    bardaPhotoUrl: text("barda_photo_url"),
+    exactLatitude: doublePrecision("exact_latitude"),
+    exactLongitude: doublePrecision("exact_longitude")
   },
   (table) => [
     check("contacts_status_check", sql`${table.status} IN ('active', 'inactive')`),
@@ -140,13 +165,6 @@ export const auditLogs = pgTable("audit_logs", {
   beforeData: jsonb("before_data"),
   afterData: jsonb("after_data"),
   correlationId: text("correlation_id").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-});
-
-export const electoralSections = pgTable("electoral_sections", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  sectionNum: integer("section_num").notNull().unique(),
-  geomJson: jsonb("geom_json"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
@@ -446,7 +464,11 @@ export const eventReports = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
-    check("event_reports_category_check", sql`${table.category} IN ('emergencia', 'incidencia', 'mitin', 'propaganda', 'servicios', 'sospechoso', 'brigada', 'bache', 'alumbrado', 'fuga_agua', 'inundacion', 'basura', 'seguridad', 'lona_danada')`)
+    check("event_reports_category_check", sql`${table.category} IN ('emergencia', 'incidencia', 'mitin', 'propaganda', 'servicios', 'sospechoso', 'brigada', 'bache', 'alumbrado', 'fuga_agua', 'inundacion', 'basura', 'seguridad', 'lona_danada')`),
+    index("event_reports_assigned_user_idx").on(table.assignedToUserId),
+    index("event_reports_status_idx").on(table.status),
+    index("event_reports_category_idx").on(table.category),
+    index("event_reports_event_date_idx").on(table.eventDate)
   ]
 );
 
@@ -489,10 +511,6 @@ export const electoralRepresentatives = pgTable(
   ]
 );
 
-// ==========================================
-// LOGISTICS & INVENTORY MODULE
-// ==========================================
-
 export const warehouses = pgTable("warehouses", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
@@ -516,7 +534,7 @@ export const inventoryItems = pgTable("inventory_items", {
 export const inventoryTransactions = pgTable("inventory_transactions", {
   id: uuid("id").primaryKey().defaultRandom(),
   itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
-  transactionType: text("transaction_type").notNull(), // 'in', 'out'
+  transactionType: text("transaction_type").notNull(),
   quantity: integer("quantity").notNull(),
   assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
   performedByUserId: uuid("performed_by_user_id").notNull().references(() => userProfiles.id),
@@ -524,16 +542,12 @@ export const inventoryTransactions = pgTable("inventory_transactions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// ==========================================
-// INBOX & MESSAGING MODULE
-// ==========================================
-
 export const inboxConversations = pgTable("inbox_conversations", {
   id: uuid("id").primaryKey().defaultRandom(),
   contactId: uuid("contact_id").references(() => contacts.id),
-  channel: text("channel").notNull(), // 'whatsapp', 'sms', 'messenger'
-  externalId: text("external_id").notNull().unique(), // The phone number or Facebook ID
-  status: text("status").notNull().default("open"), // 'open', 'resolved', 'ignored'
+  channel: text("channel").notNull(),
+  externalId: text("external_id").notNull().unique(),
+  status: text("status").notNull().default("open"),
   assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
   lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -542,9 +556,97 @@ export const inboxConversations = pgTable("inbox_conversations", {
 export const inboxMessages = pgTable("inbox_messages", {
   id: uuid("id").primaryKey().defaultRandom(),
   conversationId: uuid("conversation_id").notNull().references(() => inboxConversations.id),
-  direction: text("direction").notNull(), // 'inbound', 'outbound'
+  direction: text("direction").notNull(),
   content: text("content").notNull(),
-  status: text("status").notNull().default("sent"), // 'sent', 'delivered', 'read', 'failed'
-  sentByUserId: uuid("sent_by_user_id").references(() => userProfiles.id), // null if inbound
+  status: text("status").notNull().default("sent"),
+  sentByUserId: uuid("sent_by_user_id").references(() => userProfiles.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ==========================================
+// ELAPP PRIMERA ETAPA (AGOSTO 2026) TABLES
+// ==========================================
+
+export const userPromotionsHistory = pgTable("user_promotions_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => userProfiles.id),
+  fromAccessType: text("from_access_type").notNull(),
+  toAccessType: text("to_access_type").notNull(),
+  reason: text("reason"),
+  promotedByUserId: uuid("promoted_by_user_id").notNull().references(() => userProfiles.id),
+  promotedAt: timestamp("promoted_at", { withTimezone: true }).notNull().defaultNow()
+});
+
+export const contactNotes = pgTable("contact_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  contactId: uuid("contact_id").notNull().references(() => contacts.id),
+  authorUserId: uuid("author_user_id").notNull().references(() => userProfiles.id),
+  noteText: encryptedText("note_text").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+});
+
+export const socialSurveys = pgTable("social_surveys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  contactId: uuid("contact_id").notNull().references(() => contacts.id),
+  colonyPriorityNeed: text("colony_priority_need"),
+  colonyPriorityOther: text("colony_priority_other"),
+  tonalaValues: text("tonala_values"),
+  tonalaValuesOther: text("tonala_values_other"),
+  servicesRating: integer("services_rating"),
+  servicesRatingWhy: text("services_rating_why"),
+  projectExpectations: text("project_expectations"),
+  projectExpectationsOther: text("project_expectations_other"),
+  participationForm: text("participation_form"),
+  participationFormOther: text("participation_form_other"),
+  openProposal: text("open_proposal"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+});
+
+export const socialListening = pgTable(
+  "social_listening",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    contactId: uuid("contact_id").references(() => contacts.id),
+    categories: jsonb("categories").notNull(),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    photoUrls: jsonb("photo_urls"),
+    latitude: doublePrecision("latitude"),
+    longitude: doublePrecision("longitude"),
+    locationText: text("location_text"),
+    status: text("status").notNull().default("pendiente"),
+    isFormalGestion: integer("is_formal_gestion").notNull().default(0),
+    approvedByUserId: uuid("approved_by_user_id").references(() => userProfiles.id),
+    resolutionNotes: text("resolution_notes"),
+    createdByUserId: uuid("created_by_user_id").notNull().references(() => userProfiles.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("social_listening_status_idx").on(table.status),
+    index("social_listening_created_by_idx").on(table.createdByUserId),
+    index("social_listening_created_at_idx").on(table.createdAt)
+  ]
+);
+
+export const rapidActivityProspects = pgTable(
+  "rapid_activity_prospects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    prospectName: text("prospect_name").notNull(),
+    organizationOrReference: text("organization_or_reference"),
+    profileType: text("profile_type").notNull().default("vecinal"),
+    disposition: text("disposition").notNull().default("interesado"),
+    dispositionNotes: text("disposition_notes"),
+    activityDate: timestamp("activity_date", { withTimezone: true }).notNull().defaultNow(),
+    locationText: text("location_text"),
+    commitments: text("commitments"),
+    privateNotes: text("private_notes"),
+    convertedToContactId: uuid("converted_to_contact_id").references(() => contacts.id),
+    createdByUserId: uuid("created_by_user_id").notNull().references(() => userProfiles.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("rapid_activity_prospects_created_by_idx").on(table.createdByUserId),
+    index("rapid_activity_prospects_activity_date_idx").on(table.activityDate)
+  ]
+);

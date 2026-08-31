@@ -12,3 +12,5 @@ work/
 .DS_Store
 Thumbs.db
 db/local-data/
+scripts/*.png
+*.tsbuildinfo

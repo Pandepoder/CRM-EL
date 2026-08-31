@@ -13,8 +13,23 @@ export const demoUserSeeds = [
     roleKey: "admin"
   },
   {
+    email: "admin@tonala.gob.mx",
+    displayName: "Administrador Tonalá",
+    roleKey: "admin"
+  },
+  {
+    email: "admin@elapp.com.mx",
+    displayName: "Administrador ElApp",
+    roleKey: "admin"
+  },
+  {
     email: "coordinador.demo@tonala-os.local",
     displayName: "Coordinador Demo",
+    roleKey: "territorial_coordinator"
+  },
+  {
+    email: "coord.centro@tonala.gob.mx",
+    displayName: "Coordinador Centro",
     roleKey: "territorial_coordinator"
   },
   {
@@ -25,6 +40,11 @@ export const demoUserSeeds = [
   {
     email: "responsable.demo@tonala-os.local",
     displayName: "Responsable Demo",
+    roleKey: "visit_responsible"
+  },
+  {
+    email: "brigada.norte@tonala.gob.mx",
+    displayName: "Brigadista Norte",
     roleKey: "visit_responsible"
   },
   {

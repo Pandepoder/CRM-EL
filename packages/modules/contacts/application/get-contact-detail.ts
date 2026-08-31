@@ -31,15 +31,18 @@ export async function getContactDetail(
       }
 
       try {
+        const isGlobalViewer = actor.roles.includes("admin") || actor.roles.includes("direction") || actor.isSystem;
+        const scopedUserId = !isGlobalViewer ? actor.actorId : undefined;
+
         const entityId = createEntityId(input.contactId);
-        const contact = await dependencies.contactsReader.getContactDetail(entityId);
+        const contact = await dependencies.contactsReader.getContactDetail(entityId, scopedUserId);
         
         if (!contact) {
           return err(new ApplicationError({
             code: "contact_not_found",
             category: ErrorCategory.NotFound,
             message: `Contact ${input.contactId} was not found.`,
-            publicMessage: "Contact was not found."
+            publicMessage: "El contacto no fue encontrado o no tienes permisos para acceder a él."
           }));
         }
         

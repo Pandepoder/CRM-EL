@@ -2,25 +2,37 @@ import { type NextRequest } from "next/server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
-import { like } from "drizzle-orm";
+import { like, or, eq, and } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const actor = await actorFromSession();
-  if (!actor || (!actor.roles.includes("admin") && !actor.roles.includes("direction"))) {
+  if (!actor) {
     return unauthorized();
   }
+
+  const isGlobal = actor.roles.includes("admin") || actor.roles.includes("direction") || actor.isSystem;
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q");
 
   const db = getDatabaseClient();
-  let query = db.select().from(schema.contacts);
+  const conditions = [eq(schema.contacts.status, "active")];
 
-  if (q) {
-    query = query.where(like(schema.contacts.displayName, `%${q}%`)) as any;
+  if (!isGlobal) {
+    conditions.push(or(
+      eq(schema.contacts.createdByUserId, actor.actorId as string),
+      eq(schema.contacts.referredByUserId, actor.actorId as string)
+    )!);
   }
 
-  const rawContacts = await query;
+  if (q) {
+    conditions.push(like(schema.contacts.displayName, `%${q}%`));
+  }
+
+  const rawContacts = await db
+    .select()
+    .from(schema.contacts)
+    .where(and(...conditions));
 
   const rows = rawContacts.map(c => {
     return {

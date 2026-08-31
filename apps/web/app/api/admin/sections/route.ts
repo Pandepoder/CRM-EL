@@ -78,40 +78,77 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const parsed = importSectionsSchema.safeParse(body);
+    let sectionsToProcess: Array<{ sectionNum: number; geom?: any; colonies?: string[]; municipality?: string }> = [];
 
-    if (!parsed.success) {
-      return NextResponse.json({ error: "Invalid payload", details: parsed.error.issues }, { status: 400 });
+    if (Array.isArray(body?.sections)) {
+      sectionsToProcess = body.sections;
+    } else if (body?.sectionNum) {
+      const colArr = body.colonies || (body.colony ? [body.colony] : []);
+      sectionsToProcess = [{
+        sectionNum: Number(body.sectionNum),
+        geom: body.geom,
+        colonies: colArr,
+        municipality: body.municipality || "Tonalá"
+      }];
+    } else {
+      return NextResponse.json({ error: "Debe proporcionar sectionNum o un arreglo de sections." }, { status: 400 });
     }
 
     const db = getDatabaseClient();
 
-    // Get catalog version
+    // Get catalog version or create default
     const catRes = await db.execute<{ id: string }>(sql`
       SELECT id::text FROM catalog_versions ORDER BY imported_at DESC LIMIT 1
     `);
-    const catalogVersionId = catRes.rows[0]?.id;
+    let catalogVersionId = catRes.rows[0]?.id;
+    if (!catalogVersionId) {
+      const newCatRes = await db.execute<{ id: string }>(sql`
+        INSERT INTO catalog_versions (catalog_type, source_name, source_version)
+        VALUES ('ine_sections', 'manual_import', 'v1.0')
+        RETURNING id::text
+      `);
+      catalogVersionId = newCatRes.rows[0]?.id;
+    }
 
     let importedCount = 0;
+    let lastSectionId: string | null = null;
 
-    for (const sec of parsed.data.sections) {
-      const geomJson = sec.geom ? JSON.stringify(sec.geom) : null;
+    for (const sec of sectionsToProcess) {
+      const muni = sec.municipality || "Tonalá";
+      let geomJson = sec.geom ? JSON.stringify(sec.geom) : null;
+      if (!geomJson) {
+        // Generate default bounding box polygon
+        const cLng = muni === "Guadalajara" ? -103.3496 : muni === "Zapopan" ? -103.3886 : -103.2422;
+        const cLat = muni === "Guadalajara" ? 20.6767 : muni === "Zapopan" ? 20.7214 : 20.6248;
+        const offset = 0.005;
+        geomJson = JSON.stringify({
+          type: "Polygon",
+          coordinates: [[
+            [cLng - offset, cLat - offset],
+            [cLng + offset, cLat - offset],
+            [cLng + offset, cLat + offset],
+            [cLng - offset, cLat + offset],
+            [cLng - offset, cLat - offset]
+          ]]
+        });
+      }
       
       const secRes = await db.execute<{ id: string }>(sql`
         INSERT INTO electoral_sections (section_num, geom_json)
-        VALUES (${sec.sectionNum}, ${geomJson ? sql`${geomJson}::jsonb` : null})
+        VALUES (${sec.sectionNum}, ${sql`${geomJson}::jsonb`})
         ON CONFLICT (section_num) DO UPDATE
         SET geom_json = COALESCE(EXCLUDED.geom_json, electoral_sections.geom_json)
         RETURNING id::text
       `);
 
       const sectionId = secRes.rows[0]?.id;
+      lastSectionId = sectionId || null;
 
       if (sectionId && sec.colonies && sec.colonies.length > 0 && catalogVersionId) {
         for (const colName of sec.colonies) {
           const colRes = await db.execute<{ id: string }>(sql`
             INSERT INTO colonies (catalog_version_id, name, postal_code, municipality, status)
-            VALUES (${catalogVersionId}::uuid, ${colName}, '45400', 'Tonalá', 'active')
+            VALUES (${catalogVersionId}::uuid, ${colName}, '45400', ${muni}, 'active')
             ON CONFLICT (catalog_version_id, name) DO UPDATE SET status = 'active'
             RETURNING id::text
           `);
@@ -132,8 +169,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Successfully processed ${importedCount} electoral sections.`,
-      importedCount
+      message: `Procesadas ${importedCount} secciones electorales.`,
+      importedCount,
+      sectionId: lastSectionId
     });
   } catch (error) {
     console.error("Failed to import electoral sections:", error);

@@ -50,6 +50,13 @@
       "when": 1787896803133,
       "tag": "0006_pink_secret_warriors",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788162784436,
+      "tag": "0007_skinny_diamondback",
+      "breakpoints": true
     }
   ]
 }

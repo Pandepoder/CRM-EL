@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { UserPlus, X, Loader2, KeyRound, Mail, User, ShieldCheck } from "lucide-react";
 import { createUserAction } from "./actions";
+import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 
 interface RoleOption {
   id: string;
@@ -119,24 +120,20 @@ export function CreateUserModal({ roles }: { roles: RoleOption[] }) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
-                  Rol y Nivel de Privilegios *
-                </label>
-                <div className="relative">
-                  <ShieldCheck size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                  <select
-                    name="roleId"
-                    required
-                    defaultValue={roles.find(r => r.name.toLowerCase().includes("brigadista") || r.name.toLowerCase().includes("visita"))?.id || roles[0]?.id}
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all cursor-pointer"
-                  >
-                    {roles.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <PredictiveCombobox
+                  name="roleId"
+                  label="Rol y Nivel de Privilegios"
+                  required
+                  allowCustom={false}
+                  placeholder="Escribe o busca rol..."
+                  defaultValue={roles.find(r => r.name.toLowerCase().includes("brigadista") || r.name.toLowerCase().includes("visita"))?.id || roles[0]?.id}
+                  options={roles.map(r => ({
+                    value: r.id,
+                    label: r.name,
+                    badge: "Permisos"
+                  }))}
+                  icon={<ShieldCheck size={14} className="text-blue-600" />}
+                />
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2.5 border-t border-gray-100">

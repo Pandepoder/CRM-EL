@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { PlusCircle, X, Package, CheckCircle2 } from "lucide-react";
+import { PlusCircle, X, Package, CheckCircle2, UserCheck } from "lucide-react";
+import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 
 export function AssignModal({ items }: { items: { id: string, name: string, quantity: number }[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(1);
+  const [selectedItemId, setSelectedItemId] = useState("");
+  const [movementType, setMovementType] = useState("out");
+  const [selectedLeader, setSelectedLeader] = useState("");
 
   if (!isOpen) {
     return (
@@ -46,36 +50,57 @@ export function AssignModal({ items }: { items: { id: string, name: string, quan
             {step === 1 ? (
               <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); setStep(2); }}>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Artículo</label>
-                  <select required className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors appearance-none">
-                    <option value="">Seleccione un artículo del inventario...</option>
-                    {items.map(it => (
-                      <option key={it.id} value={it.id}>{it.name} (Disp: {it.quantity})</option>
-                    ))}
-                  </select>
+                  <PredictiveCombobox
+                    label="Artículo del Inventario"
+                    required
+                    allowCustom={false}
+                    placeholder="Escribe o busca artículo..."
+                    value={selectedItemId}
+                    onChange={(val) => setSelectedItemId(val)}
+                    options={items.map(it => ({
+                      value: it.id,
+                      label: it.name,
+                      badge: `Disp: ${it.quantity}`
+                    }))}
+                    icon={<Package size={14} className="text-blue-600" />}
+                  />
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Cantidad</label>
-                    <input type="number" required min="1" placeholder="0" className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" />
+                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Cantidad *</label>
+                    <input type="number" required min="1" placeholder="0" className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors font-bold" />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Tipo</label>
-                    <select required className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors appearance-none">
-                      <option value="out">Salida (Asignación)</option>
-                      <option value="in">Entrada (Resurtido)</option>
-                    </select>
+                    <PredictiveCombobox
+                      label="Tipo de Movimiento"
+                      required
+                      allowCustom={false}
+                      value={movementType}
+                      onChange={(val) => setMovementType(val)}
+                      options={[
+                        { value: "out", label: "Salida (Asignación)", badge: "Salida" },
+                        { value: "in", label: "Entrada (Resurtido)", badge: "Entrada" }
+                      ]}
+                    />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Asignar a Líder (Opcional)</label>
-                  <select className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors appearance-none">
-                    <option value="">Buscar líder de brigada...</option>
-                    <option value="user1">Juan Pérez - Coordinador Zona Norte</option>
-                    <option value="user2">María Gómez - Avanzada</option>
-                  </select>
+                  <PredictiveCombobox
+                    label="Asignar a Líder / Brigadista"
+                    allowCustom={true}
+                    placeholder="Buscar o escribir nombre de responsable..."
+                    value={selectedLeader}
+                    onChange={(val) => setSelectedLeader(val)}
+                    options={[
+                      { value: "user1", label: "Juan Pérez - Coordinador Zona Norte", badge: "Coordinador" },
+                      { value: "user2", label: "María Gómez - Avanzada", badge: "Avanzada" },
+                      { value: "user3", label: "Carlos Ruiz - Brigada Seccional", badge: "Brigada" }
+                    ]}
+                    icon={<UserCheck size={14} className="text-blue-600" />}
+                    helperText="Opcional: Asigna el material a un promotor o brigadista"
+                  />
                 </div>
 
                 <div>

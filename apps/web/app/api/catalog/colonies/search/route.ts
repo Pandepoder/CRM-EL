@@ -1,13 +1,9 @@
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq, ilike, and } from "drizzle-orm";
+import { eq, ilike, and, sql } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
-import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 
 export async function GET(req: NextRequest) {
-  const actor = await actorFromSession();
-  if (!actor) return unauthorized();
-
   try {
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q") || "";
@@ -41,7 +37,19 @@ export async function GET(req: NextRequest) {
       finalConditions.push(eq(schema.colonies.postalCode, zip));
     }
     if (mun) {
-      finalConditions.push(ilike(schema.colonies.municipality, `%${mun}%`));
+      const normalizedMun = mun.toLowerCase().trim();
+      let targetMun = mun;
+      if (normalizedMun.includes("tonal")) targetMun = "Tonalá";
+      else if (normalizedMun.includes("guadalajara")) targetMun = "Guadalajara";
+      else if (normalizedMun.includes("zapopan")) targetMun = "Zapopan";
+      else if (normalizedMun.includes("tlaquepaque")) targetMun = "San Pedro Tlaquepaque";
+      else if (normalizedMun.includes("tlajomulco")) targetMun = "Tlajomulco de Zúñiga";
+      else if (normalizedMun.includes("salto")) targetMun = "El Salto";
+      else if (normalizedMun.includes("zapotlanejo")) targetMun = "Zapotlanejo";
+
+      finalConditions.push(
+        sql`(${schema.colonies.municipality} ILIKE ${'%' + targetMun + '%'} OR ${schema.colonies.municipality} ILIKE ${'%' + mun + '%'})`
+      );
     }
     if (q) {
       finalConditions.push(ilike(schema.colonies.name, `%${q}%`));
@@ -51,7 +59,7 @@ export async function GET(req: NextRequest) {
       baseQuery = baseQuery.where(and(...finalConditions)) as any;
     }
 
-    const results = await baseQuery;
+    const results = await (baseQuery as any).limit(50);
 
     return NextResponse.json(results);
   } catch (error) {

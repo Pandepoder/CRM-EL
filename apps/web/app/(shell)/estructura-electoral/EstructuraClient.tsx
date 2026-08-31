@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 // @ts-ignore
-import { Landmark, Users, Search, Plus, Map, X } from "lucide-react";
+import { Landmark, Users, Search, Plus, Map, X, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 
 type Representative = {
   id: string;
@@ -22,6 +23,8 @@ type UserProfile = {
 type Section = {
   id: string;
   sectionNum: number;
+  municipality?: string;
+  colonies?: string[];
 };
 
 type Props = {
@@ -30,12 +33,20 @@ type Props = {
   sections: Section[];
 };
 
-export default function EstructuraClient({ representatives, availableUsers, sections }: Props) {
+export default function EstructuraClient({ representatives, availableUsers, sections: initialSections }: Props) {
   const router = useRouter();
+  const [sectionsList, setSectionsList] = useState<Section[]>(initialSections);
   const [showModal, setShowModal] = useState(false);
+  const [showNewSectionModal, setShowNewSectionModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ sectionId: "", userId: "", role: "coordinador" });
+  
+  const [newSectionForm, setNewSectionForm] = useState({
+    sectionNum: "",
+    municipality: "Tonalá",
+    colony: ""
+  });
 
   const filtered = representatives.filter(r => 
     r.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -66,6 +77,54 @@ export default function EstructuraClient({ representatives, availableUsers, sect
     }
   }
 
+  async function handleCreateSection(e: React.FormEvent) {
+    e.preventDefault();
+    const num = Number(newSectionForm.sectionNum);
+    if (!num || num <= 0) {
+      alert("Por favor ingresa un número de sección válido.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/electoral/sections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sectionNum: num,
+          municipality: newSectionForm.municipality,
+          colony: newSectionForm.colony.trim() || undefined
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const created = data.section;
+        if (created) {
+          setSectionsList(prev => [...prev, {
+            id: created.id,
+            sectionNum: created.sectionNum,
+            municipality: created.municipality,
+            colonies: created.colonies
+          }].sort((a, b) => a.sectionNum - b.sectionNum));
+          
+          setForm(f => ({ ...f, sectionId: created.id }));
+        }
+        setShowNewSectionModal(false);
+        setNewSectionForm({ sectionNum: "", municipality: "Tonalá", colony: "" });
+        alert(`✓ Sección #${num} registrada con éxito en la base de datos.`);
+        router.refresh();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Error al registrar la sección");
+      }
+    } catch (_err) {
+      alert("Error de conexión al crear sección");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8">
       {/* HEADER */}
@@ -76,20 +135,30 @@ export default function EstructuraClient({ representatives, availableUsers, sect
           </div>
           <div>
             <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight">Estructura Electoral</h1>
-            <p className="text-gray-500 mt-1">Gestión de coordinadores y representantes de casilla por sección.</p>
+            <p className="text-gray-500 mt-1">Gestión de coordinadores, representantes de casilla y catálogo de secciones.</p>
           </div>
         </div>
-        <button 
-          onClick={() => setShowModal(true)}
-          className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm transition-all"
-        >
-          <Plus size={20} /> Asignar Representante
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            type="button"
+            onClick={() => setShowNewSectionModal(true)}
+            className="flex items-center justify-center gap-2 px-5 py-3 bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-bold rounded-xl shadow-sm transition-all"
+          >
+            <Plus size={18} /> Nueva Sección
+          </button>
+          <button 
+            type="button"
+            onClick={() => setShowModal(true)}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm transition-all"
+          >
+            <Plus size={18} /> Asignar Representante
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-          <div className="relative max-w-md">
+        <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="relative max-w-md w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input 
               type="text" 
@@ -98,6 +167,9 @@ export default function EstructuraClient({ representatives, availableUsers, sect
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
+          </div>
+          <div className="text-xs font-bold text-gray-500">
+            {sectionsList.length} Secciones Electorales en Base de Datos
           </div>
         </div>
 
@@ -127,7 +199,7 @@ export default function EstructuraClient({ representatives, availableUsers, sect
                       <div className="w-8 h-8 bg-indigo-100 text-indigo-700 rounded-lg flex items-center justify-center">
                         <Map size={16} />
                       </div>
-                      {r.sectionNum}
+                      Sección #{r.sectionNum}
                     </td>
                     <td className="p-4 text-gray-700 font-medium">
                       {r.displayName}
@@ -148,6 +220,7 @@ export default function EstructuraClient({ representatives, availableUsers, sect
         )}
       </div>
 
+      {/* Modal: Asignar Representante */}
       {showModal && (
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -160,47 +233,60 @@ export default function EstructuraClient({ representatives, availableUsers, sect
             
             <form onSubmit={handleAssign} className="p-6 space-y-5">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Sección Electoral *</label>
-                <select 
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide">Sección Electoral *</label>
+                  <button 
+                    type="button" 
+                    onClick={() => { setShowModal(false); setShowNewSectionModal(true); }}
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800"
+                  >
+                    + Registrar Nueva
+                  </button>
+                </div>
+                <PredictiveCombobox
+                  placeholder="Escribe para buscar sección (ej. 2704)..."
                   required
+                  allowCustom={false}
                   value={form.sectionId}
-                  onChange={e => setForm({...form, sectionId: e.target.value})}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                >
-                  <option value="" disabled>Selecciona una sección...</option>
-                  {sections.map(s => (
-                    <option key={s.id} value={s.id}>{s.sectionNum}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setForm({ ...form, sectionId: val })}
+                  options={sectionsList.map((s) => ({
+                    value: s.id,
+                    label: `Sección #${s.sectionNum}`,
+                    sublabel: s.municipality || "Tonalá",
+                    badge: `Sección ${s.sectionNum}`
+                  }))}
+                />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Usuario *</label>
-                <select 
+                <PredictiveCombobox
+                  label="Usuario / Operador"
                   required
+                  allowCustom={false}
+                  placeholder="Escribe para buscar usuario..."
                   value={form.userId}
-                  onChange={e => setForm({...form, userId: e.target.value})}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                >
-                  <option value="" disabled>Selecciona un usuario...</option>
-                  {availableUsers.map(u => (
-                    <option key={u.id} value={u.id}>{u.displayName}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setForm({ ...form, userId: val })}
+                  options={availableUsers.map((u) => ({
+                    value: u.id,
+                    label: u.displayName,
+                    badge: "Usuario"
+                  }))}
+                />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Rol *</label>
-                <select 
+                <PredictiveCombobox
+                  label="Rol en Estructura"
                   required
+                  allowCustom={false}
                   value={form.role}
-                  onChange={e => setForm({...form, role: e.target.value})}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                >
-                  <option value="coordinador">Coordinador de Sección</option>
-                  <option value="representante_casilla">Representante de Casilla</option>
-                  <option value="representante_general">Representante General</option>
-                </select>
+                  onChange={(val) => setForm({ ...form, role: val })}
+                  options={[
+                    { value: "coordinador", label: "Coordinador de Sección", badge: "Liderazgo" },
+                    { value: "representante_casilla", label: "Representante de Casilla (RC)", badge: "Casilla" },
+                    { value: "representante_general", label: "Representante General (RG)", badge: "General" }
+                  ]}
+                />
               </div>
 
               <div className="pt-2 flex gap-3">
@@ -214,9 +300,95 @@ export default function EstructuraClient({ representatives, availableUsers, sect
                 <button 
                   type="submit" 
                   disabled={saving || !form.sectionId || !form.userId}
-                  className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                  className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
-                  {saving ? "Guardando..." : "Asignar"}
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : "Asignar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Registrar Nueva Sección Electoral */}
+      {showNewSectionModal && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h2 className="text-xl font-bold text-blue-950 flex items-center gap-2">
+                <Landmark size={20} className="text-indigo-600" /> Registrar Sección Electoral
+              </h2>
+              <button onClick={() => setShowNewSectionModal(false)} className="text-gray-400 hover:text-gray-600 p-1">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateSection} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                  Número de Sección Electoral *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  max="9999"
+                  placeholder="Ej. 2800"
+                  value={newSectionForm.sectionNum}
+                  onChange={e => setNewSectionForm({...newSectionForm, sectionNum: e.target.value})}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-bold"
+                />
+              </div>
+
+              <div>
+                <PredictiveCombobox
+                  label="Municipio"
+                  required
+                  allowCustom={false}
+                  value={newSectionForm.municipality}
+                  onChange={(val) => setNewSectionForm({ ...newSectionForm, municipality: val })}
+                  options={[
+                    { value: "Tonalá", label: "Tonalá", badge: "Principal" },
+                    { value: "Guadalajara", label: "Guadalajara" },
+                    { value: "San Pedro Tlaquepaque", label: "Tlaquepaque" },
+                    { value: "Zapopan", label: "Zapopan" },
+                    { value: "Tlajomulco de Zúñiga", label: "Tlajomulco" },
+                    { value: "El Salto", label: "El Salto" },
+                    { value: "Zapotlanejo", label: "Zapotlanejo" },
+                    { value: "Ixtlahuacán de los Membrillos", label: "Ixtlahuacán" },
+                    { value: "Juanacatlán", label: "Juanacatlán" }
+                  ]}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                  Colonia / Asentamiento (Opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. Centro / Lomas de la Soledad"
+                  value={newSectionForm.colony}
+                  onChange={e => setNewSectionForm({...newSectionForm, colony: e.target.value})}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setShowNewSectionModal(false)}
+                  className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={saving || !newSectionForm.sectionNum}
+                  className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  Guardar Sección
                 </button>
               </div>
             </form>

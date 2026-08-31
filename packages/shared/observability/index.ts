@@ -124,6 +124,7 @@ function compactLogFields(fields: {
 }
 
 function redactRecord(record: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+  if (!record || typeof record !== "object") return {};
   const redacted: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(record)) {
     redacted[key] = /password|token|secret|cookie|authorization|phone|email/i.test(key)

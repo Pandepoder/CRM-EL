@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-// @ts-ignore
-import { Users, Plus, ShieldAlert, MapPin, Shield, X, Edit, Trash } from "lucide-react";
+import { Users, Plus, MapPin, X, Edit, Trash, ArrowRight, User, Search, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 
 type Team = {
   id: string;
@@ -14,36 +14,48 @@ type Team = {
   leaderId: string;
   municipality?: string | null;
   section?: string | null;
+  membersCount?: number;
+  contactsCount?: number;
+  isMyTeam?: boolean;
 };
 
 type UserProfile = {
   id: string;
   displayName: string;
+  roleKey?: string | null;
 };
 
 type Props = {
   teams: Team[];
   users: UserProfile[];
+  isGlobalAdmin?: boolean;
+  currentUserId?: string;
 };
 
-export default function TeamsClient({ teams, users }: Props) {
+export default function TeamsClient({ teams, users, isGlobalAdmin = true, currentUserId }: Props) {
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", leaderId: "", zone: "", municipality: "Guadalajara", section: "" });
-
+  const [searchTerm, setSearchTerm] = useState("");
+  const [form, setForm] = useState({ name: "", leaderId: "", zone: "Tonalá", municipality: "Tonalá", section: "" });
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   function openCreateModal() {
     setEditingId(null);
-    setForm({ name: "", leaderId: "", zone: "", municipality: "Guadalajara", section: "" });
+    setForm({ name: "", leaderId: currentUserId || (users[0]?.id ?? ""), zone: "Tonalá", municipality: "Tonalá", section: "" });
     setShowModal(true);
   }
 
   function openEditModal(t: Team) {
     setEditingId(t.id);
-    setForm({ name: t.name, leaderId: t.leaderId, zone: t.zone || "", municipality: t.municipality || "Guadalajara", section: t.section || "" });
+    setForm({
+      name: t.name,
+      leaderId: t.leaderId,
+      zone: t.zone || "Tonalá",
+      municipality: t.municipality || "Tonalá",
+      section: t.section || ""
+    });
     setShowModal(true);
   }
 
@@ -62,7 +74,7 @@ export default function TeamsClient({ teams, users }: Props) {
       });
       if (res.ok) {
         setShowModal(false);
-        setForm({ name: "", leaderId: "", zone: "", municipality: "Guadalajara", section: "" });
+        setForm({ name: "", leaderId: "", zone: "Tonalá", municipality: "Tonalá", section: "" });
         router.refresh();
       } else {
         alert("Error al guardar equipo");
@@ -73,7 +85,7 @@ export default function TeamsClient({ teams, users }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("¿Seguro que quieres eliminar esta brigada? Se eliminarán también las asignaciones de sus miembros.")) return;
+    if (!confirm("¿Seguro que quieres eliminar este equipo? Se conservarán los contactos registrados.")) return;
     setDeletingId(id);
     try {
       const res = await fetch(`/api/admin/teams/${id}`, { method: "DELETE" });
@@ -87,180 +99,293 @@ export default function TeamsClient({ teams, users }: Props) {
     }
   }
 
+  // Filter teams by search term
+  const filteredTeams = teams.filter(t => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      t.name.toLowerCase().includes(term) ||
+      (t.leaderName && t.leaderName.toLowerCase().includes(term)) ||
+      (t.municipality && t.municipality.toLowerCase().includes(term)) ||
+      (t.section && t.section.toLowerCase().includes(term))
+    );
+  });
+
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-8">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-sm">
-            <Users size={28} />
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-gray-100 pb-6">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-md">
+              Estructura & Redes de Trabajo
+            </span>
           </div>
-          <div>
-            <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight">Gestión de Equipos</h1>
-            <p className="text-gray-500 mt-1">Administra brigadas operativas y asigna líderes territoriales.</p>
-          </div>
+          <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight">Gestión de Equipos y Redes</h1>
+          <p className="text-gray-500 mt-1">
+            Cada usuario cuenta con su propio equipo y concentra los ciudadanos que da de alta en campo.
+          </p>
         </div>
-        <button 
-          onClick={openCreateModal}
-          className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm transition-all"
-        >
-          <Plus size={20} /> Nueva Brigada
-        </button>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {isGlobalAdmin && (
+            <button
+              onClick={openCreateModal}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all text-sm cursor-pointer active:scale-95"
+            >
+              <Plus size={16} /> Crear Nuevo Equipo
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        {teams.length === 0 ? (
-          <div className="p-16 text-center">
-            <div className="w-20 h-20 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ShieldAlert size={40} />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">No hay brigadas creadas</h2>
-            <p className="text-gray-500 mb-6">Aún no tienes equipos operativos configurados en el sistema.</p>
+      {/* SEARCH BAR */}
+      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="relative w-full sm:w-96">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre de equipo, líder o sección..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 placeholder-gray-400 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+          />
+        </div>
+        <div className="text-xs font-bold text-gray-500 self-end sm:self-center">
+          Mostrando {filteredTeams.length} {filteredTeams.length === 1 ? "equipo" : "equipos"}
+        </div>
+      </div>
+
+      {/* TEAMS GRID */}
+      {filteredTeams.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-3xl p-12 text-center shadow-sm">
+          <div className="w-16 h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Users size={32} />
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[600px]">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider font-bold text-gray-500">
-                  <th className="p-4 pl-6">Nombre de la Brigada</th>
-                  <th className="p-4">Líder Asignado</th>
-                  <th className="p-4">Zona de Operación</th>
-                  <th className="p-4 text-right pr-6">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {teams.map((t) => (
-                  <tr key={t.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="p-4 pl-6 font-bold text-gray-900 flex items-center gap-3">
-                      <div className="w-8 h-8 bg-indigo-100 text-indigo-700 rounded-lg flex items-center justify-center">
-                        <Shield size={16} />
-                      </div>
-                      {t.name}
-                    </td>
-                    <td className="p-4 text-gray-700 font-medium">
-                      {t.leaderName || <span className="text-gray-400 italic">Sin Líder</span>}
-                    </td>
-                    <td className="p-4 text-gray-600">
-                      <span className="flex items-center gap-1"><MapPin size={16} className="text-gray-400"/> {t.zone || "Global"}</span>
-                      <div className="text-xs text-gray-400 mt-1">{t.municipality || ""} {t.section ? `- Sec. ${t.section}` : ""}</div>
-                    </td>
-                    <td className="p-4 pr-6 text-right space-x-2">
-                      <Link 
-                        href={`/admin-equipos/${t.id}`}
-                        className="inline-block px-4 py-2 bg-white border border-gray-200 text-indigo-700 font-bold rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                      >
-                        Ver Integrantes
-                      </Link>
-                      <button 
+          <h2 className="text-xl font-bold text-gray-900 mb-2">No se encontraron equipos</h2>
+          <p className="text-gray-500 max-w-sm mx-auto mb-6 text-sm">
+            {searchTerm ? "No hay equipos que coincidan con tu búsqueda." : "No hay equipos configurados en este momento."}
+          </p>
+          {isGlobalAdmin && (
+            <button
+              onClick={openCreateModal}
+              className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all text-sm"
+            >
+              Crear Primer Equipo
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTeams.map((t) => (
+            <div
+              key={t.id}
+              className={`bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all flex flex-col justify-between overflow-hidden ${
+                t.isMyTeam ? "border-blue-200 ring-2 ring-blue-500/10" : "border-gray-100"
+              }`}
+            >
+              <div className="p-6 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-indigo-50 text-indigo-700 rounded-2xl flex items-center justify-center shrink-0 shadow-sm font-bold text-lg">
+                      {t.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-gray-900 leading-snug flex items-center gap-1.5">
+                        {t.name}
+                        {t.isMyTeam && (
+                          <span className="bg-blue-100 text-blue-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            Mi Equipo
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                        <MapPin size={12} className="text-rose-500" />
+                        {t.municipality || "Tonalá"} {t.section ? `· Secc #${t.section}` : ""}
+                      </p>
+                    </div>
+                  </div>
+
+                  {isGlobalAdmin && (
+                    <div className="flex items-center gap-1">
+                      <button
                         onClick={() => openEditModal(t)}
-                        className="inline-block px-3 py-2 bg-white border border-gray-200 text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                        title="Editar Brigada"
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Editar"
                       >
-                        <Edit size={16} />
+                        <Edit size={14} />
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDelete(t.id)}
                         disabled={deletingId === t.id}
-                        className="inline-block px-3 py-2 bg-white border border-red-200 text-red-600 font-bold rounded-lg hover:bg-red-50 transition-colors text-sm disabled:opacity-50"
-                        title="Eliminar Brigada"
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Eliminar"
                       >
-                        {deletingId === t.id ? "..." : <Trash size={16} />}
+                        <Trash size={14} />
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                    </div>
+                  )}
+                </div>
 
+                {/* LEADER INFO */}
+                {t.leaderId ? (
+                  <Link
+                    href={`/perfil/${t.leaderId}`}
+                    className="bg-gray-50/80 hover:bg-blue-50/80 rounded-2xl p-3 flex items-center gap-3 border border-gray-100 transition-colors group cursor-pointer"
+                    title="Ver perfil 360°, personas subidas y agenda de este líder"
+                  >
+                    <div className="w-8 h-8 bg-blue-100 group-hover:bg-blue-600 text-blue-700 group-hover:text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors">
+                      <User size={14} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Líder Responsable</div>
+                      <div className="text-xs font-bold text-gray-900 group-hover:text-blue-700 truncate transition-colors flex items-center gap-1">
+                        <span>{t.leaderName || "Sin líder"}</span>
+                        <ChevronRight size={12} className="opacity-0 group-hover:opacity-100 text-blue-600 transition-opacity" />
+                      </div>
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="bg-gray-50/80 rounded-2xl p-3 flex items-center gap-3 border border-gray-100">
+                    <div className="w-8 h-8 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
+                      <User size={14} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Líder Responsable</div>
+                      <div className="text-xs font-bold text-gray-400 truncate">Sin líder asignado</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* STATS BADGES */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="bg-indigo-50/60 rounded-xl p-2.5 text-center border border-indigo-100/50">
+                    <div className="text-lg font-black text-indigo-900">{t.membersCount ?? 1}</div>
+                    <div className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">Integrantes</div>
+                  </div>
+
+                  <div className="bg-emerald-50/60 rounded-xl p-2.5 text-center border border-emerald-100/50">
+                    <div className="text-lg font-black text-emerald-900">{t.contactsCount ?? 0}</div>
+                    <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Ciudadanos en Red</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* FOOTER LINK */}
+              <div className="p-4 bg-gray-50/50 border-t border-gray-100 flex justify-between items-center">
+                <span className="text-xs font-semibold text-gray-500">
+                  {t.contactsCount ?? 0} registros capturados
+                </span>
+                <Link
+                  href={`/admin-equipos/${t.id}`}
+                  className="px-3.5 py-1.5 bg-white hover:bg-blue-50 text-blue-700 hover:text-blue-900 border border-gray-200 hover:border-blue-200 font-bold rounded-xl transition-all text-xs flex items-center gap-1 shadow-sm"
+                >
+                  Ver Equipo y Red <ArrowRight size={12} />
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* CREATE / EDIT MODAL */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <h2 className="text-xl font-bold text-blue-950">{editingId ? "Editar Brigada" : "Nueva Brigada"}</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 p-1">
+        <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8">
+            <div className="px-6 py-4 bg-gradient-to-r from-blue-900 to-indigo-900 text-white flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-bold">
+                  {editingId ? "Editar Equipo / Brigada" : "Crear Nuevo Equipo"}
+                </h2>
+                <p className="text-xs text-blue-200 mt-0.5">
+                  Organiza redes de trabajo y asigna a un líder responsable.
+                </p>
+              </div>
+              <button onClick={() => setShowModal(false)} className="text-white/80 hover:text-white p-1">
                 <X size={20} />
               </button>
             </div>
-            
-            <form onSubmit={handleSave} className="p-6 space-y-5">
+
+            <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Nombre del Equipo *</label>
-                <input 
-                  type="text" 
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Nombre del Equipo / Red *
+                </label>
+                <input
+                  type="text"
                   required
-                  placeholder="Ej. Brigada Centro"
+                  placeholder="Ej. Brigada Loma Dorada o Red de Monse..."
                   value={form.name}
-                  onChange={e => setForm({...form, name: e.target.value})}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Líder *</label>
-                <select 
+                <PredictiveCombobox
+                  label="Líder del Equipo *"
                   required
+                  allowCustom={false}
+                  placeholder="Seleccionar usuario líder..."
                   value={form.leaderId}
-                  onChange={e => setForm({...form, leaderId: e.target.value})}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-white"
-                >
-                  <option value="" disabled>Selecciona un líder...</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.displayName}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Zona (Opcional)</label>
-                <input 
-                  type="text" 
-                  placeholder="Ej. Sector 1"
-                  value={form.zone}
-                  onChange={e => setForm({...form, zone: e.target.value})}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  onChange={(val) => setForm({ ...form, leaderId: val })}
+                  options={users.map((u) => ({
+                    value: u.id,
+                    label: u.displayName,
+                    badge: u.roleKey || "Usuario"
+                  }))}
+                  icon={<User size={13} className="text-blue-600" />}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Municipio</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej. Guadalajara"
+                  <PredictiveCombobox
+                    label="Municipio"
+                    allowCustom={false}
                     value={form.municipality}
-                    onChange={e => setForm({...form, municipality: e.target.value})}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    onChange={(val) => setForm({ ...form, municipality: val })}
+                    options={[
+                      { value: "Tonalá", label: "Tonalá", badge: "Principal" },
+                      { value: "Guadalajara", label: "Guadalajara" },
+                      { value: "San Pedro Tlaquepaque", label: "Tlaquepaque" },
+                      { value: "Zapopan", label: "Zapopan" },
+                      { value: "Tlajomulco de Zúñiga", label: "Tlajomulco" },
+                      { value: "El Salto", label: "El Salto" },
+                      { value: "Zapotlanejo", label: "Zapotlanejo" }
+                    ]}
+                    icon={<MapPin size={13} className="text-rose-500" />}
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Sección</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej. 1234"
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Sección Electoral (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej. 2704"
                     value={form.section}
-                    onChange={e => setForm({...form, section: e.target.value})}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    onChange={(e) => setForm({ ...form, section: e.target.value })}
+                    className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm"
                   />
                 </div>
               </div>
 
-              <div className="pt-2 flex gap-3">
-                <button 
-                  type="button" 
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+                <button
+                  type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                  className="px-5 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 text-sm"
                 >
                   Cancelar
                 </button>
-                <button 
-                  type="submit" 
-                  disabled={saving || !form.name || !form.leaderId}
-                  className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  {saving ? "Guardando..." : "Crear"}
+                  {saving ? "Guardando..." : "Guardar Equipo"}
                 </button>
               </div>
             </form>

@@ -27,6 +27,7 @@ import {
   Eye,
   Minimize2
 } from "lucide-react";
+import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 
 // Lucide icon SVGs baked for crisp Leaflet HTML markers
 const SVGS = {
@@ -63,29 +64,29 @@ const MUNICIPALITY_COLORS: Record<string, { stroke: string; fill: string }> = {
 };
 
 const TILE_STYLES = {
-  positron: {
-    name: "Carto Claro",
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    attribution: "&copy; CartoDB & OpenStreetMap",
-    icon: "🏙️"
+  esriStreet: {
+    name: "Calles HD (Color)",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+    attribution: "&copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
+    icon: "🗺️"
   },
   dark: {
     name: "Táctico Nocturno",
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    attribution: "&copy; CartoDB Dark Matter",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    attribution: "&copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
     icon: "🌙"
+  },
+  osm: {
+    name: "OpenStreetMap",
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: "&copy; OpenStreetMap contributors",
+    icon: "🏙️"
   },
   satellite: {
     name: "Satélite HD",
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: "&copy; Esri World Imagery",
+    attribution: "&copy; Esri, Maxar, Earthstar Geographics",
     icon: "🛰️"
-  },
-  osm: {
-    name: "Calles Clásico",
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: "&copy; OpenStreetMap Contributors",
-    icon: "🗺️"
   }
 } as const;
 
@@ -152,10 +153,13 @@ export default function MapaPage() {
   const [mapRef, setMapRef] = useState<any>(null);
   const [tileLayerRef, setTileLayerRef] = useState<any>(null);
   const [markersLayer, setMarkersLayer] = useState<any>(null);
+  const [contactsLayer, setContactsLayer] = useState<any>(null);
   const [geoJsonLayer, setGeoJsonLayer] = useState<any>(null);
   const [labelsLayer, setLabelsLayer] = useState<any>(null);
   const [userLocationMarker, setUserLocationMarker] = useState<any>(null);
   const [allReports, setAllReports] = useState<ReportFeature[]>([]);
+  const [allContacts, setAllContacts] = useState<any[]>([]);
+  const [showContacts, setShowContacts] = useState(false);
   const [sectionsData, setSectionsData] = useState<any>(null);
   const [systemUsers, setSystemUsers] = useState<UserOption[]>([]);
   
@@ -184,19 +188,20 @@ export default function MapaPage() {
   const [isLocatingGPS, setIsLocatingGPS] = useState(false);
 
   // Layer Toggles & Map View Settings (Inicialmente limpias)
-  const [selectedTileStyle, setSelectedTileStyle] = useState<string>("positron");
+  const [selectedTileStyle, setSelectedTileStyle] = useState<string>("esriStreet");
   const [showSections, setShowSections] = useState(false);
   const [showSectionLabels, setShowSectionLabels] = useState(false);
   const [enableClustering, setEnableClustering] = useState(true);
+  const [mapZoom, setMapZoom] = useState<number>(12);
 
   // Filters & Search for Map
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMunicipality, setSelectedMunicipality] = useState<string>("all");
+  const [selectedMunicipality, setSelectedMunicipality] = useState<string>("Tonalá");
   const [activeCategories] = useState<Set<string>>(new Set(Object.keys(CATEGORIES)));
 
   // Incident Center Specific Filters & Controls
   const [incidentSearchQuery, setIncidentSearchQuery] = useState("");
-  const [incidentMunicipalityFilter, setIncidentMunicipalityFilter] = useState<string>("all");
+  const [incidentMunicipalityFilter, setIncidentMunicipalityFilter] = useState<string>("Tonalá");
   const [incidentCategoryFilter, setIncidentCategoryFilter] = useState<string>("all");
 
   // New report creation modal & Reverse Geocoding State
@@ -204,12 +209,12 @@ export default function MapaPage() {
   const [newReportCoords, setNewReportCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isGeocodingLoading, setIsGeocodingLoading] = useState(false);
   const [detectedLocationInfo, setDetectedLocationInfo] = useState<{
-    address?: string;
-    sectionNum?: number;
-    sectionId?: string;
-    municipality?: string;
-    colony?: string;
-    postcode?: string;
+    address?: string | undefined;
+    sectionNum?: number | undefined;
+    sectionId?: string | undefined;
+    municipality?: string | undefined;
+    colony?: string | undefined;
+    postcode?: string | undefined;
   } | null>(null);
   
   const [reportForm, setReportForm] = useState({ 
@@ -218,6 +223,7 @@ export default function MapaPage() {
     description: "", 
     category: "servicios",
     municipality: "Tonalá",
+    sectionId: "",
     assignedToUserId: ""
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -256,42 +262,91 @@ export default function MapaPage() {
     }
   };
 
-  // Perform Live Reverse Geocoding with Nominatim & INE Section Matching
-  const triggerIncidentCreation = useCallback(async (lat: number, lng: number, explicitMuni?: string) => {
+  // Perform Live Reverse Geocoding with instant 0ms client-side geometry match + Nominatim
+  const triggerIncidentCreation = useCallback(async (lat: number, lng: number, explicitMuni?: string, explicitSectionId?: string) => {
     setNewReportCoords({ lat, lng });
     setIsGeocodingLoading(true);
     setIsReportModalOpen(true);
-    
+
+    // 1. Instant client-side match with loaded sectionsData (0ms instant feedback)
+    let instantSectionNum: number | undefined;
+    let instantSectionId = explicitSectionId;
+    let instantMuni = explicitMuni || (selectedMunicipality !== "all" ? selectedMunicipality : "Tonalá");
+    let instantColony: string | undefined;
+
+    if (sectionsData?.features) {
+      for (const feat of sectionsData.features) {
+        if (feat.geometry) {
+          try {
+            const poly = feat.geometry.type === "Polygon" ? feat.geometry.coordinates[0] : feat.geometry.coordinates?.[0]?.[0];
+            if (poly && poly.length > 2) {
+              let inside = false;
+              for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+                const xi = poly[i][0], yi = poly[i][1];
+                const xj = poly[j][0], yj = poly[j][1];
+                const intersect = ((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+              }
+              if (inside) {
+                instantSectionNum = feat.properties?.section_num;
+                instantSectionId = feat.properties?.id;
+                instantMuni = feat.properties?.municipality || instantMuni;
+                instantColony = feat.properties?.colonies?.[0];
+                break;
+              }
+            }
+          } catch {
+            // fallback
+          }
+        }
+      }
+    }
+
+    setDetectedLocationInfo({
+      address: `Ubicación en ${instantMuni}`,
+      sectionNum: instantSectionNum,
+      sectionId: instantSectionId,
+      municipality: instantMuni,
+      colony: instantColony,
+      postcode: "45400"
+    });
+
     setReportForm({
-      title: "",
-      address: "Buscando dirección exacta en mapa...",
+      title: instantColony ? `Reporte en ${instantColony}` : `Reporte en ${instantMuni}`,
+      address: `Coordenadas: ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
       description: "",
       category: "servicios",
-      municipality: explicitMuni || (selectedMunicipality !== "all" ? selectedMunicipality : "Tonalá"),
+      municipality: instantMuni,
+      sectionId: instantSectionId || "",
       assignedToUserId: ""
     });
 
+    // 2. Fetch live street address and database verified section from API
     try {
       const res = await fetch(`/api/map/reverse-geocode?lat=${lat}&lng=${lng}`);
       if (res.ok) {
         const data = await res.json();
-        const detectedMuni = explicitMuni || data.municipality || "Tonalá";
-        const detectedAddress = data.address || `Ubicación en ${detectedMuni}, Jalisco`;
-        
+        const detectedMuni = explicitMuni || data.municipality || instantMuni;
+        const detectedAddress = data.formattedAddress || data.address || `Ubicación en ${detectedMuni}, Jalisco`;
+        const detectedSecNum = data.sectionNum || instantSectionNum;
+        const detectedSecId = data.sectionId || instantSectionId;
+        const detectedCol = data.colony || instantColony;
+
         setDetectedLocationInfo({
           address: detectedAddress,
-          sectionNum: data.sectionNum,
-          sectionId: data.sectionId,
+          sectionNum: detectedSecNum,
+          sectionId: detectedSecId,
           municipality: detectedMuni,
-          colony: data.colony,
-          postcode: data.postcode
+          colony: detectedCol,
+          postcode: data.postalCode || data.postcode || "45400"
         });
 
         setReportForm((prev) => ({
           ...prev,
           address: detectedAddress,
           municipality: detectedMuni,
-          title: prev.title || (data.colony ? `Reporte en ${data.colony}` : `Reporte en ${detectedMuni}`)
+          sectionId: detectedSecId || prev.sectionId,
+          title: prev.title || (detectedCol ? `Reporte en ${detectedCol}` : `Reporte en ${detectedMuni}`)
         }));
       }
     } catch (err) {
@@ -299,7 +354,7 @@ export default function MapaPage() {
     } finally {
       setIsGeocodingLoading(false);
     }
-  }, [selectedMunicipality]);
+  }, [selectedMunicipality, sectionsData]);
 
   // Mobile GPS Geolocation Handler
   const handleLocateMe = () => {
@@ -312,9 +367,13 @@ export default function MapaPage() {
     showToast("📍 Obteniendo tu ubicación GPS...");
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         setIsLocatingGPS(false);
         const { latitude, longitude, accuracy } = position.coords;
+
+        // Auto-detect territory and section
+        setNewReportCoords({ lat: latitude, lng: longitude });
+        triggerIncidentCreation(latitude, longitude);
 
         if (mapRef && L) {
           mapRef.flyTo([latitude, longitude], 16, { duration: 1.2 });
@@ -334,7 +393,13 @@ export default function MapaPage() {
           });
 
           const marker = L.marker([latitude, longitude], { icon: gpsIcon })
-            .bindPopup(`<strong>📍 Estás aquí</strong><br/><span style="font-size:11px;color:#64748b;">Precisión: ±${Math.round(accuracy)}m</span>`)
+            .bindPopup(`
+              <div style="font-family:sans-serif; min-width:180px;">
+                <strong style="font-size:13px; color:#0f172a;">📍 Ubicación GPS Detectada</strong>
+                <p style="margin:4px 0 0 0; font-size:11px; color:#2563eb; font-weight:700;">Precisión: ±${Math.round(accuracy)}m</p>
+                <p style="margin:4px 0 0 0; font-size:10px; color:#64748b;">Municipio y sección detectados automáticamente</p>
+              </div>
+            `)
             .addTo(mapRef);
 
           setUserLocationMarker(marker);
@@ -382,20 +447,26 @@ export default function MapaPage() {
 
       leafletModule.control.zoom({ position: "bottomright" }).addTo(map);
 
-      // Default base layer: CartoDB Positron
-      const initialTiles = leafletModule.tileLayer(TILE_STYLES.positron.url, {
-        attribution: TILE_STYLES.positron.attribution,
-        maxZoom: 19,
-        subdomains: "abcd"
+      // Default base layer: Esri World Street Map (HD, Crisp & Free)
+      const initialTiles = leafletModule.tileLayer(TILE_STYLES.esriStreet.url, {
+        attribution: TILE_STYLES.esriStreet.attribution,
+        maxZoom: 19
       }).addTo(map);
 
       setTileLayerRef(initialTiles);
 
       const layer = leafletModule.layerGroup().addTo(map);
+      const cLayer = leafletModule.layerGroup().addTo(map);
       const labels = leafletModule.layerGroup().addTo(map);
       setMarkersLayer(layer);
+      setContactsLayer(cLayer);
       setLabelsLayer(labels);
       setMapRef(map);
+      (window as any).__leafletMap = map;
+
+      map.on("zoomend", () => {
+        setMapZoom(map.getZoom());
+      });
 
       setTimeout(() => map.invalidateSize(), 150);
       setTimeout(() => map.invalidateSize(), 400);
@@ -449,6 +520,19 @@ export default function MapaPage() {
     }
   }, []);
 
+  // 2b. Fetch Contacts (with PAN Militancy & Network Colors)
+  const fetchContacts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/map/contacts", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setAllContacts(data.features || []);
+      }
+    } catch (error) {
+      console.error("Failed to load map contacts:", error);
+    }
+  }, []);
+
   // 3. Fetch Sections GeoJSON
   const fetchSections = useCallback(async () => {
     try {
@@ -477,9 +561,10 @@ export default function MapaPage() {
 
   useEffect(() => {
     fetchReports();
+    fetchContacts();
     fetchSections();
     fetchUsers();
-  }, [fetchReports, fetchSections, fetchUsers]);
+  }, [fetchReports, fetchContacts, fetchSections, fetchUsers]);
 
   // 5. Toggle Single Report Status
   const handleToggleReportStatus = useCallback(async (reportId: string, newStatus: string) => {
@@ -714,7 +799,7 @@ export default function MapaPage() {
     mapRef.flyTo(config.center, config.zoom, { duration: 1.2 });
   };
 
-  // 11. Render Incident Markers with Guaranteed Prominence & Category Logos
+  // 11. Render Incident Markers with Guaranteed Prominence, Radial Dispersion & Zero Overlap
   useEffect(() => {
     if (!L || !markersLayer || !mapRef) return;
 
@@ -725,6 +810,23 @@ export default function MapaPage() {
     });
 
     const zoom = mapRef.getZoom();
+
+    // 1. Group individual reports by proximity (< 0.00018 deg, ~15m) to avoid stacking ("amontonamiento")
+    const proximityGroups: Array<{
+      centerLat: number;
+      centerLng: number;
+      reports: ReportFeature[];
+    }> = [];
+
+    filtered.forEach((report) => {
+      const [lng, lat] = report.geometry.coordinates;
+      let matched = proximityGroups.find((g) => Math.hypot(g.centerLat - lat, g.centerLng - lng) < 0.00018);
+      if (!matched) {
+        matched = { centerLat: lat, centerLng: lng, reports: [] };
+        proximityGroups.push(matched);
+      }
+      matched.reports.push(report);
+    });
 
     if (enableClustering && zoom <= 14) {
       const gridSize = zoom <= 11 ? 0.05 : zoom <= 13 ? 0.02 : 0.008;
@@ -745,8 +847,7 @@ export default function MapaPage() {
         const avgLng = c.lngSum / count;
 
         if (count === 1) {
-          const report = c.reports[0]!;
-          renderSingleMarker(report, avgLat, avgLng);
+          renderSingleMarker(c.reports[0]!, avgLat, avgLng, 0, 1);
         } else {
           const hasEmergency = c.reports.some(r => r.properties.category === "emergencia" && r.properties.status === "active");
           const clusterIcon = L.divIcon({
@@ -763,15 +864,41 @@ export default function MapaPage() {
 
           L.marker([avgLat, avgLng], { icon: clusterIcon })
             .on("click", () => {
-              mapRef.flyTo([avgLat, avgLng], zoom + 2, { duration: 0.8 });
+              mapRef.flyTo([avgLat, avgLng], Math.min(zoom + 2, 16), { duration: 0.8 });
             })
             .addTo(markersLayer);
         }
       });
     } else {
-      filtered.forEach((report) => {
-        const [lng, lat] = report.geometry.coordinates;
-        renderSingleMarker(report, lat, lng);
+      // Disperse coincident markers so they never overlap or hide each other
+      proximityGroups.forEach((group) => {
+        const total = group.reports.length;
+        if (total === 1) {
+          renderSingleMarker(group.reports[0]!, group.centerLat, group.centerLng, 0, 1);
+        } else {
+          // Dynamic zoom-aware dispersion radius (~36-44px visual separation on screen)
+          const metersPerPixel = (156543.03392 * Math.cos((group.centerLat * Math.PI) / 180)) / Math.pow(2, zoom);
+          const pixelOffset = Math.min(48, Math.max(34, 28 + total * 3));
+          const radiusMeters = pixelOffset * metersPerPixel;
+          const radiusLat = radiusMeters / 111139;
+          const radiusLng = radiusMeters / (111139 * Math.cos((group.centerLat * Math.PI) / 180));
+
+          group.reports.forEach((report, idx) => {
+            const angle = (2 * Math.PI * idx) / total;
+            const dispLat = group.centerLat + radiusLat * Math.cos(angle);
+            const dispLng = group.centerLng + radiusLng * Math.sin(angle);
+
+            // Connective spider line
+            L.polyline([[group.centerLat, group.centerLng], [dispLat, dispLng]], {
+              color: "#94a3b8",
+              weight: 2,
+              dashArray: "3, 3",
+              opacity: 0.85
+            }).addTo(markersLayer);
+
+            renderSingleMarker(report, dispLat, dispLng, idx, total);
+          });
+        }
       });
     }
 
@@ -780,7 +907,7 @@ export default function MapaPage() {
       markersLayer.bringToFront();
     }
 
-    function renderSingleMarker(report: ReportFeature, lat: number, lng: number) {
+    function renderSingleMarker(report: ReportFeature, lat: number, lng: number, indexInGroup = 0, totalInGroup = 1) {
       const cat = CATEGORIES[report.properties.category] ?? {
         label: report.properties.category,
         svg: SVGS.AlertCircle,
@@ -791,11 +918,17 @@ export default function MapaPage() {
       const isResolved = report.properties.status === "resolved";
       const isEmergency = report.properties.category === "emergencia" && !isResolved;
 
+      const badgeHtml = totalInGroup > 1 
+        ? `<div style="position:absolute; top:-4px; right:-4px; background:#0f172a; color:white; width:15px; height:15px; border-radius:50%; font-size:9px; font-weight:800; display:flex; align-items:center; justify-content:center; border:1.5px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3);">${indexInGroup + 1}</div>`
+        : isResolved 
+        ? `<div style="position:absolute; bottom:-2px; right:-2px; background:#16a34a; color:white; width:14px; height:14px; border-radius:50%; font-size:10px; display:flex; align-items:center; justify-content:center; border:1.5px solid white;">✓</div>`
+        : '';
+
       const icon = L.divIcon({
         html: `
           <div style="position:relative; width:36px; height:36px; border-radius:50%; background-color:${isResolved ? '#f0fdf4' : cat.bg}; display:flex; align-items:center; justify-content:center; color:${isResolved ? '#16a34a' : cat.color}; border: 2.5px solid ${isResolved ? '#16a34a' : isEmergency ? '#ef4444' : 'white'}; box-shadow: 0 4px 12px rgba(0,0,0,0.28); opacity: ${isResolved ? 0.85 : 1}; cursor: pointer; transform: scale(1.05);">
             ${cat.svg}
-            ${isResolved ? `<div style="position:absolute; bottom:-2px; right:-2px; background:#16a34a; color:white; width:14px; height:14px; border-radius:50%; font-size:10px; display:flex; align-items:center; justify-content:center; border:1.5px solid white;">✓</div>` : ''}
+            ${badgeHtml}
             ${isEmergency ? `<div style="position:absolute; inset:-3px; border-radius:50%; border:2px solid #ef4444; animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>` : ''}
           </div>
         `,
@@ -824,8 +957,15 @@ export default function MapaPage() {
             ✓ Marcar Atendida
           </button>`;
 
+      const multiBadge = totalInGroup > 1
+        ? `<div style="font-size:10px; font-weight:800; color:#4338ca; background:#eef2ff; padding:3px 8px; border-radius:6px; margin-bottom:8px; display:inline-block; border:1px solid #c7d2fe;">
+            📍 Incidencia ${indexInGroup + 1} de ${totalInGroup} en esta ubicación
+          </div>`
+        : '';
+
       const popupHtml = `
         <div style="font-family:system-ui,-apple-system,sans-serif; min-width:260px; max-width:320px; padding:6px;">
+          ${multiBadge}
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
             <div style="display:flex; align-items:center; gap:6px;">
               <div style="width:24px; height:24px; border-radius:6px; background:${cat.bg}; color:${cat.color}; display:flex; align-items:center; justify-content:center;">${cat.svg}</div>
@@ -855,7 +995,104 @@ export default function MapaPage() {
         .bindPopup(popupHtml, { closeButton: true, maxWidth: 320, offset: [0, -5] })
         .addTo(markersLayer);
     }
-  }, [L, markersLayer, mapRef, allReports, activeCategories, enableClustering]);
+  }, [L, markersLayer, mapRef, allReports, activeCategories, enableClustering, mapZoom]);
+
+  // 11b. Render Contacts on Map (with Dynamic Spatial Clustering & PAN Militancy Badges)
+  useEffect(() => {
+    if (!L || !contactsLayer || !mapRef) return;
+
+    contactsLayer.clearLayers();
+    if (!showContacts) return;
+
+    const zoom = mapRef.getZoom();
+
+    if (enableClustering && zoom <= 14) {
+      const gridSize = zoom <= 11 ? 0.04 : zoom <= 13 ? 0.015 : 0.006;
+      const clusters: Record<string, { contacts: any[]; latSum: number; lngSum: number; panCount: number }> = {};
+
+      allContacts.forEach((contact: any) => {
+        const [lng, lat] = contact.geometry.coordinates;
+        const key = `${Math.floor(lat / gridSize)}_${Math.floor(lng / gridSize)}`;
+        if (!clusters[key]) clusters[key] = { contacts: [], latSum: 0, lngSum: 0, panCount: 0 };
+        clusters[key].contacts.push(contact);
+        clusters[key].latSum += lat;
+        clusters[key].lngSum += lng;
+        if (contact.properties?.isPanConfirmed) clusters[key].panCount++;
+      });
+
+      Object.values(clusters).forEach((c) => {
+        const count = c.contacts.length;
+        const avgLat = c.latSum / count;
+        const avgLng = c.lngSum / count;
+
+        if (count === 1) {
+          renderSingleContact(c.contacts[0], avgLat, avgLng);
+        } else {
+          const clusterIcon = L.divIcon({
+            html: `
+              <div style="position:relative; width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2.5px solid #ffffff; box-shadow:0 6px 20px rgba(37,99,235,0.45); cursor:pointer; font-family:system-ui,-apple-system,sans-serif; transition:all 0.15s ease;">
+                <div style="font-size:13px; font-weight:900; line-height:1; letter-spacing:-0.5px;">${count}</div>
+                ${c.panCount > 0 
+                  ? `<div style="font-size:9px; font-weight:800; color:#93c5fd; margin-top:2px; display:flex; align-items:center; gap:1px;">Ⓜ️ ${c.panCount}</div>` 
+                  : `<div style="font-size:8px; font-weight:700; color:#bfdbfe; text-transform:uppercase; margin-top:1px;">Red</div>`}
+                <div style="position:absolute; inset:-4px; border-radius:50%; border:1.5px solid rgba(59,130,246,0.35); pointer-events:none;"></div>
+              </div>
+            `,
+            className: "contact-cluster-marker",
+            iconSize: [44, 44],
+            iconAnchor: [22, 22]
+          });
+
+          L.marker([avgLat, avgLng], { icon: clusterIcon })
+            .on("click", () => {
+              mapRef.flyTo([avgLat, avgLng], Math.min(zoom + 2, 16), { duration: 0.8 });
+            })
+            .addTo(contactsLayer);
+        }
+      });
+    } else {
+      allContacts.forEach((contact: any) => {
+        const [lng, lat] = contact.geometry.coordinates;
+        renderSingleContact(contact, lat, lng);
+      });
+    }
+
+    function renderSingleContact(contact: any, lat: number, lng: number) {
+      const p = contact.properties;
+      const isPan = p.isPanConfirmed;
+      const color = p.networkColor || "#2563eb";
+
+      const contactIcon = L.divIcon({
+        html: `
+          <div style="position:relative; display:flex; align-items:center; justify-content:center; cursor:pointer;" title="${p.displayName} (${isPan ? 'PAN Confirmado' : 'Contacto'})">
+            <div style="width:30px; height:30px; border-radius:50%; background:${isPan ? '#2563eb' : '#ffffff'}; color:${isPan ? '#ffffff' : color}; border:2.5px solid ${isPan ? '#ffffff' : color}; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,0.25); font-size:12px; font-weight:900;">
+              ${isPan ? 'Ⓜ️' : '👤'}
+            </div>
+          </div>
+        `,
+        className: "contact-map-marker",
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+        popupAnchor: [0, -16]
+      });
+
+      const popupHtml = `
+        <div style="font-family:system-ui,-apple-system,sans-serif; min-width:220px; padding:6px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
+            <strong style="font-size:14px; font-weight:800; color:#0f172a;">${p.displayName}</strong>
+            ${isPan ? '<span style="background:#2563eb; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:999px;">PAN Confirmado</span>' : ''}
+          </div>
+          <p style="margin:0 0 2px 0; font-size:11px; color:#475569;">📍 ${p.colony || 'Colonia por definir'}, ${p.municipality || 'Tonalá'}</p>
+          <p style="margin:0 0 8px 0; font-size:11px; color:#64748b;">👥 Red: <strong style="color:#0f172a;">${p.creatorName || 'Equipo'}</strong></p>
+          <a href="/crm/contacts/${p.id}" style="display:block; text-align:center; padding:7px 12px; background:#2563eb; color:white; border-radius:8px; font-size:11px; font-weight:800; text-decoration:none; box-shadow:0 2px 6px rgba(37,99,235,0.3);">Ver Ficha 360°</a>
+        </div>
+      `;
+
+      L.marker([lat, lng], { icon: contactIcon })
+        .bindPopup(popupHtml)
+        .addTo(contactsLayer);
+    }
+  }, [L, contactsLayer, mapRef, allContacts, showContacts, enableClustering, mapZoom]);
 
   // Filtered sections for search
   const filteredSectionsList = useMemo(() => {
@@ -871,7 +1108,7 @@ export default function MapaPage() {
 
     return baseList.filter((p: SectionProperties) => {
       const secMatch = String(p.section_num).includes(query);
-      const colMatch = p.colonies.some(c => c.toLowerCase().includes(query));
+      const colMatch = p.colonies?.some((c: string) => c.toLowerCase().includes(query));
       const munMatch = (p.municipality || "").toLowerCase().includes(query);
       return secMatch || colMatch || munMatch;
     });
@@ -915,13 +1152,13 @@ export default function MapaPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: reportForm.title,
-          description: fullDescription,
+          title: reportForm.title.trim(),
+          description: fullDescription.trim(),
           category: reportForm.category,
           latitude: newReportCoords.lat,
           longitude: newReportCoords.lng,
           municipality: reportForm.municipality || "Tonalá",
-          sectionId: detectedLocationInfo?.sectionId,
+          sectionId: reportForm.sectionId || detectedLocationInfo?.sectionId || null,
           assignedToUserId: reportForm.assignedToUserId || null
         }),
       });
@@ -1118,9 +1355,58 @@ export default function MapaPage() {
         )}
 
         {/* Right: Drawer Triggers and Actions */}
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
           {activeTab === "map" && (
             <>
+              {/* Quick Tile Style Switcher */}
+              <div style={{ display: "flex", alignItems: "center", background: "#f1f5f9", padding: "2px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
+                {Object.entries(TILE_STYLES).slice(0, 3).map(([key, style]) => (
+                  <button
+                    key={key}
+                    onClick={() => handleChangeTileStyle(key)}
+                    title={style.name}
+                    style={{
+                      padding: "5px 8px",
+                      borderRadius: "6px",
+                      border: "none",
+                      background: selectedTileStyle === key ? "#2563eb" : "transparent",
+                      color: selectedTileStyle === key ? "#ffffff" : "#475569",
+                      fontSize: "10px",
+                      fontWeight: "800",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "3px",
+                      transition: "all 0.15s"
+                    }}
+                  >
+                    <span>{style.icon}</span>
+                    <span>{key === "esriStreet" ? "Calles HD" : key === "dark" ? "Noche" : "OSM"}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Contacts Layer Quick Toggle */}
+              <button
+                onClick={() => {
+                  const nextVal = !showContacts;
+                  setShowContacts(nextVal);
+                  showToast(nextVal ? "👥 Capa de Contactos y Red activada" : "Capas de Contactos oculta");
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px",
+                  border: "1px solid",
+                  borderColor: showContacts ? "#93c5fd" : "#cbd5e1",
+                  backgroundColor: showContacts ? "#eff6ff" : "#f8fafc",
+                  color: showContacts ? "#1d4ed8" : "#475569",
+                  fontSize: "11px", fontWeight: "800", cursor: "pointer"
+                }}
+                title="Mostrar/Ocultar simpatizantes y militancia PAN en el mapa"
+              >
+                <Users size={14} style={{ color: showContacts ? "#2563eb" : "#64748b" }} />
+                <span>Contactos ({allContacts.length})</span>
+              </button>
+
               {/* GPS Button */}
               <button
                 onClick={handleLocateMe}
@@ -1248,6 +1534,27 @@ export default function MapaPage() {
             visibility: activeTab === "map" ? "visible" : "hidden"
           }} 
         />
+
+        {/* Floating Live KPI HUD */}
+        {activeTab === "map" && (
+          <div style={{ position: "absolute", bottom: "16px", left: "16px", zIndex: 20, display: "flex", alignItems: "center", gap: "12px", padding: "8px 16px", borderRadius: "14px", background: "rgba(15, 23, 42, 0.88)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(255, 255, 255, 0.15)", boxShadow: "0 10px 25px rgba(0,0,0,0.35)", color: "white", fontSize: "11px", fontWeight: "700", pointerEvents: "auto" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ef4444", display: "inline-block" }}></span>
+              <span style={{ color: "#fca5a5", fontWeight: "900" }}>{activeReportsCount}</span>
+              <span style={{ color: "#94a3b8", fontSize: "10px" }}>Incidencias</span>
+            </div>
+            <div style={{ width: "1px", height: "14px", background: "rgba(255,255,255,0.2)" }}></div>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ color: "#93c5fd", fontWeight: "900" }}>👥 {allContacts.length}</span>
+              <span style={{ color: "#94a3b8", fontSize: "10px" }}>Simpatizantes</span>
+            </div>
+            <div style={{ width: "1px", height: "14px", background: "rgba(255,255,255,0.2)" }}></div>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ color: "#86efac", fontWeight: "900" }}>🗳️ {sectionsData?.features?.length || 46}</span>
+              <span style={{ color: "#94a3b8", fontSize: "10px" }}>Secciones</span>
+            </div>
+          </div>
+        )}
 
         {/* Floating Toast Notification */}
         {toastMessage && (
@@ -1766,61 +2073,68 @@ export default function MapaPage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Municipio *</label>
-                  <select
+                  <PredictiveCombobox
+                    label="Municipio"
+                    required
+                    allowCustom={false}
                     value={editForm.municipality}
-                    onChange={(e) => setEditForm({ ...editForm, municipality: e.target.value })}
-                    style={{ width: "100%", padding: "7px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none" }}
-                  >
-                    <option value="Tonalá">Tonalá</option>
-                    <option value="Guadalajara">Guadalajara</option>
-                    <option value="San Pedro Tlaquepaque">Tlaquepaque</option>
-                    <option value="Zapopan">Zapopan</option>
-                    <option value="Tlajomulco de Zúñiga">Tlajomulco</option>
-                    <option value="El Salto">El Salto</option>
-                    <option value="Zapotlanejo">Zapotlanejo</option>
-                  </select>
+                    onChange={(val) => setEditForm({ ...editForm, municipality: val })}
+                    options={[
+                      { value: "Tonalá", label: "Tonalá", badge: "Principal" },
+                      { value: "Guadalajara", label: "Guadalajara" },
+                      { value: "San Pedro Tlaquepaque", label: "Tlaquepaque" },
+                      { value: "Zapopan", label: "Zapopan" },
+                      { value: "Tlajomulco de Zúñiga", label: "Tlajomulco" },
+                      { value: "El Salto", label: "El Salto" },
+                      { value: "Zapotlanejo", label: "Zapotlanejo" }
+                    ]}
+                  />
                 </div>
 
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Categoría *</label>
-                  <select
+                  <PredictiveCombobox
+                    label="Categoría"
+                    required
+                    allowCustom={false}
                     value={editForm.category}
-                    onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                    style={{ width: "100%", padding: "7px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none" }}
-                  >
-                    {Object.entries(CATEGORIES).map(([key, cat]) => (
-                      <option key={key} value={key}>{cat.label}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEditForm({ ...editForm, category: val })}
+                    options={Object.entries(CATEGORIES).map(([key, cat]) => ({
+                      value: key,
+                      label: cat.label,
+                      badge: "Categoría"
+                    }))}
+                  />
                 </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Estatus *</label>
-                  <select
+                  <PredictiveCombobox
+                    label="Estatus"
+                    required
+                    allowCustom={false}
                     value={editForm.status}
-                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    style={{ width: "100%", padding: "7px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "800", outline: "none" }}
-                  >
-                    <option value="active">● Pendiente</option>
-                    <option value="resolved">✓ Resuelta</option>
-                  </select>
+                    onChange={(val) => setEditForm({ ...editForm, status: val })}
+                    options={[
+                      { value: "active", label: "● Pendiente", badge: "Pendiente" },
+                      { value: "resolved", label: "✓ Resuelta", badge: "Resuelta" }
+                    ]}
+                  />
                 </div>
 
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Asignar Responsable</label>
-                  <select
+                  <PredictiveCombobox
+                    label="Asignar Responsable"
+                    allowCustom={false}
+                    placeholder="Buscar operador..."
                     value={editForm.assignedToUserId}
-                    onChange={(e) => setEditForm({ ...editForm, assignedToUserId: e.target.value })}
-                    style={{ width: "100%", padding: "7px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none" }}
-                  >
-                    <option value="">-- Sin Asignar --</option>
-                    {systemUsers.map((u) => (
-                      <option key={u.id} value={u.id}>{u.displayName}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEditForm({ ...editForm, assignedToUserId: val })}
+                    options={systemUsers.map((u) => ({
+                      value: u.id,
+                      label: u.displayName,
+                      badge: "Operador"
+                    }))}
+                  />
                 </div>
               </div>
 
@@ -1879,16 +2193,23 @@ export default function MapaPage() {
         </div>
       )}
 
-      {/* NEW REPORT MODAL */}
+      {/* NEW REPORT MODAL - A PRUEBA DE ERRORES */}
       {isReportModalOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
-          <div style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "440px", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
+          <div style={{ background: "white", borderRadius: "18px", width: "100%", maxWidth: "480px", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.35)", border: "1px solid #e2e8f0" }}>
+            
+            {/* Modal Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <AlertCircle size={16} />
+                <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <AlertCircle size={18} />
                 </div>
-                <h3 style={{ margin: 0, fontWeight: "900", fontSize: "14px", color: "#0f172a" }}>Registrar Incidencia</h3>
+                <div>
+                  <h3 style={{ margin: 0, fontWeight: "900", fontSize: "15px", color: "#0f172a" }}>Registrar Incidencia</h3>
+                  <div style={{ fontSize: "10px", fontWeight: "700", color: "#64748b" }}>
+                    {newReportCoords ? `Coordenadas: ${newReportCoords.lat.toFixed(5)}, ${newReportCoords.lng.toFixed(5)}` : "Punto territorial"}
+                  </div>
+                </div>
               </div>
               <button 
                 onClick={() => {
@@ -1896,39 +2217,49 @@ export default function MapaPage() {
                   setNewReportCoords(null);
                   setDetectedLocationInfo(null);
                 }}
-                style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}
+                style={{ background: "#f1f5f9", border: "none", color: "#64748b", cursor: "pointer", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
             {reportSuccess ? (
-              <div style={{ textAlign: "center", padding: "28px 16px", color: "#16a34a" }}>
-                <CheckCircle2 size={34} style={{ margin: "0 auto 8px" }} />
-                <div style={{ fontWeight: "900", fontSize: "15px" }}>¡Incidencia registrada con éxito!</div>
+              <div style={{ textAlign: "center", padding: "36px 20px", color: "#16a34a" }}>
+                <CheckCircle2 size={42} style={{ margin: "0 auto 10px" }} />
+                <div style={{ fontWeight: "900", fontSize: "16px", color: "#0f172a" }}>¡Incidencia Registrada con Éxito!</div>
+                <p style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
+                  Se ha georreferenciado y asignado a la sección electoral correspondiente.
+                </p>
               </div>
             ) : (
-              <form onSubmit={handleSubmitReport} style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              <form onSubmit={handleSubmitReport} style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: "11px", overflowY: "auto" }}>
                 
-                {/* Location Detection Box */}
-                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "10px" }}>
+                {/* 1. Location Detection & Section Match Box */}
+                <div style={{ background: isGeocodingLoading ? "#eff6ff" : "#f0fdf4", border: `1px solid ${isGeocodingLoading ? "#bfdbfe" : "#bbf7d0"}`, borderRadius: "10px", padding: "10px" }}>
                   {isGeocodingLoading ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#2563eb", fontSize: "11px", fontWeight: "700" }}>
-                      <Loader2 size={14} className="animate-spin" />
-                      <span>Detectando dirección GPS y sección...</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#2563eb", fontSize: "11px", fontWeight: "700" }}>
+                      <Loader2 size={15} className="animate-spin" />
+                      <span>Detectando dirección exacta y sección electoral en mapa...</span>
                     </div>
                   ) : (
                     <div>
-                      <div style={{ fontSize: "11px", fontWeight: "800", color: "#0f172a" }}>
-                        📍 {reportForm.address}
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+                        <MapPin size={15} style={{ color: "#16a34a", marginTop: "1px", flexShrink: 0 }} />
+                        <div style={{ fontSize: "11px", fontWeight: "800", color: "#0f172a", lineHeight: "1.3" }}>
+                          {reportForm.address || "Ubicación en Territorio"}
+                        </div>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "4px" }}>
-                        <span style={{ background: "#dbeafe", color: "#1e40af", fontSize: "10px", fontWeight: "800", padding: "1px 5px", borderRadius: "4px" }}>
-                          {reportForm.municipality}
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
+                        <span style={{ background: "#dbeafe", color: "#1e40af", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px" }}>
+                          🏛️ {reportForm.municipality}
                         </span>
-                        {detectedLocationInfo?.sectionNum && (
-                          <span style={{ background: "#dcfce7", color: "#15803d", fontSize: "10px", fontWeight: "800", padding: "1px 5px", borderRadius: "4px" }}>
-                            Sección #{detectedLocationInfo.sectionNum}
+                        {detectedLocationInfo?.sectionNum ? (
+                          <span style={{ background: "#dcfce7", color: "#15803d", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px", border: "1px solid #86efac" }}>
+                            ✓ Sección Electoral #{detectedLocationInfo.sectionNum} (Confirmada)
+                          </span>
+                        ) : (
+                          <span style={{ background: "#fef3c7", color: "#b45309", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px" }}>
+                            ⚠️ Selecciona la sección manualmente
                           </span>
                         )}
                       </div>
@@ -1936,8 +2267,54 @@ export default function MapaPage() {
                   )}
                 </div>
 
+                {/* 2. Quick Category & Title Pills (One-Click Helpers) */}
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Dirección / Calle *</label>
+                  <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Plantillas Rápidas (1 Clic)</label>
+                  <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+                    {[
+                      { cat: "emergencia", icon: "🚨", label: "Emergencia", title: "Emergencia en territorio" },
+                      { cat: "alumbrado", icon: "💡", label: "Alumbrado", title: "Falla de luminaria / alumbrado público" },
+                      { cat: "bache", icon: "🕳️", label: "Bacheo", title: "Bacheo necesario en pavimento" },
+                      { cat: "fuga_agua", icon: "💧", label: "Fuga Agua", title: "Fuga de agua potable" },
+                      { cat: "basura", icon: "🧹", label: "Basura", title: "Acumulación de basura o escombros" },
+                      { cat: "seguridad", icon: "👮", label: "Seguridad", title: "Solicitud de patrullaje / vigilancia" },
+                      { cat: "brigada", icon: "👥", label: "Brigada", title: "Solicitud de apoyo con brigada" },
+                    ].map((pill) => (
+                      <button
+                        key={pill.cat}
+                        type="button"
+                        onClick={() => {
+                          const colStr = detectedLocationInfo?.colony ? ` en Col. ${detectedLocationInfo.colony}` : ` en ${reportForm.municipality}`;
+                          setReportForm((prev) => ({
+                            ...prev,
+                            category: pill.cat,
+                            title: `${pill.icon} ${pill.title}${colStr}`
+                          }));
+                        }}
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          border: `1px solid ${reportForm.category === pill.cat ? "#2563eb" : "#e2e8f0"}`,
+                          background: reportForm.category === pill.cat ? "#eff6ff" : "#f8fafc",
+                          color: reportForm.category === pill.cat ? "#1d4ed8" : "#475569",
+                          fontSize: "10px",
+                          fontWeight: "700",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "3px"
+                        }}
+                      >
+                        <span>{pill.icon}</span>
+                        <span>{pill.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Address Text */}
+                <div>
+                  <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Dirección / Calle y Cruces *</label>
                   <input
                     type="text"
                     required
@@ -1947,63 +2324,112 @@ export default function MapaPage() {
                   />
                 </div>
 
+                {/* 4. Municipality & Section Electoral Controls */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                   <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Municipio *</label>
-                    <select
+                    <PredictiveCombobox
+                      label="Municipio"
+                      required
+                      allowCustom={false}
                       value={reportForm.municipality}
-                      onChange={(e) => setReportForm({ ...reportForm, municipality: e.target.value })}
-                      style={{ width: "100%", padding: "7px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none" }}
-                    >
-                      <option value="Tonalá">Tonalá</option>
-                      <option value="Guadalajara">Guadalajara</option>
-                      <option value="San Pedro Tlaquepaque">Tlaquepaque</option>
-                      <option value="Zapopan">Zapopan</option>
-                      <option value="Tlajomulco de Zúñiga">Tlajomulco</option>
-                      <option value="El Salto">El Salto</option>
-                      <option value="Zapotlanejo">Zapotlanejo</option>
-                    </select>
+                      onChange={(val) => setReportForm({ ...reportForm, municipality: val })}
+                      options={[
+                        { value: "Tonalá", label: "Tonalá", badge: "Principal" },
+                        { value: "Guadalajara", label: "Guadalajara" },
+                        { value: "San Pedro Tlaquepaque", label: "Tlaquepaque" },
+                        { value: "Zapopan", label: "Zapopan" },
+                        { value: "Tlajomulco de Zúñiga", label: "Tlajomulco" },
+                        { value: "El Salto", label: "El Salto" },
+                        { value: "Zapotlanejo", label: "Zapotlanejo" }
+                      ]}
+                    />
                   </div>
 
                   <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Categoría *</label>
-                    <select
-                      value={reportForm.category}
-                      onChange={(e) => setReportForm({ ...reportForm, category: e.target.value })}
-                      style={{ width: "100%", padding: "7px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none" }}
-                    >
-                      {Object.entries(CATEGORIES).map(([key, cat]) => (
-                        <option key={key} value={key}>{cat.label}</option>
-                      ))}
-                    </select>
+                    <PredictiveCombobox
+                      label="Sección Electoral"
+                      placeholder="Buscar sección (ej. 2704)..."
+                      allowCustom={false}
+                      value={reportForm.sectionId || detectedLocationInfo?.sectionId || ""}
+                      onChange={(val) => {
+                        const matchedFeat = sectionsData?.features?.find((f: any) => f.properties?.id === val);
+                        setReportForm((prev) => ({
+                          ...prev,
+                          sectionId: val,
+                          municipality: matchedFeat?.properties?.municipality || prev.municipality
+                        }));
+                      }}
+                      options={(sectionsData?.features || []).map((f: any) => ({
+                        value: f.properties.id,
+                        label: `Sección #${f.properties.section_num}`,
+                        sublabel: f.properties.municipality || "Tonalá",
+                        badge: `Sección ${f.properties.section_num}`
+                      }))}
+                    />
                   </div>
                 </div>
 
+                {/* 5. Category & Assigned User */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  <div>
+                    <PredictiveCombobox
+                      label="Categoría"
+                      required
+                      allowCustom={false}
+                      value={reportForm.category}
+                      onChange={(val) => setReportForm({ ...reportForm, category: val })}
+                      options={Object.entries(CATEGORIES).map(([key, cat]) => ({
+                        value: key,
+                        label: cat.label,
+                        badge: "Categoría"
+                      }))}
+                    />
+                  </div>
+
+                  <div>
+                    <PredictiveCombobox
+                      label="Asignar Responsable"
+                      allowCustom={false}
+                      placeholder="Buscar operador..."
+                      value={reportForm.assignedToUserId}
+                      onChange={(val) => setReportForm({ ...reportForm, assignedToUserId: val })}
+                      options={systemUsers.map((u) => ({
+                        value: u.id,
+                        label: u.displayName,
+                        badge: "Operador"
+                      }))}
+                    />
+                  </div>
+                </div>
+
+                {/* 6. Title */}
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Título del Reporte *</label>
+                  <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Título del Reporte *</label>
                   <input
                     type="text"
                     required
                     value={reportForm.title}
                     onChange={(e) => setReportForm({ ...reportForm, title: e.target.value })}
-                    placeholder="Ej. Falla de alumbrado / Bache peligroso"
+                    placeholder="Ej. Falla de alumbrado / Bache peligroso en esquina"
                     style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
                   />
                 </div>
 
+                {/* 7. Field Description */}
                 <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Descripción de Campo *</label>
+                  <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Descripción de Campo *</label>
                   <textarea
                     required
-                    rows={3}
+                    rows={2}
                     value={reportForm.description}
                     onChange={(e) => setReportForm({ ...reportForm, description: e.target.value })}
-                    placeholder="Detalles sobre lo observado en el territorio..."
+                    placeholder="Detalles sobre lo observado en el territorio, referencias físicas..."
                     style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", outline: "none", resize: "none" }}
                   />
                 </div>
 
-                <div style={{ display: "flex", gap: "8px", paddingTop: "8px", borderTop: "1px solid #f1f5f9" }}>
+                {/* Modal Footer Buttons */}
+                <div style={{ display: "flex", gap: "8px", paddingTop: "8px", borderTop: "1px solid #f1f5f9", marginTop: "2px" }}>
                   <button
                     type="button"
                     onClick={() => {
@@ -2018,9 +2444,9 @@ export default function MapaPage() {
                   <button
                     type="submit"
                     disabled={isSubmitting || isGeocodingLoading}
-                    style={{ flex: 1, padding: "9px", background: "#dc2626", color: "white", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "800", cursor: "pointer" }}
+                    style={{ flex: 1.5, padding: "9px", background: "#dc2626", color: "white", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "800", cursor: "pointer", boxShadow: "0 2px 8px rgba(220,38,38,0.3)" }}
                   >
-                    {isSubmitting ? "Guardando..." : "Registrar Reporte"}
+                    {isSubmitting ? "Guardando..." : "✓ Registrar Incidencia"}
                   </button>
                 </div>
               </form>

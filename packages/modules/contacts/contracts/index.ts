@@ -21,6 +21,8 @@ export type ContactListItem = Readonly<{
   displayName: string;
   phone: string | null;
   colony: string | null;
+  municipality?: string | null;
+  sectionNum?: number | null;
   availability: string | null;
   skill: string | null;
   status: "active" | "inactive";
@@ -34,6 +36,10 @@ export type ContactDetail = Readonly<{
   contactId: ContactId;
   displayName: string;
   phoneNumber: string | null;
+  colony?: string | null;
+  municipality?: string | null;
+  address?: string | null;
+  addressNumber?: string | null;
   status: "active" | "inactive";
   createdAt: string;
   territory: {
@@ -67,11 +73,12 @@ export interface ContactsReader {
   getContactStatus(contactId: EntityId): Promise<ContactStatusView | null>;
   listContacts(options?: {
     assignedUserId?: EntityId;
+    scopedUserId?: EntityId;
     q?: string;
     page?: number;
     pageSize?: number;
   }): Promise<{ items: ContactListItem[]; total: number }>;
-  getContactDetail(contactId: EntityId): Promise<ContactDetail | null>;
+  getContactDetail(contactId: EntityId, scopedUserId?: EntityId): Promise<ContactDetail | null>;
 }
 
 export type ContactRegisteredV1Payload = Readonly<{

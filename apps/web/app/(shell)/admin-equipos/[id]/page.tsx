@@ -1,26 +1,27 @@
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
-import { schema } from "@tonala/shared/database";
+import { schema, decryptData } from "@tonala/shared/database";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { eq, inArray, or, and } from "drizzle-orm";
 import TeamDetailClient from "./TeamDetailClient";
+import { requirePageRole } from "@/lib/authorization";
 
 export default async function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePageRole("admin", "direction", "territorial_coordinator", "visit_responsible", "capturist");
   const session = await getServerSession();
-  if (!session.isLoggedIn || session.roleKey !== "admin") {
-    redirect("/login");
-  }
 
   const { id } = await params;
   const db = getDatabaseClient();
 
-  // Fetch team
+  // 1. Fetch team
   const teams = await db
     .select({
       id: schema.teams.id,
       name: schema.teams.name,
       zone: schema.teams.zone,
       leaderId: schema.teams.leaderId,
+      municipality: schema.teams.municipality,
+      section: schema.teams.section,
       leaderName: schema.userProfiles.displayName
     })
     .from(schema.teams)
@@ -32,7 +33,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
     redirect("/admin-equipos");
   }
 
-  // Fetch members
+  // 2. Fetch members
   const members = await db
     .select({
       userId: schema.teamMembers.userId,
@@ -45,21 +46,76 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
     .leftJoin(schema.roles, eq(schema.userProfiles.roleId, schema.roles.id))
     .where(eq(schema.teamMembers.teamId, id));
 
-  // If leader is not explicitly in team_members, we could optionally push them. 
-  // Let's ensure leader is displayed as a member.
+  // Ensure leader is displayed as a member
   const isLeaderInMembers = members.some(m => m.userId === team.leaderId);
   if (!isLeaderInMembers && team.leaderName) {
-    // We'll fake the leader entry for display purposes if not in team_members
-    // but typically they should be in team_members too.
     members.unshift({
       userId: team.leaderId,
-      joinedAt: new Date(),
+      joinedAt: new Date().toISOString() as any,
       displayName: team.leaderName,
-      roleName: "Líder Asignado"
+      roleName: "Líder del Equipo"
     });
   }
 
-  // Available users (not already in team)
+  // Check authorization for non-admins
+  const isGlobalAdmin = ["admin", "direction", "territorial_coordinator"].includes(session.roleKey);
+  const isLeaderOrMember = team.leaderId === session.userId || members.some(m => m.userId === session.userId);
+  if (!isGlobalAdmin && !isLeaderOrMember) {
+    redirect("/admin-equipos");
+  }
+
+  // 3. Fetch ALL contacts / citizens registered by this team (leader + members)
+  const teamMemberIds = Array.from(new Set([team.leaderId, ...members.map(m => m.userId)].filter(Boolean)));
+  
+  let rawContacts: any[] = [];
+  if (teamMemberIds.length > 0) {
+    rawContacts = await db
+      .select({
+        id: schema.contacts.id,
+        displayName: schema.contacts.displayName,
+        phone: schema.contacts.phone,
+        colony: schema.contacts.colony,
+        municipality: schema.contacts.municipality,
+        sectionNum: schema.electoralSections.sectionNum,
+        status: schema.contacts.status,
+        createdAt: schema.contacts.createdAt,
+        createdByUserId: schema.contacts.createdByUserId,
+        createdByName: schema.userProfiles.displayName
+      })
+      .from(schema.contacts)
+      .leftJoin(schema.electoralSections, eq(schema.contacts.sectionId, schema.electoralSections.id))
+      .leftJoin(schema.userProfiles, eq(schema.contacts.createdByUserId, schema.userProfiles.id))
+      .where(
+        and(
+          eq(schema.contacts.status, "active"),
+          or(
+            inArray(schema.contacts.createdByUserId, teamMemberIds),
+            inArray(schema.contacts.referredByUserId, teamMemberIds)
+          )
+        )
+      )
+      .orderBy(schema.contacts.createdAt);
+  }
+
+  const teamContacts = rawContacts.map(c => ({
+    id: c.id,
+    displayName: c.displayName,
+    phone: decryptData(c.phone),
+    colony: decryptData(c.colony),
+    municipality: decryptData(c.municipality),
+    sectionNum: c.sectionNum,
+    status: c.status,
+    createdAt: (c.createdAt instanceof Date ? c.createdAt : new Date(c.createdAt)).toISOString(),
+    createdByName: c.createdByName || "Integrante del Equipo",
+    createdByUserId: c.createdByUserId || null
+  }));
+
+  const serializedMembers = members.map(m => ({
+    ...m,
+    joinedAt: (m.joinedAt instanceof Date ? m.joinedAt : new Date(m.joinedAt)).toISOString()
+  }));
+
+  // 4. Available users (not already in team)
   const memberUserIds = members.map(m => m.userId);
   const availableUsersQuery = db
     .select({
@@ -72,5 +128,14 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
   const availableUsers = await availableUsersQuery;
   const filteredUsers = availableUsers.filter(u => !memberUserIds.includes(u.id));
 
-  return <TeamDetailClient team={team} members={members} availableUsers={filteredUsers} />;
+  return (
+    <TeamDetailClient
+      team={team}
+      members={serializedMembers}
+      contacts={teamContacts}
+      availableUsers={filteredUsers}
+      canManage={isGlobalAdmin || team.leaderId === session.userId}
+      currentUserId={session.userId}
+    />
+  );
 }

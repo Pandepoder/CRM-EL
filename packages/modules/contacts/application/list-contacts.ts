@@ -1,6 +1,6 @@
 import { Permission, requirePermission, type ActorContext } from "@tonala/shared/auth";
 import { type TonalaOsError } from "@tonala/shared/errors";
-import { err, ok } from "@tonala/shared/kernel";
+import { createEntityId, err, ok } from "@tonala/shared/kernel";
 import { measureOperation } from "@tonala/shared/observability";
 
 import { type ContactListItem } from "../contracts/index.js";
@@ -33,8 +33,13 @@ export async function listContacts(
       }
 
       try {
+        // Users who are not admin or direction can only view their own registered/assigned contacts
+        const isGlobalViewer = actor.roles.includes("admin") || actor.roles.includes("direction") || actor.isSystem;
+        const scopedUserId = !isGlobalViewer ? actor.actorId : undefined;
+
         const result = await dependencies.contactsReader.listContacts({
-          ...(input.assignedUserId !== undefined ? { assignedUserId: input.assignedUserId as any } : {}),
+          ...(scopedUserId !== undefined ? { scopedUserId } : {}),
+          ...(input.assignedUserId !== undefined ? { assignedUserId: createEntityId(input.assignedUserId) } : {}),
           ...(input.q !== undefined ? { q: input.q } : {}),
           ...(input.page !== undefined ? { page: input.page } : {}),
           ...(input.pageSize !== undefined ? { pageSize: input.pageSize } : {})

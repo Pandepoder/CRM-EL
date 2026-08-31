@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { getDatabaseClient } from "@/lib/db-client";
-import { actorFromSession } from "@/lib/api-helpers";
 import { point } from "@turf/helpers";
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import { sql } from "drizzle-orm";
@@ -78,10 +77,6 @@ function inferMunicipalityFromSection(secNum: number, currentMunicipality?: stri
  * Accurately detects street address, colony, municipality, and electoral section for any coordinate in Jalisco AMG.
  */
 export async function GET(request: Request) {
-  const actor = await actorFromSession();
-  if (!actor) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const { searchParams } = new URL(request.url);
   const latStr = searchParams.get("lat");
@@ -100,7 +95,7 @@ export async function GET(request: Request) {
 
   const db = getDatabaseClient();
 
-  // 1. Cross-reference against PostgreSQL Electoral Sections database (Point-in-Polygon)
+  // 1. Cross-reference against PostgreSQL Electoral Sections database (Point-in-Polygon + Centroid Fallback)
   let sectionId: string | null = null;
   let sectionNum: number | null = null;
   let sectionMunicipality: string | null = null;
@@ -128,12 +123,16 @@ export async function GET(request: Request) {
     `);
 
     const pt = point([lng, lat]);
+    let closestSection: any = null;
+    let minDistance = Infinity;
 
     for (const row of sectionsRes.rows) {
       if (!row.geom_json) continue;
       try {
         const rawGeom = typeof row.geom_json === "string" ? JSON.parse(row.geom_json) : row.geom_json;
         const polyFeature = rawGeom.type === "Feature" ? rawGeom : { type: "Feature" as const, geometry: rawGeom, properties: {} };
+        
+        // Exact Point-in-Polygon Match
         if (booleanPointInPolygon(pt, polyFeature)) {
           sectionId = row.id;
           sectionNum = row.section_num;
@@ -141,9 +140,34 @@ export async function GET(request: Request) {
           sectionColonies = row.colonies || [];
           break;
         }
+
+        // Centroid calculation for fallback if point is on edge or slightly beyond Voronoi box
+        const coords = rawGeom.type === "Polygon" ? rawGeom.coordinates[0] : rawGeom.geometry?.coordinates?.[0];
+        if (coords && coords.length > 0) {
+          let sumLng = 0, sumLat = 0;
+          for (const c of coords) {
+            sumLng += c[0];
+            sumLat += c[1];
+          }
+          const cLng = sumLng / coords.length;
+          const cLat = sumLat / coords.length;
+          const dist = Math.hypot(lng - cLng, lat - cLat);
+          if (dist < minDistance) {
+            minDistance = dist;
+            closestSection = row;
+          }
+        }
       } catch {
         // Skip malformed geometry
       }
+    }
+
+    // Centroid fallback if no polygon directly enclosed the point
+    if (!sectionId && closestSection) {
+      sectionId = closestSection.id;
+      sectionNum = closestSection.section_num;
+      sectionMunicipality = inferMunicipalityFromSection(closestSection.section_num, closestSection.municipality);
+      sectionColonies = closestSection.colonies || [];
     }
   } catch (err) {
     console.error("Section lookup error:", err);
@@ -211,9 +235,11 @@ export async function GET(request: Request) {
     latitude: lat,
     longitude: lng,
     formattedAddress: streetAddress,
+    address: streetAddress,
     colony: detectedColony,
     municipality: detectedMunicipality,
     postalCode: postcode,
+    postcode: postcode,
     sectionId,
     sectionNum,
     sectionName: sectionNum ? `Sección ${sectionNum}` : undefined,

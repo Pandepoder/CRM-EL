@@ -9,7 +9,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession();
-  if (!session.isLoggedIn || session.roleKey !== "admin") {
+  if (!session.isLoggedIn) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -22,6 +22,18 @@ export async function POST(
 
   try {
     const db = getDatabaseClient();
+
+    // Check authorization: admin, direction, territorial_coordinator, or team leader
+    const isGlobalAdmin = ["admin", "direction", "territorial_coordinator"].includes(session.roleKey);
+    if (!isGlobalAdmin) {
+      const team = await db.query.teams.findFirst({
+        where: eq(schema.teams.id, id)
+      });
+      if (!team || team.leaderId !== session.userId) {
+        return NextResponse.json({ error: "Unauthorized to manage this team" }, { status: 403 });
+      }
+    }
+
     await db.insert(schema.teamMembers).values({
       teamId: id,
       userId
@@ -48,7 +60,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession();
-  if (!session.isLoggedIn || session.roleKey !== "admin") {
+  if (!session.isLoggedIn) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -62,6 +74,18 @@ export async function DELETE(
 
   try {
     const db = getDatabaseClient();
+
+    // Check authorization: admin, direction, territorial_coordinator, or team leader
+    const isGlobalAdmin = ["admin", "direction", "territorial_coordinator"].includes(session.roleKey);
+    if (!isGlobalAdmin) {
+      const team = await db.query.teams.findFirst({
+        where: eq(schema.teams.id, id)
+      });
+      if (!team || team.leaderId !== session.userId) {
+        return NextResponse.json({ error: "Unauthorized to manage this team" }, { status: 403 });
+      }
+    }
+
     await db.delete(schema.teamMembers)
       .where(and(eq(schema.teamMembers.teamId, id), eq(schema.teamMembers.userId, userId)));
     return NextResponse.json({ success: true });

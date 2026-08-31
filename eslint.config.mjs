@@ -57,9 +57,27 @@ export default tseslint.config(
     }
   },
   {
+    files: ["scripts/**/*.cjs", "scripts/**/*.js"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        require: "readonly",
+        module: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly"
+      }
+    },
+    rules: {
+      "no-console": "off",
+      "no-undef": "off"
+    }
+  },
+  {
     files: ["scripts/**/*.ts", "scripts/**/*.js"],
     rules: {
-      "no-console": "off"
+      "no-console": "off",
+      "@typescript-eslint/unbound-method": "off"
     }
   }
 );

@@ -1,9 +1,7 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-
-const AppShell = dynamic(() => import("@tonala/ui").then(mod => mod.AppShell), { ssr: false });
+import { AppShell } from "@tonala/ui";
 
 export type ShellWrapperProps = Readonly<{
   children: React.ReactNode;
@@ -14,7 +12,29 @@ export type ShellWrapperProps = Readonly<{
 
 export function ShellWrapper({ children, userDisplayName, userRoleLabel, userRoleKey }: ShellWrapperProps) {
   const pathname = usePathname();
-  const activeNavKey = pathname.split("/")[1] || "resumen";
+  
+  let activeNavKey = "resumen";
+  if (pathname === "/crm/nuevo") {
+    activeNavKey = "crm-nuevo";
+  } else if (pathname.startsWith("/crm")) {
+    activeNavKey = "crm";
+  } else if (pathname.startsWith("/estructura-electoral")) {
+    activeNavKey = "estructura";
+  } else if (pathname.startsWith("/perfil")) {
+    activeNavKey = "perfil";
+  } else if (pathname.startsWith("/admin-equipos")) {
+    activeNavKey = "admin-equipos";
+  } else if (pathname.startsWith("/admin-usuarios")) {
+    activeNavKey = "admin-usuarios";
+  } else if (pathname.startsWith("/admin-incidencias")) {
+    activeNavKey = "admin-incidencias";
+  } else if (pathname.startsWith("/admin-inbox")) {
+    activeNavKey = "admin-inbox";
+  } else if (pathname.startsWith("/escucha-social")) {
+    activeNavKey = "escucha-social";
+  } else {
+    activeNavKey = pathname.split("/")[1] || "resumen";
+  }
 
   return (
     <AppShell

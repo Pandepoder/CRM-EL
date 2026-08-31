@@ -126,12 +126,20 @@ export class DrizzleContactsReader implements ContactsReader {
 
   public async listContacts(options?: {
     assignedUserId?: ReturnType<typeof createEntityId>;
+    scopedUserId?: ReturnType<typeof createEntityId>;
     q?: string;
     page?: number;
     pageSize?: number;
   }) {
     const conditions = [];
     conditions.push(sql`c.status = 'active'`);
+    if (options?.scopedUserId) {
+      conditions.push(sql`(
+        c.created_by_user_id = ${options.scopedUserId} OR
+        c.referred_by_user_id = ${options.scopedUserId} OR
+        (ca.assigned_user_id = ${options.scopedUserId} AND ca.assignment_status = 'active')
+      )`);
+    }
     if (options?.assignedUserId) {
       conditions.push(sql`ca.assigned_user_id = ${options.assignedUserId} AND ca.assignment_status = 'active'`);
     }
@@ -161,6 +169,8 @@ export class DrizzleContactsReader implements ContactsReader {
       displayName: string;
       phone: string | null;
       colony: string | null;
+      municipality: string | null;
+      sectionNum: number | null;
       availability: string | null;
       skill: string | null;
       status: "active" | "inactive";
@@ -174,6 +184,8 @@ export class DrizzleContactsReader implements ContactsReader {
         c.display_name AS "displayName",
         c.phone,
         c.colony,
+        c.municipality,
+        es.section_num AS "sectionNum",
         c.availability,
         c.skill,
         c.status,
@@ -182,6 +194,7 @@ export class DrizzleContactsReader implements ContactsReader {
         u.display_name AS "responsibleName",
         v.status AS "lastVisitStatus"
       FROM contacts c
+      LEFT JOIN electoral_sections es ON es.id = c.section_id
       LEFT JOIN contact_territory ct ON ct.contact_id = c.id AND ct.territory_status = 'confirmed'
       LEFT JOIN contact_assignments ca ON ca.contact_id = c.id
       LEFT JOIN colonies col ON col.id = ct.colony_id
@@ -201,6 +214,7 @@ export class DrizzleContactsReader implements ContactsReader {
         ...row,
         phone: decryptData(row.phone),
         colony: decryptData(row.colony),
+        municipality: decryptData(row.municipality),
         availability: decryptData(row.availability),
         skill: decryptData(row.skill),
         contactId: createEntityId(row.contactId),
@@ -210,11 +224,18 @@ export class DrizzleContactsReader implements ContactsReader {
     };
   }
 
-  public async getContactDetail(contactId: ReturnType<typeof createEntityId>) {
+  public async getContactDetail(
+    contactId: ReturnType<typeof createEntityId>,
+    scopedUserId?: ReturnType<typeof createEntityId>
+  ) {
     type DetailRow = {
       contactId: string;
       displayName: string;
       phoneNumber: string | null;
+      colony: string | null;
+      municipality: string | null;
+      address: string | null;
+      addressNumber: string | null;
       status: "active" | "inactive";
       createdAt: Date;
       sectionId: string | null;
@@ -230,11 +251,24 @@ export class DrizzleContactsReader implements ContactsReader {
       assignedByUserId: string | null;
     };
 
+    const conditions = [sql`c.id = ${contactId}`];
+    if (scopedUserId) {
+      conditions.push(sql`(
+        c.created_by_user_id = ${scopedUserId} OR
+        c.referred_by_user_id = ${scopedUserId} OR
+        (ca.assigned_user_id = ${scopedUserId} AND ca.assignment_status = 'active')
+      )`);
+    }
+
     const result = await this.db.execute<DetailRow>(sql`
       SELECT 
         c.id::text AS "contactId",
         c.display_name AS "displayName",
         c.phone AS "phoneNumber",
+        c.colony AS "colony",
+        c.municipality AS "municipality",
+        c.address AS "address",
+        c.address_number AS "addressNumber",
         c.status,
         c.created_at AS "createdAt",
         c.section_id::text AS "sectionId",
@@ -254,7 +288,7 @@ export class DrizzleContactsReader implements ContactsReader {
       LEFT JOIN colonies col ON col.id = ct.colony_id
       LEFT JOIN contact_assignments ca ON ca.contact_id = c.id
       LEFT JOIN user_profiles u ON u.id = ca.assigned_user_id
-      WHERE c.id = ${contactId}
+      WHERE ${sql.join(conditions, sql` AND `)}
       LIMIT 1
     `);
 
@@ -283,20 +317,27 @@ export class DrizzleContactsReader implements ContactsReader {
       ORDER BY v.scheduled_at DESC
     `);
 
+    const directColony = decryptData(row.colony);
+    const directMun = decryptData(row.municipality);
+
     return {
       contactId: createEntityId(row.contactId),
       displayName: row.displayName,
       phoneNumber: decryptData(row.phoneNumber),
+      colony: directColony,
+      municipality: directMun,
+      address: decryptData(row.address),
+      addressNumber: decryptData(row.addressNumber),
       status: row.status,
       createdAt: new Date(row.createdAt).toISOString(),
       section: row.sectionId ? {
         sectionId: row.sectionId,
         sectionNum: row.sectionNum!
       } : null,
-      territory: row.colonyId ? {
-        colonyId: row.colonyId,
-        colonyName: row.colonyName,
-        linkedAt: new Date(row.linkedAt!).toISOString(),
+      territory: (row.colonyId || directColony) ? {
+        colonyId: row.colonyId || "",
+        colonyName: row.colonyName || directColony,
+        linkedAt: row.linkedAt ? new Date(row.linkedAt).toISOString() : new Date(row.createdAt).toISOString(),
         linkedByUserId: row.linkedByUserId
       } : null,
       assignment: row.assignedUserId && row.assignmentStatus ? {

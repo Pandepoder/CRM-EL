@@ -89,30 +89,71 @@ export async function POST(request: Request) {
     const parsedEventDate = eventDate ? new Date(eventDate) : undefined;
 
     let finalSectionId = sectionId;
-    if (!finalSectionId && latitude !== undefined && longitude !== undefined) {
-      const db = getDatabaseClient();
-      const sections = await db.select({ id: schema.electoralSections.id, geomJson: schema.electoralSections.geomJson }).from(schema.electoralSections);
+    let detectedSectionMuni: string | null = null;
+    const db = getDatabaseClient();
+
+    if (latitude !== undefined && longitude !== undefined) {
+      const sections = await db.select({ 
+        id: schema.electoralSections.id, 
+        sectionNum: schema.electoralSections.sectionNum,
+        geomJson: schema.electoralSections.geomJson 
+      }).from(schema.electoralSections);
+      
       const pt = point([Number(longitude), Number(latitude)]);
+      let closestSectionId: string | null = null;
+      let minDistance = Infinity;
 
       for (const section of sections) {
         if (section.geomJson) {
           try {
             const rawGeom: any = typeof section.geomJson === "string" ? JSON.parse(section.geomJson) : section.geomJson;
             const polyFeature = rawGeom.type === "Feature" ? rawGeom : { type: "Feature" as const, geometry: rawGeom, properties: {} };
-            const isInside = booleanPointInPolygon(pt, polyFeature);
-            if (isInside) {
-              finalSectionId = section.id;
+            
+            if (booleanPointInPolygon(pt, polyFeature)) {
+              if (!finalSectionId) {
+                finalSectionId = section.id;
+              }
+              const sNum = section.sectionNum;
+              if (sNum >= 2700 && sNum <= 2800) detectedSectionMuni = "Tonalá";
+              else if (sNum >= 900 && sNum <= 1450) detectedSectionMuni = "Guadalajara";
+              else if (sNum >= 3000 && sNum <= 3500) detectedSectionMuni = "Zapopan";
+              else if (sNum >= 2500 && sNum <= 2699) detectedSectionMuni = "San Pedro Tlaquepaque";
+              else if (sNum >= 2400 && sNum <= 2499) detectedSectionMuni = "Tlajomulco de Zúñiga";
+              else if (sNum >= 1950 && sNum <= 2050) detectedSectionMuni = "El Salto";
+              else if (sNum >= 3600 && sNum <= 3650) detectedSectionMuni = "Zapotlanejo";
+              else if (sNum >= 1750 && sNum <= 1800) detectedSectionMuni = "Ixtlahuacán de los Membrillos";
+              else if (sNum >= 1850 && sNum <= 1900) detectedSectionMuni = "Juanacatlán";
               break;
+            }
+
+            const coords = rawGeom.type === "Polygon" ? rawGeom.coordinates[0] : rawGeom.geometry?.coordinates?.[0];
+            if (coords && coords.length > 0) {
+              let sumLng = 0, sumLat = 0;
+              for (const c of coords) {
+                sumLng += c[0];
+                sumLat += c[1];
+              }
+              const cLng = sumLng / coords.length;
+              const cLat = sumLat / coords.length;
+              const dist = Math.hypot(Number(longitude) - cLng, Number(latitude) - cLat);
+              if (dist < minDistance) {
+                minDistance = dist;
+                closestSectionId = section.id;
+              }
             }
           } catch (e) {
             console.error("Error checking polygon for section", section.id, e);
           }
         }
       }
+
+      if (!finalSectionId && closestSectionId) {
+        finalSectionId = closestSectionId;
+      }
     }
 
-    // Auto-resolve municipality if missing
-    let finalMunicipality = municipality;
+    // Auto-resolve municipality
+    let finalMunicipality = municipality || detectedSectionMuni;
     if (!finalMunicipality && latitude !== undefined && longitude !== undefined) {
       if (longitude >= -103.285 && longitude <= -103.170 && latitude >= 20.570 && latitude <= 20.685) finalMunicipality = "Tonalá";
       else if (longitude >= -103.395 && longitude <= -103.285 && latitude >= 20.620 && latitude <= 20.735) finalMunicipality = "Guadalajara";

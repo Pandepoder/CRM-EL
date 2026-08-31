@@ -586,6 +586,23 @@ button {
   resize: vertical;
 }
 
+/* Universal Search Input & Icon Alignment */
+.relative > svg:first-child {
+  position: absolute;
+  left: 0.875rem !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.relative > svg:first-child + input,
+input[name="q"],
+input[placeholder*="Buscar"],
+input[placeholder*="buscar"] {
+  padding-left: 2.75rem !important;
+}
+
 /* ==========================================================================
    LOGIN (PREMIUM STYLE)
    ========================================================================== */

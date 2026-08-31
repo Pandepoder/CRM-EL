@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 // @ts-ignore
-import { Settings, Bell, Shield, Smartphone, Globe, Lock, Mail, Eye, Key } from "lucide-react";
+import { Settings, Bell, Shield, Smartphone, Globe, Lock, Mail, Eye, Key, Clock } from "lucide-react";
+import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 
 export default function SettingsClient() {
   const [activeTab, setActiveTab] = useState("general");
+  const [language, setLanguage] = useState("es-MX");
+  const [timezone, setTimezone] = useState("America/Mexico_City");
 
   const tabs = [
     { id: "general", label: "General", icon: <Settings size={18} /> },
@@ -57,19 +60,35 @@ export default function SettingsClient() {
               </h2>
               
               <div className="space-y-6">
-                <div className="group">
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Idioma de la Interfaz</label>
-                  <select className="w-full p-4 bg-gray-50 hover:bg-gray-100/50 border border-gray-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 text-gray-800 cursor-pointer transition-all appearance-none font-medium">
-                    <option>Español (México)</option>
-                    <option>English (US)</option>
-                  </select>
+                <div>
+                  <PredictiveCombobox
+                    label="Idioma de la Interfaz"
+                    required
+                    allowCustom={false}
+                    value={language}
+                    onChange={(val) => setLanguage(val)}
+                    options={[
+                      { value: "es-MX", label: "Español (México)", badge: "Predeterminado" },
+                      { value: "en-US", label: "English (United States)", badge: "English" }
+                    ]}
+                    icon={<Globe size={14} className="text-blue-600" />}
+                  />
                 </div>
-                <div className="group">
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Zona Horaria</label>
-                  <select className="w-full p-4 bg-gray-50 hover:bg-gray-100/50 border border-gray-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 text-gray-800 cursor-pointer transition-all appearance-none font-medium">
-                    <option>America/Mexico_City (GMT-6)</option>
-                    <option>America/Tijuana (GMT-8)</option>
-                  </select>
+                <div>
+                  <PredictiveCombobox
+                    label="Zona Horaria"
+                    required
+                    allowCustom={false}
+                    value={timezone}
+                    onChange={(val) => setTimezone(val)}
+                    options={[
+                      { value: "America/Mexico_City", label: "America/Mexico_City (GMT-6, Hora del Centro)", badge: "Centro" },
+                      { value: "America/Mazatlan", label: "America/Mazatlan (GMT-7, Hora de la Montaña)", badge: "Pacífico" },
+                      { value: "America/Tijuana", label: "America/Tijuana (GMT-8, Hora del Noroeste)", badge: "Noroeste" },
+                      { value: "America/Cancun", label: "America/Cancun (GMT-5, Hora del Sureste)", badge: "Sureste" }
+                    ]}
+                    icon={<Clock size={14} className="text-blue-600" />}
+                  />
                 </div>
               </div>
             </div>
