@@ -3,6 +3,14 @@ import urllib.parse
 import json
 import http.cookiejar
 import ssl
+import sys
+
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 
 ctx = ssl.create_default_context()
 cookie_jar = http.cookiejar.CookieJar()
