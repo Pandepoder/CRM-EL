@@ -28,6 +28,7 @@ import {
   Minimize2
 } from "lucide-react";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
+import { AddressAutocomplete, type AutocompleteItem } from "@/components/AddressAutocomplete";
 
 // Lucide icon SVGs baked for crisp Leaflet HTML markers
 const SVGS = {
@@ -1684,22 +1685,27 @@ export default function MapaPage() {
                   </div>
 
                   <div>
-                    <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Búsqueda Rápida</label>
-                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                      <Search size={14} style={{ position: "absolute", left: "9px", color: "#94a3b8" }} />
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Número de sección o colonia..."
-                        style={{ width: "100%", padding: "8px 28px 8px 30px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
-                      />
-                      {searchQuery && (
-                        <button onClick={() => setSearchQuery("")} style={{ position: "absolute", right: "8px", background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
-                          <X size={13} />
-                        </button>
-                      )}
-                    </div>
+                    <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Búsqueda en Vivo de Calles, Colonias y Secciones</label>
+                    <AddressAutocomplete
+                      value={searchQuery}
+                      onChange={(val) => setSearchQuery(val)}
+                      onSelect={(item) => {
+                        setSearchQuery(item.title);
+                        if (item.sectionNum) {
+                          const sec = sectionsData?.features?.find((f: any) => f.properties?.section_num === item.sectionNum);
+                          if (sec) {
+                            handleSelectSection(sec.properties);
+                            return;
+                          }
+                        }
+                        if (item.lat && item.lng && mapRef) {
+                          mapRef.flyTo([item.lat, item.lng], 16, { duration: 1.0 });
+                          showToast(`📍 Centrado en: ${item.title}`);
+                        }
+                      }}
+                      municipality={selectedMunicipality}
+                      placeholder="Escribe calle, colonia o sección..."
+                    />
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
@@ -2388,16 +2394,46 @@ export default function MapaPage() {
                   </div>
                 </div>
 
-                {/* 3. Address and Colony Inputs */}
+                {/* 3. Address and Colony Autocomplete with Real-Time Data */}
                 <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "8px" }}>
                   <div>
-                    <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Dirección / Calle y Número *</label>
-                    <input
-                      type="text"
-                      required
+                    <AddressAutocomplete
                       value={reportForm.address}
-                      onChange={(e) => setReportForm({ ...reportForm, address: e.target.value })}
-                      style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
+                      onChange={(val) => setReportForm((prev) => ({ ...prev, address: val }))}
+                      onSelect={(item: AutocompleteItem) => {
+                        const newMuni = item.municipality || reportForm.municipality;
+                        const newCol = item.colony || detectedLocationInfo?.colony || "";
+                        const newSecNum = item.sectionNum || detectedLocationInfo?.sectionNum;
+                        const newSecId = item.sectionId || detectedLocationInfo?.sectionId;
+
+                        setReportForm((prev) => ({
+                          ...prev,
+                          address: item.address || item.title,
+                          colony: newCol,
+                          municipality: newMuni,
+                          sectionId: newSecId || prev.sectionId,
+                          title: prev.title || (newCol ? `Reporte en ${newCol}` : `Reporte en ${newMuni}`)
+                        }));
+
+                        setDetectedLocationInfo({
+                          address: item.address || item.title,
+                          sectionNum: newSecNum,
+                          sectionId: newSecId,
+                          municipality: newMuni,
+                          colony: newCol,
+                          postcode: item.postcode || "45400"
+                        });
+
+                        if (item.lat && item.lng && mapRef) {
+                          setNewReportCoords({ lat: item.lat, lng: item.lng });
+                          mapRef.flyTo([item.lat, item.lng], 16, { duration: 1.0 });
+                          showToast(`📍 Ubicación seleccionada: ${item.title}`);
+                        }
+                      }}
+                      municipality={reportForm.municipality || selectedMunicipality}
+                      label="Dirección / Calle y Número *"
+                      placeholder="Escribe calle o lugar..."
+                      required
                     />
                   </div>
 
@@ -2410,8 +2446,13 @@ export default function MapaPage() {
                       onChange={(e) => {
                         const val = e.target.value;
                         setDetectedLocationInfo((prev: any) => prev ? { ...prev, colony: val } : { colony: val });
+                        setReportForm((prev) => ({
+                          ...prev,
+                          colony: val,
+                          address: prev.address ? prev.address.replace(/Col\.\s*[^,]+/i, `Col. ${val}`) : prev.address
+                        }));
                       }}
-                      style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
+                      style={{ width: "100%", padding: "8px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "12px", fontWeight: "600", outline: "none" }}
                     />
                   </div>
                 </div>
