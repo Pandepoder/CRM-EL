@@ -61,14 +61,13 @@ def update_live():
     if not ok:
         sys.exit(1)
 
-    # 2. Rebuild and restart web container
+    # 2. Rebuild and restart containers
     cmd_docker = """
     cd /opt/crm-el
-    docker compose build web
-    docker compose up -d web
+    docker compose up -d --build
     docker compose ps
     """
-    ok, _ = run_remote_command(client, cmd_docker, "2. Recompilación y Despliegue de Next.js")
+    ok, _ = run_remote_command(client, cmd_docker, "2. Recompilación y Despliegue de Contenedores")
     if not ok:
         sys.exit(1)
 
