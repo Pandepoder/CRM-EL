@@ -64,6 +64,7 @@ def deploy():
     cmd_migrate = """
     cd /opt/crm-el
     echo "Aplicando migraciones de base de datos..."
+    docker exec tonala-os-postgres psql -U tonala -d tonala_crm -c "ALTER TABLE event_reports ADD COLUMN IF NOT EXISTS media_urls JSONB;" || true
     docker compose exec -T web node scripts/migrate-elapp.js || true
     docker compose exec -T web pnpm db:migrate || true
     """

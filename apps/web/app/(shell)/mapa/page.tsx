@@ -29,6 +29,8 @@ import {
 } from "lucide-react";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import { AddressAutocomplete, type AutocompleteItem } from "@/components/AddressAutocomplete";
+import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
+import { MediaGallery } from "@/components/MediaGallery";
 
 // Lucide icon SVGs baked for crisp Leaflet HTML markers
 const SVGS = {
@@ -115,8 +117,9 @@ type ReportFeature = {
     sectionNum?: number;
     sectionId?: string;
     municipality?: string;
-    assignedToUserId?: string;
-    eventDate?: string;
+    assignedToUserId?: string | undefined;
+    eventDate?: string | undefined;
+    mediaUrls?: MediaFile[] | undefined;
   };
   geometry: { type: "Point"; coordinates: [number, number] };
 };
@@ -239,7 +242,8 @@ export default function MapaPage() {
     category: "servicios",
     municipality: "Tonalá",
     sectionId: "",
-    assignedToUserId: ""
+    assignedToUserId: "",
+    mediaUrls: [] as MediaFile[]
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reportSuccess, setReportSuccess] = useState(false);
@@ -333,7 +337,8 @@ export default function MapaPage() {
       category: "servicios",
       municipality: instantMuni,
       sectionId: instantSectionId || "",
-      assignedToUserId: ""
+      assignedToUserId: "",
+      mediaUrls: []
     });
 
     // 2. Fetch live street address and database verified section from API
@@ -683,6 +688,64 @@ export default function MapaPage() {
       alert("Error de conexión al purgar.");
     } finally {
       setIsPurging(false);
+    }
+  };
+
+  // 7b. Create New Incident with Photos/Videos
+  const handleSubmitReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newReportCoords) return;
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        title: reportForm.title.trim(),
+        description: reportForm.description.trim() ? `${reportForm.description.trim()}\n\n📍 Dirección: ${reportForm.address}` : reportForm.address,
+        latitude: newReportCoords.lat,
+        longitude: newReportCoords.lng,
+        category: reportForm.category,
+        municipality: reportForm.municipality,
+        sectionId: reportForm.sectionId || detectedLocationInfo?.sectionId || null,
+        assignedToUserId: reportForm.assignedToUserId || null,
+        mediaUrls: reportForm.mediaUrls || []
+      };
+
+      const res = await fetch("/api/map/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        setReportSuccess(true);
+        showToast("✓ Incidencia registrada exitosamente");
+        await fetchReports();
+        await fetchSections();
+        setTimeout(() => {
+          setIsReportModalOpen(false);
+          setReportSuccess(false);
+          setNewReportCoords(null);
+          setDetectedLocationInfo(null);
+          setReportForm({
+            title: "",
+            address: "",
+            description: "",
+            category: "servicios",
+            municipality: selectedMunicipality !== "all" ? selectedMunicipality : "Tonalá",
+            sectionId: "",
+            assignedToUserId: "",
+            mediaUrls: []
+          });
+        }, 1500);
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "Error al registrar la incidencia.");
+      }
+    } catch (err) {
+      console.error("Report submit error:", err);
+      alert("Error de conexión al registrar la incidencia.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1184,51 +1247,6 @@ export default function MapaPage() {
         const tempGeo = L.geoJSON(feat);
         mapRef.fitBounds(tempGeo.getBounds(), { padding: [50, 50], maxZoom: 15 });
       }
-    }
-  };
-
-  const handleSubmitReport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newReportCoords) return;
-    setIsSubmitting(true);
-    try {
-      const fullDescription = reportForm.address
-        ? `${reportForm.description}\n\n📍 Ubicación: ${reportForm.address}`
-        : reportForm.description;
-
-      const res = await fetch("/api/map/reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: reportForm.title.trim(),
-          description: fullDescription.trim(),
-          category: reportForm.category,
-          latitude: newReportCoords.lat,
-          longitude: newReportCoords.lng,
-          municipality: reportForm.municipality || "Tonalá",
-          sectionId: reportForm.sectionId || detectedLocationInfo?.sectionId || null,
-          assignedToUserId: reportForm.assignedToUserId || null
-        }),
-      });
-      if (res.ok) {
-        setReportSuccess(true);
-        await fetchReports();
-        await fetchSections();
-        showToast(`✓ Incidencia registrada en ${reportForm.municipality}`);
-        setTimeout(() => {
-          setReportSuccess(false);
-          setIsReportModalOpen(false);
-          setNewReportCoords(null);
-          setDetectedLocationInfo(null);
-          setIsSubmitting(false);
-        }, 1000);
-      } else {
-        alert("Error al guardar el reporte.");
-        setIsSubmitting(false);
-      }
-    } catch (_err) {
-      alert("Error de conexión al guardar.");
-      setIsSubmitting(false);
     }
   };
 
@@ -2071,9 +2089,16 @@ export default function MapaPage() {
                           {r.properties.title}
                         </h3>
 
-                        <p style={{ margin: "0 0 10px", fontSize: "12px", color: "#475569", lineHeight: "1.4" }}>
+                        <p style={{ margin: "0 0 8px", fontSize: "12px", color: "#475569", lineHeight: "1.4" }}>
                           {r.properties.description}
                         </p>
+
+                        {/* Attached Photos / Videos */}
+                        {r.properties.mediaUrls && r.properties.mediaUrls.length > 0 && (
+                          <div style={{ marginBottom: "10px" }}>
+                            <MediaGallery media={r.properties.mediaUrls} title="Evidencias Adjuntas" />
+                          </div>
+                        )}
 
                         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #f1f5f9", paddingTop: "8px", gap: "6px" }}>
                           <span style={{ fontSize: "11px", fontWeight: "700", color: "#1d4ed8" }}>
@@ -2554,6 +2579,16 @@ export default function MapaPage() {
                     onChange={(e) => setReportForm({ ...reportForm, description: e.target.value })}
                     placeholder="Detalles sobre lo observado en el territorio, referencias físicas..."
                     style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", outline: "none", resize: "none" }}
+                  />
+                </div>
+
+                {/* 8. Media Uploader (Fotos y Videos) */}
+                <div>
+                  <MediaUploader
+                    value={reportForm.mediaUrls}
+                    onChange={(files) => setReportForm((prev) => ({ ...prev, mediaUrls: files }))}
+                    label="Evidencia Fotográfica / Video"
+                    helperText="Toma fotos o videos del suceso (hasta 60 MB)"
                   />
                 </div>
 

@@ -460,6 +460,7 @@ export const eventReports = pgTable(
     assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
     eventDate: timestamp("event_date", { withTimezone: true }),
     status: text("status").notNull().default("active"),
+    mediaUrls: jsonb("media_urls"),
     createdByUserId: uuid("created_by_user_id").notNull().references(() => userProfiles.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },

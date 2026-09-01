@@ -110,6 +110,7 @@ export async function POST(req: Request) {
         assignedToUserId: assignedUser,
         eventDate: scheduledDate,
         status: "active",
+        mediaUrls: Array.isArray(body.mediaUrls) ? body.mediaUrls : undefined,
         createdByUserId: actor.actorId as string
       })
       .returning();

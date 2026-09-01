@@ -5,6 +5,7 @@ import { AlertTriangle, MapPin, Calendar, CheckCircle2, Clock } from "lucide-rea
 import { desc, eq, sql } from "drizzle-orm";
 import { StatusSelector } from "./StatusSelector";
 import { IncidentSectionAssigner } from "./IncidentSectionAssigner";
+import { MediaGallery } from "@/components/MediaGallery";
 
 export default async function AdminIncidenciasPage() {
   await requirePageRole("admin", "direction", "territorial_coordinator");
@@ -25,6 +26,7 @@ export default async function AdminIncidenciasPage() {
       latitude: schema.eventReports.latitude,
       longitude: schema.eventReports.longitude,
       status: schema.eventReports.status,
+      mediaUrls: schema.eventReports.mediaUrls,
       createdAt: schema.eventReports.createdAt,
     })
     .from(schema.eventReports)
@@ -142,6 +144,11 @@ export default async function AdminIncidenciasPage() {
                     <span className="inline-block mt-1.5 px-2.5 py-0.5 bg-gray-100 text-gray-700 text-[11px] font-bold rounded-md uppercase tracking-wider whitespace-nowrap">
                       {r.category}
                     </span>
+                    {Array.isArray(r.mediaUrls) && r.mediaUrls.length > 0 && (
+                      <div className="mt-2 max-w-xs">
+                        <MediaGallery media={r.mediaUrls} title="Evidencias" />
+                      </div>
+                    )}
                   </td>
 
                   {/* Location & Coords */}

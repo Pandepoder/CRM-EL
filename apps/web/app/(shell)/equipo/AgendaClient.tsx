@@ -9,6 +9,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import { LocationPicker } from "@/components/LocationPicker";
+import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
+import { MediaGallery } from "@/components/MediaGallery";
 import type { LeaderStat } from "./page";
 
 type AgendaItem = {
@@ -25,6 +27,7 @@ type AgendaItem = {
   sectionNum?: number | undefined;
   assignedUserId?: string | undefined;
   assignedUserName?: string | undefined;
+  mediaUrls?: MediaFile[] | undefined;
 };
 
 type UserOption = {
@@ -138,7 +141,8 @@ export default function AgendaClient({
     locationText: "",
     estimatedAttendees: "",
     latitude: 20.6248,
-    longitude: -103.2422
+    longitude: -103.2422,
+    mediaUrls: [] as MediaFile[]
   });
   const [creatingTask, setCreatingTask] = useState(false);
   const [taskSuccessMessage, setTaskSuccessMessage] = useState<string | null>(null);
@@ -179,16 +183,19 @@ export default function AgendaClient({
           alert("Error al completar la actividad");
         }
       }
+    } catch (err) {
+      console.error(err);
+      alert("Error de conexión al guardar resultado");
     } finally {
       setSavingOutcome(false);
     }
   }
 
-  // Handle creating a new activity / task
+  // Handle creating new operational activity / task
   async function handleCreateTask(e: React.FormEvent) {
     e.preventDefault();
-    if (!taskForm.title.trim()) {
-      alert("Por favor ingresa el título de la actividad.");
+    if (!taskForm.title || !taskForm.scheduledAt) {
+      alert("Por favor completa el título y la fecha programada.");
       return;
     }
 
@@ -200,7 +207,8 @@ export default function AgendaClient({
         body: JSON.stringify({
           ...taskForm,
           assignedToUserId: taskForm.assignedToUserId || currentUserId,
-          scheduledAt: new Date(taskForm.scheduledAt).toISOString()
+          scheduledAt: new Date(taskForm.scheduledAt).toISOString(),
+          mediaUrls: taskForm.mediaUrls || []
         })
       });
 
@@ -222,7 +230,8 @@ export default function AgendaClient({
             locationText: "",
             estimatedAttendees: "",
             latitude: 20.6248,
-            longitude: -103.2422
+            longitude: -103.2422,
+            mediaUrls: []
           });
           router.refresh();
         }, 1100);
@@ -617,6 +626,13 @@ export default function AgendaClient({
                         <MapPin size={13} className="text-rose-500 shrink-0" />
                         <span>{item.location || "Sede por confirmar"}</span>
                       </div>
+
+                      {/* Evidencias Adjuntas */}
+                      {item.mediaUrls && item.mediaUrls.length > 0 && (
+                        <div className="pt-2">
+                          <MediaGallery media={item.mediaUrls} title="Evidencia de la Actividad" />
+                        </div>
+                      )}
                     </div>
 
                     {/* Estado y Acciones */}
@@ -1311,6 +1327,16 @@ export default function AgendaClient({
                     value={taskForm.description}
                     onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
                     className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
+                  />
+                </div>
+
+                {/* 7. Evidencias Multimedia */}
+                <div>
+                  <MediaUploader
+                    value={taskForm.mediaUrls}
+                    onChange={(files) => setTaskForm({ ...taskForm, mediaUrls: files })}
+                    label="Evidencias Fotográficas / Video de la Actividad"
+                    helperText="Adjunta fotos de reunión, volantes, mitin o video (hasta 60 MB)"
                   />
                 </div>
 
