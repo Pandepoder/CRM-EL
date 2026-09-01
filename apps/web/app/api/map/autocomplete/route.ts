@@ -10,14 +10,6 @@ import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 // @ts-ignore
 import { point } from "@turf/helpers";
 
-const TONALA_OFFICIAL_SECTIONS = new Set([
-  2650, 2651, 2652, 2653, 2654, 2655, 2656, 2657, 2658, 2659, 2660, 2661, 2663, 2664, 2665, 2666, 2667, 2668, 2669, 2670,
-  2671, 2672, 2673, 2674, 2675, 2677, 2678, 2679, 2680, 2681, 2682, 2683, 2684, 2685, 2687, 2688, 2689, 2690, 2691, 2692,
-  2693, 2694, 2695, 2696, 2697, 2698, 2699, 2700, 2701, 2702, 2703, 2704, 2705, 2706, 2707, 2708, 2709, 2710, 2712, 2713,
-  2714, 2715, 2716, 2717, 2718, 2719, 2720, 2721, 2723, 2724, 2725, 2726, 2727, 2729, 3311, 3704, 3705, 3706, 3707, 3708,
-  3709, 3710, 3711, 3712, 3713, 3714, 3715, 3740, 3741, 3742, 3743, 3744, 3745, 3800, 3801, 3802, 3803, 3804, 3805, 3806,
-  3861, 3862, 3863, 3864, 3865, 3866, 3867, 3868, 3869, 3870, 3871, 3872, 3873
-]);
 
 export interface AutocompleteResult {
   id: string;
@@ -70,19 +62,19 @@ export async function GET(req: Request) {
           es.id::text AS id,
           es.section_num,
           es.geom_json,
-          COALESCE(ARRAY_AGG(DISTINCT col.name) FILTER (WHERE col.name IS NOT NULL), '{}') AS colonies,
-          COALESCE(MIN(col.municipality), 'Tonalá') AS municipality
+          COALESCE(es.municipality, 'Tonalá') AS municipality,
+          COALESCE(ARRAY_AGG(DISTINCT col.name) FILTER (WHERE col.name IS NOT NULL), '{}') AS colonies
         FROM electoral_sections es
         LEFT JOIN section_colonies sc ON sc.section_id = es.id
         LEFT JOIN colonies col ON col.id = sc.colony_id
         WHERE es.section_num = ${secNum}
-        GROUP BY es.id, es.section_num, es.geom_json
+        GROUP BY es.id, es.section_num, es.municipality, es.geom_json
         LIMIT 1
       `);
 
       if (secRows.rows.length > 0) {
         const row = secRows.rows[0]!;
-        const muni = TONALA_OFFICIAL_SECTIONS.has(row.section_num) ? "Tonalá" : row.municipality || municipality;
+        const muni = row.municipality || municipality || "Tonalá";
         
         let centerLat: number | undefined;
         let centerLng: number | undefined;

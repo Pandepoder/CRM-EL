@@ -96,12 +96,15 @@ export const colonies = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
-  (table) => [uniqueIndex("colonies_catalog_name_unique").on(table.catalogVersionId, table.name)]
+  (table) => [uniqueIndex("colonies_catalog_name_muni_unique").on(table.catalogVersionId, table.name, table.municipality)]
 );
 
 export const electoralSections = pgTable("electoral_sections", {
   id: uuid("id").primaryKey().defaultRandom(),
   sectionNum: integer("section_num").notNull().unique(),
+  municipality: text("municipality"),
+  districtFederal: integer("district_federal"),
+  districtLocal: integer("district_local"),
   geomJson: jsonb("geom_json"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });

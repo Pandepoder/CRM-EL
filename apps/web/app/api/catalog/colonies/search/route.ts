@@ -1,69 +1,71 @@
+import { NextResponse } from "next/server";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 import { getDatabaseClient } from "@/lib/db-client";
-import { schema } from "@tonala/shared/database";
-import { eq, ilike, and, sql } from "drizzle-orm";
-import { type NextRequest, NextResponse } from "next/server";
+import { actorFromSession, unauthorized } from "@/lib/api-helpers";
+import { sql } from "drizzle-orm";
 
-export async function GET(req: NextRequest) {
+/**
+ * GET /api/catalog/colonies/search
+ * Searches verified colonies and section mappings in the database.
+ * Query parameters:
+ *  - mun: Municipality name (default: "Tonalá")
+ *  - section: Specific electoral section number (optional)
+ *  - q: Search string query (optional)
+ */
+export async function GET(req: Request) {
+  const actor = await actorFromSession();
+  if (!actor) return unauthorized();
+
+  const url = new URL(req.url);
+  const municipality = url.searchParams.get("mun") || "Tonalá";
+  const sectionStr = url.searchParams.get("section");
+  const q = (url.searchParams.get("q") || "").trim();
+
+  const db = getDatabaseClient();
+
   try {
-    const { searchParams } = new URL(req.url);
-    const q = searchParams.get("q") || "";
-    const section = searchParams.get("section") || "";
-    const zip = searchParams.get("zip") || "";
-    const mun = searchParams.get("mun") || "";
+    const sectionNum = sectionStr && !isNaN(parseInt(sectionStr, 10)) ? parseInt(sectionStr, 10) : null;
 
-    const db = getDatabaseClient();
+    const result = await db.execute<{
+      id: string;
+      name: string;
+      postal_code: string | null;
+      municipality: string;
+      section_num: number | null;
+    }>(sql`
+      SELECT DISTINCT
+        col.id::text AS id,
+        col.name,
+        col.postal_code,
+        COALESCE(col.municipality, es.municipality, ${municipality}) AS municipality,
+        es.section_num
+      FROM colonies col
+      LEFT JOIN section_colonies sc ON sc.colony_id = col.id
+      LEFT JOIN electoral_sections es ON es.id = sc.section_id
+      WHERE col.status = 'active'
+        AND col.name NOT LIKE 'Cabecera %'
+        AND col.name NOT LIKE 'Municipio %'
+        ${municipality && municipality.toLowerCase() !== "all" ? sql`AND (LOWER(col.municipality) = LOWER(${municipality}) OR col.municipality IS NULL)` : sql``}
+        ${sectionNum ? sql`AND es.section_num = ${sectionNum}` : sql``}
+        ${q ? sql`AND col.name ILIKE ${`%${q}%`}` : sql``}
+      ORDER BY 
+        ${q ? sql`CASE WHEN col.name ILIKE ${`${q}%`} THEN 1 ELSE 2 END,` : sql``}
+        col.name ASC
+      LIMIT 25
+    `);
 
-    let baseQuery = db.select({
-      id: schema.colonies.id,
-      name: schema.colonies.name,
-      postalCode: schema.colonies.postalCode,
-      municipality: schema.colonies.municipality
-    }).from(schema.colonies);
+    const formatted = result.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      postalCode: row.postal_code || "45400",
+      municipality: row.municipality,
+      sectionNum: row.section_num || undefined,
+    }));
 
-    if (section) {
-      baseQuery = baseQuery
-        .innerJoin(schema.sectionColonies, eq(schema.colonies.id, schema.sectionColonies.colonyId))
-        .innerJoin(schema.electoralSections, eq(schema.sectionColonies.sectionId, schema.electoralSections.id)) as any;
-    }
-
-    const finalConditions = [];
-    if (section) {
-      const parsed = parseInt(section, 10);
-      if (!isNaN(parsed)) {
-        finalConditions.push(eq(schema.electoralSections.sectionNum, parsed));
-      }
-    }
-    if (zip) {
-      finalConditions.push(eq(schema.colonies.postalCode, zip));
-    }
-    if (mun) {
-      const normalizedMun = mun.toLowerCase().trim();
-      let targetMun = mun;
-      if (normalizedMun.includes("tonal")) targetMun = "Tonalá";
-      else if (normalizedMun.includes("guadalajara")) targetMun = "Guadalajara";
-      else if (normalizedMun.includes("zapopan")) targetMun = "Zapopan";
-      else if (normalizedMun.includes("tlaquepaque")) targetMun = "San Pedro Tlaquepaque";
-      else if (normalizedMun.includes("tlajomulco")) targetMun = "Tlajomulco de Zúñiga";
-      else if (normalizedMun.includes("salto")) targetMun = "El Salto";
-      else if (normalizedMun.includes("zapotlanejo")) targetMun = "Zapotlanejo";
-
-      finalConditions.push(
-        sql`(${schema.colonies.municipality} ILIKE ${'%' + targetMun + '%'} OR ${schema.colonies.municipality} ILIKE ${'%' + mun + '%'})`
-      );
-    }
-    if (q) {
-      finalConditions.push(ilike(schema.colonies.name, `%${q}%`));
-    }
-
-    if (finalConditions.length > 0) {
-      baseQuery = baseQuery.where(and(...finalConditions)) as any;
-    }
-
-    const results = await (baseQuery as any).limit(50);
-
-    return NextResponse.json(results);
+    return NextResponse.json(formatted);
   } catch (error) {
-    console.error("Error searching colonies:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error("Error searching colonies catalog:", error);
+    return NextResponse.json([]);
   }
 }

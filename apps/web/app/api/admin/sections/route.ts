@@ -149,7 +149,7 @@ export async function POST(request: Request) {
           const colRes = await db.execute<{ id: string }>(sql`
             INSERT INTO colonies (catalog_version_id, name, postal_code, municipality, status)
             VALUES (${catalogVersionId}::uuid, ${colName}, '45400', ${muni}, 'active')
-            ON CONFLICT (catalog_version_id, name) DO UPDATE SET status = 'active'
+            ON CONFLICT (catalog_version_id, name, municipality) DO UPDATE SET status = 'active'
             RETURNING id::text
           `);
 

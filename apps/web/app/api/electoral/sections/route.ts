@@ -64,14 +64,14 @@ export async function GET() {
       SELECT
         es.id::text,
         es.section_num,
-        COALESCE(MIN(col.municipality), 'Tonalá') AS municipality,
+        COALESCE(es.municipality, 'Tonalá') AS municipality,
         COALESCE(ARRAY_AGG(DISTINCT col.name) FILTER (WHERE col.name IS NOT NULL), '{}') AS colonies,
         COUNT(DISTINCT cont.id)::text AS contacts_count
       FROM electoral_sections es
       LEFT JOIN section_colonies sc ON sc.section_id = es.id
       LEFT JOIN colonies col ON col.id = sc.colony_id
       LEFT JOIN contacts cont ON cont.section_id = es.id
-      GROUP BY es.id, es.section_num
+      GROUP BY es.id, es.section_num, es.municipality
       ORDER BY es.section_num ASC
     `);
 
@@ -160,7 +160,7 @@ export async function POST(request: Request) {
           const colRes = await db.execute<{ id: string }>(sql`
             INSERT INTO colonies (catalog_version_id, name, postal_code, municipality, status)
             VALUES (${catalogVersionId}::uuid, ${colName}, '45400', ${municipality}, 'active')
-            ON CONFLICT (catalog_version_id, name) DO UPDATE SET status = 'active'
+            ON CONFLICT (catalog_version_id, name, municipality) DO UPDATE SET status = 'active'
             RETURNING id::text
           `);
           const colonyId = colRes.rows[0]?.id;
