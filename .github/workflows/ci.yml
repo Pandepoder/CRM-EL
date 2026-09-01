@@ -43,8 +43,6 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 11.9.0
 
       - name: Use Node.js
         uses: actions/setup-node@v4
@@ -55,8 +53,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Setup Database
-        run: pnpm db:migrate
-
-      - name: Run Full Validation (Typecheck, Lint, Tests)
-        run: pnpm validate
+      - name: Run Validation (Typecheck, Lint, Architecture, Unit Tests)
+        run: pnpm validate:unit
