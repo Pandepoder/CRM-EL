@@ -4,16 +4,19 @@ import { schema } from "@tonala/shared/database";
 import { eq, sql } from "drizzle-orm";
 import TeamsClient from "./TeamsClient";
 import { requirePageRole } from "@/lib/authorization";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export default async function AdminEquiposPage() {
-  await requirePageRole("admin", "direction", "territorial_coordinator", "visit_responsible", "capturist");
+  await requirePageRole("admin", "direction", "territorial_coordinator");
   const session = await getServerSession();
   const db = getDatabaseClient();
   
-  const isGlobalAdmin = ["admin", "direction", "territorial_coordinator"].includes(session.roleKey);
+  const networkScope = await resolveUserNetworkScope(session.userId);
+  const isGlobalAdmin = networkScope.isGlobal;
+  const allowedTeammateIds = networkScope.teammateUserIds;
 
-  // 1. Fetch all active users
-  const users = await db
+  // 1. Fetch eligible leaders / users
+  const allUsers = await db
     .select({
       id: schema.userProfiles.id,
       displayName: schema.userProfiles.displayName,
@@ -24,7 +27,11 @@ export default async function AdminEquiposPage() {
     .where(eq(schema.userProfiles.status, "active"))
     .orderBy(schema.userProfiles.displayName);
 
-  // 2. Fetch existing teams
+  const users = isGlobalAdmin
+    ? allUsers
+    : allUsers.filter(u => allowedTeammateIds.includes(u.id));
+
+  // 2. Fetch existing real teams
   const existingTeams = await db
     .select({
       id: schema.teams.id,
@@ -36,43 +43,10 @@ export default async function AdminEquiposPage() {
       leaderName: schema.userProfiles.displayName
     })
     .from(schema.teams)
-    .leftJoin(schema.userProfiles, eq(schema.teams.leaderId, schema.userProfiles.id));
+    .leftJoin(schema.userProfiles, eq(schema.teams.leaderId, schema.userProfiles.id))
+    .orderBy(schema.teams.name);
 
-  // 3. Auto-provision team for each user if they don't have one
-  const existingLeaderIds = new Set(existingTeams.map(t => t.leaderId));
-  for (const u of users) {
-    if (!existingLeaderIds.has(u.id)) {
-      try {
-        const [newTeam] = await db
-          .insert(schema.teams)
-          .values({
-            name: `Equipo ${u.displayName}`,
-            leaderId: u.id,
-            zone: "Tonalá",
-            municipality: "Tonalá"
-          })
-          .returning({
-            id: schema.teams.id,
-            name: schema.teams.name,
-            zone: schema.teams.zone,
-            leaderId: schema.teams.leaderId,
-            municipality: schema.teams.municipality,
-            section: schema.teams.section
-          });
-
-        if (newTeam) {
-          existingTeams.push({
-            ...newTeam,
-            leaderName: u.displayName
-          });
-        }
-      } catch (err) {
-        console.error("Auto-provision team error for user", u.id, err);
-      }
-    }
-  }
-
-  // 4. Fetch all team members
+  // 3. Fetch all team members
   const allTeamMembers = await db
     .select({
       teamId: schema.teamMembers.teamId,
@@ -80,7 +54,12 @@ export default async function AdminEquiposPage() {
     })
     .from(schema.teamMembers);
 
-  // 5. Fetch count of registered contacts per user to aggregate by team
+  // Filter teams visible to user
+  const visibleTeams = isGlobalAdmin
+    ? existingTeams
+    : existingTeams.filter(t => t.leaderId === session.userId || allTeamMembers.some(m => m.teamId === t.id && m.userId === session.userId));
+
+  // 4. Fetch count of registered contacts per user to aggregate by team
   const contactCounts = await db
     .select({
       userId: schema.contacts.createdByUserId,
@@ -92,38 +71,36 @@ export default async function AdminEquiposPage() {
 
   const contactCountMap = new Map<string, number>();
   contactCounts.forEach(c => {
-    if (c.userId) contactCountMap.set(c.userId, Number(c.count) || 0);
+    if (c.userId) {
+      contactCountMap.set(c.userId, Number(c.count));
+    }
   });
 
   // Calculate stats for each team
-  const teamsWithStats = existingTeams.map(t => {
-    const members = allTeamMembers.filter(m => m.teamId === t.id);
-    const memberIds = new Set([t.leaderId, ...members.map(m => m.userId)].filter(Boolean));
+  const teamsData = visibleTeams.map(team => {
+    const teamMembersList = allTeamMembers.filter(m => m.teamId === team.id);
+    const memberIds = Array.from(new Set([team.leaderId, ...teamMembersList.map(m => m.userId)].filter(Boolean)));
     
     let totalContacts = 0;
-    memberIds.forEach(uId => {
-      if (uId) totalContacts += (contactCountMap.get(uId) || 0);
+    memberIds.forEach(mId => {
+      totalContacts += (contactCountMap.get(mId) || 0);
     });
 
+    const isMyTeam = team.leaderId === session.userId || teamMembersList.some(m => m.userId === session.userId);
+
     return {
-      ...t,
-      membersCount: memberIds.size,
+      id: team.id,
+      name: team.name,
+      zone: team.zone,
+      leaderId: team.leaderId,
+      leaderName: team.leaderName,
+      municipality: team.municipality,
+      section: team.section,
+      membersCount: memberIds.length,
       contactsCount: totalContacts,
-      isMyTeam: t.leaderId === session.userId || members.some(m => m.userId === session.userId)
+      isMyTeam
     };
   });
 
-  // Filter for non-admin users
-  const visibleTeams = isGlobalAdmin
-    ? teamsWithStats
-    : teamsWithStats.filter(t => t.isMyTeam);
-
-  return (
-    <TeamsClient
-      teams={visibleTeams}
-      users={users}
-      isGlobalAdmin={isGlobalAdmin}
-      currentUserId={session.userId}
-    />
-  );
+  return <TeamsClient teams={teamsData} users={users} isGlobalAdmin={isGlobalAdmin} currentUserId={session.userId} />;
 }

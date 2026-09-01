@@ -146,25 +146,37 @@ curl -fsSL https://get.docker.com | sh
 git clone https://github.com/Pandepoder/CRM-EL.git
 cd CRM-EL
 
-# Crear tu archivo de entorno de producción:
-cp .env.example .env.production
-nano .env.production
+# Crear tu archivo de entorno de producción.
+# IMPORTANTE: debe llamarse exactamente ".env" — Docker Compose solo lee
+# variables de un archivo con ese nombre (tanto para armar docker-compose.yml
+# como para inyectarlas al contenedor "web"). Un archivo ".env.production" es
+# ignorado silenciosamente y la app no arrancará.
+cp .env.production.example .env
+nano .env
 ```
 
-### 2. Configura `.env.production`:
-- Asigna contraseñas seguras a `POSTGRES_PASSWORD`, `SESSION_SECRET` y `ADMIN_PASSWORD`.
+### 2. Configura `.env`:
+- Asigna contraseñas seguras a `POSTGRES_PASSWORD`, `SESSION_SECRET`, `DATABASE_ENCRYPTION_KEY` y `ADMIN_PASSWORD` (usa `openssl rand -base64 24` / `openssl rand -hex 16` según el caso — nunca dejes los valores de ejemplo).
+- Configura `DOMAIN` con tu dominio real (Caddy lo usa para emitir el certificado HTTPS).
 - Deja `NEXT_PUBLIC_ENABLE_DEMO_LOGIN=false`.
 
 ### 3. Levantar la Aplicación:
 ```bash
 docker compose up -d --build
 ```
+Esto levanta la base de datos, aplica las migraciones pendientes automáticamente
+(servicio `migrate`, corre una sola vez antes de que arranque `web`), inicia un
+worker que procesa el outbox transaccional en segundo plano (`outbox-worker`) y
+finalmente arranca `web` y `caddy`. Ya no es necesario correr `db:migrate` a mano.
 
-### 4. Inicializar y Limpiar la Base de Datos en Producción:
+### 4. Limpiar la Base de Datos para Producción:
 ```bash
-docker compose exec web pnpm db:migrate
 docker compose exec web pnpm db:clean
 ```
+Este paso sigue siendo manual y a propósito: borra los datos de prueba y siembra
+los catálogos oficiales + la cuenta de Administrador Maestro. Si tu base de datos
+no está en `localhost`, te pedirá confirmar escribiendo el nombre de la base de
+datos antes de continuar.
 
 Tu CRM estará en línea con HTTPS seguro configurado automáticamente.
 

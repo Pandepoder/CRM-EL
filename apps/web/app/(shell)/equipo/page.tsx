@@ -1,9 +1,10 @@
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
-import { eq, and, gte, lte, or } from "drizzle-orm";
+import { eq, and, gte, lte, or, inArray } from "drizzle-orm";
 import AgendaClient from "./AgendaClient";
 import { requirePageRole } from "@/lib/authorization";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export interface LeaderStat {
   userId: string;
@@ -39,7 +40,14 @@ export default async function EquipoMiDiaPage({
   
   const db = getDatabaseClient();
   const roleKey = session.roleKey || "";
-  const isAdminOrCoordinator = ["admin", "direction", "territorial_coordinator"].includes(roleKey);
+  
+  // Resolve network and brigade scope for current user
+  const networkScope = await resolveUserNetworkScope(session.userId);
+  const isGlobalAdmin = networkScope.isGlobal;
+  const isLeader = networkScope.isLeader || roleKey === "territorial_coordinator";
+  const canAssign = isGlobalAdmin || isLeader;
+  const allowedTeammateIds = networkScope.teammateUserIds;
+  const allowedContactUserIds = networkScope.allowedUserIds || [session.userId];
 
   // Date filters
   let dateFilter;
@@ -70,17 +78,24 @@ export default async function EquipoMiDiaPage({
 
   // Determine user filter for queries
   let targetUserId: string | undefined = undefined;
-  if (selectedLeaderId) {
+  if (selectedLeaderId && (isGlobalAdmin || allowedTeammateIds.includes(selectedLeaderId))) {
     targetUserId = selectedLeaderId;
   } else if (scope === "mis") {
     targetUserId = session.userId;
-  } else if (!isAdminOrCoordinator) {
+  } else if (!canAssign) {
     targetUserId = session.userId;
   }
 
-  const visitUserCondition = targetUserId ? eq(schema.visits.assignedUserId, targetUserId) : undefined;
+  const visitUserCondition = targetUserId 
+    ? eq(schema.visits.assignedUserId, targetUserId) 
+    : !isGlobalAdmin 
+    ? inArray(schema.visits.assignedUserId, allowedTeammateIds)
+    : undefined;
+
   const eventUserCondition = targetUserId 
     ? or(eq(schema.eventReports.assignedToUserId, targetUserId), eq(schema.eventReports.createdByUserId, targetUserId)) 
+    : !isGlobalAdmin
+    ? or(inArray(schema.eventReports.assignedToUserId, allowedTeammateIds), inArray(schema.eventReports.createdByUserId, allowedTeammateIds))
     : undefined;
 
   // 1. Fetch Visits
@@ -126,7 +141,7 @@ export default async function EquipoMiDiaPage({
       type: "visit" as const,
       status: v.status,
       scheduledAt: (v.scheduledAt instanceof Date ? v.scheduledAt : new Date(v.scheduledAt)).toISOString(),
-      title: `🏠 Visita Domiciliaria: ${v.contactName}`,
+      title: `Visita Domiciliaria: ${v.contactName}`,
       description: `Visita de seguimiento y vinculación territorial`,
       location: v.location || "Domicilio en campo",
       contactId: v.contactId,
@@ -136,11 +151,12 @@ export default async function EquipoMiDiaPage({
     })),
     ...userEvents.map(e => {
       let cat = e.category;
-      if (e.title.toLowerCase().includes("plática") || e.title.toLowerCase().includes("platica") || e.title.includes("☕")) cat = "platica";
-      else if (e.title.toLowerCase().includes("visita") || e.title.includes("🏠")) cat = "visita";
-      else if (e.title.toLowerCase().includes("evento") || e.title.toLowerCase().includes("asamblea") || e.title.includes("🎤")) cat = "evento";
-      else if (e.title.toLowerCase().includes("brigada") || e.title.includes("🚶‍♂️")) cat = "brigada";
-      else if (e.title.toLowerCase().includes("perifoneo") || e.title.includes("📢")) cat = "perifoneo";
+      const t = (e.title || "").toLowerCase();
+      if (t.includes("plática") || t.includes("platica")) cat = "platica";
+      else if (t.includes("visita")) cat = "visita";
+      else if (t.includes("evento") || t.includes("asamblea")) cat = "evento";
+      else if (t.includes("brigada")) cat = "brigada";
+      else if (t.includes("perifoneo")) cat = "perifoneo";
 
       return {
         id: e.id,
@@ -159,8 +175,8 @@ export default async function EquipoMiDiaPage({
     })
   ].sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
 
-  // 3. Load all active users with roles & teams
-  const systemUsers = await db
+  // 3. Load active users (scoped to brigade if not global admin)
+  let userQuery = db
     .select({
       id: schema.userProfiles.id,
       displayName: schema.userProfiles.displayName,
@@ -171,10 +187,16 @@ export default async function EquipoMiDiaPage({
     .from(schema.userProfiles)
     .leftJoin(schema.roles, eq(schema.userProfiles.roleId, schema.roles.id))
     .where(eq(schema.userProfiles.status, "active"))
-    .orderBy(schema.userProfiles.displayName);
+    .$dynamic();
 
-  // 4. Load all operational activities and contacts across all users to compute leader stats
-  const allEvents = await db
+  if (!isGlobalAdmin && allowedTeammateIds.length > 0) {
+    userQuery = userQuery.where(inArray(schema.userProfiles.id, allowedTeammateIds));
+  }
+
+  const systemUsers = await userQuery.orderBy(schema.userProfiles.displayName);
+
+  // 4. Load operational activities scoped to brigade
+  let eventReportQuery = db
     .select({
       id: schema.eventReports.id,
       title: schema.eventReports.title,
@@ -184,24 +206,47 @@ export default async function EquipoMiDiaPage({
       createdByUserId: schema.eventReports.createdByUserId,
       eventDate: schema.eventReports.eventDate
     })
-    .from(schema.eventReports);
+    .from(schema.eventReports)
+    .$dynamic();
 
-  const allVisits = await db
+  if (!isGlobalAdmin && allowedTeammateIds.length > 0) {
+    eventReportQuery = eventReportQuery.where(
+      or(
+        inArray(schema.eventReports.assignedToUserId, allowedTeammateIds),
+        inArray(schema.eventReports.createdByUserId, allowedTeammateIds)
+      )
+    );
+  }
+  const allEvents = await eventReportQuery;
+
+  let visitQuery = db
     .select({
       id: schema.visits.id,
       status: schema.visits.status,
       assignedUserId: schema.visits.assignedUserId,
       scheduledAt: schema.visits.scheduledAt
     })
-    .from(schema.visits);
+    .from(schema.visits)
+    .$dynamic();
 
-  const allContacts = await db
+  if (!isGlobalAdmin && allowedTeammateIds.length > 0) {
+    visitQuery = visitQuery.where(inArray(schema.visits.assignedUserId, allowedTeammateIds));
+  }
+  const allVisits = await visitQuery;
+
+  let contactQuery = db
     .select({
       id: schema.contacts.id,
       createdByUserId: schema.contacts.createdByUserId
     })
     .from(schema.contacts)
-    .where(eq(schema.contacts.status, "active"));
+    .where(eq(schema.contacts.status, "active"))
+    .$dynamic();
+
+  if (!isGlobalAdmin && allowedContactUserIds.length > 0) {
+    contactQuery = contactQuery.where(inArray(schema.contacts.createdByUserId, allowedContactUserIds));
+  }
+  const allContacts = await contactQuery;
 
   const allTeams = await db
     .select({
@@ -211,12 +256,11 @@ export default async function EquipoMiDiaPage({
     })
     .from(schema.teams);
 
-  // Compute LeaderStats for each user
+  // Compute LeaderStats for scoped users
   const leaderStats: LeaderStat[] = systemUsers.map(user => {
     const userTeam = allTeams.find(t => t.leaderId === user.id);
     const teamName = userTeam?.name || `Equipo de ${user.displayName.split(" ")[0]}`;
 
-    // Filter events for this user
     const userEvts = allEvents.filter(e => e.assignedToUserId === user.id || e.createdByUserId === user.id);
     const userVsts = allVisits.filter(v => v.assignedUserId === user.id);
     const userConts = allContacts.filter(c => c.createdByUserId === user.id);
@@ -233,11 +277,11 @@ export default async function EquipoMiDiaPage({
       if (isComp) completed++;
 
       const t = (e.title || "").toLowerCase();
-      if (t.includes("plática") || t.includes("platica") || t.includes("☕")) {
+      if (t.includes("plática") || t.includes("platica")) {
         platicas++;
-      } else if (t.includes("visita") || t.includes("🏠") || e.category === "servicios") {
+      } else if (t.includes("visita") || e.category === "servicios") {
         visitas++;
-      } else if (t.includes("evento") || t.includes("asamblea") || t.includes("mitin") || t.includes("🎤") || e.category === "mitin") {
+      } else if (t.includes("evento") || t.includes("asamblea") || t.includes("mitin") || e.category === "mitin") {
         eventos++;
       } else {
         brigadas++;
@@ -247,7 +291,6 @@ export default async function EquipoMiDiaPage({
     const total = userEvts.length + userVsts.length;
     const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-    // Find latest activity timestamp
     let latestAt: Date | null = null;
     [...userEvts.map(e => e.eventDate), ...userVsts.map(v => v.scheduledAt)].forEach(d => {
       if (d) {
@@ -256,12 +299,21 @@ export default async function EquipoMiDiaPage({
       }
     });
 
+    const displayRole =
+      user.roleKey === "territorial_coordinator"
+        ? "Líder"
+        : user.roleKey === "capturist"
+        ? "Coordinador Territorial"
+        : user.roleKey === "visit_responsible"
+        ? "Brigadista"
+        : user.roleName || "Operador";
+
     return {
       userId: user.id,
       displayName: user.displayName,
       email: user.email,
-      roleKey: user.roleKey || "capturist",
-      roleName: user.roleName || "Operador Territorial",
+      roleKey: user.roleKey || "visit_responsible",
+      roleName: displayRole,
       teamName,
       totalActivities: total,
       completedActivities: completed,
@@ -286,8 +338,8 @@ export default async function EquipoMiDiaPage({
     .orderBy(schema.electoralSections.sectionNum)
     .limit(100);
 
-  // 6. Contacts for assignment
-  const rawContacts = await db
+  // 6. Contacts for assignment (scoped to brigade)
+  let rawContactsQuery = db
     .select({
       id: schema.contacts.id,
       displayName: schema.contacts.displayName,
@@ -296,8 +348,13 @@ export default async function EquipoMiDiaPage({
     })
     .from(schema.contacts)
     .where(eq(schema.contacts.status, "active"))
-    .orderBy(schema.contacts.displayName)
-    .limit(100);
+    .$dynamic();
+
+  if (!isGlobalAdmin && allowedContactUserIds.length > 0) {
+    rawContactsQuery = rawContactsQuery.where(inArray(schema.contacts.createdByUserId, allowedContactUserIds));
+  }
+
+  const rawContacts = await rawContactsQuery.orderBy(schema.contacts.displayName).limit(100);
 
   const contacts = rawContacts.map(c => ({
     id: c.id,
@@ -306,8 +363,8 @@ export default async function EquipoMiDiaPage({
     colony: decryptData(c.colony)
   }));
 
-  // 7. Rapid Activity Prospects
-  const rawProspects = await db
+  // 7. Rapid Activity Prospects (scoped to brigade)
+  let rawProspectsQuery = db
     .select({
       id: schema.rapidActivityProspects.id,
       prospectName: schema.rapidActivityProspects.prospectName,
@@ -326,7 +383,13 @@ export default async function EquipoMiDiaPage({
     })
     .from(schema.rapidActivityProspects)
     .leftJoin(schema.userProfiles, eq(schema.rapidActivityProspects.createdByUserId, schema.userProfiles.id))
-    .orderBy(schema.rapidActivityProspects.activityDate);
+    .$dynamic();
+
+  if (!isGlobalAdmin && allowedContactUserIds.length > 0) {
+    rawProspectsQuery = rawProspectsQuery.where(inArray(schema.rapidActivityProspects.createdByUserId, allowedContactUserIds));
+  }
+
+  const rawProspects = await rawProspectsQuery.orderBy(schema.rapidActivityProspects.activityDate);
 
   const serializedProspects = rawProspects.map(p => ({
     ...p,
@@ -340,7 +403,7 @@ export default async function EquipoMiDiaPage({
       filter={filter}
       scope={scope}
       selectedLeaderId={selectedLeaderId}
-      canAssign={isAdminOrCoordinator}
+      canAssign={canAssign}
       currentUserId={session.userId}
       currentUserRole={roleKey}
       systemUsers={systemUsers}

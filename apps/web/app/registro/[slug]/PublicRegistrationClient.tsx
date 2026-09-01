@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { 
-  User, Phone, Mail, Calendar, MapPin, CheckCircle, Sparkles, ArrowRight, Briefcase, ChevronDown, ChevronUp, AlertCircle 
+  User, Phone, Mail, Calendar, MapPin, CheckCircle, Sparkles, ArrowRight, Briefcase, ChevronDown, ChevronUp, AlertCircle,
+  MessageSquare, ClipboardList
 } from "lucide-react";
 
 export default function PublicRegistrationClient({
@@ -126,7 +127,7 @@ export default function PublicRegistrationClient({
           </div>
 
           <div className="p-4 bg-blue-50/80 rounded-2xl border border-blue-100 text-xs text-blue-900 font-semibold space-y-1">
-            <p>🌟 Estamos construyendo un proyecto cercano, ordenado y con visión para Tonalá.</p>
+            <p className="flex items-center justify-center gap-1.5"><Sparkles size={13} /> Estamos construyendo un proyecto cercano, ordenado y con visión para Tonalá.</p>
             <p className="text-gray-500">Nos pondremos en contacto contigo pronto.</p>
           </div>
         </div>
@@ -358,8 +359,9 @@ export default function PublicRegistrationClient({
 
           {/* 4. CONÓCEME MEJOR (TEXTO OFICIAL) */}
           <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-2">
-            <label className="block text-xs font-extrabold text-slate-900">
-              💬 Nos gustaría conocerte un poquito mejor. ¿Qué disfrutas hacer, qué temas te interesan o qué te gustaría que recordáramos de ti?
+            <label className="flex items-start gap-1.5 text-xs font-extrabold text-slate-900">
+              <MessageSquare size={14} className="shrink-0 mt-0.5 text-slate-500" />
+              <span>Nos gustaría conocerte un poquito mejor. ¿Qué disfrutas hacer, qué temas te interesan o qué te gustaría que recordáramos de ti?</span>
             </label>
             <textarea
               rows={3}
@@ -378,8 +380,8 @@ export default function PublicRegistrationClient({
               className="w-full p-4.5 flex items-center justify-between text-left cursor-pointer hover:bg-indigo-50/80 transition-colors"
             >
               <div className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                  📋
+                <span className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                  <ClipboardList size={14} />
                 </span>
                 <div>
                   <h4 className="font-extrabold text-xs text-indigo-950">Encuesta Opcional de Opinión (2 minutos)</h4>

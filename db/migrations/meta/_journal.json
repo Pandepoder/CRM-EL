@@ -57,6 +57,13 @@
       "when": 1788162784436,
       "tag": "0007_skinny_diamondback",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788292646162,
+      "tag": "0008_add_missing_foreign_key_indexes",
+      "breakpoints": true
     }
   ]
 }

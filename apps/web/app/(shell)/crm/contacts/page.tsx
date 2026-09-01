@@ -100,7 +100,7 @@ export default async function ContactsPage({
       q={q}
       userSlug={currentUser?.personalSlug || ""}
       userName={currentUser?.displayName || "Mi Usuario"}
-      userAccessType={accessType}
+      userAccessType={networkScope.isGlobal ? "coordinacion" : networkScope.isLeader ? "enlace" : "conexion"}
     />
   );
 }

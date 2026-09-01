@@ -3,6 +3,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
 import { eq, or, desc } from "drizzle-orm";
 import { requirePageRole } from "@/lib/authorization";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { notFound } from "next/navigation";
 import LeaderProfileClient from "./LeaderProfileClient";
 
@@ -35,6 +36,18 @@ export default async function LeaderProfilePage({
 
   const targetUser = userRows[0];
   if (!targetUser) return notFound();
+
+  // Only the user themself, a global admin, or someone within the same
+  // brigade/network scope (leader <-> teammate) may view this profile —
+  // otherwise contact PII and activity registered by the target user would
+  // leak across unrelated brigades.
+  if (session.userId !== targetUserId) {
+    const viewerScope = await resolveUserNetworkScope(session.userId);
+    const canView = viewerScope.isGlobal || viewerScope.teammateUserIds.includes(targetUserId);
+    if (!canView) {
+      return notFound();
+    }
+  }
 
   // 2. Fetch Team
   const teamRows = await db
@@ -137,7 +150,7 @@ export default async function LeaderProfilePage({
       id: v.id,
       type: "visita",
       category: "visita",
-      title: `🏠 Visita Domiciliaria: ${v.contactName}`,
+      title: `Visita Domiciliaria: ${v.contactName}`,
       description: `Visita de seguimiento y vinculación en campo`,
       location: v.location || "Domicilio en campo",
       status: v.status,
@@ -148,11 +161,11 @@ export default async function LeaderProfilePage({
     ...rawEvents.map(e => {
       let cat = e.category;
       const t = (e.title || "").toLowerCase();
-      if (t.includes("plática") || t.includes("platica") || t.includes("☕")) cat = "platica";
-      else if (t.includes("visita") || t.includes("🏠")) cat = "visita";
-      else if (t.includes("evento") || t.includes("asamblea") || t.includes("mitin") || t.includes("🎤")) cat = "evento";
-      else if (t.includes("brigada") || t.includes("volanteo") || t.includes("🚶‍♂️")) cat = "brigada";
-      else if (t.includes("perifoneo") || t.includes("📢")) cat = "perifoneo";
+      if (t.includes("plática") || t.includes("platica")) cat = "platica";
+      else if (t.includes("visita")) cat = "visita";
+      else if (t.includes("evento") || t.includes("asamblea") || t.includes("mitin")) cat = "evento";
+      else if (t.includes("brigada") || t.includes("volanteo")) cat = "brigada";
+      else if (t.includes("perifoneo")) cat = "perifoneo";
 
       return {
         id: e.id,

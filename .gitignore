@@ -2,6 +2,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+!.env.production.example
 dist/
 coverage/
 .next/
@@ -14,3 +15,6 @@ Thumbs.db
 db/local-data/
 scripts/*.png
 *.tsbuildinfo
+__pycache__/
+*.pyc
+.claude/

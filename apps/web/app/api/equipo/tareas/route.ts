@@ -61,25 +61,25 @@ export async function POST(req: Request) {
 
     if (category === "platica") {
       safeCategory = "servicios";
-      activityPrefix = "☕ [Plática Vecinal] ";
+      activityPrefix = "[Plática Vecinal] ";
     } else if (category === "visita") {
       safeCategory = "servicios";
-      activityPrefix = "🏠 [Visita Domiciliaria] ";
+      activityPrefix = "[Visita Domiciliaria] ";
     } else if (category === "evento") {
       safeCategory = "mitin";
-      activityPrefix = "🎤 [Evento / Asamblea] ";
+      activityPrefix = "[Evento / Asamblea] ";
     } else if (category === "estructura") {
       safeCategory = "mitin";
-      activityPrefix = "🗳️ [Estructura Electoral] ";
+      activityPrefix = "[Estructura Electoral] ";
     } else if (category === "perifoneo") {
       safeCategory = "propaganda";
-      activityPrefix = "📢 [Perifoneo / Activación] ";
+      activityPrefix = "[Perifoneo / Activación] ";
     } else if (category === "apoyos") {
       safeCategory = "emergencia";
-      activityPrefix = "📦 [Logística / Apoyos] ";
+      activityPrefix = "[Logística / Apoyos] ";
     } else if (category === "brigada") {
       safeCategory = "brigada";
-      activityPrefix = "🚶‍♂️ [Brigada de Campo] ";
+      activityPrefix = "[Brigada de Campo] ";
     } else if (!validCategories.includes(safeCategory)) {
       safeCategory = "brigada";
     }
@@ -90,10 +90,10 @@ export async function POST(req: Request) {
 
     let enrichedDescription = description.trim();
     if (body.estimatedAttendees && Number(body.estimatedAttendees) > 0) {
-      enrichedDescription = `👥 Asistentes / Participantes Estimados: ${body.estimatedAttendees}\n${enrichedDescription}`;
+      enrichedDescription = `Asistentes / Participantes Estimados: ${body.estimatedAttendees}\n${enrichedDescription}`;
     }
     if (locationText && locationText.trim()) {
-      enrichedDescription = `📍 Sede / Domicilio: ${locationText.trim()}\n${enrichedDescription}`;
+      enrichedDescription = `Sede / Domicilio: ${locationText.trim()}\n${enrichedDescription}`;
     }
 
     // 3. Insert operational task into eventReports

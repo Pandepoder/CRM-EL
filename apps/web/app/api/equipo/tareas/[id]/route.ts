@@ -31,7 +31,7 @@ export async function PATCH(
 
       const prevDesc = existing[0]?.description || "";
       newDescription = prevDesc.trim()
-        ? `${prevDesc.trim()}\n\n📝 Conclusiones / Resultado: ${summary.trim()}`
+        ? `${prevDesc.trim()}\n\nConclusiones / Resultado: ${summary.trim()}`
         : summary.trim();
     }
 

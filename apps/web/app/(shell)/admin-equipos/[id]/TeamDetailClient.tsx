@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-// @ts-ignore
-import { Users, Plus, Shield, ArrowLeft, Trash, User, Search, MapPin, ArrowRight, UserPlus, CheckCircle, X } from "lucide-react";
+import { Users, Plus, Shield, ArrowLeft, Trash, Trash2, User, Search, MapPin, ArrowRight, UserPlus, CheckCircle, X, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
+import { deleteContactAction } from "../../crm/actions";
 
 type Team = {
   id: string;
@@ -66,6 +66,20 @@ export default function TeamDetailClient({
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [contactSearch, setContactSearch] = useState("");
+  const [deletingContactId, setDeletingContactId] = useState<string | null>(null);
+
+  async function handleDeleteContact(contactId: string, displayName: string) {
+    if (!confirm(`¿Deseas eliminar a "${displayName}" de los registros de este equipo?`)) return;
+    setDeletingContactId(contactId);
+    try {
+      await deleteContactAction(contactId);
+      router.refresh();
+    } catch (err: any) {
+      alert(err?.message || "Error al eliminar ciudadano");
+    } finally {
+      setDeletingContactId(null);
+    }
+  }
 
   async function handleAddMember(e: React.FormEvent) {
     e.preventDefault();
@@ -145,8 +159,8 @@ export default function TeamDetailClient({
               )}
             </div>
             <p className="text-gray-500 text-xs md:text-sm mt-0.5 flex items-center gap-2 flex-wrap">
-              <span>
-                👤 Líder:{" "}
+              <span className="inline-flex items-center gap-1">
+                <User size={12} /> Líder:{" "}
                 {team.leaderId ? (
                   <Link
                     href={`/perfil/${team.leaderId}`}
@@ -331,12 +345,29 @@ export default function TeamDetailClient({
                           {new Date(c.createdAt).toLocaleDateString("es-MX", { dateStyle: "medium" })}
                         </td>
                         <td className="p-4 pr-6 text-right">
-                          <Link
-                            href={`/crm/contacts/${c.id}`}
-                            className="px-3 py-1 bg-gray-50 hover:bg-blue-50 text-blue-700 font-bold rounded-lg border border-gray-200 hover:border-blue-200 transition-all text-[11px] inline-flex items-center gap-1"
-                          >
-                            Ver <ArrowRight size={11} />
-                          </Link>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Link
+                              href={`/crm/contacts/${c.id}`}
+                              className="px-3 py-1 bg-gray-50 hover:bg-blue-50 text-blue-700 font-bold rounded-lg border border-gray-200 hover:border-blue-200 transition-all text-[11px] inline-flex items-center gap-1"
+                            >
+                              Ver <ArrowRight size={11} />
+                            </Link>
+                            {canManage && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteContact(c.id, c.displayName)}
+                                disabled={deletingContactId === c.id}
+                                title="Eliminar ciudadano de este equipo"
+                                className="p-1 bg-gray-50 hover:bg-rose-50 text-gray-400 hover:text-rose-600 rounded-lg border border-gray-200 hover:border-rose-200 transition-all cursor-pointer disabled:opacity-50"
+                              >
+                                {deletingContactId === c.id ? (
+                                  <Loader2 size={12} className="animate-spin text-rose-600" />
+                                ) : (
+                                  <Trash2 size={12} />
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

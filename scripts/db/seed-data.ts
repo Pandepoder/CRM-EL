@@ -1,9 +1,9 @@
 export const roleSeeds = [
   { key: "admin", name: "Administrador" },
-  { key: "direction", name: "Direccion" },
-  { key: "territorial_coordinator", name: "Coordinador territorial" },
-  { key: "capturist", name: "Capturista" },
-  { key: "visit_responsible", name: "Responsable de visita" }
+  { key: "direction", name: "Dirección" },
+  { key: "territorial_coordinator", name: "Líder" },
+  { key: "capturist", name: "Coordinador Territorial" },
+  { key: "visit_responsible", name: "Brigadista" }
 ] as const;
 
 export const demoUserSeeds = [

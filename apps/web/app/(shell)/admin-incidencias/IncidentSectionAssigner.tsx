@@ -191,7 +191,7 @@ export function IncidentSectionAssigner({
         title="Clic para autodetectar, asignar o crear sección electoral"
       >
         <MapPin size={12} className={currentSectionNum ? "text-blue-600" : "text-amber-600"} />
-        <span>{currentSectionNum ? `Sección #${currentSectionNum}` : "⚠️ Sin Sección (Asignar)"}</span>
+        <span>{currentSectionNum ? `Sección #${currentSectionNum}` : "Sin Sección (Asignar)"}</span>
         <ChevronDown size={12} className="opacity-60" />
       </button>
 

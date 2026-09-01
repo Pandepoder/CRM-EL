@@ -37,7 +37,7 @@ export const primaryNavItems: Record<NavSectionKey, NavItemConfig[]> = {
     { href: "/crm/contacts", label: "Directorio Ciudadano", key: "crm", allowedRoles: ["admin", "direction", "territorial_coordinator", "capturist", "visit_responsible"] },
     { href: "/crm/nuevo", label: "Nuevo Registro", key: "crm-nuevo", allowedRoles: ["admin", "direction", "territorial_coordinator", "capturist", "visit_responsible"] },
     { href: "/equipo", label: "Agenda Operativa", key: "equipo", allowedRoles: ["admin", "direction", "territorial_coordinator", "capturist", "visit_responsible"] },
-    { href: "/admin-equipos", label: "Gestión de Equipos", key: "admin-equipos", allowedRoles: ["admin", "direction", "territorial_coordinator", "visit_responsible", "capturist"] },
+    { href: "/admin-equipos", label: "Gestión de Equipos", key: "admin-equipos", allowedRoles: ["admin", "direction", "territorial_coordinator"] },
     { href: "/estructura-electoral", label: "Estructura Electoral", key: "estructura", allowedRoles: ["admin", "direction", "territorial_coordinator"] },
   ],
   territorio: [

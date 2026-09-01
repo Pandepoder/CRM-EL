@@ -4,9 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { 
   Search, Plus, Users, ChevronLeft, ChevronRight, 
-  Download, QrCode, Phone, Filter 
+  Download, QrCode, Phone, Filter, Trash2, Loader2 
 } from "lucide-react";
 import { PersonalLinkModal } from "@/components/PersonalLinkModal";
+import { deleteContactAction } from "../actions";
+import { useRouter } from "next/navigation";
 
 export default function DirectorioClient({
   contactsList,
@@ -27,8 +29,32 @@ export default function DirectorioClient({
   userName: string;
   userAccessType: string;
 }) {
+  const router = useRouter();
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [filterPan, setFilterPan] = useState<string>("all");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDelete(contactId: string, displayName: string) {
+    if (!confirm(`¿Confirmas que deseas eliminar a "${displayName}" de tu brigada? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    setDeletingId(contactId);
+    try {
+      await deleteContactAction(contactId);
+      router.refresh();
+    } catch (err: any) {
+      alert(err?.message || "Error al eliminar ciudadano");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const roleLabel =
+    userAccessType === "coordinacion"
+      ? "Coordinación General"
+      : userAccessType === "enlace"
+      ? "Líder de Brigada"
+      : "Brigada Territorial";
 
   const filteredContacts = contactsList.filter(c => {
     if (filterPan === "pan_confirmed") return c.panMilitancy === "confirmada";
@@ -51,14 +77,14 @@ export default function DirectorioClient({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-              Directorio General
+              Directorio Ciudadano
             </h1>
             <span className="text-xs font-black bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full uppercase">
-              {userAccessType}
+              {roleLabel}
             </span>
           </div>
           <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
-            {totalCount} persona{totalCount !== 1 ? "s" : ""} registrada{totalCount !== 1 ? "s" : ""} en tu red
+            {totalCount} persona{totalCount !== 1 ? "s" : ""} registrada{totalCount !== 1 ? "s" : ""} en tu brigada
             {q && ` · Filtrado por: "${q}"`}
           </p>
         </div>
@@ -125,7 +151,7 @@ export default function DirectorioClient({
               className="bg-transparent border-none outline-none text-xs font-bold py-1 pr-2 cursor-pointer"
             >
               <option value="all">Todas las personas</option>
-              <option value="pan_confirmed">Ⓜ️ PAN Confirmado</option>
+              <option value="pan_confirmed">PAN Confirmado</option>
               <option value="pan_declared">PAN Declarada</option>
             </select>
           </div>
@@ -190,7 +216,7 @@ export default function DirectorioClient({
                       <td className="py-2 px-3 md:py-3.5 md:px-4 whitespace-nowrap">
                         {isPan ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-600 text-white shadow-xs">
-                            <span>Ⓜ️</span> PAN Confirmado
+                            <span className="font-black">M</span> PAN Confirmado
                           </span>
                         ) : isPanDeclared ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
@@ -231,12 +257,29 @@ export default function DirectorioClient({
                       </td>
 
                       <td className="py-2 px-3 md:py-3.5 md:px-4 text-right whitespace-nowrap">
-                        <Link
-                          href={`/crm/contacts/${c.contactId || c.id}`}
-                          className="px-3 py-1.5 bg-gray-100 hover:bg-blue-600 hover:text-white rounded-xl text-[11px] font-extrabold text-gray-700 transition-all inline-block"
-                        >
-                          Ver Ficha
-                        </Link>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Link
+                            href={`/crm/contacts/${c.contactId || c.id}`}
+                            className="px-3 py-1.5 bg-gray-100 hover:bg-blue-600 hover:text-white rounded-xl text-[11px] font-extrabold text-gray-700 transition-all inline-block"
+                          >
+                            Ver Ficha
+                          </Link>
+                          {userAccessType !== "conexion" && (
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(c.contactId || c.id, c.displayName)}
+                              disabled={deletingId === (c.contactId || c.id)}
+                              title="Eliminar ciudadano de la brigada"
+                              className="p-1.5 bg-gray-100 hover:bg-rose-50 text-gray-400 hover:text-rose-600 rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              {deletingId === (c.contactId || c.id) ? (
+                                <Loader2 size={14} className="animate-spin text-rose-600" />
+                              ) : (
+                                <Trash2 size={14} />
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

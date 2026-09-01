@@ -220,8 +220,8 @@ export function AppShell({
               <div className="brand" style={{ padding: "0", border: "none" }}>
                 <div className="brand-mark" aria-hidden="true" style={{ borderRadius: "8px", width: 36, height: 36 }} />
                 <div>
-                  <h1 className="brand-title" style={{ fontSize: "16px", color: "var(--blue-950)" }}>Tonalá OS</h1>
-                  <p className="brand-subtitle" style={{ color: "var(--muted)", margin: 0, fontSize: "10px" }}>Gestor de Campaña</p>
+                  <h1 className="brand-title" style={{ fontSize: "16px" }}>Tonalá OS</h1>
+                  <p className="brand-subtitle" style={{ margin: 0, fontSize: "10px" }}>Gestor de Campaña</p>
                 </div>
               </div>
               <button className="mobile-drawer-close" onClick={() => setIsDrawerOpen(false)}>
@@ -233,7 +233,7 @@ export function AppShell({
               {/* All Items */}
               <nav className="nav-list">
                 {allItems.map((item) => (
-                  <a key={item.key} className={`nav-button ${item.active ? "is-active" : ""}`} href={item.href} onClick={() => setIsDrawerOpen(false)} style={{ color: item.active ? "var(--blue-700)" : "var(--blue-900)" }}>
+                  <a key={item.key} className={`nav-button ${item.active ? "is-active" : ""}`} href={item.href} onClick={() => setIsDrawerOpen(false)}>
                     {getIconForNavKey(item.key)} {item.label}
                   </a>
                 ))}

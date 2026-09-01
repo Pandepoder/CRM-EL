@@ -5,6 +5,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { changeUserRole } from "@tonala/modules/governance/application";
 import { actorFromSession, permissionChecker } from "@/lib/api-helpers";
 import { hashPassword } from "@/lib/auth";
+import { generateUniquePersonalSlug } from "@/lib/personal-slug";
 import { schema } from "@tonala/shared/database";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -43,6 +44,7 @@ export async function createUserAction(formData: FormData) {
 
   const passwordHash = await hashPassword(password);
   const userId = randomUUID();
+  const personalSlug = await generateUniquePersonalSlug(displayName);
 
   await db.insert(schema.userProfiles).values({
     id: userId,
@@ -50,6 +52,7 @@ export async function createUserAction(formData: FormData) {
     displayName,
     passwordHash,
     roleId,
+    personalSlug,
     status: "active",
     version: 1
   });

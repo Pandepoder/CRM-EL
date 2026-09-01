@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { 
-  ArrowLeft, Save, User, MapPin, Briefcase, Sparkles, HeartHandshake, Calendar, MessageSquare, ChevronDown, ChevronUp 
+  ArrowLeft, Save, User, MapPin, Briefcase, Sparkles, HeartHandshake, Calendar, MessageSquare, ChevronDown, ChevronUp,
+  ClipboardList
 } from "lucide-react";
 import { ColonySelector } from "@/components/ColonySelector";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
@@ -355,14 +356,14 @@ export default function NuevoContactoForm({
         <section className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 md:p-6 rounded-3xl shadow-md space-y-4">
           <div className="flex items-center justify-between border-b border-white/15 pb-3">
             <div className="flex items-center gap-2">
-              <span className="text-xl">Ⓜ️</span>
+              <span className="w-7 h-7 rounded-lg bg-blue-500/30 border border-blue-400/30 flex items-center justify-center text-sm font-black">M</span>
               <div>
                 <h2 className="text-sm font-black uppercase tracking-wider text-white">E. Militancia PAN</h2>
                 <p className="text-[11px] text-blue-200 font-medium">Control de estatus partidista en Tonalá</p>
               </div>
             </div>
             <span className="text-xs font-black bg-blue-500/30 text-blue-200 px-3 py-1 rounded-full border border-blue-400/30">
-              Distintivo en Mapa Ⓜ️
+              Distintivo en Mapa: M
             </span>
           </div>
 
@@ -377,7 +378,7 @@ export default function NuevoContactoForm({
                 <option value="no_registrada">No registrada / Ciudadano simpatizante</option>
                 <option value="declarada">Declarada por la persona</option>
                 <option value="pendiente">Pendiente de validación</option>
-                <option value="confirmada">Ⓜ️ Confirmada en padrón oficial PAN</option>
+                <option value="confirmada">Confirmada en padrón oficial PAN</option>
               </select>
             </div>
 
@@ -401,8 +402,9 @@ export default function NuevoContactoForm({
 
           <div className="space-y-4">
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-              <label className="block text-xs font-extrabold text-slate-900">
-                💬 Nos gustaría conocerte un poquito mejor. ¿Qué disfrutas hacer, qué temas te interesan o qué te gustaría que recordáramos de ti?
+              <label className="flex items-start gap-1.5 text-xs font-extrabold text-slate-900">
+                <MessageSquare size={14} className="shrink-0 mt-0.5 text-slate-500" />
+                <span>Nos gustaría conocerte un poquito mejor. ¿Qué disfrutas hacer, qué temas te interesan o qué te gustaría que recordáramos de ti?</span>
               </label>
               <textarea
                 name="knowMeBetter"
@@ -432,8 +434,8 @@ export default function NuevoContactoForm({
             className="w-full p-5 flex items-center justify-between text-left cursor-pointer hover:bg-indigo-50/80 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
-                📋
+              <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                <ClipboardList size={16} />
               </span>
               <div>
                 <h3 className="font-extrabold text-sm text-indigo-950">G. Encuesta Ciudadana Opcional (6 Preguntas)</h3>

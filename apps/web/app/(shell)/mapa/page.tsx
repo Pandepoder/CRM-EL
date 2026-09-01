@@ -25,8 +25,22 @@ import {
   Compass,
   Check,
   Eye,
-  Minimize2
+  Minimize2,
+  Moon,
+  Building2,
+  Satellite,
+  Map,
+  Lightbulb,
+  Construction,
+  Droplets,
+  ShieldCheck,
+  Landmark,
+  AlertTriangle,
+  Vote
 } from "lucide-react";
+import type { ComponentType } from "react";
+
+type MapIconType = ComponentType<{ size?: number | string; className?: string }>;
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import { AddressAutocomplete, type AutocompleteItem } from "@/components/AddressAutocomplete";
 import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
@@ -42,7 +56,11 @@ const SVGS = {
   Eye: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>`,
   MapPin: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>`,
   Trash: `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>`,
+  User: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
 };
+
+// Compact badge used everywhere a contact's confirmed PAN militancy needs a visual mark
+const PAN_BADGE_HTML = `<span style="display:inline-flex; align-items:center; justify-content:center; width:1.35em; height:1.35em; border-radius:50%; background:#2563eb; flex-shrink:0;"><span style="color:#fff; font-size:0.7em; font-weight:900; line-height:1;">M</span></span>`;
 
 const CATEGORIES: Record<string, { label: string; svg: string; color: string; bg: string; border: string }> = {
   emergencia: { label: "Emergencia Crítica", svg: SVGS.TriangleAlert, color: "#ef4444", bg: "#fef2f2", border: "#fecaca" },
@@ -71,27 +89,27 @@ const TILE_STYLES = {
     name: "Calles HD (Color)",
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
     attribution: "&copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
-    icon: "🗺️"
+    icon: Map
   },
   dark: {
     name: "Táctico Nocturno",
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
     attribution: "&copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
-    icon: "🌙"
+    icon: Moon
   },
   osm: {
     name: "OpenStreetMap",
     url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     attribution: "&copy; OpenStreetMap contributors",
-    icon: "🏙️"
+    icon: Building2
   },
   satellite: {
     name: "Satélite HD",
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     attribution: "&copy; Esri, Maxar, Earthstar Geographics",
-    icon: "🛰️"
+    icon: Satellite
   }
-} as const;
+};
 
 const MUNICIPALITY_CENTERS = {
   "all": { center: [20.6300, -103.2800] as [number, number], zoom: 11 },
@@ -384,7 +402,7 @@ export default function MapaPage() {
     }
 
     setIsLocatingGPS(true);
-    showToast("📍 Obteniendo tu ubicación GPS...");
+    showToast("Obteniendo tu ubicación GPS...");
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -415,7 +433,7 @@ export default function MapaPage() {
           const marker = L.marker([latitude, longitude], { icon: gpsIcon })
             .bindPopup(`
               <div style="font-family:sans-serif; min-width:180px;">
-                <strong style="font-size:13px; color:#0f172a;">📍 Ubicación GPS Detectada</strong>
+                <strong style="font-size:13px; color:#0f172a; display:flex; align-items:center; gap:5px;"><span style="color:#2563eb; display:inline-flex;">${SVGS.MapPin.replace('width="18" height="18"', 'width="14" height="14"')}</span> Ubicación GPS Detectada</strong>
                 <p style="margin:4px 0 0 0; font-size:11px; color:#2563eb; font-weight:700;">Precisión: ±${Math.round(accuracy)}m</p>
                 <p style="margin:4px 0 0 0; font-size:10px; color:#64748b;">Municipio y sección detectados automáticamente</p>
               </div>
@@ -423,13 +441,13 @@ export default function MapaPage() {
             .addTo(mapRef);
 
           setUserLocationMarker(marker);
-          showToast(`✓ GPS fijado (±${Math.round(accuracy)}m)`);
+          showToast(`GPS fijado (±${Math.round(accuracy)}m)`);
         }
       },
       (error) => {
         setIsLocatingGPS(false);
         console.warn("GPS Error:", error);
-        showToast("⚠️ No se pudo obtener la señal GPS.");
+        showToast("No se pudo obtener la señal GPS.");
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -443,7 +461,7 @@ export default function MapaPage() {
     setTimeout(() => {
       if (mapRef) {
         mapRef.flyTo([lat, lng], 16, { duration: 1.0 });
-        showToast(`📍 Incidencia: ${r.properties.title}`);
+        showToast(`Incidencia: ${r.properties.title}`);
       }
     }, 150);
   };
@@ -518,13 +536,13 @@ export default function MapaPage() {
   }, [activeTab, mapRef]);
 
   const handleChangeTileStyle = (styleKey: string) => {
-    const style = (TILE_STYLES as Record<string, { name: string; url: string; attribution: string; icon: string }>)[styleKey];
+    const style = TILE_STYLES[styleKey as keyof typeof TILE_STYLES];
     if (!style || !mapRef || !L || !tileLayerRef) return;
 
     setSelectedTileStyle(styleKey);
     tileLayerRef.setUrl(style.url);
     tileLayerRef.options.attribution = style.attribution;
-    showToast(`🗺️ Capa: ${style.name}`);
+    showToast(`Capa: ${style.name}`);
   };
 
   // 2. Fetch Incidents
@@ -615,7 +633,7 @@ export default function MapaPage() {
       });
 
       if (res.ok) {
-        showToast(newStatus === "resolved" ? "✓ Incidencia marcada como atendida" : "↺ Incidencia reabierta");
+        showToast(newStatus === "resolved" ? "Incidencia marcada como atendida" : "Incidencia reabierta");
         await fetchReports();
         await fetchSections();
         if (mapRef) mapRef.closePopup();
@@ -633,7 +651,7 @@ export default function MapaPage() {
     try {
       const res = await fetch(`/api/map/reports/${reportId}`, { method: "DELETE" });
       if (res.ok) {
-        showToast("🗑️ Incidencia eliminada");
+        showToast("Incidencia eliminada");
         await fetchReports();
         await fetchSections();
         if (mapRef) mapRef.closePopup();
@@ -676,7 +694,7 @@ export default function MapaPage() {
 
       if (res.ok) {
         const data = await res.json();
-        showToast(`🧹 ${data.message}`);
+        showToast(`${data.message}`);
         setIsPurgeModalOpen(false);
         await fetchReports();
         await fetchSections();
@@ -700,7 +718,7 @@ export default function MapaPage() {
     try {
       const payload = {
         title: reportForm.title.trim(),
-        description: reportForm.description.trim() ? `${reportForm.description.trim()}\n\n📍 Dirección: ${reportForm.address}` : reportForm.address,
+        description: reportForm.description.trim() ? `${reportForm.description.trim()}\n\nDirección: ${reportForm.address}` : reportForm.address,
         latitude: newReportCoords.lat,
         longitude: newReportCoords.lng,
         category: reportForm.category,
@@ -718,7 +736,7 @@ export default function MapaPage() {
 
       if (res.ok) {
         setReportSuccess(true);
-        showToast("✓ Incidencia registrada exitosamente");
+        showToast("Incidencia registrada exitosamente");
         await fetchReports();
         await fetchSections();
         setTimeout(() => {
@@ -783,7 +801,7 @@ export default function MapaPage() {
       });
 
       if (res.ok) {
-        showToast("✓ Incidencia actualizada");
+        showToast("Incidencia actualizada");
         setEditingReport(null);
         await fetchReports();
         await fetchSections();
@@ -846,8 +864,8 @@ export default function MapaPage() {
               <div style="font-size:12px; font-weight:800; color:#0f172a;">Sección ${p.section_num} <span style="font-weight:600; color:#6366f1;">(${mun})</span></div>
               <div style="font-size:10px; color:#475569; margin-top:2px;">${p.colonies.slice(0, 3).join(", ") || mun}</div>
               <div style="display:flex; gap:8px; margin-top:4px; font-size:10px; font-weight:700; color:#1e293b;">
-                <span>👥 ${p.contactsCount} simpatizantes</span>
-                <span>📋 ${p.visitsCompleted} visitas</span>
+                <span>${p.contactsCount} simpatizantes</span>
+                <span>${p.visitsCompleted} visitas</span>
               </div>
             </div>
           `,
@@ -907,7 +925,7 @@ export default function MapaPage() {
 
     const config = (MUNICIPALITY_CENTERS as Record<string, { center: [number, number]; zoom: number }>)[muni] || { center: [20.6240, -103.2350], zoom: 13 };
     mapRef.flyTo(config.center, config.zoom, { duration: 1.0 });
-    showToast(`📍 Municipio: ${muni}`);
+    showToast(`Municipio: ${muni}`);
   };
 
   // 11. Render Incident Markers with Guaranteed Prominence, Radial Dispersion & Zero Overlap
@@ -1070,7 +1088,7 @@ export default function MapaPage() {
 
       const multiBadge = totalInGroup > 1
         ? `<div style="font-size:10px; font-weight:800; color:#4338ca; background:#eef2ff; padding:3px 8px; border-radius:6px; margin-bottom:8px; display:inline-block; border:1px solid #c7d2fe;">
-            📍 Incidencia ${indexInGroup + 1} de ${totalInGroup} en esta ubicación
+            Incidencia ${indexInGroup + 1} de ${totalInGroup} en esta ubicación
           </div>`
         : '';
 
@@ -1089,7 +1107,7 @@ export default function MapaPage() {
           <p style="margin:0 0 8px; font-size:12px; color:#475569; line-height:1.4;">${report.properties.description}</p>
           
           <div style="display:flex; align-items:center; justify-content:space-between; padding-top:6px; border-top:1px solid #f1f5f9; font-size:11px; color:#64748b;">
-            <span>${report.properties.sectionNum ? `📍 Sección #${report.properties.sectionNum}` : `📍 ${report.properties.municipality || 'Territorio'}`}</span>
+            <span>${report.properties.sectionNum ? `Sección #${report.properties.sectionNum}` : `${report.properties.municipality || 'Territorio'}`}</span>
             <span>${date}</span>
           </div>
 
@@ -1144,7 +1162,7 @@ export default function MapaPage() {
               <div style="position:relative; width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2.5px solid #ffffff; box-shadow:0 6px 20px rgba(37,99,235,0.45); cursor:pointer; font-family:system-ui,-apple-system,sans-serif; transition:all 0.15s ease;">
                 <div style="font-size:13px; font-weight:900; line-height:1; letter-spacing:-0.5px;">${count}</div>
                 ${c.panCount > 0 
-                  ? `<div style="font-size:9px; font-weight:800; color:#93c5fd; margin-top:2px; display:flex; align-items:center; gap:1px;">Ⓜ️ ${c.panCount}</div>` 
+                  ? `<div style="font-size:9px; font-weight:800; color:#93c5fd; margin-top:2px; display:flex; align-items:center; gap:2px;">${PAN_BADGE_HTML} ${c.panCount}</div>`
                   : `<div style="font-size:8px; font-weight:700; color:#bfdbfe; text-transform:uppercase; margin-top:1px;">Red</div>`}
                 <div style="position:absolute; inset:-4px; border-radius:50%; border:1.5px solid rgba(59,130,246,0.35); pointer-events:none;"></div>
               </div>
@@ -1177,7 +1195,7 @@ export default function MapaPage() {
         html: `
           <div style="position:relative; display:flex; align-items:center; justify-content:center; cursor:pointer;" title="${p.displayName} (${isPan ? 'PAN Confirmado' : 'Contacto'})">
             <div style="width:30px; height:30px; border-radius:50%; background:${isPan ? '#2563eb' : '#ffffff'}; color:${isPan ? '#ffffff' : color}; border:2.5px solid ${isPan ? '#ffffff' : color}; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,0.25); font-size:12px; font-weight:900;">
-              ${isPan ? 'Ⓜ️' : '👤'}
+              ${isPan ? `<span style="color:#fff; font-size:0.85em; font-weight:900; line-height:1;">M</span>` : SVGS.User}
             </div>
           </div>
         `,
@@ -1193,8 +1211,8 @@ export default function MapaPage() {
             <strong style="font-size:14px; font-weight:800; color:#0f172a;">${p.displayName}</strong>
             ${isPan ? '<span style="background:#2563eb; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:999px;">PAN Confirmado</span>' : ''}
           </div>
-          <p style="margin:0 0 2px 0; font-size:11px; color:#475569;">📍 ${p.colony || 'Colonia por definir'}, ${p.municipality || 'Tonalá'}</p>
-          <p style="margin:0 0 8px 0; font-size:11px; color:#64748b;">👥 Red: <strong style="color:#0f172a;">${p.creatorName || 'Equipo'}</strong></p>
+          <p style="margin:0 0 2px 0; font-size:11px; color:#475569;">${p.colony || 'Colonia por definir'}, ${p.municipality || 'Tonalá'}</p>
+          <p style="margin:0 0 8px 0; font-size:11px; color:#64748b;">Red: <strong style="color:#0f172a;">${p.creatorName || 'Equipo'}</strong></p>
           <a href="/crm/contacts/${p.id}" style="display:block; text-align:center; padding:7px 12px; background:#2563eb; color:white; border-radius:8px; font-size:11px; font-weight:800; text-decoration:none; box-shadow:0 2px 6px rgba(37,99,235,0.3);">Ver Ficha 360°</a>
         </div>
       `;
@@ -1331,7 +1349,7 @@ export default function MapaPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast("✓ CSV exportado");
+    showToast("CSV exportado");
   };
 
   return (
@@ -1401,7 +1419,7 @@ export default function MapaPage() {
               >
                 {availableMunicipalities.map((m) => (
                   <option key={m.name} value={m.name}>
-                    📍 {m.name} ({m.count} secc.)
+                    {m.name} ({m.count} secc.)
                   </option>
                 ))}
               </select>
@@ -1427,15 +1445,15 @@ export default function MapaPage() {
                     setShowSections(false);
                     setShowSectionLabels(false);
                     setActiveDrawer("none");
-                    showToast("📍 Modo Limpio: Solo Incidencias & Calles activas");
+                    showToast("Modo Limpio: Solo Incidencias & Calles activas");
                   } else if (val === 1) {
                     setShowSections(true);
                     setShowSectionLabels(true);
-                    showToast("🗺️ Modo Territorial: Incidencias + Secciones sutiles");
+                    showToast("Modo Territorial: Incidencias + Secciones sutiles");
                   } else {
                     setShowSections(true);
                     setShowSectionLabels(true);
-                    showToast("📊 Modo Detallado: Mapa completo con métricas");
+                    showToast("Modo Detallado: Mapa completo con métricas");
                   }
                 }}
                 style={{ width: "75px", accentColor: "#2563eb", cursor: "pointer" }}
@@ -1443,7 +1461,7 @@ export default function MapaPage() {
               />
 
               <span style={{ fontSize: "11px", fontWeight: "800", color: infoDensity === 0 ? "#dc2626" : infoDensity === 1 ? "#0284c7" : "#4f46e5", minWidth: "95px" }}>
-                {infoDensity === 0 ? "📍 Limpio" : infoDensity === 1 ? "🗺️ Territorial" : "📊 Detallado"}
+                {infoDensity === 0 ? "Limpio" : infoDensity === 1 ? "Territorial" : "Detallado"}
               </span>
             </div>
           </div>
@@ -1475,7 +1493,7 @@ export default function MapaPage() {
                       transition: "all 0.15s"
                     }}
                   >
-                    <span>{style.icon}</span>
+                    <style.icon size={16} />
                     <span>{key === "esriStreet" ? "Calles HD" : key === "dark" ? "Noche" : "OSM"}</span>
                   </button>
                 ))}
@@ -1486,7 +1504,7 @@ export default function MapaPage() {
                 onClick={() => {
                   const nextVal = !showContacts;
                   setShowContacts(nextVal);
-                  showToast(nextVal ? "👥 Capa de Contactos y Red activada" : "Capas de Contactos oculta");
+                  showToast(nextVal ? "Capa de Contactos y Red activada" : "Capas de Contactos oculta");
                 }}
                 style={{
                   display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px",
@@ -1640,12 +1658,14 @@ export default function MapaPage() {
             </div>
             <div style={{ width: "1px", height: "14px", background: "rgba(255,255,255,0.2)" }}></div>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ color: "#93c5fd", fontWeight: "900" }}>👥 {allContacts.length}</span>
+              <Users size={11} style={{ color: "#93c5fd" }} />
+              <span style={{ color: "#93c5fd", fontWeight: "900" }}>{allContacts.length}</span>
               <span style={{ color: "#94a3b8", fontSize: "10px" }}>Simpatizantes</span>
             </div>
             <div style={{ width: "1px", height: "14px", background: "rgba(255,255,255,0.2)" }}></div>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ color: "#86efac", fontWeight: "900" }}>🗳️ {sectionsData?.features?.length || 46}</span>
+              <Vote size={11} style={{ color: "#86efac" }} />
+              <span style={{ color: "#86efac", fontWeight: "900" }}>{sectionsData?.features?.length || 46}</span>
               <span style={{ color: "#94a3b8", fontSize: "10px" }}>Secciones</span>
             </div>
           </div>
@@ -1696,7 +1716,7 @@ export default function MapaPage() {
                     >
                       {availableMunicipalities.map((m) => (
                         <option key={m.name} value={m.name}>
-                          📍 {m.name} ({m.count} secciones)
+                          {m.name} ({m.count} secciones)
                         </option>
                       ))}
                     </select>
@@ -1718,7 +1738,7 @@ export default function MapaPage() {
                         }
                         if (item.lat && item.lng && mapRef) {
                           mapRef.flyTo([item.lat, item.lng], 16, { duration: 1.0 });
-                          showToast(`📍 Centrado en: ${item.title}`);
+                          showToast(`Centrado en: ${item.title}`);
                         }
                       }}
                       municipality={selectedMunicipality}
@@ -1870,7 +1890,7 @@ export default function MapaPage() {
                           <h4 style={{ margin: "0 0 2px", fontWeight: "800", fontSize: "12px", color: "#0f172a" }}>{r.properties.title}</h4>
                           <p style={{ margin: "0 0 6px", fontSize: "11px", color: "#475569", lineHeight: "1.3" }}>{r.properties.description}</p>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #e2e8f0", paddingTop: "6px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: "700", color: "#1d4ed8" }}>📍 {r.properties.municipality || "Tonalá"}</span>
+                            <span style={{ fontSize: "10px", fontWeight: "700", color: "#1d4ed8", display: "inline-flex", alignItems: "center", gap: "3px" }}><MapPin size={10} /> {r.properties.municipality || "Tonalá"}</span>
                             <button
                               onClick={() => handleFocusOnMap(r)}
                               style={{ display: "flex", alignItems: "center", gap: "3px", background: "#2563eb", color: "white", border: "none", fontWeight: "700", padding: "4px 8px", borderRadius: "6px", fontSize: "10px", cursor: "pointer" }}
@@ -1906,7 +1926,7 @@ export default function MapaPage() {
                             fontSize: "11px", fontWeight: "700", cursor: "pointer"
                           }}
                         >
-                          <span>{style.icon}</span>
+                          <style.icon size={16} />
                           <span>{style.name}</span>
                         </button>
                       ))}
@@ -2024,14 +2044,14 @@ export default function MapaPage() {
                     onChange={(e) => setIncidentMunicipalityFilter(e.target.value)}
                     style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none", cursor: "pointer" }}
                   >
-                    <option value="all">🗺️ Todos los Municipios</option>
-                    <option value="Tonalá">📍 Tonalá</option>
-                    <option value="Guadalajara">📍 Guadalajara</option>
-                    <option value="San Pedro Tlaquepaque">📍 San Pedro Tlaquepaque</option>
-                    <option value="Zapopan">📍 Zapopan</option>
-                    <option value="Tlajomulco de Zúñiga">📍 Tlajomulco</option>
-                    <option value="El Salto">📍 El Salto</option>
-                    <option value="Zapotlanejo">📍 Zapotlanejo</option>
+                    <option value="all">Todos los Municipios</option>
+                    <option value="Tonalá">Tonalá</option>
+                    <option value="Guadalajara">Guadalajara</option>
+                    <option value="San Pedro Tlaquepaque">San Pedro Tlaquepaque</option>
+                    <option value="Zapopan">Zapopan</option>
+                    <option value="Tlajomulco de Zúñiga">Tlajomulco</option>
+                    <option value="El Salto">El Salto</option>
+                    <option value="Zapotlanejo">Zapotlanejo</option>
                   </select>
 
                   <select
@@ -2039,7 +2059,7 @@ export default function MapaPage() {
                     onChange={(e) => setIncidentCategoryFilter(e.target.value)}
                     style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none", cursor: "pointer" }}
                   >
-                    <option value="all">🏷️ Todas las Categorías</option>
+                    <option value="all">Todas las Categorías</option>
                     {Object.entries(CATEGORIES).map(([k, v]) => (
                       <option key={k} value={k}>{v.label}</option>
                     ))}
@@ -2101,8 +2121,8 @@ export default function MapaPage() {
                         )}
 
                         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #f1f5f9", paddingTop: "8px", gap: "6px" }}>
-                          <span style={{ fontSize: "11px", fontWeight: "700", color: "#1d4ed8" }}>
-                            📍 {r.properties.municipality || "Tonalá"} {r.properties.sectionNum ? `· Sección #${r.properties.sectionNum}` : ""}
+                          <span style={{ fontSize: "11px", fontWeight: "700", color: "#1d4ed8", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                            <MapPin size={10} /> {r.properties.municipality || "Tonalá"} {r.properties.sectionNum ? `· Sección #${r.properties.sectionNum}` : ""}
                           </span>
 
                           <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -2357,16 +2377,16 @@ export default function MapaPage() {
                         </div>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
-                        <span style={{ background: "#dbeafe", color: "#1e40af", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px" }}>
-                          🏛️ {reportForm.municipality}
+                        <span style={{ background: "#dbeafe", color: "#1e40af", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                          <Landmark size={10} /> {reportForm.municipality}
                         </span>
                         {detectedLocationInfo?.sectionNum ? (
                           <span style={{ background: "#dcfce7", color: "#15803d", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px", border: "1px solid #86efac" }}>
-                            ✓ Sección Electoral #{detectedLocationInfo.sectionNum} (Confirmada)
+                            Sección Electoral #{detectedLocationInfo.sectionNum} (Confirmada)
                           </span>
                         ) : (
-                          <span style={{ background: "#fef3c7", color: "#b45309", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px" }}>
-                            ⚠️ Selecciona la sección manualmente
+                          <span style={{ background: "#fef3c7", color: "#b45309", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                            <AlertTriangle size={10} /> Selecciona la sección manualmente
                           </span>
                         )}
                       </div>
@@ -2378,15 +2398,15 @@ export default function MapaPage() {
                 <div>
                   <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Plantillas Rápidas (1 Clic)</label>
                   <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
-                    {[
-                      { cat: "emergencia", icon: "🚨", label: "Emergencia", title: "Emergencia en territorio" },
-                      { cat: "alumbrado", icon: "💡", label: "Alumbrado", title: "Falla de luminaria / alumbrado público" },
-                      { cat: "bache", icon: "🕳️", label: "Bacheo", title: "Bacheo necesario en pavimento" },
-                      { cat: "fuga_agua", icon: "💧", label: "Fuga Agua", title: "Fuga de agua potable" },
-                      { cat: "basura", icon: "🧹", label: "Basura", title: "Acumulación de basura o escombros" },
-                      { cat: "seguridad", icon: "👮", label: "Seguridad", title: "Solicitud de patrullaje / vigilancia" },
-                      { cat: "brigada", icon: "👥", label: "Brigada", title: "Solicitud de apoyo con brigada" },
-                    ].map((pill) => (
+                    {([
+                      { cat: "emergencia", icon: ShieldAlert, label: "Emergencia", title: "Emergencia en territorio" },
+                      { cat: "alumbrado", icon: Lightbulb, label: "Alumbrado", title: "Falla de luminaria / alumbrado público" },
+                      { cat: "bache", icon: Construction, label: "Bacheo", title: "Bacheo necesario en pavimento" },
+                      { cat: "fuga_agua", icon: Droplets, label: "Fuga Agua", title: "Fuga de agua potable" },
+                      { cat: "basura", icon: Trash2, label: "Basura", title: "Acumulación de basura o escombros" },
+                      { cat: "seguridad", icon: ShieldCheck, label: "Seguridad", title: "Solicitud de patrullaje / vigilancia" },
+                      { cat: "brigada", icon: Users, label: "Brigada", title: "Solicitud de apoyo con brigada" },
+                    ] as Array<{ cat: string; icon: MapIconType; label: string; title: string }>).map((pill) => (
                       <button
                         key={pill.cat}
                         type="button"
@@ -2395,7 +2415,7 @@ export default function MapaPage() {
                           setReportForm((prev) => ({
                             ...prev,
                             category: pill.cat,
-                            title: `${pill.icon} ${pill.title}${colStr}`
+                            title: `${pill.title}${colStr}`
                           }));
                         }}
                         style={{
@@ -2412,7 +2432,7 @@ export default function MapaPage() {
                           gap: "3px"
                         }}
                       >
-                        <span>{pill.icon}</span>
+                        <pill.icon size={12} />
                         <span>{pill.label}</span>
                       </button>
                     ))}
@@ -2452,7 +2472,7 @@ export default function MapaPage() {
                         if (item.lat && item.lng && mapRef) {
                           setNewReportCoords({ lat: item.lat, lng: item.lng });
                           mapRef.flyTo([item.lat, item.lng], 16, { duration: 1.0 });
-                          showToast(`📍 Ubicación seleccionada: ${item.title}`);
+                          showToast(`Ubicación seleccionada: ${item.title}`);
                         }
                       }}
                       municipality={reportForm.municipality || selectedMunicipality}
@@ -2610,7 +2630,7 @@ export default function MapaPage() {
                     disabled={isSubmitting || isGeocodingLoading}
                     style={{ flex: 1.5, padding: "9px", background: "#dc2626", color: "white", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "800", cursor: "pointer", boxShadow: "0 2px 8px rgba(220,38,38,0.3)" }}
                   >
-                    {isSubmitting ? "Guardando..." : "✓ Registrar Incidencia"}
+                    {isSubmitting ? "Guardando..." : "Registrar Incidencia"}
                   </button>
                 </div>
               </form>

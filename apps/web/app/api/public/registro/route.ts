@@ -3,8 +3,45 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { schema, encryptData } from "@tonala/shared/database";
 import { eq, or } from "drizzle-orm";
 import crypto from "crypto";
+import { z } from "zod";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { safeErrorMessage } from "@/lib/safe-error";
+
+const surveySchema = z.object({
+  colonyPriorityNeed: z.string().trim().max(200).optional(),
+  colonyPriorityOther: z.string().trim().max(300).optional(),
+  tonalaValues: z.string().trim().max(200).optional(),
+  tonalaValuesOther: z.string().trim().max(300).optional(),
+  servicesRating: z.coerce.number().int().min(1).max(5).optional(),
+  servicesRatingWhy: z.string().trim().max(500).optional(),
+  projectExpectations: z.string().trim().max(500).optional(),
+  projectExpectationsOther: z.string().trim().max(300).optional(),
+  participationForm: z.string().trim().max(200).optional(),
+  participationFormOther: z.string().trim().max(300).optional(),
+  openProposal: z.string().trim().max(1000).optional()
+});
+
+const publicRegistrationSchema = z.object({
+  slug: z.string().trim().min(1).max(80),
+  firstName: z.string().trim().min(1).max(120),
+  lastName: z.string().trim().max(120).optional(),
+  maternalLastName: z.string().trim().max(120).optional(),
+  phone: z.string().trim().min(7).max(20),
+  email: z.string().trim().max(160).email().optional().or(z.literal("")),
+  birthDay: z.coerce.number().int().min(1).max(31),
+  birthMonth: z.coerce.number().int().min(1).max(12),
+  birthYear: z.coerce.number().int().min(1900).max(new Date().getFullYear()).optional(),
+  address: z.string().trim().max(300).optional(),
+  colony: z.string().trim().max(150).optional(),
+  municipality: z.string().trim().max(100).default("Tonalá"),
+  sectionNum: z.coerce.number().int().positive().optional(),
+  profession: z.string().trim().max(150).optional(),
+  preferredContactMethod: z.string().trim().max(40).default("whatsapp"),
+  preferredContactTime: z.string().trim().max(40).default("indiferente"),
+  participatingArea: z.string().trim().max(200).optional(),
+  knowMeBetter: z.string().trim().max(500).optional(),
+  survey: surveySchema.optional()
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,7 +49,15 @@ export async function POST(req: NextRequest) {
     const rl = checkRateLimit(`public-reg:${ip}`, 8, 60 * 60 * 1000); // 8 intentos por hora
     if (!rl.allowed) return rateLimitResponse(rl);
 
-    const body = await req.json();
+    const rawBody = await req.json();
+    const parsed = publicRegistrationSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Datos de registro inválidos.", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
     const {
       slug,
       firstName,
@@ -25,26 +70,15 @@ export async function POST(req: NextRequest) {
       birthYear,
       address,
       colony,
-      municipality = "Tonalá",
+      municipality,
       sectionNum,
       profession,
-      preferredContactMethod = "whatsapp",
-      preferredContactTime = "indiferente",
+      preferredContactMethod,
+      preferredContactTime,
       participatingArea,
       knowMeBetter,
-      // Survey
       survey
-    } = body;
-
-    if (!slug) {
-      return NextResponse.json({ error: "Enlace personal no especificado." }, { status: 400 });
-    }
-
-    if (!firstName || !phone || !birthDay || !birthMonth) {
-      return NextResponse.json({
-        error: "Nombre, teléfono y fecha de cumpleaños (día y mes) son requeridos."
-      }, { status: 400 });
-    }
+    } = parsed.data;
 
     const db = getDatabaseClient();
 
@@ -83,8 +117,9 @@ export async function POST(req: NextRequest) {
     });
 
     if (duplicate) {
+      // Do not disclose who the phone number belongs to — this endpoint is public and unauthenticated.
       return NextResponse.json({
-        error: `El teléfono ya se encuentra registrado en el padrón a nombre de ${duplicate.displayName}.`
+        error: "Este teléfono ya se encuentra registrado en el padrón."
       }, { status: 409 });
     }
 
@@ -94,17 +129,13 @@ export async function POST(req: NextRequest) {
       const secRow = await db
         .select({ id: schema.electoralSections.id })
         .from(schema.electoralSections)
-        .where(eq(schema.electoralSections.sectionNum, parseInt(sectionNum, 10)))
+        .where(eq(schema.electoralSections.sectionNum, sectionNum))
         .limit(1);
       if (secRow[0]) sectionId = secRow[0].id;
     }
 
     // 4. Construct birthDate
-    let birthDate: Date | null = null;
-    if (birthDay && birthMonth) {
-      const year = birthYear ? parseInt(birthYear, 10) : 2000;
-      birthDate = new Date(Date.UTC(year, parseInt(birthMonth, 10) - 1, parseInt(birthDay, 10)));
-    }
+    const birthDate = new Date(Date.UTC(birthYear ?? 2000, birthMonth - 1, birthDay));
 
     const contactId = crypto.randomUUID();
     const fullName = `${firstName.trim()} ${lastName ? lastName.trim() : ""} ${maternalLastName ? maternalLastName.trim() : ""}`.trim();
@@ -155,7 +186,7 @@ export async function POST(req: NextRequest) {
         colonyPriorityOther: survey.colonyPriorityOther || null,
         tonalaValues: survey.tonalaValues || null,
         tonalaValuesOther: survey.tonalaValuesOther || null,
-        servicesRating: survey.servicesRating ? parseInt(survey.servicesRating, 10) : null,
+        servicesRating: survey.servicesRating ?? null,
         servicesRatingWhy: survey.servicesRatingWhy || null,
         projectExpectations: survey.projectExpectations || null,
         projectExpectationsOther: survey.projectExpectationsOther || null,

@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { 
-  Calendar, MapPin, CheckCircle, Clock, X, Plus, Users, User, Flag, Home, Check, 
-  Loader2, Coffee, Mic, Search, BarChart3, Award, Activity, Eye, Sparkles
+import {
+  Calendar, MapPin, CheckCircle, Clock, X, Plus, Users, User, Flag, Home, Check,
+  Loader2, Coffee, Mic, Search, BarChart3, Award, Activity, Eye, Sparkles,
+  Footprints, Vote, Megaphone, Package, Star
 } from "lucide-react";
+import type { ComponentType } from "react";
+
+type CategoryIcon = ComponentType<{ size?: number | string; className?: string }>;
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
@@ -50,22 +54,23 @@ type ContactOption = {
   colony?: string | null;
 };
 
-const TASK_CATEGORIES = [
-  { value: "platica", label: "☕ Plática / Reunión Vecinal", badge: "Plática", defaultTitle: "Plática vecinal y diálogo comunitario" },
-  { value: "visita", label: "🏠 Visita Domiciliaria a Contacto", badge: "Visita", defaultTitle: "Visita de vinculación domiciliaria" },
-  { value: "evento", label: "🎤 Evento / Asamblea / Mitin", badge: "Evento", defaultTitle: "Asamblea vecinal y evento comunitario" },
-  { value: "brigada", label: "🚶‍♂️ Brigada Territorial / Volanteo", badge: "Brigada", defaultTitle: "Brigada de campo y entrega mano a mano" },
-  { value: "estructura", label: "🗳️ Estructura Electoral / Casilla", badge: "Electoral", defaultTitle: "Coordinación de casilla / RG / RC" },
-  { value: "perifoneo", label: "📢 Perifoneo / Activación de Calle", badge: "Activación", defaultTitle: "Recorrido de perifoneo y megafonía" },
-  { value: "incidencia", label: "🔍 Verificación Territorial / Reportes", badge: "Supervisión", defaultTitle: "Inspección de incidencia y reporte vecinal" },
-  { value: "apoyos", label: "📦 Logística / Entrega de Apoyos", badge: "Logística", defaultTitle: "Entrega y recepción de insumos" }
+const TASK_CATEGORIES: Array<{ value: string; label: string; icon: CategoryIcon; badge: string; defaultTitle: string }> = [
+  { value: "platica", label: "Plática / Reunión Vecinal", icon: Coffee, badge: "Plática", defaultTitle: "Plática vecinal y diálogo comunitario" },
+  { value: "visita", label: "Visita Domiciliaria a Contacto", icon: Home, badge: "Visita", defaultTitle: "Visita de vinculación domiciliaria" },
+  { value: "evento", label: "Evento / Asamblea / Mitin", icon: Mic, badge: "Evento", defaultTitle: "Asamblea vecinal y evento comunitario" },
+  { value: "brigada", label: "Brigada Territorial / Volanteo", icon: Footprints, badge: "Brigada", defaultTitle: "Brigada de campo y entrega mano a mano" },
+  { value: "estructura", label: "Estructura Electoral / Casilla", icon: Vote, badge: "Electoral", defaultTitle: "Coordinación de casilla / RG / RC" },
+  { value: "perifoneo", label: "Perifoneo / Activación de Calle", icon: Megaphone, badge: "Activación", defaultTitle: "Recorrido de perifoneo y megafonía" },
+  { value: "incidencia", label: "Verificación Territorial / Reportes", icon: Eye, badge: "Supervisión", defaultTitle: "Inspección de incidencia y reporte vecinal" },
+  { value: "apoyos", label: "Logística / Entrega de Apoyos", icon: Package, badge: "Logística", defaultTitle: "Entrega y recepción de insumos" }
 ];
 
 const OPERATIONAL_ROLES = [
-  { value: "territorial_coordinator", label: "Coordinador Territorial", badge: "Coordinador" },
-  { value: "visit_responsible", label: "Líder de Brigada / Visitador de Campo", badge: "Líder" },
-  { value: "capturist", label: "Capturista / Validador de Datos", badge: "Capturista" },
-  { value: "admin", label: "Administrador / Dirección General", badge: "Admin" }
+  { value: "territorial_coordinator", label: "Líder de Equipo / Brigada", badge: "Líder" },
+  { value: "capturist", label: "Coordinador Territorial", badge: "Coordinador Territorial" },
+  { value: "visit_responsible", label: "Brigadista / Operador de Campo", badge: "Brigadista" },
+  { value: "direction", label: "Dirección General", badge: "Dirección" },
+  { value: "admin", label: "Administrador", badge: "Admin" }
 ];
 
 export default function AgendaClient({
@@ -213,7 +218,7 @@ export default function AgendaClient({
       });
 
       if (res.ok) {
-        setTaskSuccessMessage("✓ Actividad registrada y sumada a la bitácora con éxito.");
+        setTaskSuccessMessage("Actividad registrada y sumada a la bitácora con éxito.");
         setTimeout(() => {
           setShowTaskModal(false);
           setTaskSuccessMessage(null);
@@ -364,21 +369,21 @@ export default function AgendaClient({
 
   const getCategoryBadge = (cat?: string, type?: string) => {
     if (type === "visit" || cat === "visita") {
-      return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">🏠 Visita</span>;
+      return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Home size={12} /> Visita</span>;
     }
     if (cat === "platica") {
-      return <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">☕ Plática</span>;
+      return <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Coffee size={12} /> Plática</span>;
     }
     if (cat === "evento" || cat === "mitin") {
-      return <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">🎤 Evento</span>;
+      return <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Mic size={12} /> Evento</span>;
     }
     if (cat === "brigada") {
-      return <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">🚶‍♂️ Brigada</span>;
+      return <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Footprints size={12} /> Brigada</span>;
     }
     if (cat === "perifoneo" || cat === "propaganda") {
-      return <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">📢 Activación</span>;
+      return <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Megaphone size={12} /> Activación</span>;
     }
-    return <span className="bg-gray-50 text-gray-700 border border-gray-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">📋 Actividad</span>;
+    return <span className="bg-gray-50 text-gray-700 border border-gray-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Flag size={12} /> Actividad</span>;
   };
 
   return (
@@ -422,7 +427,7 @@ export default function AgendaClient({
             }`}
           >
             <Calendar size={16} />
-            <span>📅 Bitácora y Agenda Operativa</span>
+            <span>Bitácora y Agenda Operativa</span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === "agenda" ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"}`}>
               {filteredItems.length}
             </span>
@@ -437,7 +442,7 @@ export default function AgendaClient({
             }`}
           >
             <BarChart3 size={16} />
-            <span>📊 Reporte por Líder</span>
+            <span>Reporte por Líder</span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === "rendimiento" ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"}`}>
               {leaderStats.length}
             </span>
@@ -452,7 +457,7 @@ export default function AgendaClient({
             }`}
           >
             <Sparkles size={16} />
-            <span>⚡ Registros Rápidos (Prospectos)</span>
+            <span>Registros Rápidos (Prospectos)</span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === "prospectos" ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"}`}>
               {prospectsList.length}
             </span>
@@ -463,7 +468,7 @@ export default function AgendaClient({
         {selectedLeaderId && (
           <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-900">
             <span>Filtrando líder: {leaderStats.find(l => l.userId === selectedLeaderId)?.displayName || "Líder"}</span>
-            <Link href="/equipo?scope=equipo" className="text-blue-500 hover:text-blue-800 ml-1 font-extrabold">✕ Limpiar</Link>
+            <Link href="/equipo?scope=equipo" className="text-blue-500 hover:text-blue-800 ml-1 font-extrabold inline-flex items-center gap-1"><X size={12} /> Limpiar</Link>
           </div>
         )}
       </div>
@@ -484,30 +489,30 @@ export default function AgendaClient({
                 className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
               />
               {searchQuery && (
-                <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+                <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"><X size={14} /></button>
               )}
             </div>
 
             {/* Filtros por Categoría */}
             <div className="flex items-center gap-1.5 flex-wrap">
               {[
-                { key: "todas", label: "Todas" },
-                { key: "platica", label: "☕ Pláticas" },
-                { key: "visita", label: "🏠 Visitas" },
-                { key: "evento", label: "🎤 Eventos" },
-                { key: "brigada", label: "🚶‍♂️ Brigadas" },
+                { key: "todas", label: "Todas", icon: null },
+                { key: "platica", label: "Pláticas", icon: Coffee },
+                { key: "visita", label: "Visitas", icon: Home },
+                { key: "evento", label: "Eventos", icon: Mic },
+                { key: "brigada", label: "Brigadas", icon: Footprints },
               ].map(cat => (
                 <button
                   key={cat.key}
                   type="button"
                   onClick={() => setCategoryFilter(cat.key)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
                     categoryFilter === cat.key
                       ? "bg-blue-900 text-white shadow-sm"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 >
-                  {cat.label}
+                  {cat.icon && <cat.icon size={13} />} {cat.label}
                 </button>
               ))}
             </div>
@@ -724,8 +729,8 @@ export default function AgendaClient({
           {myStat && (
             <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 p-6 rounded-3xl text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="space-y-1 text-center md:text-left">
-                <span className="text-xs uppercase font-black tracking-wider bg-blue-500/30 text-blue-200 px-3 py-1 rounded-full border border-blue-400/30">
-                  ⭐ Mi Resumen de Desempeño
+                <span className="text-xs uppercase font-black tracking-wider bg-blue-500/30 text-blue-200 px-3 py-1 rounded-full border border-blue-400/30 inline-flex items-center gap-1.5">
+                  <Star size={12} /> Mi Resumen de Desempeño
                 </span>
                 <h2 className="text-2xl font-black text-white">{myStat.displayName}</h2>
                 <p className="text-xs text-blue-200">{myStat.teamName} · {myStat.roleName}</p>
@@ -786,11 +791,11 @@ export default function AgendaClient({
                   <tr>
                     <th className="py-3.5 px-4">Líder / Usuario</th>
                     <th className="py-3.5 px-3 text-center">Total Actividades</th>
-                    <th className="py-3.5 px-3 text-center">☕ Pláticas</th>
-                    <th className="py-3.5 px-3 text-center">🏠 Visitas</th>
-                    <th className="py-3.5 px-3 text-center">🎤 Eventos</th>
-                    <th className="py-3.5 px-3 text-center">🚶‍♂️ Brigadas</th>
-                    <th className="py-3.5 px-3 text-center">🗂️ Contactos</th>
+                    <th className="py-3.5 px-3 text-center"><span className="inline-flex items-center gap-1"><Coffee size={12} /> Pláticas</span></th>
+                    <th className="py-3.5 px-3 text-center"><span className="inline-flex items-center gap-1"><Home size={12} /> Visitas</span></th>
+                    <th className="py-3.5 px-3 text-center"><span className="inline-flex items-center gap-1"><Mic size={12} /> Eventos</span></th>
+                    <th className="py-3.5 px-3 text-center"><span className="inline-flex items-center gap-1"><Footprints size={12} /> Brigadas</span></th>
+                    <th className="py-3.5 px-3 text-center"><span className="inline-flex items-center gap-1"><Users size={12} /> Contactos</span></th>
                     <th className="py-3.5 px-3 text-center">% Cumplimiento</th>
                     <th className="py-3.5 px-4 text-right">Acción</th>
                   </tr>
@@ -1040,11 +1045,11 @@ export default function AgendaClient({
                     onChange={e => setProspectForm({ ...prospectForm, disposition: e.target.value })}
                     className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
                   >
-                    <option value="interesado">🟢 Interesado</option>
-                    <option value="por_conocer">🔵 Por conocer propuesta</option>
-                    <option value="sin_definicion">⚪ Sin definición</option>
-                    <option value="simpatiza_otro">🟠 Simpatiza con otro</option>
-                    <option value="no_interesado">🔴 No interesado</option>
+                    <option value="interesado">Interesado</option>
+                    <option value="por_conocer">Por conocer propuesta</option>
+                    <option value="sin_definicion">Sin definición</option>
+                    <option value="simpatiza_otro">Simpatiza con otro</option>
+                    <option value="no_interesado">No interesado</option>
                   </select>
                 </div>
               </div>
@@ -1172,8 +1177,8 @@ export default function AgendaClient({
                             : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
                         }`}
                       >
-                        <div className="text-sm mb-1">{cat.label.split(" ")[0]}</div>
-                        <div className="text-[11px] leading-tight line-clamp-1">{cat.label.split(" ").slice(1).join(" ")}</div>
+                        <div className="mb-1"><cat.icon size={16} /></div>
+                        <div className="text-[11px] leading-tight line-clamp-1">{cat.label}</div>
                       </button>
                     ))}
                   </div>
@@ -1238,7 +1243,7 @@ export default function AgendaClient({
                       onClick={() => setShowMapPickerInModal(!showMapPickerInModal)}
                       className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
                     >
-                      <MapPin size={12} /> {showMapPickerInModal ? "Ocultar Mapa" : "🗺️ Abrir Mapa / Buscar Domicilio"}
+                      <MapPin size={12} /> {showMapPickerInModal ? "Ocultar Mapa" : "Abrir Mapa / Buscar Domicilio"}
                     </button>
                   </div>
                   <input
@@ -1408,11 +1413,11 @@ export default function AgendaClient({
                   onChange={e => setOutcome(e.target.value)}
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
                 >
-                  <option value="successful">✓ Exitosa / Realizada con éxito</option>
-                  <option value="positive_commitment">🤝 Compromiso vecinal acordado</option>
-                  <option value="needs_followup">⏳ Requiere seguimiento / Segunda plática</option>
-                  <option value="rescheduled">📅 Reprogramada</option>
-                  <option value="cancelled">✕ Cancelada / No se pudo realizar</option>
+                  <option value="successful">Exitosa / Realizada con éxito</option>
+                  <option value="positive_commitment">Compromiso vecinal acordado</option>
+                  <option value="needs_followup">Requiere seguimiento / Segunda plática</option>
+                  <option value="rescheduled">Reprogramada</option>
+                  <option value="cancelled">Cancelada / No se pudo realizar</option>
                 </select>
               </div>
 

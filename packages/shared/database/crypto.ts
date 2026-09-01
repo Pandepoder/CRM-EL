@@ -5,11 +5,22 @@ const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12; // Standard for GCM
 const AUTH_TAG_LENGTH = 16;
 
+// The exact placeholder shipped in .env.example — never a valid production key.
+// Rejected explicitly so copying the template without generating a real key fails
+// loudly instead of silently "encrypting" citizen PII with a value visible in git history.
+const KNOWN_EXAMPLE_KEYS = new Set(["12345678901234567890123456789012"]);
+
 function getEncryptionKey(): Buffer {
   const env = loadAppEnv();
   const keyStr = env.private.DATABASE_ENCRYPTION_KEY;
   if (!keyStr || keyStr.length < 32) {
     throw new Error("DATABASE_ENCRYPTION_KEY must be at least 32 characters long");
+  }
+  if (KNOWN_EXAMPLE_KEYS.has(keyStr)) {
+    throw new Error(
+      "DATABASE_ENCRYPTION_KEY is still set to the placeholder value from .env.example. " +
+        "Generate a real key with `openssl rand -hex 16` and set it before starting the app."
+    );
   }
   return Buffer.from(keyStr.slice(0, 32), "utf-8");
 }

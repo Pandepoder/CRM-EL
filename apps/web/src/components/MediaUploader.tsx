@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Image as ImageIcon, Video, UploadCloud, X, Loader2, Play } from "lucide-react";
+import { Image as ImageIcon, Video, UploadCloud, X, Loader2, Play, AlertTriangle } from "lucide-react";
 
 export interface MediaFile {
   url: string;
@@ -141,8 +141,8 @@ export function MediaUploader({
       )}
 
       {uploadError && (
-        <div style={{ marginTop: "4px", fontSize: "10px", color: "#dc2626", fontWeight: "700" }}>
-          ⚠️ {uploadError}
+        <div style={{ marginTop: "4px", fontSize: "10px", color: "#dc2626", fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}>
+          <AlertTriangle size={11} /> {uploadError}
         </div>
       )}
 

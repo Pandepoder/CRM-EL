@@ -155,7 +155,11 @@ export const contacts = pgTable(
   },
   (table) => [
     check("contacts_status_check", sql`${table.status} IN ('active', 'inactive')`),
-    check("contacts_version_check", sql`${table.version} >= 1`)
+    check("contacts_version_check", sql`${table.version} >= 1`),
+    index("contacts_created_by_user_idx").on(table.createdByUserId),
+    index("contacts_referred_by_user_idx").on(table.referredByUserId),
+    index("contacts_section_idx").on(table.sectionId),
+    index("contacts_actual_contact_user_idx").on(table.actualContactUserId)
   ]
 );
 
@@ -377,7 +381,9 @@ export const contactTerritory = pgTable(
   },
   (table) => [
     check("contact_territory_status_check", sql`${table.territoryStatus} IN ('confirmed')`),
-    check("contact_territory_version_check", sql`${table.version} >= 1`)
+    check("contact_territory_version_check", sql`${table.version} >= 1`),
+    index("contact_territory_colony_idx").on(table.colonyId),
+    index("contact_territory_linked_by_user_idx").on(table.linkedByUserId)
   ]
 );
 
@@ -394,7 +400,8 @@ export const contactAssignments = pgTable(
   },
   (table) => [
     check("contact_assignments_status_check", sql`${table.assignmentStatus} IN ('active', 'pending')`),
-    check("contact_assignments_version_check", sql`${table.version} >= 1`)
+    check("contact_assignments_version_check", sql`${table.version} >= 1`),
+    index("contact_assignments_assigned_user_idx").on(table.assignedUserId)
   ]
 );
 
@@ -426,7 +433,11 @@ export const visits = pgTable(
         OR
         (${table.status} = 'completed' AND ${table.completedAt} IS NOT NULL AND ${table.completedByUserId} IS NOT NULL)
       )`
-    )
+    ),
+    index("visits_contact_idx").on(table.contactId),
+    index("visits_colony_idx").on(table.colonyId),
+    index("visits_assigned_user_idx").on(table.assignedUserId),
+    index("visits_created_by_user_idx").on(table.createdByUserId)
   ]
 );
 
@@ -535,37 +546,58 @@ export const inventoryItems = pgTable("inventory_items", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const inventoryTransactions = pgTable("inventory_transactions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
-  transactionType: text("transaction_type").notNull(),
-  quantity: integer("quantity").notNull(),
-  assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
-  performedByUserId: uuid("performed_by_user_id").notNull().references(() => userProfiles.id),
-  notes: text("notes"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const inventoryTransactions = pgTable(
+  "inventory_transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
+    transactionType: text("transaction_type").notNull(),
+    quantity: integer("quantity").notNull(),
+    assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
+    performedByUserId: uuid("performed_by_user_id").notNull().references(() => userProfiles.id),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("inventory_transactions_item_idx").on(table.itemId),
+    index("inventory_transactions_assigned_to_user_idx").on(table.assignedToUserId),
+    index("inventory_transactions_performed_by_user_idx").on(table.performedByUserId)
+  ]
+);
 
-export const inboxConversations = pgTable("inbox_conversations", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  contactId: uuid("contact_id").references(() => contacts.id),
-  channel: text("channel").notNull(),
-  externalId: text("external_id").notNull().unique(),
-  status: text("status").notNull().default("open"),
-  assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
-  lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const inboxConversations = pgTable(
+  "inbox_conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    contactId: uuid("contact_id").references(() => contacts.id),
+    channel: text("channel").notNull(),
+    externalId: text("external_id").notNull().unique(),
+    status: text("status").notNull().default("open"),
+    assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("inbox_conversations_contact_idx").on(table.contactId),
+    index("inbox_conversations_assigned_to_user_idx").on(table.assignedToUserId)
+  ]
+);
 
-export const inboxMessages = pgTable("inbox_messages", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  conversationId: uuid("conversation_id").notNull().references(() => inboxConversations.id),
-  direction: text("direction").notNull(),
-  content: text("content").notNull(),
-  status: text("status").notNull().default("sent"),
-  sentByUserId: uuid("sent_by_user_id").references(() => userProfiles.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const inboxMessages = pgTable(
+  "inbox_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id").notNull().references(() => inboxConversations.id),
+    direction: text("direction").notNull(),
+    content: text("content").notNull(),
+    status: text("status").notNull().default("sent"),
+    sentByUserId: uuid("sent_by_user_id").references(() => userProfiles.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("inbox_messages_conversation_idx").on(table.conversationId)
+  ]
+);
 
 // ==========================================
 // ELAPP PRIMERA ETAPA (AGOSTO 2026) TABLES
@@ -581,30 +613,38 @@ export const userPromotionsHistory = pgTable("user_promotions_history", {
   promotedAt: timestamp("promoted_at", { withTimezone: true }).notNull().defaultNow()
 });
 
-export const contactNotes = pgTable("contact_notes", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  contactId: uuid("contact_id").notNull().references(() => contacts.id),
-  authorUserId: uuid("author_user_id").notNull().references(() => userProfiles.id),
-  noteText: encryptedText("note_text").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-});
+export const contactNotes = pgTable(
+  "contact_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    contactId: uuid("contact_id").notNull().references(() => contacts.id),
+    authorUserId: uuid("author_user_id").notNull().references(() => userProfiles.id),
+    noteText: encryptedText("note_text").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [index("contact_notes_contact_idx").on(table.contactId)]
+);
 
-export const socialSurveys = pgTable("social_surveys", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  contactId: uuid("contact_id").notNull().references(() => contacts.id),
-  colonyPriorityNeed: text("colony_priority_need"),
-  colonyPriorityOther: text("colony_priority_other"),
-  tonalaValues: text("tonala_values"),
-  tonalaValuesOther: text("tonala_values_other"),
-  servicesRating: integer("services_rating"),
-  servicesRatingWhy: text("services_rating_why"),
-  projectExpectations: text("project_expectations"),
-  projectExpectationsOther: text("project_expectations_other"),
-  participationForm: text("participation_form"),
-  participationFormOther: text("participation_form_other"),
-  openProposal: text("open_proposal"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-});
+export const socialSurveys = pgTable(
+  "social_surveys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    contactId: uuid("contact_id").notNull().references(() => contacts.id),
+    colonyPriorityNeed: text("colony_priority_need"),
+    colonyPriorityOther: text("colony_priority_other"),
+    tonalaValues: text("tonala_values"),
+    tonalaValuesOther: text("tonala_values_other"),
+    servicesRating: integer("services_rating"),
+    servicesRatingWhy: text("services_rating_why"),
+    projectExpectations: text("project_expectations"),
+    projectExpectationsOther: text("project_expectations_other"),
+    participationForm: text("participation_form"),
+    participationFormOther: text("participation_form_other"),
+    openProposal: text("open_proposal"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [index("social_surveys_contact_idx").on(table.contactId)]
+);
 
 export const socialListening = pgTable(
   "social_listening",

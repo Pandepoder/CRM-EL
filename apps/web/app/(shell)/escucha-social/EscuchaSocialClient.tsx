@@ -1,8 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Filter, MapPin, MessageSquare, Check, X 
+import {
+  Plus, Search, Filter, MapPin, MessageSquare, Check, X,
+  Lightbulb, AlertTriangle, Handshake, RefreshCw, Landmark
 } from "lucide-react";
+import type { ComponentType } from "react";
+
+type CategoryIcon = ComponentType<{ size?: number | string; className?: string }>;
 import type { LocationValue } from "@/components/LocationPicker";
 import { LocationPicker } from "@/components/LocationPicker";
 
@@ -153,12 +158,12 @@ export default function EscuchaSocialClient({
     }
   }
 
-  const categoryBadges: Record<string, { label: string; bg: string; text: string }> = {
-    propuesta: { label: "💡 Idea / Propuesta", bg: "bg-amber-100", text: "text-amber-900" },
-    problematica: { label: "⚠️ Problemática", bg: "bg-rose-100", text: "text-rose-900" },
-    compromiso: { label: "🤝 Compromiso", bg: "bg-blue-100", text: "text-blue-900" },
-    seguimiento: { label: "🔄 Seguimiento", bg: "bg-purple-100", text: "text-purple-900" },
-    gestion: { label: "🏛️ Gestión", bg: "bg-emerald-100", text: "text-emerald-900" },
+  const categoryBadges: Record<string, { label: string; icon: CategoryIcon; bg: string; text: string }> = {
+    propuesta: { label: "Idea / Propuesta", icon: Lightbulb, bg: "bg-amber-100", text: "text-amber-900" },
+    problematica: { label: "Problemática", icon: AlertTriangle, bg: "bg-rose-100", text: "text-rose-900" },
+    compromiso: { label: "Compromiso", icon: Handshake, bg: "bg-blue-100", text: "text-blue-900" },
+    seguimiento: { label: "Seguimiento", icon: RefreshCw, bg: "bg-purple-100", text: "text-purple-900" },
+    gestion: { label: "Gestión", icon: Landmark, bg: "bg-emerald-100", text: "text-emerald-900" },
   };
 
   return (
@@ -192,24 +197,24 @@ export default function EscuchaSocialClient({
       {/* TABS DE CATEGORÍA */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-gray-200 text-xs font-bold">
         {[
-          { id: "all", label: "Todas las Entradas" },
-          { id: "propuesta", label: "💡 Ideas / Propuestas" },
-          { id: "problematica", label: "⚠️ Problemáticas" },
-          { id: "compromiso", label: "🤝 Compromisos" },
-          { id: "seguimiento", label: "🔄 Seguimiento" },
-          { id: "gestiones", label: "🏛️ Gestiones Formales" },
+          { id: "all", label: "Todas las Entradas", icon: null },
+          { id: "propuesta", label: "Ideas / Propuestas", icon: Lightbulb },
+          { id: "problematica", label: "Problemáticas", icon: AlertTriangle },
+          { id: "compromiso", label: "Compromisos", icon: Handshake },
+          { id: "seguimiento", label: "Seguimiento", icon: RefreshCw },
+          { id: "gestiones", label: "Gestiones Formales", icon: Landmark },
         ].map(tab => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+            className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5 ${
               activeTab === tab.id
                 ? "bg-slate-900 text-white shadow-sm"
                 : "bg-gray-100 hover:bg-gray-200 text-gray-600"
             }`}
           >
-            {tab.label}
+            {tab.icon && <tab.icon size={13} />} {tab.label}
           </button>
         ))}
       </div>
@@ -261,7 +266,7 @@ export default function EscuchaSocialClient({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredItems.map(item => {
             const cat = item.categories[0] || "propuesta";
-            const badge = categoryBadges[cat] ?? categoryBadges["propuesta"] ?? { label: "💡 Idea / Propuesta", bg: "bg-amber-100", text: "text-amber-900" };
+            const badge = categoryBadges[cat] ?? categoryBadges["propuesta"] ?? { label: "Idea / Propuesta", icon: Lightbulb, bg: "bg-amber-100", text: "text-amber-900" };
 
             return (
               <div
@@ -274,8 +279,8 @@ export default function EscuchaSocialClient({
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${badge.bg} ${badge.text}`}>
-                      {badge.label}
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black inline-flex items-center gap-1 ${badge.bg} ${badge.text}`}>
+                      <badge.icon size={10} /> {badge.label}
                     </span>
                     <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
                       item.status === "cerrado" ? "bg-emerald-100 text-emerald-800" :
@@ -346,11 +351,11 @@ export default function EscuchaSocialClient({
                   onChange={e => setCategory(e.target.value)}
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
                 >
-                  <option value="propuesta">💡 Idea / Propuesta</option>
-                  <option value="problematica">⚠️ Problemática de Colonia</option>
-                  <option value="compromiso">🤝 Compromiso Social</option>
-                  <option value="seguimiento">🔄 Seguimiento de Petición</option>
-                  <option value="gestion">🏛️ Gestión de Servicio Público</option>
+                  <option value="propuesta">Idea / Propuesta</option>
+                  <option value="problematica">Problemática de Colonia</option>
+                  <option value="compromiso">Compromiso Social</option>
+                  <option value="seguimiento">Seguimiento de Petición</option>
+                  <option value="gestion">Gestión de Servicio Público</option>
                 </select>
               </div>
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { hashPassword } from "@/lib/auth";
+import { generateUniquePersonalSlug } from "@/lib/personal-slug";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { eq } from "drizzle-orm";
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
 
     const passwordHash = await hashPassword(password);
     const userId = randomUUID();
+    const personalSlug = await generateUniquePersonalSlug(displayName);
 
     // Insert user with status 'pending'
     await db.insert(schema.userProfiles).values({
@@ -90,6 +92,7 @@ export async function POST(request: Request) {
       displayName,
       passwordHash,
       roleId,
+      personalSlug,
       status: "pending",
       version: 1
     });

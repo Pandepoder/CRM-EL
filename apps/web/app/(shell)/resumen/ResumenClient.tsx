@@ -5,7 +5,8 @@ import Link from "next/link";
 import { 
   Users, Award, Activity, MessageSquare, Sparkles, AlertCircle, X, CheckCircle2,
   MapPin, Share2, Compass, Navigation, Search, Phone, ExternalLink,
-  ChevronRight, Flame, ArrowUpRight, TrendingUp, Clock
+  ChevronRight, Flame, ArrowUpRight, TrendingUp, Clock,
+  Map, Vote, Megaphone
 } from "lucide-react";
 
 type MemberPerformance = {
@@ -87,7 +88,7 @@ export default function ResumenClient({
     if (navigator.clipboard) {
       try {
         await navigator.clipboard.writeText(shareUrl);
-        showToast("success", "✓ Enlace copiado. Listo para enviar por WhatsApp.");
+        showToast("success", "Enlace copiado. Listo para enviar por WhatsApp.");
       } catch {
         // Fallback
       }
@@ -118,7 +119,7 @@ export default function ResumenClient({
               municipality: data.municipality || "Tonalá",
               formattedAddress: data.formattedAddress
             });
-            showToast("success", `📍 Ubicado en Col. ${data.colony || "Centro"} · Secc. #${data.sectionNum || "S/N"}`);
+            showToast("success", `Ubicado en Col. ${data.colony || "Centro"} · Secc. #${data.sectionNum || "S/N"}`);
           } else {
             showToast("error", "No se pudo identificar la sección electoral.");
           }
@@ -347,8 +348,8 @@ export default function ResumenClient({
         {/* PAN */}
         <div className="bg-white rounded-xl border border-gray-200/80 p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center text-sm font-bold">
-              Ⓜ️
+            <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center text-sm font-black">
+              M
             </div>
             <span className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-md">
               {kpis.totalContacts > 0 ? Math.round((kpis.panConfirmedContacts / kpis.totalContacts) * 100) : 0}%
@@ -710,19 +711,19 @@ export default function ResumenClient({
           {/* TAB: QUICK LINKS */}
           {activeTab === "quicklinks" && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {([
-                { href: "/mapa", emoji: "🗺️", label: "Mapa Territorial", sub: "Capas y colonias", color: "blue" },
-                { href: "/estructura-electoral", emoji: "🗳️", label: "Secciones INE", sub: "Avance electoral", color: "indigo" },
-                { href: "/escucha-social", emoji: "📢", label: "Escucha Social", sub: "Gestiones ciudadanas", color: "amber" },
-                { href: "/admin-equipos", emoji: "👥", label: "Equipos", sub: "Estructura humana", color: "emerald" },
-              ] as const).map(link => (
+              {[
+                { href: "/mapa", icon: Map, label: "Mapa Territorial", sub: "Capas y colonias", color: "blue" },
+                { href: "/estructura-electoral", icon: Vote, label: "Secciones INE", sub: "Avance electoral", color: "indigo" },
+                { href: "/escucha-social", icon: Megaphone, label: "Escucha Social", sub: "Gestiones ciudadanas", color: "amber" },
+                { href: "/admin-equipos", icon: Users, label: "Equipos", sub: "Estructura humana", color: "emerald" },
+              ].map(link => (
                 <Link
                   key={link.href}
                   href={link.href}
                   className={`group p-4 rounded-xl border border-gray-100 hover:border-${link.color}-200 bg-gray-50/50 hover:bg-${link.color}-50/50 text-center space-y-2 transition-all`}
                 >
                   <div className={`w-9 h-9 mx-auto bg-${link.color}-100 text-${link.color}-600 rounded-lg flex items-center justify-center text-base group-hover:scale-110 transition-transform`}>
-                    {link.emoji}
+                    <link.icon size={16} />
                   </div>
                   <div>
                     <p className="text-xs font-bold text-gray-900">{link.label}</p>

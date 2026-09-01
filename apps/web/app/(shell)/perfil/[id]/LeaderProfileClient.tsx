@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { 
-  User, Shield, Mail, Calendar, MapPin, Phone, Home, 
-  CheckCircle, Clock, Plus, Search, Users, Coffee, Mic, ChevronRight, 
-  Building2, Hash, Key
+import {
+  User, Shield, Mail, Calendar, MapPin, Phone, Home,
+  CheckCircle, Clock, Plus, Search, Users, Coffee, Mic, ChevronRight,
+  Building2, Hash, Key, Footprints, X, Flag
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -197,18 +197,18 @@ export default function LeaderProfileClient({
 
   const getCategoryBadge = (cat?: string) => {
     if (cat === "visita") {
-      return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">🏠 Visita</span>;
+      return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Home size={12} /> Visita</span>;
     }
     if (cat === "platica") {
-      return <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">☕ Plática</span>;
+      return <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Coffee size={12} /> Plática</span>;
     }
     if (cat === "evento" || cat === "mitin") {
-      return <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">🎤 Evento</span>;
+      return <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Mic size={12} /> Evento</span>;
     }
     if (cat === "brigada") {
-      return <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">🚶‍♂️ Brigada</span>;
+      return <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Footprints size={12} /> Brigada</span>;
     }
-    return <span className="bg-gray-50 text-gray-700 border border-gray-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">📋 Tarea</span>;
+    return <span className="bg-gray-50 text-gray-700 border border-gray-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Flag size={12} /> Tarea</span>;
   };
 
   return (
@@ -305,7 +305,7 @@ export default function LeaderProfileClient({
 
         <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between text-gray-500 mb-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider">☕ Pláticas</span>
+            <span className="text-[10px] font-extrabold uppercase tracking-wider">Pláticas</span>
             <Coffee size={15} className="text-amber-500" />
           </div>
           <div className="text-2xl font-black text-amber-700">{platicasCount}</div>
@@ -314,7 +314,7 @@ export default function LeaderProfileClient({
 
         <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between text-gray-500 mb-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider">🏠 Visitas</span>
+            <span className="text-[10px] font-extrabold uppercase tracking-wider">Visitas</span>
             <Home size={15} className="text-emerald-500" />
           </div>
           <div className="text-2xl font-black text-emerald-700">{visitasCount}</div>
@@ -323,7 +323,7 @@ export default function LeaderProfileClient({
 
         <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between text-gray-500 mb-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider">🎤 Eventos</span>
+            <span className="text-[10px] font-extrabold uppercase tracking-wider">Eventos</span>
             <Mic size={15} className="text-purple-500" />
           </div>
           <div className="text-2xl font-black text-purple-700">{eventosCount}</div>
@@ -352,7 +352,7 @@ export default function LeaderProfileClient({
           }`}
         >
           <Users size={14} />
-          <span>🗂️ Personas que ha Subido</span>
+          <span>Personas que ha Subido</span>
           <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "contactos" ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"}`}>
             {contacts.length}
           </span>
@@ -368,7 +368,7 @@ export default function LeaderProfileClient({
           }`}
         >
           <Calendar size={14} />
-          <span>📅 Agenda y Actividades Realizadas</span>
+          <span>Agenda y Actividades Realizadas</span>
           <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "agenda" ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"}`}>
             {activities.length}
           </span>
@@ -384,7 +384,7 @@ export default function LeaderProfileClient({
           }`}
         >
           <MapPin size={14} />
-          <span>🗺️ Cobertura y Colonias</span>
+          <span>Cobertura y Colonias</span>
           <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "territorio" ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"}`}>
             {topColonies.length}
           </span>
@@ -401,7 +401,7 @@ export default function LeaderProfileClient({
             }`}
           >
             <Key size={14} />
-            <span>🔒 Seguridad y Contraseña</span>
+            <span>Seguridad y Contraseña</span>
           </button>
         )}
       </div>
@@ -421,7 +421,7 @@ export default function LeaderProfileClient({
                 className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
               />
               {contactSearch && (
-                <button onClick={() => setContactSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">✕</button>
+                <button onClick={() => setContactSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"><X size={14} /></button>
               )}
             </div>
 
@@ -561,23 +561,23 @@ export default function LeaderProfileClient({
 
             <div className="flex items-center gap-1.5 flex-wrap">
               {[
-                { key: "todas", label: "Todas" },
-                { key: "platica", label: "☕ Pláticas" },
-                { key: "visita", label: "🏠 Visitas" },
-                { key: "evento", label: "🎤 Eventos" },
-                { key: "brigada", label: "🚶‍♂️ Brigadas" },
+                { key: "todas", label: "Todas", icon: null },
+                { key: "platica", label: "Pláticas", icon: Coffee },
+                { key: "visita", label: "Visitas", icon: Home },
+                { key: "evento", label: "Eventos", icon: Mic },
+                { key: "brigada", label: "Brigadas", icon: Footprints },
               ].map(cat => (
                 <button
                   key={cat.key}
                   type="button"
                   onClick={() => setActivityCategoryFilter(cat.key)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
                     activityCategoryFilter === cat.key
                       ? "bg-blue-900 text-white shadow-sm"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 >
-                  {cat.label}
+                  {cat.icon && <cat.icon size={13} />} {cat.label}
                 </button>
               ))}
             </div>

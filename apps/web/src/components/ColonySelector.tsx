@@ -173,7 +173,7 @@ export function ColonySelector({
           }
         } catch (e) {
           console.error("GPS Reverse geocode error:", e);
-          setGpsStatus("⚠️ Error al consultar datos territoriales.");
+          setGpsStatus("Error al consultar datos territoriales.");
         } finally {
           setIsLocatingGPS(false);
         }
@@ -181,7 +181,7 @@ export function ColonySelector({
       (err) => {
         setIsLocatingGPS(false);
         console.warn("GPS error:", err);
-        setGpsStatus("⚠️ No se pudo acceder al GPS. Verifica los permisos.");
+        setGpsStatus("No se pudo acceder al GPS. Verifica los permisos.");
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -209,7 +209,7 @@ export function ColonySelector({
             title="Abrir mapa interactivo para buscar domicilio o marcar punto"
           >
             <Crosshair size={13} className="text-blue-600" />
-            <span>🗺️ Abrir Mapa / Buscar Domicilio</span>
+            <span>Abrir Mapa / Buscar Domicilio</span>
           </button>
 
           <button
@@ -227,7 +227,7 @@ export function ColonySelector({
             ) : (
               <>
                 <Navigation size={13} className="text-blue-600" />
-                <span>📍 Mi GPS</span>
+                <span>Mi GPS</span>
               </>
             )}
           </button>
@@ -305,7 +305,7 @@ export function ColonySelector({
             {/* Modal Footer */}
             <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3 shrink-0">
               <span className="text-xs text-gray-600 font-semibold truncate">
-                {colony ? `📍 Seleccionado: ${colony}${sectionNum ? ` (Secc. #${sectionNum})` : ""}` : "Haz clic en el mapa para fijar dirección"}
+                {colony ? `Seleccionado: ${colony}${sectionNum ? ` (Secc. #${sectionNum})` : ""}` : "Haz clic en el mapa para fijar dirección"}
               </span>
               <button
                 type="button"
@@ -323,7 +323,7 @@ export function ColonySelector({
       {gpsStatus && (
         <div className="text-[11px] font-bold text-blue-900 bg-blue-50/90 border border-blue-200 px-3 py-1.5 rounded-xl flex items-center justify-between animate-in fade-in">
           <span>{gpsStatus}</span>
-          <button type="button" onClick={() => setGpsStatus(null)} className="text-blue-400 hover:text-blue-700 ml-2">✕</button>
+          <button type="button" onClick={() => setGpsStatus(null)} className="text-blue-400 hover:text-blue-700 ml-2"><X size={12} /></button>
         </div>
       )}
 
@@ -402,7 +402,7 @@ export function ColonySelector({
             <div className="absolute z-30 left-0 right-0 mt-1 bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
               <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                 <span>Secciones Disponibles</span>
-                <button type="button" onClick={() => setShowSectionDropdown(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                <button type="button" onClick={() => setShowSectionDropdown(false)} className="text-gray-400 hover:text-gray-600"><X size={12} /></button>
               </div>
               {filteredSections.slice(0, 15).map((s) => (
                 <button
@@ -490,7 +490,7 @@ export function ColonySelector({
               <span>
                 {loadingSuggestions ? "Buscando coincidencias..." : `Predicciones en ${municipality || "Tonalá"} ${sectionNum ? `(Sección #${sectionNum})` : ""}`}
               </span>
-              <button type="button" onClick={() => setShowColonyDropdown(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+              <button type="button" onClick={() => setShowColonyDropdown(false)} className="text-gray-400 hover:text-gray-600"><X size={12} /></button>
             </div>
 
             {suggestedColonies.length > 0 ? (
@@ -546,7 +546,7 @@ export function ColonySelector({
         <div className="flex items-center gap-2 text-xs text-emerald-900 bg-emerald-100/90 p-3 rounded-xl border border-emerald-200 shadow-sm animate-in fade-in">
           <Check size={16} className="text-emerald-700 shrink-0 font-bold" />
           <span>
-            📍 Preseleccionado: <strong>{colony}</strong> · Sección <strong>#{sectionNum}</strong> ({municipality || "Tonalá"})
+            Preseleccionado: <strong>{colony}</strong> · Sección <strong>#{sectionNum}</strong> ({municipality || "Tonalá"})
           </span>
         </div>
       )}

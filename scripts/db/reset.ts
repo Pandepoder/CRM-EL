@@ -2,6 +2,7 @@ import "dotenv/config";
 import pg from "pg";
 import { spawn } from "node:child_process";
 import { loadAppEnv } from "../../packages/config/index.js";
+import { confirmDestructiveOperation } from "./confirm-destructive.js";
 
 function run(command: string, args: readonly string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -19,13 +20,24 @@ function run(command: string, args: readonly string[]): Promise<void> {
 
 async function dropSchema() {
   const env = loadAppEnv();
+
+  await confirmDestructiveOperation({
+    databaseUrl: env.private.DATABASE_URL,
+    actionLabel: "BORRAR POR COMPLETO el esquema 'public' (DROP SCHEMA ... CASCADE) y recrearlo vacío"
+  });
+
   const pool = new pg.Pool({ connectionString: env.private.DATABASE_URL });
   await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO postgres; GRANT ALL ON SCHEMA public TO public; DROP SCHEMA IF EXISTS drizzle CASCADE;");
   await pool.end();
 }
 
-console.log("Dropping public schema...");
-await dropSchema();
+try {
+  console.log("Dropping public schema...");
+  await dropSchema();
+} catch (err) {
+  console.error(`❌ ${err instanceof Error ? err.message : err}`);
+  process.exit(1);
+}
 console.log("Running migrations...");
 await run("pnpm", ["db:migrate"]);
 console.log("Running seed...");

@@ -14,6 +14,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { eq } from "drizzle-orm";
 import { processOutboxInline } from "@/lib/outbox";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export async function createContactAction(formData: FormData) {
   const actor = await actorFromSession();
@@ -219,3 +220,62 @@ export async function createContactAction(formData: FormData) {
   revalidatePath("/crm/contacts");
   redirect("/crm/contacts");
 }
+
+export async function deleteContactAction(contactId: string) {
+  const actor = await actorFromSession();
+  if (!actor) throw new Error("No autenticado");
+
+  const db = getDatabaseClient();
+
+  // 1. Fetch contact
+  const contactRows = await db
+    .select({
+      id: schema.contacts.id,
+      createdByUserId: schema.contacts.createdByUserId,
+      actualContactUserId: schema.contacts.actualContactUserId,
+      referredByUserId: schema.contacts.referredByUserId
+    })
+    .from(schema.contacts)
+    .where(eq(schema.contacts.id, contactId))
+    .limit(1);
+
+  const contact = contactRows[0];
+  if (!contact) {
+    throw new Error("Ciudadano no encontrado");
+  }
+
+  // 2. Only a global admin or a team leader may delete contacts, and only within their own brigade
+  const scope = await resolveUserNetworkScope(actor.actorId);
+  if (!scope.isGlobal) {
+    if (!scope.isLeader) {
+      throw new Error("Solo el líder de tu equipo puede eliminar ciudadanos del padrón");
+    }
+
+    const allowed = scope.allowedUserIds || [actor.actorId];
+    const isOwnerOrTeammate =
+      allowed.includes(contact.createdByUserId) ||
+      (contact.actualContactUserId && allowed.includes(contact.actualContactUserId)) ||
+      (contact.referredByUserId && allowed.includes(contact.referredByUserId));
+
+    if (!isOwnerOrTeammate) {
+      throw new Error("No tienes permiso para eliminar ciudadanos fuera de tu brigada");
+    }
+  }
+
+  // 3. Cascade deletion of related items
+  await db.transaction(async (tx) => {
+    await tx.delete(schema.contactNotes).where(eq(schema.contactNotes.contactId, contactId));
+    await tx.delete(schema.socialSurveys).where(eq(schema.socialSurveys.contactId, contactId));
+    await tx.delete(schema.contactAssignments).where(eq(schema.contactAssignments.contactId, contactId));
+    await tx.delete(schema.contactTerritory).where(eq(schema.contactTerritory.contactId, contactId));
+    await tx.delete(schema.visits).where(eq(schema.visits.contactId, contactId));
+    await tx.delete(schema.contacts).where(eq(schema.contacts.id, contactId));
+  });
+
+  revalidatePath("/crm");
+  revalidatePath("/crm/contacts");
+  revalidatePath("/resumen");
+  revalidatePath("/mapa");
+  return { success: true };
+}
+

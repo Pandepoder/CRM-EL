@@ -1,0 +1,36 @@
+# Never send local dependencies/build output/VCS history into the build context —
+# without this, `pnpm install --frozen-lockfile` inside the image collides with a
+# copied-in node_modules and fails (no TTY to confirm purging it).
+node_modules
+**/node_modules
+
+.git
+.next
+**/.next
+dist
+coverage
+out
+outputs
+work
+
+*.log
+.DS_Store
+Thumbs.db
+
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+db/local-data
+scripts/*.png
+*.tsbuildinfo
+
+# Not needed to build or run the app
+docs
+tests
+.github
+README.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+walkthrough.md

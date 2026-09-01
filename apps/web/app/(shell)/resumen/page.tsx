@@ -1,11 +1,14 @@
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq, count, gte, desc } from "drizzle-orm";
+import { eq, count, gte, desc, and, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import ResumenClient from "./ResumenClient";
+import { requirePageRole } from "@/lib/authorization";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export default async function ResumenPage() {
+  await requirePageRole("admin", "direction", "territorial_coordinator");
   const session = await getServerSession();
   if (!session.isLoggedIn || !session.userId) redirect("/login");
 
@@ -31,6 +34,12 @@ export default async function ResumenPage() {
     accessType: "conexion",
     personalSlug: null
   };
+
+  // Non-global users (líderes/coordinadores) must only see their own brigade's
+  // performance data here — otherwise this page becomes a cross-team leaderboard
+  // that fuels comparison/rivalry between unrelated coordinators.
+  const networkScope = await resolveUserNetworkScope(session.userId);
+  const scopedUserIds = networkScope.isGlobal ? null : networkScope.teammateUserIds;
 
   // Start of today for daily pulse
   const now = new Date();
@@ -87,7 +96,11 @@ export default async function ResumenPage() {
     })
     .from(schema.contacts)
     .leftJoin(schema.electoralSections, eq(schema.contacts.sectionId, schema.electoralSections.id))
-    .where(eq(schema.contacts.status, "active"))
+    .where(
+      scopedUserIds
+        ? and(eq(schema.contacts.status, "active"), inArray(schema.contacts.createdByUserId, scopedUserIds))
+        : eq(schema.contacts.status, "active")
+    )
     .orderBy(desc(schema.contacts.createdAt))
     .limit(6);
 
@@ -102,8 +115,9 @@ export default async function ResumenPage() {
     createdAt: r.createdAt ? r.createdAt.toISOString() : new Date().toISOString()
   }));
 
-  // 4. User performance leaderboard
-  const allUsers = await db
+  // 4. User performance leaderboard — scoped to the viewer's own brigade
+  // unless they are a global admin/direction.
+  let allUsersQuery = db
     .select({
       userId: schema.userProfiles.id,
       displayName: schema.userProfiles.displayName,
@@ -112,7 +126,14 @@ export default async function ResumenPage() {
       parentEnlaceId: schema.userProfiles.parentEnlaceId,
       personalSlug: schema.userProfiles.personalSlug
     })
-    .from(schema.userProfiles);
+    .from(schema.userProfiles)
+    .$dynamic();
+
+  if (scopedUserIds) {
+    allUsersQuery = allUsersQuery.where(inArray(schema.userProfiles.id, scopedUserIds));
+  }
+
+  const allUsers = await allUsersQuery;
 
   const userContacts = await db
     .select({

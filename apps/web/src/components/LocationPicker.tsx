@@ -149,7 +149,7 @@ export function LocationPicker({
   // Sync map position when external coordinates change
   const handleCoordsSelected = async (lat: number, lng: number, manualAddress?: string) => {
     setIsReverseGeocoding(true);
-    setStatusMessage("📍 Identificando calle, colonia y sección...");
+    setStatusMessage("Identificando calle, colonia y sección...");
 
     try {
       const res = await fetch(`/api/map/reverse-geocode?lat=${lat}&lng=${lng}`);
@@ -297,7 +297,7 @@ export function LocationPicker({
             className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl border border-orange-200 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             {isLocatingGPS ? <Loader2 size={13} className="animate-spin text-orange-600" /> : <Navigation size={13} className="text-orange-600" />}
-            <span>📍 Mi GPS</span>
+            <span>Mi GPS</span>
           </button>
         </div>
       </div>

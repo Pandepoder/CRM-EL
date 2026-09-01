@@ -417,6 +417,69 @@ button {
 }
 
 /* ==========================================================================
+   MOBILE DRAWER ("Más" menu)
+   ========================================================================== */
+.mobile-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(11, 31, 58, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: flex-end;
+  animation: mobile-drawer-fade-in 0.2s ease-out;
+}
+
+.mobile-drawer {
+  width: min(300px, 84vw);
+  height: 100vh;
+  background: linear-gradient(180deg, var(--blue-950), var(--blue-900));
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  animation: mobile-drawer-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mobile-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mobile-drawer-close {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobile-drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+@keyframes mobile-drawer-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mobile-drawer-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+/* ==========================================================================
    COMPONENTS (CARDS, LISTS, FORMS)
    ========================================================================== */
 .list-stack {

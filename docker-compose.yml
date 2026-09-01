@@ -16,6 +16,54 @@ services:
     volumes:
       - tonala_os_postgres_data:/var/lib/postgresql/data
 
+  # One-off job: applies pending Drizzle migrations, then exits. "web" and
+  # "outbox-worker" wait for this to finish successfully before starting, so
+  # the app never serves traffic against an unmigrated schema (see README).
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: tonala-os-migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER:-tonala}:${POSTGRES_PASSWORD:-tonala_dev_password}@db:5432/${POSTGRES_DB:-tonala_os}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-tonala_os}
+      - POSTGRES_USER=${POSTGRES_USER:-tonala}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-tonala_dev_password}
+    command: ["pnpm", "db:migrate"]
+    restart: "no"
+
+  # Polls the transactional outbox continuously so queued events (contact
+  # creation, visits, etc.) are actually delivered without a human running
+  # `pnpm outbox:run-once` by hand.
+  outbox-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: tonala-os-outbox-worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER:-tonala}:${POSTGRES_PASSWORD:-tonala_dev_password}@db:5432/${POSTGRES_DB:-tonala_os}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-tonala_os}
+      - POSTGRES_USER=${POSTGRES_USER:-tonala}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-tonala_dev_password}
+    entrypoint: ["sh", "-c", "while true; do pnpm outbox:run-once; sleep ${OUTBOX_POLL_INTERVAL_SECONDS:-10}; done"]
+    restart: unless-stopped
+
   web:
     build:
       context: .
@@ -24,6 +72,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     env_file:
       - .env
     environment:

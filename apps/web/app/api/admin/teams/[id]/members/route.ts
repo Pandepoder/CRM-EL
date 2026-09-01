@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { eq, and } from "drizzle-orm";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export async function POST(
   request: Request,
@@ -23,9 +24,9 @@ export async function POST(
   try {
     const db = getDatabaseClient();
 
-    // Check authorization: admin, direction, territorial_coordinator, or team leader
-    const isGlobalAdmin = ["admin", "direction", "territorial_coordinator"].includes(session.roleKey);
-    if (!isGlobalAdmin) {
+    // Check authorization: global admin (admin/direction) or the leader of this specific team
+    const scope = await resolveUserNetworkScope(session.userId);
+    if (!scope.isGlobal) {
       const team = await db.query.teams.findFirst({
         where: eq(schema.teams.id, id)
       });
@@ -75,9 +76,9 @@ export async function DELETE(
   try {
     const db = getDatabaseClient();
 
-    // Check authorization: admin, direction, territorial_coordinator, or team leader
-    const isGlobalAdmin = ["admin", "direction", "territorial_coordinator"].includes(session.roleKey);
-    if (!isGlobalAdmin) {
+    // Check authorization: global admin (admin/direction) or the leader of this specific team
+    const scope = await resolveUserNetworkScope(session.userId);
+    if (!scope.isGlobal) {
       const team = await db.query.teams.findFirst({
         where: eq(schema.teams.id, id)
       });

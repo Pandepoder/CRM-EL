@@ -5,6 +5,7 @@ import { loadAppEnv } from "../../packages/config/index.js";
 import { roleSeeds, catalogSeed, colonySeeds } from "./seed-data.js";
 import { METROPOLITAN_SECTIONS } from "./generate-metropolitan-sections.js";
 import { boundsToRealisticPolygon } from "./generate-official-sections.js";
+import { confirmDestructiveOperation } from "./confirm-destructive.js";
 
 /**
  * Clean Production Database Seeder
@@ -17,6 +18,13 @@ import { boundsToRealisticPolygon } from "./generate-official-sections.js";
 async function cleanProductionDatabase() {
   console.log("🧹 Iniciando limpieza y preparación para PRODUCCIÓN...");
   const env = loadAppEnv();
+
+  await confirmDestructiveOperation({
+    databaseUrl: env.private.DATABASE_URL,
+    actionLabel:
+      "TRUNCAR contactos, visitas, incidencias, equipos, inbox e inventario, y borrar TODOS los perfiles de usuario"
+  });
+
   const pool = new pg.Pool({ connectionString: env.private.DATABASE_URL });
 
   try {
@@ -156,4 +164,7 @@ async function cleanProductionDatabase() {
   }
 }
 
-void cleanProductionDatabase();
+cleanProductionDatabase().catch((err) => {
+  console.error(`❌ ${err instanceof Error ? err.message : err}`);
+  process.exit(1);
+});

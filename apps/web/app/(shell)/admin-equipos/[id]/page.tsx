@@ -5,9 +5,10 @@ import { redirect } from "next/navigation";
 import { eq, inArray, or, and } from "drizzle-orm";
 import TeamDetailClient from "./TeamDetailClient";
 import { requirePageRole } from "@/lib/authorization";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export default async function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requirePageRole("admin", "direction", "territorial_coordinator", "visit_responsible", "capturist");
+  await requirePageRole("admin", "direction", "territorial_coordinator");
   const session = await getServerSession();
 
   const { id } = await params;
@@ -58,7 +59,8 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
   }
 
   // Check authorization for non-admins
-  const isGlobalAdmin = ["admin", "direction", "territorial_coordinator"].includes(session.roleKey);
+  const networkScope = await resolveUserNetworkScope(session.userId);
+  const isGlobalAdmin = networkScope.isGlobal;
   const isLeaderOrMember = team.leaderId === session.userId || members.some(m => m.userId === session.userId);
   if (!isGlobalAdmin && !isLeaderOrMember) {
     redirect("/admin-equipos");

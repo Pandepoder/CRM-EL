@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, X, MessageSquare } from "lucide-react";
+import { Copy, Check, X, MessageSquare, Lightbulb } from "lucide-react";
 
 export function PersonalLinkModal({
   isOpen,
@@ -108,8 +108,8 @@ export function PersonalLinkModal({
             </a>
           </div>
 
-          <p className="text-[10px] text-gray-400 font-medium">
-            💡 Cuando alguien se registre con este enlace o código QR, quedará sumado automáticamente a tu red y equipo.
+          <p className="text-[10px] text-gray-400 font-medium flex items-start gap-1">
+            <Lightbulb size={12} className="shrink-0 mt-0.5" /> Cuando alguien se registre con este enlace o código QR, quedará sumado automáticamente a tu red y equipo.
           </p>
         </div>
       </div>

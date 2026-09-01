@@ -3,8 +3,9 @@
 import { useEffect, useState, use, useCallback } from "react";
 import Link from "next/link";
 import { 
-  MapPin, User, Calendar, CheckCircle, Clock, 
-  AlertCircle, X, Phone, Trash2, MessageSquare, Sparkles, Send, ImageIcon
+  MapPin, User, Calendar, CheckCircle, Clock,
+  AlertCircle, X, Phone, Trash2, MessageSquare, Sparkles, Send, ImageIcon,
+  Search, ClipboardList
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ColonySelector } from "@/components/ColonySelector";
@@ -53,10 +54,10 @@ type UserItem = { userId: string; displayName: string; roleKey?: string };
 type ModalType = "territory" | "assignment" | "schedule" | "complete" | null;
 
 const OUTCOME_LABELS: Record<string, string> = {
-  successful: "✅ Exitosa",
-  no_contact: "📵 Sin Contacto",
-  follow_up_required: "🔄 Requiere Seguimiento",
-  rejected: "❌ Rechazada",
+  successful: "Exitosa",
+  no_contact: "Sin Contacto",
+  follow_up_required: "Requiere Seguimiento",
+  rejected: "Rechazada",
 };
 
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -258,7 +259,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   if (!detail) return (
     <div className="text-center py-20 px-4">
-      <div className="text-5xl mb-4">🔍</div>
+      <Search size={48} className="mx-auto mb-4 text-gray-300" />
       <h2 className="text-xl font-bold text-gray-900 mb-2">Contacto no encontrado</h2>
       <p className="text-xs text-gray-500">El ID no es válido o fue eliminado.</p>
       <Link href="/crm/contacts" className="inline-block mt-5 text-blue-600 font-bold text-xs">
@@ -303,7 +304,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               </h1>
               {isPan && (
                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-[11px] font-black rounded-full shadow-sm">
-                  <span>Ⓜ️</span> PAN Confirmado
+                  <span className="font-black">M</span> PAN Confirmado
                 </span>
               )}
               {isPanDeclared && (
@@ -442,7 +443,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               rel="noopener noreferrer"
               className="text-xs text-blue-600 hover:underline font-bold block truncate"
             >
-              📷 Ver Fotografía de Barda / Espacio
+              <ImageIcon size={13} className="inline -mt-0.5 mr-1" /> Ver Fotografía de Barda / Espacio
             </a>
           </div>
         )}
@@ -452,7 +453,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       {detail.survey && (
         <div className="bg-white p-6 rounded-3xl border border-indigo-100 shadow-sm space-y-4">
           <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
-            <span className="text-lg">📋</span>
+            <ClipboardList size={18} className="text-indigo-600" />
             <h3 className="font-extrabold text-sm text-gray-900 uppercase">Respuestas de Encuesta Ciudadana</h3>
           </div>
 
