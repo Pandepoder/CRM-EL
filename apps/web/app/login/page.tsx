@@ -110,7 +110,8 @@ function LoginForm() {
         )}
       </button>
 
-      {/* QUICK DEMO ACCESS BUTTONS */}
+      {/* QUICK DEMO ACCESS BUTTONS — gated: never render unless explicitly enabled */}
+      {process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === "true" ? (
       <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #e2e8f0" }}>
         <p style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "10px", textAlign: "center" }}>
           Acceso Rápido de Demostración (1 Clic)
@@ -214,6 +215,7 @@ function LoginForm() {
           </button>
         </div>
       </div>
+      ) : null}
 
       <div style={{ textAlign: "center", marginTop: "20px", paddingTop: "14px", borderTop: "1px solid #f1f5f9" }}>
         <p style={{ fontSize: "14px", color: "#64748b", margin: 0 }}>
