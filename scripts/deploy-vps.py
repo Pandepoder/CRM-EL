@@ -1,6 +1,7 @@
 import paramiko
 import sys
 import time
+import os
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -33,11 +34,26 @@ def run_remote_command(client, command, step_name):
     print(f"[OK] {step_name} completado con éxito.")
     return True, "".join(output_lines)
 
+REQUIRED_ENV_VARS = [
+    "VPS_SSH_PASSWORD",
+    "PROD_POSTGRES_PASSWORD",
+    "PROD_SESSION_SECRET",
+    "PROD_DATABASE_ENCRYPTION_KEY",
+    "PROD_ADMIN_PASSWORD",
+    "PROD_DEMO_PASSWORD",
+]
+
+
 def deploy():
+    missing = [name for name in REQUIRED_ENV_VARS if not os.environ.get(name)]
+    if missing:
+        print(f"[ERROR] Missing required environment variables: {', '.join(missing)}", file=sys.stderr)
+        sys.exit(1)
+
     host = "45.80.153.22"
     user = "root"
-    password = "***REMOVED-VPS-SSH-PASSWORD***"
-    
+    password = os.environ["VPS_SSH_PASSWORD"]
+
     print(f"Conectando a {user}@{host}...")
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -95,22 +111,28 @@ def deploy():
         sys.exit(1)
 
     # 4. Configurar variables de entorno .env en el servidor
-    cmd_env = """
+    pg_password = os.environ["PROD_POSTGRES_PASSWORD"]
+    session_secret = os.environ["PROD_SESSION_SECRET"]
+    encryption_key = os.environ["PROD_DATABASE_ENCRYPTION_KEY"]
+    admin_password = os.environ["PROD_ADMIN_PASSWORD"]
+    demo_password = os.environ["PROD_DEMO_PASSWORD"]
+
+    cmd_env = f"""
     cat << 'EOF' > /opt/crm-el/.env
-DATABASE_URL=postgres://tonala:***REMOVED-DB-PASSWORD***@db:5432/tonala_os
+DATABASE_URL=postgres://tonala:{pg_password}@db:5432/tonala_os
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
 POSTGRES_DB=tonala_os
 POSTGRES_USER=tonala
-POSTGRES_PASSWORD=***REMOVED-DB-PASSWORD***
+POSTGRES_PASSWORD={pg_password}
 
-SESSION_SECRET=***REMOVED***
-DATABASE_ENCRYPTION_KEY=***REMOVED***
+SESSION_SECRET={session_secret}
+DATABASE_ENCRYPTION_KEY={encryption_key}
 ALLOW_PUBLIC_REGISTRATION=false
 
 ADMIN_EMAIL=admin@elapp.com.mx
-ADMIN_PASSWORD=***REMOVED-ADMIN-PASSWORD***
-DEMO_PASSWORD=TonalaDemo2026
+ADMIN_PASSWORD={admin_password}
+DEMO_PASSWORD={demo_password}
 NEXT_PUBLIC_ENABLE_DEMO_LOGIN=false
 
 DOMAIN=elapp.com.mx
@@ -198,7 +220,7 @@ EOF
     print(f"🌐 URL por Dominio: https://elapp.com.mx (apunta el registro DNS A a 45.80.153.22)")
     print(f"🌐 URL por IP Directa: http://45.80.153.22")
     print(f"👤 Usuario Administrador: admin@elapp.com.mx")
-    print(f"🔑 Contraseña Administrador: ***REMOVED-ADMIN-PASSWORD***")
+    print(f"🔑 Contraseña Administrador: (configurada via PROD_ADMIN_PASSWORD)")
     print("=======================================================")
 
     client.close()

@@ -184,7 +184,7 @@ def main():
     # Execute on production VPS
     host = "45.80.153.22"
     user = "root"
-    password = "***REMOVED-VPS-SSH-PASSWORD***"
+    password=os.environ["VPS_SSH_PASSWORD"]
     
     print(f"2. Conectando a {user}@{host} para ejecutar la actualización de colonias...")
     client = paramiko.SSHClient()

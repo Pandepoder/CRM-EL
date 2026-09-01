@@ -1,9 +1,10 @@
 import urllib.request
 import json
+import os
 
 data = json.dumps({
     "email": "admin@elapp.com.mx",
-    "password": "***REMOVED-ADMIN-PASSWORD***"
+    "password": os.environ["APP_ADMIN_PASSWORD"]
 }).encode("utf-8")
 
 try:

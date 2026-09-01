@@ -1,12 +1,13 @@
 import urllib.request
 import json
 import ssl
+import os
 
 ctx = ssl.create_default_context()
 
 data = json.dumps({
     "email": "admin@elapp.com.mx",
-    "password": "***REMOVED-ADMIN-PASSWORD***"
+    "password": os.environ["APP_ADMIN_PASSWORD"]
 }).encode("utf-8")
 
 try:

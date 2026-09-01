@@ -1,6 +1,7 @@
 import requests
 import json
 import sys
+import os
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -14,7 +15,7 @@ def test_live_map():
     login_url = "https://elapp.com.mx/api/auth/login"
     login_payload = {
         "email": "admin@elapp.com.mx",
-        "password": "***REMOVED-ADMIN-PASSWORD***"
+        "password": os.environ["APP_ADMIN_PASSWORD"]
     }
     
     print("1. Autenticando en https://elapp.com.mx/api/auth/login...")

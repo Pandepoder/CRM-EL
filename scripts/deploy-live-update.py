@@ -1,6 +1,7 @@
 import paramiko
 import sys
 import time
+import os
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -36,7 +37,7 @@ def run_remote_command(client, command, step_name):
 def update_live():
     host = "45.80.153.22"
     user = "root"
-    password = "***REMOVED-VPS-SSH-PASSWORD***"
+    password=os.environ["VPS_SSH_PASSWORD"]
     
     print(f"Conectando a {user}@{host}...")
     client = paramiko.SSHClient()

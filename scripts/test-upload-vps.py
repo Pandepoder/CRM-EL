@@ -1,12 +1,13 @@
 import requests
 import io
+import os
 
 session = requests.Session()
 
 # 1. Login
 login_res = session.post("https://elapp.com.mx/api/auth/login", json={
     "email": "admin@elapp.com.mx",
-    "password": "***REMOVED-VPS-SSH-PASSWORD***"
+    "password": os.environ["APP_ADMIN_PASSWORD"]
 })
 print("Login status:", login_res.status_code, login_res.text)
 

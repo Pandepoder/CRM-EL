@@ -1,10 +1,11 @@
 import paramiko
 import sys
+import os
 
 def inspect_sections():
     host = "45.80.153.22"
     user = "root"
-    password = "***REMOVED-VPS-SSH-PASSWORD***"
+    password=os.environ["VPS_SSH_PASSWORD"]
     
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())

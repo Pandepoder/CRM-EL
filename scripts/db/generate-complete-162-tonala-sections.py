@@ -488,7 +488,7 @@ def generate_sql():
 def sync_complete_cartography():
     host = "45.80.153.22"
     user = "root"
-    password = "***REMOVED-VPS-SSH-PASSWORD***"
+    password=os.environ["VPS_SSH_PASSWORD"]
     
     print(f"1. Generando catálogo completo para las {len(ALL_162_SECTIONS)} secciones oficiales (2683 - 2844)...")
     sql_content = generate_sql()

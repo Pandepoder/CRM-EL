@@ -12,7 +12,7 @@ if sys.stdout.encoding != 'utf-8':
 def sync_voronoi_to_vps():
     host = "45.80.153.22"
     user = "root"
-    password = "***REMOVED-VPS-SSH-PASSWORD***"
+    password=os.environ["VPS_SSH_PASSWORD"]
     
     print(f"Conectando por SSH a {user}@{host}...")
     client = paramiko.SSHClient()

@@ -333,7 +333,7 @@ def process_and_sync_all_jalisco():
     # Sincronizar al VPS
     host = "45.80.153.22"
     user = "root"
-    password = "***REMOVED-VPS-SSH-PASSWORD***"
+    password=os.environ["VPS_SSH_PASSWORD"]
 
     print(f"\n3. Conectando por SSH a {user}@{host} para sincronizar Jalisco completo...")
     client = paramiko.SSHClient()

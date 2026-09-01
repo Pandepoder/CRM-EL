@@ -1,5 +1,6 @@
 import paramiko
 import sys
+import os
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -11,7 +12,7 @@ if sys.stdout.encoding != 'utf-8':
 def test_routes():
     host = "45.80.153.22"
     user = "root"
-    password = "***REMOVED-VPS-SSH-PASSWORD***"
+    password=os.environ["VPS_SSH_PASSWORD"]
     
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())

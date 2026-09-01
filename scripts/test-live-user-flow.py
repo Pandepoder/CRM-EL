@@ -1,6 +1,7 @@
 import requests
 import json
 import sys
+import os
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -47,7 +48,7 @@ def test_user_flow():
     print(f"\n3. Iniciando sesión como Administrador (admin@elapp.com.mx)...")
     admin_login = session.post(f"{BASE_URL}/api/auth/login", json={
         "email": "admin@elapp.com.mx",
-        "password": "***REMOVED-ADMIN-PASSWORD***"
+        "password": os.environ["APP_ADMIN_PASSWORD"]
     })
     print(f"Admin Status: {admin_login.status_code}")
     print(f"Admin Cookies: {session.cookies.get_dict()}")

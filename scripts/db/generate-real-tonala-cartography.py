@@ -562,7 +562,7 @@ def generate_sql():
 def sync_to_vps():
     host = "45.80.153.22"
     user = "root"
-    password = "***REMOVED-VPS-SSH-PASSWORD***"
+    password=os.environ["VPS_SSH_PASSWORD"]
     
     print(f"1. Generando SQL cartográfico oficial para {len(TONALA_SECTIONS)} secciones de Tonalá...")
     sql_content = generate_sql()

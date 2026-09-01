@@ -204,7 +204,7 @@ def main():
     # Execute on VPS
     host = "45.80.153.22"
     user = "root"
-    password = "***REMOVED-VPS-SSH-PASSWORD***"
+    password=os.environ["VPS_SSH_PASSWORD"]
     
     print(f"2. Conectando a {user}@{host}...")
     client = paramiko.SSHClient()

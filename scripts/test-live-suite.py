@@ -4,6 +4,7 @@ import json
 import http.cookiejar
 import ssl
 import sys
+import os
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -30,7 +31,7 @@ def test_suite():
     print("\n=== TEST 2: Admin Login ===")
     login_data = json.dumps({
         "email": "admin@elapp.com.mx",
-        "password": "***REMOVED-ADMIN-PASSWORD***"
+        "password": os.environ["APP_ADMIN_PASSWORD"]
     }).encode("utf-8")
     req = urllib.request.Request(
         f"{BASE_URL}/api/auth/login",

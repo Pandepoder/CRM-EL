@@ -120,7 +120,12 @@ async function cleanProductionDatabase() {
 
     console.log("5. Creando cuenta de Administrador Maestro...");
     const adminEmail = process.env.ADMIN_EMAIL || "admin@tonala.gob.mx";
-    const adminPassword = process.env.ADMIN_PASSWORD || process.env.DEMO_PASSWORD || "***REMOVED-ADMIN-PASSWORD***";
+    const adminPassword = process.env.ADMIN_PASSWORD || process.env.DEMO_PASSWORD;
+    if (!adminPassword) {
+      throw new Error(
+        "ADMIN_PASSWORD (or DEMO_PASSWORD) must be set — refusing to seed the master admin account with a default password."
+      );
+    }
     const passwordHash = await argon2.hash(adminPassword, { type: argon2.argon2id });
 
     // Delete existing non-admin profiles to ensure clean slate
