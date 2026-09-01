@@ -187,8 +187,8 @@ export default function MapaPage() {
   // GPS State
   const [isLocatingGPS, setIsLocatingGPS] = useState(false);
 
-  // Layer Toggles & Map View Settings (Secciones activas por defecto)
-  const [selectedTileStyle, setSelectedTileStyle] = useState<string>("esriStreet");
+  // Layer Toggles & Map View Settings (OpenStreetMap y Secciones activas por defecto)
+  const [selectedTileStyle, setSelectedTileStyle] = useState<string>("osm");
   const [showSections, setShowSections] = useState(true);
   const [showSectionLabels, setShowSectionLabels] = useState(true);
   const [enableClustering, setEnableClustering] = useState(true);
@@ -447,9 +447,9 @@ export default function MapaPage() {
 
       leafletModule.control.zoom({ position: "bottomright" }).addTo(map);
 
-      // Default base layer: Esri World Street Map (HD, Crisp & Free)
-      const initialTiles = leafletModule.tileLayer(TILE_STYLES.esriStreet.url, {
-        attribution: TILE_STYLES.esriStreet.attribution,
+      // Default base layer: OpenStreetMap (OSM)
+      const initialTiles = leafletModule.tileLayer(TILE_STYLES.osm.url, {
+        attribution: TILE_STYLES.osm.attribution,
         maxZoom: 19
       }).addTo(map);
 
