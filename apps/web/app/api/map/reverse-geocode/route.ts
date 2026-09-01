@@ -176,13 +176,15 @@ export async function GET(request: Request) {
 
   // 2. Fetch real street address from OpenStreetMap Nominatim Reverse Geocoding
   let streetAddress = "";
-  let detectedColony = sectionColonies[0] || "";
+  // Filter out any dummy 'Cabecera' placeholder from section colonies
+  const validSectionColonies = (sectionColonies || []).filter(c => c && !c.startsWith("Cabecera ") && !c.startsWith("Municipio "));
+  let detectedColony = validSectionColonies[0] || "";
   let detectedMunicipality = sectionMunicipality || resolveMunicipalityByCoords(lat, lng);
   let postcode = "45400";
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
 
     const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=es`;
     const res = await fetch(nominatimUrl, {
@@ -198,9 +200,9 @@ export async function GET(request: Request) {
       if (data && data.address) {
         const a = data.address;
         
-        const road = a.road || a.pedestrian || a.street || a.highway || a.neighbourhood_road || "";
+        const road = a.road || a.pedestrian || a.street || a.highway || a.neighbourhood_road || a.path || a.footway || "";
         const houseNum = a.house_number ? ` #${a.house_number}` : "";
-        const suburb = a.suburb || a.neighbourhood || a.quarter || a.residential || a.village || "";
+        const suburb = a.suburb || a.neighbourhood || a.quarter || a.residential || a.village || a.hamlet || a.subdivision || "";
         const city = a.city || a.town || a.county || a.municipality || a.state_district || "";
         
         if (a.postcode) postcode = a.postcode;
@@ -209,7 +211,7 @@ export async function GET(request: Request) {
           detectedMunicipality = normalizeMunicipalityName(city);
         }
 
-        if (suburb) {
+        if (suburb && !suburb.startsWith("Cabecera ")) {
           detectedColony = suburb;
         }
 

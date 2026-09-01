@@ -791,12 +791,97 @@ export default function MapaPage() {
     setGeoJsonLayer(layer);
   }, [L, mapRef, labelsLayer, sectionsData, showSections, showSectionLabels, infoDensity, selectedSection, selectedMunicipality]);
 
+  // Dynamic Jalisco Municipalities extracted directly from loaded GeoJSON features
+  const availableMunicipalities = useMemo(() => {
+    if (!sectionsData?.features || sectionsData.features.length === 0) {
+      return [
+        { name: "Tonalá", count: 113 },
+        { name: "Guadalajara", count: 985 },
+        { name: "Zapopan", count: 500 },
+        { name: "San Pedro Tlaquepaque", count: 225 },
+        { name: "Tlajomulco de Zúñiga", count: 168 },
+        { name: "El Salto", count: 88 },
+        { name: "Puerto Vallarta", count: 42 },
+        { name: "Zapotlanejo", count: 25 },
+        { name: "Lagos de Moreno", count: 70 },
+        { name: "Tepatitlán de Morelos", count: 64 },
+        { name: "Zapotlán el Grande", count: 55 },
+        { name: "Chapala", count: 35 }
+      ];
+    }
+    const counts = new Map<string, number>();
+    for (const feat of sectionsData.features) {
+      const muni = feat.properties?.municipality || "Tonalá";
+      counts.set(muni, (counts.get(muni) || 0) + 1);
+    }
+
+    const priority = [
+      "Tonalá",
+      "Guadalajara",
+      "Zapopan",
+      "San Pedro Tlaquepaque",
+      "Tlajomulco de Zúñiga",
+      "El Salto",
+      "Puerto Vallarta",
+      "Zapotlanejo",
+      "Lagos de Moreno",
+      "Tepatitlán de Morelos",
+      "Zapotlán el Grande",
+      "Chapala",
+      "Ixtlahuacán de los Membrillos",
+      "Juanacatlán",
+      "Autlán de Navarro",
+      "Ameca",
+      "Tala",
+      "Ocotlán",
+      "Arandas"
+    ];
+
+    const result: Array<{ name: string; count: number }> = [];
+    for (const p of priority) {
+      if (counts.has(p)) {
+        result.push({ name: p, count: counts.get(p)! });
+        counts.delete(p);
+      }
+    }
+    const remaining = Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0], "es"));
+    for (const [name, count] of remaining) {
+      result.push({ name, count });
+    }
+    return result;
+  }, [sectionsData]);
+
   const handleMunicipalityChange = (muni: string) => {
     setSelectedMunicipality(muni);
     setSelectedSection(null);
     if (!mapRef) return;
+
+    if (muni === "all") {
+      mapRef.setView([20.6300, -103.2800], 10);
+      showToast(`🗺️ Mostrando Todo Jalisco (${sectionsData?.features?.length || 3787} secciones)`);
+      return;
+    }
+
+    if (sectionsData?.features && L) {
+      const muniFeatures = sectionsData.features.filter((f: any) => f.properties?.municipality === muni);
+      if (muniFeatures.length > 0) {
+        try {
+          const tempLayer = L.geoJSON({ type: "FeatureCollection", features: muniFeatures });
+          const bounds = tempLayer.getBounds();
+          if (bounds.isValid()) {
+            mapRef.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+            showToast(`📍 Municipio: ${muni} (${muniFeatures.length} secciones)`);
+            return;
+          }
+        } catch {
+          // fallback
+        }
+      }
+    }
+
     const config = (MUNICIPALITY_CENTERS as Record<string, { center: [number, number]; zoom: number }>)[muni] || MUNICIPALITY_CENTERS["all"];
     mapRef.flyTo(config.center, config.zoom, { duration: 1.2 });
+    showToast(`📍 Municipio: ${muni}`);
   };
 
   // 11. Render Incident Markers with Guaranteed Prominence, Radial Dispersion & Zero Overlap
@@ -1312,45 +1397,75 @@ export default function MapaPage() {
           </button>
         </div>
 
-        {/* Center: Information Density Slider (Slide de Información) */}
+        {/* Center: Municipality Selector & Information Density Slider */}
         {activeTab === "map" && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f8fafc", padding: "5px 12px", borderRadius: "10px", border: "1px solid #cbd5e1" }}>
-            <span style={{ fontSize: "11px", fontWeight: "800", color: "#475569", display: "flex", alignItems: "center", gap: "4px" }}>
-              <Eye size={13} style={{ color: "#2563eb" }} />
-              <span>Nivel de Información:</span>
-            </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            {/* Direct Statewide Municipality Selector */}
+            <div style={{ display: "flex", alignItems: "center", gap: "5px", background: "#f8fafc", padding: "4px 8px", borderRadius: "10px", border: "1px solid #cbd5e1" }}>
+              <MapPin size={14} style={{ color: "#2563eb", flexShrink: 0 }} />
+              <select
+                value={selectedMunicipality}
+                onChange={(e) => handleMunicipalityChange(e.target.value)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  fontSize: "11px",
+                  fontWeight: "800",
+                  color: "#0f172a",
+                  outline: "none",
+                  cursor: "pointer",
+                  maxWidth: "200px"
+                }}
+                title="Seleccionar municipio de Jalisco para enfocar el mapa"
+              >
+                <option value="all">🗺️ Todo Jalisco ({sectionsData?.features?.length || 3787} secc.)</option>
+                {availableMunicipalities.map((m) => (
+                  <option key={m.name} value={m.name}>
+                    📍 {m.name} ({m.count} secc.)
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            <input
-              type="range"
-              min="0"
-              max="2"
-              step="1"
-              value={infoDensity}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                setInfoDensity(val);
-                if (val === 0) {
-                  setShowSections(false);
-                  setShowSectionLabels(false);
-                  setActiveDrawer("none");
-                  showToast("📍 Modo Limpio: Solo Incidencias & Calles activas");
-                } else if (val === 1) {
-                  setShowSections(true);
-                  setShowSectionLabels(true);
-                  showToast("🗺️ Modo Territorial: Incidencias + Secciones sutiles");
-                } else {
-                  setShowSections(true);
-                  setShowSectionLabels(true);
-                  showToast("📊 Modo Detallado: Mapa completo con métricas");
-                }
-              }}
-              style={{ width: "85px", accentColor: "#2563eb", cursor: "pointer" }}
-              title="Desliza para ver más o menos capas e información"
-            />
+            {/* Information Density Slider */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f8fafc", padding: "5px 12px", borderRadius: "10px", border: "1px solid #cbd5e1" }}>
+              <span style={{ fontSize: "11px", fontWeight: "800", color: "#475569", display: "flex", alignItems: "center", gap: "4px" }}>
+                <Eye size={13} style={{ color: "#2563eb" }} />
+                <span>Nivel:</span>
+              </span>
 
-            <span style={{ fontSize: "11px", fontWeight: "800", color: infoDensity === 0 ? "#dc2626" : infoDensity === 1 ? "#0284c7" : "#4f46e5", minWidth: "105px" }}>
-              {infoDensity === 0 ? "📍 Solo Incidencias" : infoDensity === 1 ? "🗺️ Territorial" : "📊 Todo Detallado"}
-            </span>
+              <input
+                type="range"
+                min="0"
+                max="2"
+                step="1"
+                value={infoDensity}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setInfoDensity(val);
+                  if (val === 0) {
+                    setShowSections(false);
+                    setShowSectionLabels(false);
+                    setActiveDrawer("none");
+                    showToast("📍 Modo Limpio: Solo Incidencias & Calles activas");
+                  } else if (val === 1) {
+                    setShowSections(true);
+                    setShowSectionLabels(true);
+                    showToast("🗺️ Modo Territorial: Incidencias + Secciones sutiles");
+                  } else {
+                    setShowSections(true);
+                    setShowSectionLabels(true);
+                    showToast("📊 Modo Detallado: Mapa completo con métricas");
+                  }
+                }}
+                style={{ width: "75px", accentColor: "#2563eb", cursor: "pointer" }}
+                title="Desliza para ver más o menos capas e información"
+              />
+
+              <span style={{ fontSize: "11px", fontWeight: "800", color: infoDensity === 0 ? "#dc2626" : infoDensity === 1 ? "#0284c7" : "#4f46e5", minWidth: "95px" }}>
+                {infoDensity === 0 ? "📍 Limpio" : infoDensity === 1 ? "🗺️ Territorial" : "📊 Detallado"}
+              </span>
+            </div>
           </div>
         )}
 
@@ -1599,16 +1714,12 @@ export default function MapaPage() {
                       onChange={(e) => handleMunicipalityChange(e.target.value)}
                       style={{ width: "100%", padding: "8px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", color: "#0f172a", outline: "none", cursor: "pointer" }}
                     >
-                      <option value="all">🗺️ Todo el Área Metropolitana</option>
-                      <option value="Tonalá">📍 Tonalá (46 secciones)</option>
-                      <option value="Guadalajara">📍 Guadalajara (10 secciones)</option>
-                      <option value="San Pedro Tlaquepaque">📍 Tlaquepaque (8 secciones)</option>
-                      <option value="Zapopan">📍 Zapopan (8 secciones)</option>
-                      <option value="Tlajomulco de Zúñiga">📍 Tlajomulco (5 secciones)</option>
-                      <option value="El Salto">📍 El Salto (4 secciones)</option>
-                      <option value="Zapotlanejo">📍 Zapotlanejo (3 secciones)</option>
-                      <option value="Ixtlahuacán de los Membrillos">📍 Ixtlahuacán</option>
-                      <option value="Juanacatlán">📍 Juanacatlán</option>
+                      <option value="all">🗺️ Todo Jalisco ({sectionsData?.features?.length || 3787} secciones)</option>
+                      {availableMunicipalities.map((m) => (
+                        <option key={m.name} value={m.name}>
+                          📍 {m.name} ({m.count} secciones)
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -2083,15 +2194,11 @@ export default function MapaPage() {
                     allowCustom={false}
                     value={editForm.municipality}
                     onChange={(val) => setEditForm({ ...editForm, municipality: val })}
-                    options={[
-                      { value: "Tonalá", label: "Tonalá", badge: "Principal" },
-                      { value: "Guadalajara", label: "Guadalajara" },
-                      { value: "San Pedro Tlaquepaque", label: "Tlaquepaque" },
-                      { value: "Zapopan", label: "Zapopan" },
-                      { value: "Tlajomulco de Zúñiga", label: "Tlajomulco" },
-                      { value: "El Salto", label: "El Salto" },
-                      { value: "Zapotlanejo", label: "Zapotlanejo" }
-                    ]}
+                    options={availableMunicipalities.map((m) => ({
+                      value: m.name,
+                      label: m.name,
+                      badge: m.name === "Tonalá" ? "Principal" : `${m.count} secc.`
+                    }))}
                   />
                 </div>
 
@@ -2321,16 +2428,32 @@ export default function MapaPage() {
                   </div>
                 </div>
 
-                {/* 3. Address Text */}
-                <div>
-                  <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Dirección / Calle y Cruces *</label>
-                  <input
-                    type="text"
-                    required
-                    value={reportForm.address}
-                    onChange={(e) => setReportForm({ ...reportForm, address: e.target.value })}
-                    style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
-                  />
+                {/* 3. Address and Colony Inputs */}
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "8px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Dirección / Calle y Número *</label>
+                    <input
+                      type="text"
+                      required
+                      value={reportForm.address}
+                      onChange={(e) => setReportForm({ ...reportForm, address: e.target.value })}
+                      style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Colonia / Barrio</label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Loma Dorada, Centro..."
+                      value={detectedLocationInfo?.colony || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDetectedLocationInfo((prev: any) => prev ? { ...prev, colony: val } : { colony: val });
+                      }}
+                      style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
+                    />
+                  </div>
                 </div>
 
                 {/* 4. Municipality & Section Electoral Controls */}
@@ -2342,15 +2465,11 @@ export default function MapaPage() {
                       allowCustom={false}
                       value={reportForm.municipality}
                       onChange={(val) => setReportForm({ ...reportForm, municipality: val })}
-                      options={[
-                        { value: "Tonalá", label: "Tonalá", badge: "Principal" },
-                        { value: "Guadalajara", label: "Guadalajara" },
-                        { value: "San Pedro Tlaquepaque", label: "Tlaquepaque" },
-                        { value: "Zapopan", label: "Zapopan" },
-                        { value: "Tlajomulco de Zúñiga", label: "Tlajomulco" },
-                        { value: "El Salto", label: "El Salto" },
-                        { value: "Zapotlanejo", label: "Zapotlanejo" }
-                      ]}
+                      options={availableMunicipalities.map((m) => ({
+                        value: m.name,
+                        label: m.name,
+                        badge: m.name === "Tonalá" ? "Principal" : `${m.count} secc.`
+                      }))}
                     />
                   </div>
 
