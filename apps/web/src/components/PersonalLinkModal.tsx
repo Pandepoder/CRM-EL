@@ -35,28 +35,29 @@ export function PersonalLinkModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 border border-gray-100" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200" onClick={onClose}>
+      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 flex justify-between items-center relative overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 sm:p-6 flex justify-between items-center relative overflow-hidden shrink-0">
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider bg-white/10 px-2.5 py-0.5 rounded-full text-blue-200 border border-white/15">
               Enlace Personal & QR
             </span>
-            <h3 className="text-xl font-black mt-1 text-white">Tu Enlace de Registro</h3>
+            <h3 className="text-lg sm:text-xl font-black mt-1 text-white">Tu Enlace de Registro</h3>
             <p className="text-xs text-blue-200 mt-0.5">{userName}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+            title="Cerrar ventana"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 text-center">
+        <div className="p-5 sm:p-6 space-y-6 text-center overflow-y-auto overscroll-contain flex-1 pb-16">
           {/* QR Code */}
           <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 inline-block shadow-inner">
             <img

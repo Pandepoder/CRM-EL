@@ -542,16 +542,21 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
       {/* MODALS */}
       {modal === "territory" && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setModal(null)}>
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
               <h3 className="font-black text-sm text-gray-900">Editar Territorio y Colonia</h3>
-              <button type="button" onClick={() => setModal(null)} className="cursor-pointer text-gray-400 hover:text-gray-600">
+              <button 
+                type="button" 
+                onClick={() => setModal(null)} 
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center cursor-pointer transition-colors"
+                title="Cerrar ventana"
+              >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
               <ColonySelector
                 municipality="Tonalá"
                 defaultValue={detail.territory?.colonyName || ""}
@@ -573,17 +578,17 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 bg-gray-100 rounded-xl text-xs font-bold">
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-xs font-bold text-gray-600 cursor-pointer">
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={handleAssignTerritory}
                   disabled={saving}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50"
                 >
-                  Guardar
+                  {saving ? "Guardando..." : "Guardar Territorio"}
                 </button>
               </div>
             </div>
@@ -592,38 +597,46 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       )}
 
       {modal === "assignment" && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setModal(null)}>
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
               <h3 className="font-black text-sm text-gray-900">Asignar Responsable de Enlace</h3>
-              <button type="button" onClick={() => setModal(null)} className="cursor-pointer text-gray-400 hover:text-gray-600">
+              <button 
+                type="button" 
+                onClick={() => setModal(null)} 
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center cursor-pointer transition-colors"
+                title="Cerrar ventana"
+              >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="space-y-3">
-              <select
-                value={selectedUserId}
-                onChange={e => setSelectedUserId(e.target.value)}
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold"
-              >
-                <option value="">Selecciona un integrante...</option>
-                {users.map(u => (
-                  <option key={u.userId} value={u.userId}>{u.displayName}</option>
-                ))}
-              </select>
+            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Operador / Enlace Responsable</label>
+                <select
+                  value={selectedUserId}
+                  onChange={e => setSelectedUserId(e.target.value)}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white"
+                >
+                  <option value="">Selecciona un integrante...</option>
+                  {users.map(u => (
+                    <option key={u.userId} value={u.userId}>{u.displayName}</option>
+                  ))}
+                </select>
+              </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 bg-gray-100 rounded-xl text-xs font-bold">
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-xs font-bold text-gray-600 cursor-pointer">
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={handleAssignResponsible}
                   disabled={saving || !selectedUserId}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50"
                 >
-                  Asignar
+                  {saving ? "Asignando..." : "Asignar Responsable"}
                 </button>
               </div>
             </div>

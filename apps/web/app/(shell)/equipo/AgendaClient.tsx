@@ -968,9 +968,9 @@ export default function AgendaClient({
 
       {/* MODAL REGISTRO RÁPIDO */}
       {showProspectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowProspectModal(false)}>
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-y-auto max-h-[90vh] border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-slate-900 text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowProspectModal(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 bg-slate-900 text-white shrink-0">
               <div className="flex items-center gap-2">
                 <Sparkles size={18} />
                 <h3 className="font-extrabold text-sm">Nuevo Registro Rápido de Conversación</h3>
@@ -978,13 +978,14 @@ export default function AgendaClient({
               <button
                 type="button"
                 onClick={() => setShowProspectModal(false)}
-                className="text-white/80 hover:text-white p-1 rounded-lg"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Cerrar ventana"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateProspect} className="p-6 space-y-3.5">
+            <form onSubmit={handleCreateProspect} className="p-5 sm:p-6 space-y-3.5 overflow-y-auto overscroll-contain flex-1 pb-16">
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Nombre del Prospecto *</label>
                 <input
@@ -1099,10 +1100,10 @@ export default function AgendaClient({
 
       {/* 5. MODAL DE REGISTRO DE ACTIVIDADES (PARA CADA LÍDER) */}
       {showTaskModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowTaskModal(false)}>
-          <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowTaskModal(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-t-3xl">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 bg-gradient-to-r from-blue-900 to-indigo-900 text-white shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-white/10 rounded-xl">
                   <Activity size={20} className="text-white" />
@@ -1115,7 +1116,8 @@ export default function AgendaClient({
               <button
                 type="button"
                 onClick={() => setShowTaskModal(false)}
-                className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Cerrar ventana"
               >
                 <X size={20} />
               </button>
@@ -1130,7 +1132,7 @@ export default function AgendaClient({
                 <p className="text-xs text-gray-500 font-medium">Actualizando agenda y reporte de actividades...</p>
               </div>
             ) : (
-              <form onSubmit={handleCreateTask} className="p-6 space-y-4">
+              <form onSubmit={handleCreateTask} className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
                 {/* 1. Categoría / Tipo de Actividad */}
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
@@ -1347,9 +1349,9 @@ export default function AgendaClient({
 
       {/* 6. MODAL DE COMPLETAR / REPORTAR RESULTADO DE ACTIVIDAD */}
       {modalVisit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => setModalVisit(null)}>
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-y-auto max-h-[90vh] border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-emerald-600 text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => setModalVisit(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 bg-emerald-600 text-white shrink-0">
               <div className="flex items-center gap-2">
                 <CheckCircle size={20} />
                 <h3 className="font-extrabold text-base">Completar Actividad / Reporte</h3>
@@ -1357,13 +1359,14 @@ export default function AgendaClient({
               <button
                 type="button"
                 onClick={() => setModalVisit(null)}
-                className="text-white/80 hover:text-white p-1 rounded-lg"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Cerrar ventana"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCompleteVisit} className="p-6 space-y-4">
+            <form onSubmit={handleCompleteVisit} className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
               <div>
                 <span className="text-[10px] uppercase font-bold text-gray-400">Actividad:</span>
                 <div className="text-sm font-black text-gray-900">{modalVisit.title}</div>

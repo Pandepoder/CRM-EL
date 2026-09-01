@@ -222,23 +222,28 @@ export default function EstructuraClient({ representatives, availableUsers, sect
 
       {/* Modal: Asignar Representante */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <h2 className="text-xl font-bold text-blue-950">Asignar Representante</h2>
-              <button type="button" onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100">
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+              <h2 className="text-lg font-bold text-blue-950">Asignar Representante</h2>
+              <button 
+                type="button" 
+                onClick={() => setShowModal(false)} 
+                className="text-gray-500 hover:text-gray-800 w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/60 transition-colors cursor-pointer"
+                title="Cerrar ventana"
+              >
                 <X size={20} />
               </button>
             </div>
             
-            <form onSubmit={handleAssign} className="p-6 space-y-5">
+            <form onSubmit={handleAssign} className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide">Sección Electoral *</label>
                   <button 
                     type="button" 
                     onClick={() => { setShowModal(false); setShowNewSectionModal(true); }}
-                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800"
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer"
                   >
                     + Registrar Nueva
                   </button>
@@ -293,14 +298,14 @@ export default function EstructuraClient({ representatives, availableUsers, sect
                 <button 
                   type="button" 
                   onClick={() => setShowModal(false)}
-                  className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                  className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit" 
                   disabled={saving || !form.sectionId || !form.userId}
-                  className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
                 >
                   {saving ? <Loader2 size={16} className="animate-spin" /> : "Asignar"}
                 </button>
@@ -312,18 +317,23 @@ export default function EstructuraClient({ representatives, availableUsers, sect
 
       {/* Modal: Registrar Nueva Sección Electoral */}
       {showNewSectionModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowNewSectionModal(false)}>
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <h2 className="text-xl font-bold text-blue-950 flex items-center gap-2">
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowNewSectionModal(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+              <h2 className="text-lg font-bold text-blue-950 flex items-center gap-2">
                 <Landmark size={20} className="text-indigo-600" /> Registrar Sección Electoral
               </h2>
-              <button type="button" onClick={() => setShowNewSectionModal(false)} className="text-gray-400 hover:text-gray-600 w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100">
+              <button 
+                type="button" 
+                onClick={() => setShowNewSectionModal(false)} 
+                className="text-gray-500 hover:text-gray-800 w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/60 transition-colors cursor-pointer"
+                title="Cerrar ventana"
+              >
                 <X size={20} />
               </button>
             </div>
             
-            <form onSubmit={handleCreateSection} className="p-6 space-y-4">
+            <form onSubmit={handleCreateSection} className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
                   Número de Sección Electoral *
@@ -378,14 +388,14 @@ export default function EstructuraClient({ representatives, availableUsers, sect
                 <button 
                   type="button" 
                   onClick={() => setShowNewSectionModal(false)}
-                  className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                  className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit" 
                   disabled={saving || !newSectionForm.sectionNum}
-                  className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
                 >
                   {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                   Guardar Sección

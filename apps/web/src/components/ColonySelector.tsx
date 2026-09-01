@@ -240,30 +240,31 @@ export function ColonySelector({
 
       {/* DEDICATED FULL-VIEW MAP MODAL */}
       {showMapPicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-gray-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-gray-950/70 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowMapPicker(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-gradient-to-r from-blue-900 to-indigo-900 text-white flex items-center justify-between shrink-0">
+            <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-blue-900 to-indigo-900 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
                   <MapPin size={18} className="text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-white">Localizador Cartográfico y Domicilio</h3>
-                  <p className="text-xs text-blue-200">Haz clic en el mapa para fijar el pin y extraer la colonia y sección INE.</p>
+                  <h3 className="font-bold text-sm sm:text-base text-white">Localizador Cartográfico y Domicilio</h3>
+                  <p className="text-[11px] text-blue-200">Haz clic en el mapa para fijar el pin y extraer la colonia y sección INE.</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowMapPicker(false)}
-                className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Cerrar ventana"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+            <div className="p-4 sm:p-6 overflow-y-auto overscroll-contain flex-1 pb-16">
               <LocationPicker
                 label="Seleccionar Ubicación Exacta"
                 helperText="Busca una dirección o haz clic en cualquier calle del mapa para colocar el pin."

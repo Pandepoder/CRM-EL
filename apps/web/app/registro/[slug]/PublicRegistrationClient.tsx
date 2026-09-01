@@ -135,7 +135,7 @@ export default function PublicRegistrationClient({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-blue-950 to-slate-900 text-gray-800 py-8 px-4 flex justify-center">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-blue-950 to-slate-900 text-gray-800 py-6 sm:py-8 px-3 sm:px-4 pb-24 flex justify-center">
       <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200/20">
         {/* HERO BANNER */}
         <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-blue-950 p-6 md:p-8 text-white text-center relative overflow-hidden">

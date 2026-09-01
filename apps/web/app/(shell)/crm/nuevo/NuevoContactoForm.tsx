@@ -564,7 +564,7 @@ export default function NuevoContactoForm({
         </section>
 
         {/* SUBMIT BUTTON */}
-        <div className="flex justify-end gap-3 pt-2">
+        <div className="flex justify-end gap-3 pt-4 pb-28 md:pb-8">
           <Link
             href="/crm/contacts"
             className="px-5 py-3 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs shadow-sm transition-colors cursor-pointer"

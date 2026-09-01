@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 // @ts-ignore
-import { Users, Plus, Shield, ArrowLeft, Trash, User, Search, MapPin, ArrowRight, UserPlus, CheckCircle } from "lucide-react";
+import { Users, Plus, Shield, ArrowLeft, Trash, User, Search, MapPin, ArrowRight, UserPlus, CheckCircle, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
@@ -427,19 +427,24 @@ export default function TeamDetailClient({
 
       {/* MODAL AGREGAR INTEGRANTE */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 bg-gradient-to-r from-indigo-900 to-blue-900 text-white flex justify-between items-center">
+        <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-indigo-900 to-blue-900 text-white flex justify-between items-center shrink-0">
               <div>
-                <h2 className="text-lg font-bold">Agregar Integrante al Equipo</h2>
+                <h2 className="text-base sm:text-lg font-bold">Agregar Integrante al Equipo</h2>
                 <p className="text-xs text-indigo-200 mt-0.5">{team.name}</p>
               </div>
-              <button onClick={() => setShowModal(false)} className="text-white/80 hover:text-white p-1">
-                ✕
+              <button 
+                type="button"
+                onClick={() => setShowModal(false)} 
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Cerrar ventana"
+              >
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleAddMember} className="p-6 space-y-5">
+            <form onSubmit={handleAddMember} className="p-5 sm:p-6 space-y-5 overflow-y-auto overscroll-contain flex-1 pb-16">
               <div>
                 <PredictiveCombobox
                   label="Usuario Integrante *"
@@ -462,7 +467,7 @@ export default function TeamDetailClient({
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-xl text-xs hover:bg-gray-200"
+                  className="px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-xl text-xs hover:bg-gray-200 cursor-pointer"
                 >
                   Cancelar
                 </button>

@@ -197,13 +197,13 @@ export function IncidentSectionAssigner({
 
       {/* Modal Dialog */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setIsOpen(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-y-auto shadow-2xl border border-gray-100 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setIsOpen(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 flex flex-col max-h-[88dvh] overflow-hidden animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             
             {/* Header */}
-            <div className="p-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <div className="p-4 sm:p-5 bg-gray-50 border-b border-gray-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
                   <Layers size={16} />
                 </div>
                 <div>
@@ -214,13 +214,14 @@ export function IncidentSectionAssigner({
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="w-7 h-7 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center hover:bg-gray-300"
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition-colors cursor-pointer"
+                title="Cerrar ventana"
               >
-                <X size={14} />
+                <X size={16} />
               </button>
             </div>
 
-            <div className="p-4 space-y-4 overflow-y-auto">
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
               
               {/* Option 1: Auto-detection with GPS */}
               {latitude && longitude && (
@@ -250,7 +251,7 @@ export function IncidentSectionAssigner({
                         type="button"
                         onClick={() => handleSaveAssignment(detectedSection.sectionId)}
                         disabled={isSaving}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-lg shadow-sm flex items-center gap-1"
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-lg shadow-sm flex items-center gap-1 cursor-pointer"
                       >
                         <Check size={12} /> Confirmar
                       </button>
@@ -260,7 +261,7 @@ export function IncidentSectionAssigner({
                       type="button"
                       onClick={handleAutoDetect}
                       disabled={isDetecting}
-                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all"
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
                     >
                       {isDetecting ? (
                         <>
@@ -304,7 +305,7 @@ export function IncidentSectionAssigner({
                           key={sec.id}
                           type="button"
                           onClick={() => setSelectedSectionId(sec.id)}
-                          className={`w-full text-left px-3 py-2 text-xs border-b border-gray-50 flex items-center justify-between transition-colors ${
+                          className={`w-full text-left px-3 py-2 text-xs border-b border-gray-50 flex items-center justify-between transition-colors cursor-pointer ${
                             isSelected ? "bg-blue-100/80 text-blue-950 font-bold" : "hover:bg-gray-50 text-gray-700"
                           }`}
                         >
@@ -335,7 +336,7 @@ export function IncidentSectionAssigner({
                   <button
                     type="button"
                     onClick={() => setIsNewSectionOpen(true)}
-                    className="w-full py-2 border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                    className="w-full py-2 border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Plus size={14} /> ¿No está en la lista? Crear Nueva Sección en la BD
                   </button>
@@ -348,7 +349,7 @@ export function IncidentSectionAssigner({
                       <button
                         type="button"
                         onClick={() => setIsNewSectionOpen(false)}
-                        className="text-[11px] text-gray-500 hover:text-gray-700 font-bold"
+                        className="text-[11px] text-gray-500 hover:text-gray-700 font-bold cursor-pointer"
                       >
                         Ocultar
                       </button>
@@ -400,7 +401,7 @@ export function IncidentSectionAssigner({
                     <button
                       type="submit"
                       disabled={isSaving}
-                      className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5"
+                      className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
                       Crear Sección y Asignar a la Incidencia
@@ -411,11 +412,11 @@ export function IncidentSectionAssigner({
             </div>
 
             {/* Footer */}
-            <div className="p-3 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2">
+            <div className="p-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-200 rounded-lg"
+                className="px-3.5 py-2 text-xs font-bold text-gray-600 hover:bg-gray-200 rounded-xl cursor-pointer"
               >
                 Cerrar
               </button>
@@ -423,7 +424,7 @@ export function IncidentSectionAssigner({
                 type="button"
                 onClick={() => handleSaveAssignment()}
                 disabled={isSaving || !selectedSectionId}
-                className="px-4 py-1.5 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg shadow-sm flex items-center gap-1.5"
+                className="px-5 py-2 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
               >
                 {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
                 Guardar Asignación

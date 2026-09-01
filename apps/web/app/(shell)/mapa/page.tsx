@@ -1567,10 +1567,10 @@ export default function MapaPage() {
             UNIFIED SLIDE-OVER DRAWER (NEVER OVERLAPS - HOSTS ONE ACTIVE PANEL)
             ========================================================================= */}
         {activeTab === "map" && activeDrawer !== "none" && (
-          <div style={{ position: "absolute", top: "72px", right: "12px", bottom: "24px", width: "370px", maxWidth: "calc(100vw - 24px)", background: "rgba(255, 255, 255, 0.96)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderRadius: "16px", border: "1px solid #cbd5e1", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", zIndex: 30, display: "flex", flexDirection: "column", overflow: "hidden", animation: "float-up 0.2s ease" }}>
+          <div style={{ position: "absolute", top: "72px", right: "12px", bottom: "calc(64px + env(safe-area-inset-bottom) + 12px)", width: "370px", maxWidth: "calc(100vw - 24px)", background: "rgba(255, 255, 255, 0.98)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderRadius: "16px", border: "1px solid #cbd5e1", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", zIndex: 40, display: "flex", flexDirection: "column", overflow: "hidden", animation: "float-up 0.2s ease" }}>
             
             {/* 1. DRAWER HEADER */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc" }}>
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc", flexShrink: 0 }}>
               <h3 style={{ margin: 0, fontWeight: "900", fontSize: "13px", color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" }}>
                 {activeDrawer === "search" && <><Search size={15} style={{ color: "#2563eb" }} /> Buscar Secciones y Territorio</>}
                 {activeDrawer === "section" && <><Layers size={15} style={{ color: "#4f46e5" }} /> Detalle de Sección Electoral</>}
@@ -1579,7 +1579,7 @@ export default function MapaPage() {
               </h3>
               <button 
                 onClick={() => setActiveDrawer("none")} 
-                style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: "4px" }}
+                style={{ background: "rgba(0,0,0,0.05)", border: "none", color: "#475569", cursor: "pointer", padding: "6px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}
                 title="Cerrar panel"
               >
                 <X size={17} />
@@ -1587,7 +1587,7 @@ export default function MapaPage() {
             </div>
 
             {/* 2. DRAWER BODY */}
-            <div style={{ flex: 1, padding: "14px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div style={{ flex: 1, padding: "14px 14px 40px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
               
               {/* SEARCH PANEL */}
               {activeDrawer === "search" && (
@@ -2050,16 +2050,20 @@ export default function MapaPage() {
 
       {/* EDIT MODAL */}
       {editingReport && (
-        <div onClick={() => setEditingReport(null)} style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "480px", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+        <div onClick={() => setEditingReport(null)} style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "12px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "18px", width: "100%", maxWidth: "480px", maxHeight: "88dvh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc", flexShrink: 0 }}>
               <h3 style={{ margin: 0, fontWeight: "900", fontSize: "15px", color: "#0f172a" }}>Administrar Incidencia</h3>
-              <button onClick={() => setEditingReport(null)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
+              <button 
+                onClick={() => setEditingReport(null)} 
+                style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#f1f5f9", border: "none", color: "#475569", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                title="Cerrar ventana"
+              >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "12px", overflowY: "auto" }}>
+            <form onSubmit={handleSaveEdit} style={{ padding: "16px 18px 40px", display: "flex", flexDirection: "column", gap: "12px", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", flex: 1 }}>
               <div>
                 <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Título *</label>
                 <input
@@ -2173,7 +2177,7 @@ export default function MapaPage() {
       {/* PURGE MODAL */}
       {isPurgeModalOpen && (
         <div onClick={() => setIsPurgeModalOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "380px", padding: "20px", textAlign: "center", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "18px", width: "100%", maxWidth: "380px", maxHeight: "88dvh", overflowY: "auto", overscrollBehavior: "contain", padding: "20px", textAlign: "center", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
             <div style={{ width: "44px", height: "44px", borderRadius: "50%", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
               <Trash2 size={22} />
             </div>
@@ -2199,11 +2203,11 @@ export default function MapaPage() {
           setIsReportModalOpen(false);
           setNewReportCoords(null);
           setDetectedLocationInfo(null);
-        }} style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "18px", width: "100%", maxWidth: "480px", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.35)", border: "1px solid #e2e8f0" }}>
+        }} style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "12px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "18px", width: "100%", maxWidth: "480px", maxHeight: "88dvh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.35)", border: "1px solid #e2e8f0" }}>
             
             {/* Modal Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc", flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <AlertCircle size={18} />
@@ -2221,9 +2225,10 @@ export default function MapaPage() {
                   setNewReportCoords(null);
                   setDetectedLocationInfo(null);
                 }}
-                style={{ background: "#f1f5f9", border: "none", color: "#64748b", cursor: "pointer", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}
+                style={{ background: "#f1f5f9", border: "none", color: "#475569", cursor: "pointer", width: "32px", height: "32px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}
+                title="Cerrar ventana"
               >
-                <X size={16} />
+                <X size={17} />
               </button>
             </div>
 
@@ -2236,7 +2241,7 @@ export default function MapaPage() {
                 </p>
               </div>
             ) : (
-              <form onSubmit={handleSubmitReport} style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: "11px", overflowY: "auto" }}>
+              <form onSubmit={handleSubmitReport} style={{ padding: "16px 18px 40px", display: "flex", flexDirection: "column", gap: "11px", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", flex: 1 }}>
                 
                 {/* 1. Location Detection & Section Match Box */}
                 <div style={{ background: isGeocodingLoading ? "#eff6ff" : "#f0fdf4", border: `1px solid ${isGeocodingLoading ? "#bfdbfe" : "#bbf7d0"}`, borderRadius: "10px", padding: "10px" }}>

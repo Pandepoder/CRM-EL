@@ -332,18 +332,23 @@ export default function ReportesClient({ sections, users }: { sections: any[], u
 
       {/* Modal: Registrar Nueva Sección Electoral */}
       {showNewSectionModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowNewSectionModal(false)}>
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <h2 className="text-xl font-bold text-blue-950 flex items-center gap-2">
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowNewSectionModal(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+              <h2 className="text-lg font-bold text-blue-950 flex items-center gap-2">
                 <Landmark size={20} className="text-indigo-600" /> Registrar Sección Electoral
               </h2>
-              <button onClick={() => setShowNewSectionModal(false)} className="text-gray-400 hover:text-gray-600 p-1">
+              <button 
+                type="button"
+                onClick={() => setShowNewSectionModal(false)} 
+                className="text-gray-500 hover:text-gray-800 w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/60 transition-colors cursor-pointer"
+                title="Cerrar ventana"
+              >
                 <X size={20} />
               </button>
             </div>
             
-            <form onSubmit={handleCreateNewSection} className="p-6 space-y-4">
+            <form onSubmit={handleCreateNewSection} className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
                   Número de Sección Electoral *
@@ -396,14 +401,14 @@ export default function ReportesClient({ sections, users }: { sections: any[], u
                 <button
                   type="button"
                   onClick={() => setShowNewSectionModal(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50"
+                  className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={creatingSection}
-                  className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md"
                 >
                   {creatingSection ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                   <span>Guardar Sección</span>

@@ -321,9 +321,9 @@ export default function EscuchaSocialClient({
 
       {/* CREATE MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsModalOpen(false)}>
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setIsModalOpen(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
               <div>
                 <h3 className="text-base font-black">Registrar Escucha Social</h3>
                 <p className="text-xs text-slate-300">Captura de demandas comunitarias e ideas</p>
@@ -331,13 +331,14 @@ export default function EscuchaSocialClient({
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/10 text-white flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
+                title="Cerrar ventana"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
+            <form onSubmit={handleCreate} className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Categoría</label>
                 <select
@@ -429,9 +430,9 @@ export default function EscuchaSocialClient({
 
       {/* DETAIL / RESOLUTION MODAL */}
       {selectedItem && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedItem(null)}>
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setSelectedItem(null)}>
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
               <div>
                 <span className="text-[10px] font-black uppercase tracking-wider text-blue-300">Detalle de Escucha</span>
                 <h3 className="text-base font-black line-clamp-1">{selectedItem.title}</h3>
@@ -439,13 +440,14 @@ export default function EscuchaSocialClient({
               <button
                 type="button"
                 onClick={() => setSelectedItem(null)}
-                className="w-8 h-8 rounded-full bg-white/10 text-white flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
+                title="Cerrar ventana"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
+            <div className="p-5 sm:p-6 space-y-4 text-xs overflow-y-auto overscroll-contain flex-1 pb-16">
               <div className="space-y-1">
                 <span className="font-extrabold text-gray-400 uppercase text-[10px]">Descripción</span>
                 <p className="font-medium text-gray-800 leading-relaxed bg-gray-50 p-3 rounded-2xl">

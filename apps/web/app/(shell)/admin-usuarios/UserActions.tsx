@@ -156,19 +156,24 @@ export function UserActions({ user }: { user: { userId: string; displayName: str
 
       {/* Modal para restablecer contraseña */}
       {isResettingPassword && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsResettingPassword(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-y-auto max-h-[90vh] border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsResettingPassword(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
               <div className="flex items-center gap-2 font-bold text-gray-900 text-sm">
                 <KeyRound size={18} className="text-blue-600" />
                 Cambiar Contraseña
               </div>
-              <button onClick={() => setIsResettingPassword(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100">
-                <X size={18} />
+              <button 
+                type="button"
+                onClick={() => setIsResettingPassword(false)} 
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center transition-colors cursor-pointer"
+                title="Cerrar ventana"
+              >
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={(e) => { void handleResetPassword(e); }} className="p-5 space-y-3.5">
+            <form onSubmit={(e) => { void handleResetPassword(e); }} className="p-5 space-y-3.5 overflow-y-auto overscroll-contain flex-1 pb-16">
               <p className="text-xs text-gray-500">
                 Define una nueva contraseña para <strong>{user.displayName}</strong>:
               </p>
@@ -193,7 +198,7 @@ export function UserActions({ user }: { user: { userId: string; displayName: str
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Nueva contraseña (mínimo 6 car.)"
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-blue-500 outline-none font-semibold"
                   autoFocus
                 />
               </div>
@@ -203,17 +208,17 @@ export function UserActions({ user }: { user: { userId: string; displayName: str
                   type="button"
                   onClick={() => setIsResettingPassword(false)}
                   disabled={loading}
-                  className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg"
+                  className="px-3.5 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold px-4 py-1.5 rounded-lg text-xs transition-all shadow-sm"
+                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-sm cursor-pointer"
                 >
                   {loading && <Loader2 size={12} className="animate-spin" />}
-                  Guardar
+                  Guardar Contraseña
                 </button>
               </div>
             </form>

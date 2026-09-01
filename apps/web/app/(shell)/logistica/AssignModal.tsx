@@ -33,22 +33,27 @@ export function AssignModal({ items }: { items: { id: string, name: string, quan
         Registrar Movimiento
       </button>
 
-      <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setIsOpen(false); setStep(1); }}>
-        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-y-auto flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+      <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => { setIsOpen(false); setStep(1); }}>
+        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
           
-          <div className="flex justify-between items-center p-6 border-b border-gray-100">
-            <h2 className="text-xl font-extrabold text-gray-900 flex items-center gap-2">
-              <Package className="h-6 w-6 text-blue-600" />
+          <div className="flex justify-between items-center p-4 sm:p-5 border-b border-gray-100 bg-gray-50/50 shrink-0">
+            <h2 className="text-lg font-extrabold text-gray-900 flex items-center gap-2">
+              <Package className="h-5 w-5 text-blue-600" />
               Asignación de Material
             </h2>
-            <button onClick={() => { setIsOpen(false); setStep(1); }} className="text-gray-400 hover:text-gray-600 bg-gray-50 hover:bg-gray-100 p-2 rounded-full transition-colors">
-              <X className="h-5 w-5" />
+            <button 
+              type="button"
+              onClick={() => { setIsOpen(false); setStep(1); }} 
+              className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition-colors cursor-pointer"
+              title="Cerrar ventana"
+            >
+              <X className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="p-6 overflow-y-auto">
+          <div className="p-5 sm:p-6 overflow-y-auto overscroll-contain flex-1 pb-16">
             {step === 1 ? (
-              <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); setStep(2); }}>
+              <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setStep(2); }}>
                 <div>
                   <PredictiveCombobox
                     label="Artículo del Inventario"
@@ -68,8 +73,8 @@ export function AssignModal({ items }: { items: { id: string, name: string, quan
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Cantidad *</label>
-                    <input type="number" required min="1" placeholder="0" className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors font-bold" />
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Cantidad *</label>
+                    <input type="number" required min="1" placeholder="0" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 bg-gray-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors font-bold" />
                   </div>
                   <div>
                     <PredictiveCombobox
@@ -104,12 +109,12 @@ export function AssignModal({ items }: { items: { id: string, name: string, quan
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Notas</label>
-                  <textarea rows={2} placeholder="Justificación del movimiento..." className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors resize-none"></textarea>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Notas</label>
+                  <textarea rows={2} placeholder="Justificación del movimiento..." className="w-full border border-gray-200 rounded-xl px-4 py-2.5 bg-gray-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors resize-none"></textarea>
                 </div>
 
-                <div className="pt-4">
-                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-colors text-sm">
+                <div className="pt-2">
+                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors text-sm cursor-pointer">
                     Confirmar Movimiento
                   </button>
                 </div>
@@ -121,7 +126,7 @@ export function AssignModal({ items }: { items: { id: string, name: string, quan
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Movimiento Registrado</h3>
                 <p className="text-gray-500 text-sm mb-8">El stock ha sido actualizado exitosamente mediante el Outbox Pattern.</p>
-                <button onClick={() => { setIsOpen(false); setStep(1); }} className="bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-2.5 px-6 rounded-xl transition-colors text-sm">
+                <button onClick={() => { setIsOpen(false); setStep(1); }} className="bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-2.5 px-6 rounded-xl transition-colors text-sm cursor-pointer">
                   Cerrar Panel
                 </button>
               </div>

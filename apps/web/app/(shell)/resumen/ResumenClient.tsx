@@ -737,10 +737,10 @@ export default function ResumenClient({
 
       {/* ─── 6. PROMOTION MODAL ─── */}
       {promotingUser && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setPromotingUser(null)}>
-          <div className="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-y-auto max-h-[90vh] border border-gray-200" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setPromotingUser(null)}>
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-200 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             <div
-              className="px-5 py-4 flex justify-between items-center"
+              className="px-5 py-4 flex justify-between items-center shrink-0"
               style={{ background: "linear-gradient(135deg, #0b1f3a, #183d6e)" }}
             >
               <div>
@@ -750,19 +750,20 @@ export default function ResumenClient({
               <button
                 type="button"
                 onClick={() => setPromotingUser(null)}
-                className="w-7 h-7 rounded-md bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
+                title="Cerrar ventana"
               >
-                <X size={14} />
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handlePromote} className="p-5 space-y-4">
+            <form onSubmit={handlePromote} className="p-5 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
               <div>
                 <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">Nuevo Nivel</label>
                 <select
                   value={targetAccessType}
                   onChange={e => setTargetAccessType(e.target.value)}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 outline-none focus:border-blue-300 transition-colors"
+                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-blue-300 transition-colors"
                 >
                   <option value="enlace">Enlace (Líder con equipo propio)</option>
                   <option value="coordinacion">Coordinación (Acceso global)</option>
@@ -777,7 +778,7 @@ export default function ResumenClient({
                   placeholder="Escribe el motivo del ascenso..."
                   value={promotionReason}
                   onChange={e => setPromotionReason(e.target.value)}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 outline-none focus:border-blue-300 resize-none transition-colors"
+                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-blue-300 resize-none transition-colors"
                 />
               </div>
 
@@ -785,14 +786,14 @@ export default function ResumenClient({
                 <button
                   type="button"
                   onClick={() => setPromotingUser(null)}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-150 rounded-lg text-sm font-bold text-gray-600 cursor-pointer transition-colors"
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-xs font-bold text-gray-600 cursor-pointer transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={savingPromotion}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-lg cursor-pointer disabled:opacity-50 transition-colors"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50 transition-colors shadow-md"
                 >
                   {savingPromotion ? "Promoviendo..." : "Confirmar Ascenso"}
                 </button>
