@@ -171,9 +171,9 @@ export default function MapaPage() {
 
   // =========================================================================
   // INFORMATION DENSITY SLIDER (0 = Solo Incidencias, 1 = Territorial, 2 = Completo)
-  // Vista inicial predeterminada en 0 (Limpia con solo incidencias)
+  // Vista inicial en 1 (Territorial con secciones visibles)
   // =========================================================================
-  const [infoDensity, setInfoDensity] = useState<number>(0);
+  const [infoDensity, setInfoDensity] = useState<number>(1);
 
   // =========================================================================
   // ZERO-OVERLAP UNIFIED DRAWER STATE
@@ -187,10 +187,10 @@ export default function MapaPage() {
   // GPS State
   const [isLocatingGPS, setIsLocatingGPS] = useState(false);
 
-  // Layer Toggles & Map View Settings (Inicialmente limpias)
+  // Layer Toggles & Map View Settings (Secciones activas por defecto)
   const [selectedTileStyle, setSelectedTileStyle] = useState<string>("esriStreet");
-  const [showSections, setShowSections] = useState(false);
-  const [showSectionLabels, setShowSectionLabels] = useState(false);
+  const [showSections, setShowSections] = useState(true);
+  const [showSectionLabels, setShowSectionLabels] = useState(true);
   const [enableClustering, setEnableClustering] = useState(true);
   const [mapZoom, setMapZoom] = useState<number>(12);
 

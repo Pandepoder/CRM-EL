@@ -5,18 +5,19 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
 
+const TONALA_OFFICIAL_SECTIONS = new Set([
+  2650, 2651, 2652, 2653, 2654, 2655, 2656, 2657, 2658, 2659, 2660, 2661, 2663, 2664, 2665, 2666, 2667, 2668, 2669, 2670,
+  2671, 2672, 2673, 2674, 2675, 2677, 2678, 2679, 2680, 2681, 2682, 2683, 2684, 2685, 2687, 2688, 2689, 2690, 2691, 2692,
+  2693, 2694, 2695, 2696, 2697, 2698, 2699, 2700, 2701, 2702, 2703, 2704, 2705, 2706, 2707, 2708, 2709, 2710, 2712, 2713,
+  2714, 2715, 2716, 2717, 2718, 2719, 2720, 2721, 2723, 2724, 2725, 2726, 2727, 2729, 3311, 3704, 3705, 3706, 3707, 3708,
+  3709, 3710, 3711, 3712, 3713, 3714, 3715, 3740, 3741, 3742, 3743, 3744, 3745, 3800, 3801, 3802, 3803, 3804, 3805, 3806,
+  3861, 3862, 3863, 3864, 3865, 3866, 3867, 3868, 3869, 3870, 3871, 3872, 3873
+]);
+
 function inferMunicipalityFromSection(secNum: number, currentMunicipality?: string | null): string {
+  if (TONALA_OFFICIAL_SECTIONS.has(secNum)) return "Tonalá";
   if (currentMunicipality && currentMunicipality !== "Tonalá") return currentMunicipality;
-  if (secNum >= 2700 && secNum <= 2800) return "Tonalá";
-  if (secNum >= 900 && secNum <= 1450) return "Guadalajara";
-  if (secNum >= 3000 && secNum <= 3500) return "Zapopan";
-  if (secNum >= 2500 && secNum <= 2699) return "San Pedro Tlaquepaque";
-  if (secNum >= 2400 && secNum <= 2499) return "Tlajomulco de Zúñiga";
-  if (secNum >= 1950 && secNum <= 2050) return "El Salto";
-  if (secNum >= 3600 && secNum <= 3650) return "Zapotlanejo";
-  if (secNum >= 1750 && secNum <= 1800) return "Ixtlahuacán de los Membrillos";
-  if (secNum >= 1850 && secNum <= 1900) return "Juanacatlán";
-  return currentMunicipality || "Tonalá";
+  return "Tonalá";
 }
 
 /**
