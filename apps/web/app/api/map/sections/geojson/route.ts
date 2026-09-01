@@ -25,9 +25,12 @@ function inferMunicipalityFromSection(secNum: number, currentMunicipality?: stri
  * Returns a GeoJSON FeatureCollection of electoral sections.
  * Uses the geom_json column if available, otherwise returns empty features.
  */
-export async function GET() {
+export async function GET(req: Request) {
   const actor = await actorFromSession();
   if (!actor) return unauthorized();
+
+  const url = new URL(req.url);
+  const targetMunicipality = url.searchParams.get("municipality") || "Tonalá";
 
   const db = getDatabaseClient();
 
@@ -105,11 +108,15 @@ export async function GET() {
           geometry,
         };
       })
-      .filter(Boolean);
+      .filter((f): f is NonNullable<typeof f> => Boolean(f));
+
+    const finalFeatures = targetMunicipality && targetMunicipality !== "all"
+      ? features.filter(f => f.properties.municipality.toLowerCase() === targetMunicipality.toLowerCase())
+      : features;
 
     return NextResponse.json({
       type: "FeatureCollection",
-      features,
+      features: finalFeatures,
     });
   } catch (error) {
     console.error("Failed to load sections GeoJSON:", error);

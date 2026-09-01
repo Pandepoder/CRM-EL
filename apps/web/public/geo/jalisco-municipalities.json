@@ -1,0 +1,498 @@
+[
+  {
+    "name": "Tonalá",
+    "count": 113
+  },
+  {
+    "name": "Guadalajara",
+    "count": 997
+  },
+  {
+    "name": "Zapopan",
+    "count": 500
+  },
+  {
+    "name": "San Pedro Tlaquepaque",
+    "count": 225
+  },
+  {
+    "name": "Tlajomulco de Zúñiga",
+    "count": 168
+  },
+  {
+    "name": "El Salto",
+    "count": 88
+  },
+  {
+    "name": "Puerto Vallarta",
+    "count": 21
+  },
+  {
+    "name": "Zapotlanejo",
+    "count": 32
+  },
+  {
+    "name": "Lagos de Moreno",
+    "count": 6
+  },
+  {
+    "name": "Tepatitlán de Morelos",
+    "count": 64
+  },
+  {
+    "name": "Zapotlán el Grande",
+    "count": 55
+  },
+  {
+    "name": "Chapala",
+    "count": 12
+  },
+  {
+    "name": "Ixtlahuacán de los Membrillos",
+    "count": 19
+  },
+  {
+    "name": "Juanacatlán",
+    "count": 20
+  },
+  {
+    "name": "Autlán de Navarro",
+    "count": 30
+  },
+  {
+    "name": "Ameca",
+    "count": 44
+  },
+  {
+    "name": "Tala",
+    "count": 38
+  },
+  {
+    "name": "Ocotlán",
+    "count": 4
+  },
+  {
+    "name": "Arandas",
+    "count": 30
+  },
+  {
+    "name": "Acatic",
+    "count": 11
+  },
+  {
+    "name": "Acatlán de Juárez",
+    "count": 11
+  },
+  {
+    "name": "Ahualulco de Mercado",
+    "count": 12
+  },
+  {
+    "name": "Amacueca",
+    "count": 4
+  },
+  {
+    "name": "Amatitán",
+    "count": 8
+  },
+  {
+    "name": "Atemajac de Brizuela",
+    "count": 5
+  },
+  {
+    "name": "Atengo",
+    "count": 6
+  },
+  {
+    "name": "Atenguillo",
+    "count": 5
+  },
+  {
+    "name": "Atotonilco el Alto",
+    "count": 30
+  },
+  {
+    "name": "Atoyac",
+    "count": 6
+  },
+  {
+    "name": "Ayotlán",
+    "count": 19
+  },
+  {
+    "name": "Ayutla",
+    "count": 12
+  },
+  {
+    "name": "Bolaños",
+    "count": 5
+  },
+  {
+    "name": "Cabo Corrientes",
+    "count": 6
+  },
+  {
+    "name": "Casimiro Castillo",
+    "count": 14
+  },
+  {
+    "name": "Cañadas de Obregón",
+    "count": 20
+  },
+  {
+    "name": "Chimaltitán",
+    "count": 19
+  },
+  {
+    "name": "Chiquilistlán",
+    "count": 3
+  },
+  {
+    "name": "Cihuatlán",
+    "count": 17
+  },
+  {
+    "name": "Cocula",
+    "count": 10
+  },
+  {
+    "name": "Colotlán",
+    "count": 17
+  },
+  {
+    "name": "Concepción de Buenos Aires",
+    "count": 15
+  },
+  {
+    "name": "Cuautitlán de García Barragán",
+    "count": 5
+  },
+  {
+    "name": "Cuautla",
+    "count": 9
+  },
+  {
+    "name": "Cuquío",
+    "count": 4
+  },
+  {
+    "name": "Degollado",
+    "count": 4
+  },
+  {
+    "name": "Ejutla",
+    "count": 16
+  },
+  {
+    "name": "El Arenal",
+    "count": 5
+  },
+  {
+    "name": "El Grullo",
+    "count": 11
+  },
+  {
+    "name": "El Limón",
+    "count": 82
+  },
+  {
+    "name": "Encarnación de Díaz",
+    "count": 2
+  },
+  {
+    "name": "Etzatlán",
+    "count": 31
+  },
+  {
+    "name": "Guachinango",
+    "count": 8
+  },
+  {
+    "name": "Gómez Farías",
+    "count": 18
+  },
+  {
+    "name": "Hostotipaquillo",
+    "count": 8
+  },
+  {
+    "name": "Huejuquilla el Alto",
+    "count": 5
+  },
+  {
+    "name": "Huejúcar",
+    "count": 11
+  },
+  {
+    "name": "Ixtlahuacán del Río",
+    "count": 19
+  },
+  {
+    "name": "Jalostotitlán",
+    "count": 12
+  },
+  {
+    "name": "Jamay",
+    "count": 22
+  },
+  {
+    "name": "Jesús María",
+    "count": 13
+  },
+  {
+    "name": "Jilotlán de los Dolores",
+    "count": 14
+  },
+  {
+    "name": "Jocotepec",
+    "count": 9
+  },
+  {
+    "name": "Juchitlán",
+    "count": 7
+  },
+  {
+    "name": "La Barca",
+    "count": 36
+  },
+  {
+    "name": "La Huerta",
+    "count": 7
+  },
+  {
+    "name": "La Manzanilla de la Paz",
+    "count": 5
+  },
+  {
+    "name": "Magdalena",
+    "count": 6
+  },
+  {
+    "name": "Mascota",
+    "count": 5
+  },
+  {
+    "name": "Mazamitla",
+    "count": 14
+  },
+  {
+    "name": "Mexticacán",
+    "count": 9
+  },
+  {
+    "name": "Mezquitic",
+    "count": 7
+  },
+  {
+    "name": "Mixtlán",
+    "count": 11
+  },
+  {
+    "name": "Ojuelos de Jalisco",
+    "count": 46
+  },
+  {
+    "name": "Pihuamo",
+    "count": 15
+  },
+  {
+    "name": "Poncitlán",
+    "count": 12
+  },
+  {
+    "name": "Quitupan",
+    "count": 10
+  },
+  {
+    "name": "San Cristóbal de la Barranca",
+    "count": 26
+  },
+  {
+    "name": "San Diego de Alejandría",
+    "count": 5
+  },
+  {
+    "name": "San Gabriel",
+    "count": 10
+  },
+  {
+    "name": "San Ignacio Cerro Gordo",
+    "count": 8
+  },
+  {
+    "name": "San Juan de los Lagos",
+    "count": 8
+  },
+  {
+    "name": "San Juanito de Escobedo",
+    "count": 8
+  },
+  {
+    "name": "San Julián",
+    "count": 42
+  },
+  {
+    "name": "San Marcos",
+    "count": 9
+  },
+  {
+    "name": "San Martín Hidalgo",
+    "count": 3
+  },
+  {
+    "name": "San Martín de Bolaños",
+    "count": 2
+  },
+  {
+    "name": "San Miguel el Alto",
+    "count": 17
+  },
+  {
+    "name": "San Sebastián del Oeste",
+    "count": 7
+  },
+  {
+    "name": "Santa María de los Ángeles",
+    "count": 5
+  },
+  {
+    "name": "Santa María del Oro",
+    "count": 12
+  },
+  {
+    "name": "Sayula",
+    "count": 18
+  },
+  {
+    "name": "Talpa de Allende",
+    "count": 10
+  },
+  {
+    "name": "Tamazula de Gordiano",
+    "count": 34
+  },
+  {
+    "name": "Tapalpa",
+    "count": 11
+  },
+  {
+    "name": "Tecalitlán",
+    "count": 16
+  },
+  {
+    "name": "Techaluta de Montenegro",
+    "count": 3
+  },
+  {
+    "name": "Tecolotlán",
+    "count": 13
+  },
+  {
+    "name": "Tenamaxtlán",
+    "count": 6
+  },
+  {
+    "name": "Teocaltiche",
+    "count": 23
+  },
+  {
+    "name": "Teocuitatlán de Corona",
+    "count": 10
+  },
+  {
+    "name": "Tequila",
+    "count": 26
+  },
+  {
+    "name": "Teuchitlán",
+    "count": 6
+  },
+  {
+    "name": "Tizapán el Alto",
+    "count": 14
+  },
+  {
+    "name": "Tolimán",
+    "count": 7
+  },
+  {
+    "name": "Tomatlán",
+    "count": 17
+  },
+  {
+    "name": "Tonaya",
+    "count": 5
+  },
+  {
+    "name": "Tonila",
+    "count": 7
+  },
+  {
+    "name": "Totatiche",
+    "count": 6
+  },
+  {
+    "name": "Tototlán",
+    "count": 14
+  },
+  {
+    "name": "Tuxcacuesco",
+    "count": 5
+  },
+  {
+    "name": "Tuxcueca",
+    "count": 4
+  },
+  {
+    "name": "Tuxpan",
+    "count": 23
+  },
+  {
+    "name": "Unión de San Antonio",
+    "count": 10
+  },
+  {
+    "name": "Unión de Tula",
+    "count": 14
+  },
+  {
+    "name": "Valle de Guadalupe",
+    "count": 7
+  },
+  {
+    "name": "Valle de Juárez",
+    "count": 6
+  },
+  {
+    "name": "Villa Corona",
+    "count": 7
+  },
+  {
+    "name": "Villa Guerrero",
+    "count": 8
+  },
+  {
+    "name": "Villa Hidalgo",
+    "count": 7
+  },
+  {
+    "name": "Villa Purificación",
+    "count": 13
+  },
+  {
+    "name": "Yahualica de González Gallo",
+    "count": 16
+  },
+  {
+    "name": "Zapotiltic",
+    "count": 21
+  },
+  {
+    "name": "Zapotitlán de Vadillo",
+    "count": 6
+  },
+  {
+    "name": "Zapotlán del Rey",
+    "count": 13
+  }
+]

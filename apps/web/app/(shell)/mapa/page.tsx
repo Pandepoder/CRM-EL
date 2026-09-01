@@ -194,9 +194,23 @@ export default function MapaPage() {
   const [enableClustering, setEnableClustering] = useState(true);
   const [mapZoom, setMapZoom] = useState<number>(12);
 
-  // Filters & Search for Map
+  // Filters & Search for Map (Tonalá por defecto, carga por municipio ultra liviana)
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMunicipality, setSelectedMunicipality] = useState<string>("Tonalá");
+  const [availableMunicipalities, setAvailableMunicipalities] = useState<Array<{ name: string; count: number }>>([
+    { name: "Tonalá", count: 113 },
+    { name: "Guadalajara", count: 997 },
+    { name: "Zapopan", count: 500 },
+    { name: "San Pedro Tlaquepaque", count: 225 },
+    { name: "Tlajomulco de Zúñiga", count: 168 },
+    { name: "El Salto", count: 88 },
+    { name: "Puerto Vallarta", count: 42 },
+    { name: "Zapotlanejo", count: 25 },
+    { name: "Lagos de Moreno", count: 70 },
+    { name: "Tepatitlán de Morelos", count: 64 },
+    { name: "Zapotlán el Grande", count: 55 },
+    { name: "Chapala", count: 35 }
+  ]);
   const [activeCategories] = useState<Set<string>>(new Set(Object.keys(CATEGORIES)));
 
   // Incident Center Specific Filters & Controls
@@ -440,8 +454,8 @@ export default function MapaPage() {
       if (!container || (container as any)._leaflet_id) return;
 
       const map = leafletModule.map(container, {
-        center: [20.6300, -103.2800],
-        zoom: 12,
+        center: [20.6240, -103.2350],
+        zoom: 13,
         zoomControl: false,
       });
 
@@ -533,10 +547,11 @@ export default function MapaPage() {
     }
   }, []);
 
-  // 3. Fetch Sections GeoJSON
-  const fetchSections = useCallback(async () => {
+  // 3. Fetch Sections GeoJSON on demand strictly for the selected municipality
+  const fetchSections = useCallback(async (muni?: string) => {
+    const targetMuni = muni || selectedMunicipality || "Tonalá";
     try {
-      const res = await fetch("/api/map/sections/geojson", { cache: "no-store" });
+      const res = await fetch(`/api/map/sections/geojson?municipality=${encodeURIComponent(targetMuni)}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setSectionsData(data);
@@ -544,7 +559,7 @@ export default function MapaPage() {
     } catch (error) {
       console.error("Failed to load sections GeoJSON:", error);
     }
-  }, []);
+  }, [selectedMunicipality]);
 
   // 4. Fetch Users for Assignment
   const fetchUsers = useCallback(async () => {
@@ -562,9 +577,27 @@ export default function MapaPage() {
   useEffect(() => {
     fetchReports();
     fetchContacts();
-    fetchSections();
     fetchUsers();
-  }, [fetchReports, fetchContacts, fetchSections, fetchUsers]);
+  }, [fetchReports, fetchContacts, fetchUsers]);
+
+  // Fetch sections strictly for the selected municipality
+  useEffect(() => {
+    if (selectedMunicipality) {
+      void fetchSections(selectedMunicipality);
+    }
+  }, [selectedMunicipality, fetchSections]);
+
+  // Load complete 124 Jalisco municipalities index on mount
+  useEffect(() => {
+    fetch("/geo/jalisco-municipalities.json")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setAvailableMunicipalities(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // 5. Toggle Single Report Status
   const handleToggleReportStatus = useCallback(async (reportId: string, newStatus: string) => {
@@ -789,98 +822,27 @@ export default function MapaPage() {
 
     layer.bringToBack();
     setGeoJsonLayer(layer);
-  }, [L, mapRef, labelsLayer, sectionsData, showSections, showSectionLabels, infoDensity, selectedSection, selectedMunicipality]);
 
-  // Dynamic Jalisco Municipalities extracted directly from loaded GeoJSON features
-  const availableMunicipalities = useMemo(() => {
-    if (!sectionsData?.features || sectionsData.features.length === 0) {
-      return [
-        { name: "Tonalá", count: 113 },
-        { name: "Guadalajara", count: 985 },
-        { name: "Zapopan", count: 500 },
-        { name: "San Pedro Tlaquepaque", count: 225 },
-        { name: "Tlajomulco de Zúñiga", count: 168 },
-        { name: "El Salto", count: 88 },
-        { name: "Puerto Vallarta", count: 42 },
-        { name: "Zapotlanejo", count: 25 },
-        { name: "Lagos de Moreno", count: 70 },
-        { name: "Tepatitlán de Morelos", count: 64 },
-        { name: "Zapotlán el Grande", count: 55 },
-        { name: "Chapala", count: 35 }
-      ];
-    }
-    const counts = new Map<string, number>();
-    for (const feat of sectionsData.features) {
-      const muni = feat.properties?.municipality || "Tonalá";
-      counts.set(muni, (counts.get(muni) || 0) + 1);
-    }
-
-    const priority = [
-      "Tonalá",
-      "Guadalajara",
-      "Zapopan",
-      "San Pedro Tlaquepaque",
-      "Tlajomulco de Zúñiga",
-      "El Salto",
-      "Puerto Vallarta",
-      "Zapotlanejo",
-      "Lagos de Moreno",
-      "Tepatitlán de Morelos",
-      "Zapotlán el Grande",
-      "Chapala",
-      "Ixtlahuacán de los Membrillos",
-      "Juanacatlán",
-      "Autlán de Navarro",
-      "Ameca",
-      "Tala",
-      "Ocotlán",
-      "Arandas"
-    ];
-
-    const result: Array<{ name: string; count: number }> = [];
-    for (const p of priority) {
-      if (counts.has(p)) {
-        result.push({ name: p, count: counts.get(p)! });
-        counts.delete(p);
+    // Auto-center on the newly loaded municipality boundary
+    if (sectionsData?.features && sectionsData.features.length > 0 && mapRef) {
+      try {
+        const bounds = layer.getBounds();
+        if (bounds.isValid()) {
+          mapRef.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+        }
+      } catch {
+        // fallback
       }
     }
-    const remaining = Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0], "es"));
-    for (const [name, count] of remaining) {
-      result.push({ name, count });
-    }
-    return result;
-  }, [sectionsData]);
+  }, [L, mapRef, labelsLayer, sectionsData, showSections, showSectionLabels, infoDensity, selectedSection, selectedMunicipality]);
 
   const handleMunicipalityChange = (muni: string) => {
     setSelectedMunicipality(muni);
     setSelectedSection(null);
     if (!mapRef) return;
 
-    if (muni === "all") {
-      mapRef.setView([20.6300, -103.2800], 10);
-      showToast(`🗺️ Mostrando Todo Jalisco (${sectionsData?.features?.length || 3787} secciones)`);
-      return;
-    }
-
-    if (sectionsData?.features && L) {
-      const muniFeatures = sectionsData.features.filter((f: any) => f.properties?.municipality === muni);
-      if (muniFeatures.length > 0) {
-        try {
-          const tempLayer = L.geoJSON({ type: "FeatureCollection", features: muniFeatures });
-          const bounds = tempLayer.getBounds();
-          if (bounds.isValid()) {
-            mapRef.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
-            showToast(`📍 Municipio: ${muni} (${muniFeatures.length} secciones)`);
-            return;
-          }
-        } catch {
-          // fallback
-        }
-      }
-    }
-
-    const config = (MUNICIPALITY_CENTERS as Record<string, { center: [number, number]; zoom: number }>)[muni] || MUNICIPALITY_CENTERS["all"];
-    mapRef.flyTo(config.center, config.zoom, { duration: 1.2 });
+    const config = (MUNICIPALITY_CENTERS as Record<string, { center: [number, number]; zoom: number }>)[muni] || { center: [20.6240, -103.2350], zoom: 13 };
+    mapRef.flyTo(config.center, config.zoom, { duration: 1.0 });
     showToast(`📍 Municipio: ${muni}`);
   };
 
@@ -1418,7 +1380,6 @@ export default function MapaPage() {
                 }}
                 title="Seleccionar municipio de Jalisco para enfocar el mapa"
               >
-                <option value="all">🗺️ Todo Jalisco ({sectionsData?.features?.length || 3787} secc.)</option>
                 {availableMunicipalities.map((m) => (
                   <option key={m.name} value={m.name}>
                     📍 {m.name} ({m.count} secc.)
@@ -1714,7 +1675,6 @@ export default function MapaPage() {
                       onChange={(e) => handleMunicipalityChange(e.target.value)}
                       style={{ width: "100%", padding: "8px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", color: "#0f172a", outline: "none", cursor: "pointer" }}
                     >
-                      <option value="all">🗺️ Todo Jalisco ({sectionsData?.features?.length || 3787} secciones)</option>
                       {availableMunicipalities.map((m) => (
                         <option key={m.name} value={m.name}>
                           📍 {m.name} ({m.count} secciones)
