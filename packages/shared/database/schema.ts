@@ -487,6 +487,9 @@ export const eventReports = pgTable(
     // `status` era texto libre mientras `category` sí estaba restringida, así que
     // cualquier ruta podía escribir un estado inventado y romper los filtros.
     check("event_reports_status_check", sql`${table.status} IN ('active', 'in_progress', 'resolved', 'archived')`),
+    // El GeoJSON del mapa hace LEFT JOIN de event_reports por section_id para
+    // cada sección; sin índice eso es un recorrido secuencial por sección.
+    index("event_reports_section_idx").on(table.sectionId),
     index("event_reports_assigned_user_idx").on(table.assignedToUserId),
     index("event_reports_assigned_team_idx").on(table.assignedTeamId),
     index("event_reports_status_idx").on(table.status),
