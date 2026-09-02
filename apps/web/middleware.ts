@@ -31,8 +31,13 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/map/sections") ||
     pathname.startsWith("/api/electoral/sections") ||
     pathname.startsWith("/api/crm/colonies") ||
-    pathname.startsWith("/registro") || 
-    pathname === "/api/health" || 
+    pathname.startsWith("/registro") ||
+    pathname === "/api/health" ||
+    // Material gráfico de campaña. Sin esto el middleware redirige las imágenes
+    // al login para quien no tiene sesión, que es justo todo el que ve el login,
+    // la página de registro público o los avisos legales: las fotos nunca
+    // cargaban en ninguna página pública.
+    pathname.startsWith("/media") ||
     pathname.startsWith("/_next")
   ) {
     return NextResponse.next();
