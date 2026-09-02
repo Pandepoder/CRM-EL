@@ -38,6 +38,12 @@ export async function middleware(request: NextRequest) {
     // la página de registro público o los avisos legales: las fotos nunca
     // cargaban en ninguna página pública.
     pathname.startsWith("/media") ||
+    pathname.startsWith("/brand") ||
+    // Iconos que Next genera desde app/icon.png y app/apple-icon.png. Sin esto
+    // el navegador los pide sin sesión, se los redirige al login y la pestaña
+    // se queda con el icono genérico en todas las páginas públicas.
+    pathname === "/icon.png" ||
+    pathname === "/apple-icon.png" ||
     pathname.startsWith("/_next")
   ) {
     return NextResponse.next();
