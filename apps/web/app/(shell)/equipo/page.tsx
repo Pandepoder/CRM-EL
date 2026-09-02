@@ -92,10 +92,28 @@ export default async function EquipoMiDiaPage({
     ? inArray(schema.visits.assignedUserId, allowedTeammateIds)
     : undefined;
 
-  const eventUserCondition = targetUserId 
-    ? or(eq(schema.eventReports.assignedToUserId, targetUserId), eq(schema.eventReports.createdByUserId, targetUserId)) 
+  // Una incidencia asignada a mi brigada es trabajo mío aunque no lleve mi
+  // nombre. Sin esta condición, asignar una incidencia a un equipo no la hacía
+  // aparecer en ninguna agenda: la asignación se guardaba y no la veía nadie.
+  const misEquipos = networkScope.teamIds ?? [];
+  const equipoCondition = misEquipos.length > 0
+    ? inArray(schema.eventReports.assignedTeamId, misEquipos)
+    : undefined;
+
+  const eventUserCondition = targetUserId
+    ? or(
+        eq(schema.eventReports.assignedToUserId, targetUserId),
+        eq(schema.eventReports.createdByUserId, targetUserId),
+        // Solo al mirar la agenda propia: la de otra persona no debe heredar el
+        // trabajo de los equipos de quien la consulta.
+        ...(targetUserId === session.userId && equipoCondition ? [equipoCondition] : [])
+      )
     : !isGlobalAdmin
-    ? or(inArray(schema.eventReports.assignedToUserId, allowedTeammateIds), inArray(schema.eventReports.createdByUserId, allowedTeammateIds))
+    ? or(
+        inArray(schema.eventReports.assignedToUserId, allowedTeammateIds),
+        inArray(schema.eventReports.createdByUserId, allowedTeammateIds),
+        ...(equipoCondition ? [equipoCondition] : [])
+      )
     : undefined;
 
   // 1. Fetch Visits
@@ -128,11 +146,13 @@ export default async function EquipoMiDiaPage({
       sectionId: schema.electoralSections.id,
       sectionNum: schema.electoralSections.sectionNum,
       assignedToUserId: schema.eventReports.assignedToUserId,
-      assignedUserName: schema.userProfiles.displayName
+      assignedUserName: schema.userProfiles.displayName,
+      assignedTeamName: schema.teams.name
     })
     .from(schema.eventReports)
     .leftJoin(schema.electoralSections, eq(schema.eventReports.sectionId, schema.electoralSections.id))
     .leftJoin(schema.userProfiles, eq(schema.eventReports.assignedToUserId, schema.userProfiles.id))
+    .leftJoin(schema.teams, eq(schema.eventReports.assignedTeamId, schema.teams.id))
     .where(and(eventUserCondition, eventDateFilter));
 
   const items = [
@@ -170,7 +190,10 @@ export default async function EquipoMiDiaPage({
         sectionId: e.sectionId || undefined,
         sectionNum: e.sectionNum || undefined,
         assignedUserId: e.assignedToUserId || undefined,
-        assignedUserName: e.assignedUserName || "Sin Asignar"
+        // Si no hay responsable individual pero sí equipo, decirlo: marcarla
+        // como "Sin Asignar" cuando la brigada ya responde por ella es falso.
+        assignedUserName:
+          e.assignedUserName || (e.assignedTeamName ? `Brigada: ${e.assignedTeamName}` : "Sin Asignar")
       };
     })
   ].sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());

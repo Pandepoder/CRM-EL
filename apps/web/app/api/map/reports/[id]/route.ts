@@ -22,7 +22,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     const updatePayload: Record<string, any> = {};
 
     if (status !== undefined) {
-      if (!['active', 'resolved', 'archived'].includes(status)) {
+      if (!['active', 'in_progress', 'resolved', 'archived'].includes(status)) {
         return NextResponse.json({ error: "Invalid status" }, { status: 400 });
       }
       updatePayload.status = status;

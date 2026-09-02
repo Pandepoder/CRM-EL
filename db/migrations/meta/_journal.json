@@ -71,6 +71,13 @@
       "when": 1788313848528,
       "tag": "0009_add_incident_team_assignment",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788316920398,
+      "tag": "0010_allow_in_progress_incident_status",
+      "breakpoints": true
     }
   ]
 }

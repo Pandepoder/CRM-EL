@@ -486,7 +486,7 @@ export const eventReports = pgTable(
     check("event_reports_category_check", sql`${table.category} IN ('emergencia', 'incidencia', 'mitin', 'propaganda', 'servicios', 'sospechoso', 'brigada', 'bache', 'alumbrado', 'fuga_agua', 'inundacion', 'basura', 'seguridad', 'lona_danada')`),
     // `status` era texto libre mientras `category` sí estaba restringida, así que
     // cualquier ruta podía escribir un estado inventado y romper los filtros.
-    check("event_reports_status_check", sql`${table.status} IN ('active', 'resolved', 'archived')`),
+    check("event_reports_status_check", sql`${table.status} IN ('active', 'in_progress', 'resolved', 'archived')`),
     index("event_reports_assigned_user_idx").on(table.assignedToUserId),
     index("event_reports_assigned_team_idx").on(table.assignedTeamId),
     index("event_reports_status_idx").on(table.status),
