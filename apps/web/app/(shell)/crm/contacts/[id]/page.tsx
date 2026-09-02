@@ -5,7 +5,7 @@ import Link from "next/link";
 import { 
   MapPin, User, Calendar, CheckCircle, Clock,
   AlertCircle, X, Phone, Trash2, MessageSquare, Sparkles, Send, ImageIcon,
-  Search, ClipboardList
+  Search, ClipboardList, CalendarDays, Plus
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ColonySelector } from "@/components/ColonySelector";
@@ -52,6 +52,25 @@ type ContactDetail = {
 
 type UserItem = { userId: string; displayName: string; roleKey?: string };
 type ModalType = "territory" | "assignment" | "schedule" | "complete" | null;
+
+// El dominio devuelve sus mensajes en inglés y la aplicación está en español.
+// Se traducen por código, que es estable, y se cae al mensaje del servidor si
+// aparece uno que no esté contemplado aquí.
+const MOTIVOS_VISITA: Record<string, string> = {
+  contact_assignment_not_found:
+    "Primero asigna un enlace responsable a este ciudadano; sin responsable no se puede programar la visita.",
+  contact_territory_not_found:
+    "Primero asigna colonia y sección a este ciudadano desde Territorio.",
+  contact_territory_not_confirmed:
+    "El territorio de este ciudadano aún no está confirmado.",
+  contact_not_found: "El ciudadano no fue encontrado o está inactivo.",
+  visit_scheduled_at_in_past: "La fecha de la visita no puede estar en el pasado."
+};
+
+function motivoVisita(err: { code?: string; message?: string } | null): string | null {
+  if (!err) return null;
+  return (err.code && MOTIVOS_VISITA[err.code]) || err.message || null;
+}
 
 const OUTCOME_LABELS: Record<string, string> = {
   successful: "Exitosa",
@@ -197,14 +216,20 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           visitLocationText: visitLocation.trim() || "Por definir",
         }),
       });
-      if (!res.ok) throw new Error("Error al programar visita");
+      // El servidor explica por qué no se pudo (por ejemplo, que el contacto
+      // aún no tiene responsable asignado). Descartarlo dejaba al usuario con un
+      // "no se pudo" sin decirle qué arreglar.
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(motivoVisita(err) || "No se pudo programar la visita.");
+      }
       await fetchDetail();
       setModal(null);
       setScheduledAt("");
       setVisitLocation("");
       showToast("success", "Visita programada exitosamente.");
-    } catch {
-      showToast("error", "No se pudo programar la visita.");
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "No se pudo programar la visita.");
     } finally {
       setSaving(false);
     }
@@ -219,14 +244,17 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ structuredOutcome: outcome, summary: outcomeSummary }),
       });
-      if (!res.ok) throw new Error("Error al completar visita");
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(motivoVisita(err) || "No se pudo completar la visita.");
+      }
       await fetchDetail();
       setModal(null);
       setOutcome("successful");
       setOutcomeSummary("");
       showToast("success", "Visita marcada como completada.");
-    } catch {
-      showToast("error", "No se pudo completar la visita.");
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "No se pudo completar la visita.");
     } finally {
       setSaving(false);
     }
@@ -541,6 +569,79 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         )}
       </div>
 
+      {/* VISITAS. El backend y los manejadores existían desde hace tiempo, pero
+          ningún control los invocaba: desde la ficha no se podía ni programar
+          ni cerrar una visita. */}
+      <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-5 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+          <div className="flex items-center gap-2">
+            <CalendarDays size={16} className="text-blue-600" />
+            <h2 className="text-sm font-black text-gray-900">
+              Visitas Programadas ({detail.visits?.length || 0})
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setModal("schedule")}
+            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-bold shadow-sm cursor-pointer flex items-center gap-1.5"
+          >
+            <Plus size={13} /> Programar visita
+          </button>
+        </div>
+
+        {detail.visits && detail.visits.length > 0 ? (
+          <div className="space-y-3">
+            {detail.visits.map(v => {
+              const pendiente = v.status === "scheduled";
+              return (
+                <div key={v.visitId} className="p-4 bg-gray-50/80 rounded-2xl border border-gray-100 space-y-2">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-black text-gray-900">
+                        {new Date(v.scheduledAt).toLocaleString("es-MX")}
+                      </p>
+                      <p className="text-[11px] text-gray-500 font-semibold">
+                        {v.assignedUserName || "Sin responsable asignado"}
+                      </p>
+                    </div>
+                    <span
+                      className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
+                        pendiente ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                      }`}
+                    >
+                      {pendiente ? "Pendiente" : OUTCOME_LABELS[v.outcome || ""] || "Completada"}
+                    </span>
+                  </div>
+
+                  {v.summary ? (
+                    <p className="text-xs text-gray-700 font-medium whitespace-pre-wrap">{v.summary}</p>
+                  ) : null}
+
+                  {pendiente ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOutcomeVisitId(v.visitId);
+                        setOutcome("successful");
+                        setOutcomeSummary("");
+                        setModal("complete");
+                      }}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                    >
+                      Reportar resultado
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 text-center py-4">
+            Este ciudadano no tiene visitas programadas.
+          </p>
+        )}
+      </div>
+
       {/* MODALS */}
       {modal === "territory" && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setModal(null)}>
@@ -638,6 +739,119 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50"
                 >
                   {saving ? "Asignando..." : "Asignar Responsable"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal === "schedule" && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
+              <h3 className="font-black text-sm text-gray-900">Programar Visita Domiciliaria</h3>
+              <button
+                type="button"
+                onClick={() => setModal(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center cursor-pointer transition-colors"
+                title="Cerrar ventana"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Fecha y hora *</label>
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={e => setScheduledAt(e.target.value)}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Punto de encuentro</label>
+                <input
+                  type="text"
+                  value={visitLocation}
+                  onChange={e => setVisitLocation(e.target.value)}
+                  placeholder="Ej. Domicilio del ciudadano, Calle Juárez #145"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-xs font-bold text-gray-600 cursor-pointer">
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleScheduleVisit}
+                  disabled={saving || !scheduledAt}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {saving ? "Programando..." : "Programar visita"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal === "complete" && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
+              <h3 className="font-black text-sm text-gray-900">Reportar Resultado de la Visita</h3>
+              <button
+                type="button"
+                onClick={() => setModal(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center cursor-pointer transition-colors"
+                title="Cerrar ventana"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Resultado</label>
+                <select
+                  value={outcome}
+                  onChange={e => setOutcome(e.target.value)}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white"
+                >
+                  {Object.entries(OUTCOME_LABELS).map(([valor, etiqueta]) => (
+                    <option key={valor} value={valor}>{etiqueta}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Qué ocurrió *</label>
+                <textarea
+                  rows={4}
+                  value={outcomeSummary}
+                  onChange={e => setOutcomeSummary(e.target.value)}
+                  placeholder="Acuerdos, compromisos o motivo por el que no se concretó."
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-800 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-xs font-bold text-gray-600 cursor-pointer">
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCompleteVisit}
+                  disabled={saving || !outcomeSummary.trim()}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {saving ? "Guardando..." : "Guardar resultado"}
                 </button>
               </div>
             </div>
