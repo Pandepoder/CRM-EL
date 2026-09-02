@@ -84,7 +84,7 @@ async function cleanProductionDatabase() {
         `
           INSERT INTO colonies (catalog_version_id, name, postal_code, municipality)
           VALUES ($1, $2, $3, $4)
-          ON CONFLICT (catalog_version_id, name) DO UPDATE 
+          ON CONFLICT (catalog_version_id, name, municipality) DO UPDATE 
           SET status = 'active', postal_code = EXCLUDED.postal_code, municipality = EXCLUDED.municipality
           RETURNING id
         `,
