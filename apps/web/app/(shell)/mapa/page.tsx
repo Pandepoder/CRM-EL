@@ -212,6 +212,11 @@ export default function MapaPage() {
   // ("none" | "search" | "section" | "incidents" | "layers")
   // =========================================================================
   const [activeDrawer, setActiveDrawer] = useState<"none" | "search" | "section" | "incidents" | "layers">("none");
+  // En un teléfono la barra completa se apilaba en seis filas y ocupaba el 60%
+  // de la pantalla, dejando el mapa en una franja. Se pliega por defecto en
+  // pantallas estrechas y se despliega a voluntad.
+  const [barraAbierta, setBarraAbierta] = useState(true);
+  const [esPantallaEstrecha, setEsPantallaEstrecha] = useState(false);
 
   // Selected Section for floating detail card / drawer
   const [selectedSection, setSelectedSection] = useState<SectionProperties | null>(null);
@@ -889,10 +894,17 @@ export default function MapaPage() {
           { sticky: true, className: "section-map-tooltip" }
         );
 
-        // Show centroid labels if density >= 1 and toggle is enabled
-        if (infoDensity >= 1 && showSectionLabels && labelsLayer) {
-          const bounds = layerItem.getBounds();
-          const center = bounds.getCenter();
+        // Etiquetas de sección. Se dibujaban a cualquier zoom, así que alejado
+        // se amontonaban por decenas y tapaban el mapa y los marcadores. Solo
+        // aparecen cuando hay zoom suficiente para que quepan legibles, y
+        // únicamente en las secciones visibles en pantalla.
+        // Ojo: esto vive dentro de onEachFeature, así que no puede cortarse con
+        // return sin saltarse también los manejadores de clic de más abajo.
+        const cabenEtiquetas = mapRef.getZoom() >= 13;
+        const boundsSeccion = layerItem.getBounds();
+        const visibleEnPantalla = mapRef.getBounds().intersects(boundsSeccion);
+        if (infoDensity >= 1 && showSectionLabels && labelsLayer && cabenEtiquetas && visibleEnPantalla) {
+          const center = boundsSeccion.getCenter();
           const labelIcon = L.divIcon({
             html: `<div style="background:rgba(15,23,42,0.85); color:#ffffff; font-size:10px; font-weight:800; padding:1.5px 5px; border-radius:5px; border:1px solid rgba(255,255,255,0.4); text-align:center; white-space:nowrap; pointer-events:none; box-shadow:0 2px 5px rgba(0,0,0,0.3); backdrop-filter:blur(4px);">${p.section_num}</div>`,
             className: "section-centroid-label",
@@ -1381,6 +1393,17 @@ export default function MapaPage() {
     showToast("CSV exportado");
   };
 
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const aplicar = () => {
+      setEsPantallaEstrecha(mq.matches);
+      setBarraAbierta(!mq.matches);
+    };
+    aplicar();
+    mq.addEventListener("change", aplicar);
+    return () => mq.removeEventListener("change", aplicar);
+  }, []);
+
   return (
     <div style={{ position: "relative", width: "100%", height: "calc(100vh - 64px)", minHeight: "600px", display: "flex", flexDirection: "column", background: "#0f172a", overflow: "hidden", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
       
@@ -1426,7 +1449,7 @@ export default function MapaPage() {
         </div>
 
         {/* Center: Municipality Selector & Information Density Slider */}
-        {activeTab === "map" && (
+        {activeTab === "map" && barraAbierta && (
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
             {/* Direct Statewide Municipality Selector */}
             <div style={{ display: "flex", alignItems: "center", gap: "5px", background: "#f8fafc", padding: "4px 8px", borderRadius: "10px", border: "1px solid #cbd5e1" }}>
@@ -1498,7 +1521,20 @@ export default function MapaPage() {
 
         {/* Right: Drawer Triggers and Actions */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-          {activeTab === "map" && (
+          {/* Plegado de la barra. En móvil es la diferencia entre ver el mapa o
+              ver el panel de control. */}
+          {activeTab === "map" && esPantallaEstrecha && (
+            <button
+              onClick={() => setBarraAbierta((v) => !v)}
+              title={barraAbierta ? "Ocultar controles y ver el mapa completo" : "Mostrar controles del mapa"}
+              style={{ display: "flex", alignItems: "center", gap: "5px", padding: "8px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", background: barraAbierta ? "#eff6ff" : "#ffffff", color: barraAbierta ? "#1d4ed8" : "#334155", fontSize: "11px", fontWeight: "800", cursor: "pointer" }}
+            >
+              {barraAbierta ? <Minimize2 size={14} /> : <SlidersHorizontal size={14} />}
+              <span>{barraAbierta ? "Ver mapa" : "Controles"}</span>
+            </button>
+          )}
+
+          {activeTab === "map" && barraAbierta && (
             <>
               {/* Quick Tile Style Switcher */}
               <div style={{ display: "flex", alignItems: "center", background: "#f1f5f9", padding: "2px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
