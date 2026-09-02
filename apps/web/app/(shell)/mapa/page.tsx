@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import "leaflet/dist/leaflet.css";
 import Link from "next/link";
 import { 
@@ -216,6 +216,10 @@ export default function MapaPage() {
   // de la pantalla, dejando el mapa en una franja. Se pliega por defecto en
   // pantallas estrechas y se despliega a voluntad.
   const [barraAbierta, setBarraAbierta] = useState(true);
+  // Total de contactos ubicables en el alcance del usuario. Se guarda aparte
+  // porque el mapa solo carga los del recuadro visible: contar los dibujados
+  // convertiría el rótulo en "los que caben en pantalla".
+  const [totalContactos, setTotalContactos] = useState(0);
   const [esPantallaEstrecha, setEsPantallaEstrecha] = useState(false);
 
   // Selected Section for floating detail card / drawer
@@ -230,6 +234,11 @@ export default function MapaPage() {
   const [showSectionLabels, setShowSectionLabels] = useState(true);
   const [enableClustering, setEnableClustering] = useState(true);
   const [mapZoom, setMapZoom] = useState<number>(12);
+  // El dibujado de contactos solo depende del zoom por tramos: agrupa o no según
+  // supere 14, y el tamaño de rejilla cambia en 11 y 13. Depender del zoom exacto
+  // hacía que cada paso destruyera y reconstruyera los 259 marcadores; con el
+  // tramo, solo se rehacen cuando de verdad cambia la forma de agrupar.
+  const nivelAgrupacion = mapZoom > 14 ? 0 : mapZoom <= 11 ? 1 : mapZoom <= 13 ? 2 : 3;
 
   // Filters & Search for Map (Tonalá por defecto, carga por municipio ultra liviana)
   const [searchQuery, setSearchQuery] = useState("");
@@ -528,6 +537,18 @@ export default function MapaPage() {
         setMapZoom(map.getZoom());
       });
 
+      // Recarga de contactos al terminar de mover o hacer zoom, con retardo para
+      // no lanzar una petición por cada fotograma de la animación.
+      let recargaPendiente: ReturnType<typeof setTimeout> | null = null;
+      const recargarPorVista = () => {
+        if (recargaPendiente) clearTimeout(recargaPendiente);
+        recargaPendiente = setTimeout(() => {
+          void fetchContactsRef.current?.(map);
+        }, 400);
+      };
+      map.on("moveend", recargarPorVista);
+      map.on("zoomend", recargarPorVista);
+
       setTimeout(() => map.invalidateSize(), 150);
       setTimeout(() => map.invalidateSize(), 400);
 
@@ -581,12 +602,34 @@ export default function MapaPage() {
   }, []);
 
   // 2b. Fetch Contacts (with PAN Militancy & Network Colors)
-  const fetchContacts = useCallback(async () => {
+  // El mapa se inicializa una sola vez, así que sus manejadores no pueden
+  // capturar `fetchContacts` directamente: se llega a la versión vigente por
+  // referencia.
+  const fetchContactsRef = useRef<((mapa?: any) => Promise<void>) | null>(null);
+
+  const fetchContacts = useCallback(async (mapa?: any) => {
     try {
-      const res = await fetch("/api/map/contacts", { cache: "no-store" });
+      // Se pide solo el recuadro visible. Sin mapa todavía —primera carga— se
+      // piden todos, como antes.
+      let url = "/api/map/contacts";
+      if (mapa) {
+        const b = mapa.getBounds();
+        const ancho = b.getEast() - b.getWest();
+        const alto = b.getNorth() - b.getSouth();
+        // Si el contenedor todavía no tiene tamaño, el recuadro sale degenerado
+        // y dejaría fuera a todos los contactos: mejor pedirlos sin recorte que
+        // mostrar un mapa vacío.
+        if (ancho > 0.0001 && alto > 0.0001) {
+          url += `?bbox=${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`;
+        }
+      }
+      const res = await fetch(url, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setAllContacts(data.features || []);
+        if (typeof data.cobertura?.ubicables === "number") {
+          setTotalContactos(data.cobertura.ubicables);
+        }
       }
     } catch (error) {
       console.error("Failed to load map contacts:", error);
@@ -1207,7 +1250,9 @@ export default function MapaPage() {
 
           L.marker([avgLat, avgLng], { icon: clusterIcon, pane: "contactsPane" })
             .on("click", () => {
-              mapRef.flyTo([avgLat, avgLng], Math.min(zoom + 2, 16), { duration: 0.8 });
+              // Zoom vivo, no el capturado al construir: el efecto ya no se
+              // rehace en cada paso, así que el de la clausura quedaría atrás.
+              mapRef.flyTo([avgLat, avgLng], Math.min(mapRef.getZoom() + 2, 16), { duration: 0.8 });
             })
             .addTo(contactsLayer);
         }
@@ -1262,7 +1307,7 @@ export default function MapaPage() {
         .bindPopup(popupHtml)
         .addTo(contactsLayer);
     }
-  }, [L, contactsLayer, mapRef, allContacts, showContacts, enableClustering, mapZoom]);
+  }, [L, contactsLayer, mapRef, allContacts, showContacts, enableClustering, nivelAgrupacion]);
 
   // Filtered sections for search
   const filteredSectionsList = useMemo(() => {
@@ -1392,6 +1437,10 @@ export default function MapaPage() {
     document.body.removeChild(link);
     showToast("CSV exportado");
   };
+
+  useEffect(() => {
+    fetchContactsRef.current = fetchContacts;
+  }, [fetchContacts]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
@@ -1582,7 +1631,7 @@ export default function MapaPage() {
                 title="Mostrar/Ocultar simpatizantes y militancia PAN en el mapa"
               >
                 <Users size={14} style={{ color: showContacts ? "#2563eb" : "#64748b" }} />
-                <span>Contactos ({allContacts.length})</span>
+                <span>Contactos ({totalContactos || allContacts.length})</span>
               </button>
 
               {/* GPS Button */}

@@ -51,8 +51,20 @@ function sectionCentroid(geom: unknown): [number, number] | null {
   return n > 0 ? [sx / n, sy / n] : null;
 }
 
-export async function GET(_request: Request) {
+export async function GET(request: Request) {
   try {
+    // Recuadro visible opcional: "minLng,minLat,maxLng,maxLat". Sin él la ruta
+    // se comporta igual que siempre y devuelve todo el alcance, así que ningún
+    // consumidor existente cambia de comportamiento.
+    const bboxParam = new URL(request.url).searchParams.get("bbox");
+    let bbox: [number, number, number, number] | null = null;
+    if (bboxParam) {
+      const p = bboxParam.split(",").map(Number);
+      if (p.length === 4 && p.every(Number.isFinite)) {
+        bbox = [p[0]!, p[1]!, p[2]!, p[3]!];
+      }
+    }
+
     const session = await getServerSession();
     if (!session || !session.userId) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -65,7 +77,6 @@ export async function GET(_request: Request) {
       .select({
         id: schema.contacts.id,
         displayName: schema.contacts.displayName,
-        phone: schema.contacts.phone,
         colony: schema.contacts.colony,
         municipality: schema.contacts.municipality,
         panMilitancy: schema.contacts.panMilitancy,
@@ -102,6 +113,7 @@ export async function GET(_request: Request) {
     // al centroide de su sección electoral —una aproximación con significado
     // real— marcada como tal, y si tampoco hay sección el contacto no se dibuja.
     let omitidosSinUbicacion = 0;
+    let fueraDelRecuadro = 0;
 
     contacts.forEach((c) => {
       let lat = c.exactLatitude;
@@ -118,6 +130,14 @@ export async function GET(_request: Request) {
         precision = "seccion";
       }
 
+      // Fuera del recuadro visible no se envía: el contacto sigue contando en
+      // `cobertura`, para que la interfaz muestre el total real y no solo lo
+      // que cabe en pantalla.
+      if (bbox && (lng < bbox[0] || lng > bbox[2] || lat < bbox[1] || lat > bbox[3])) {
+        fueraDelRecuadro += 1;
+        return;
+      }
+
       const colorIndex = Math.abs(c.createdByUserId.charCodeAt(0)) % NETWORK_COLORS.length;
       const networkColor = NETWORK_COLORS[colorIndex];
 
@@ -126,7 +146,9 @@ export async function GET(_request: Request) {
         properties: {
           id: c.id,
           displayName: c.displayName,
-          phone: decryptData(c.phone),
+          // El teléfono se retiró del GeoJSON: el mapa no lo usa en ninguna parte
+          // y se enviaba descifrado para todos los contactos del alcance. Si algún
+          // día hace falta en el detalle, se pide al abrir la ficha.
           colony: decryptData(c.colony) || "Tonalá",
           municipality: c.municipality || "Tonalá",
           panMilitancy: c.panMilitancy || "no_registrada",
@@ -159,7 +181,11 @@ export async function GET(_request: Request) {
         dibujados: features.length,
         exactos: features.filter((f) => f.properties.precision === "exacta").length,
         porSeccion: features.filter((f) => f.properties.precision === "seccion").length,
-        sinUbicacion: omitidosSinUbicacion
+        sinUbicacion: omitidosSinUbicacion,
+        fueraDeVista: fueraDelRecuadro,
+        // Ubicables en todo el alcance, dentro y fuera de la vista. Es el número
+        // que debe mostrar el contador, no el de lo dibujado.
+        ubicables: features.length + fueraDelRecuadro
       }
     });
   } catch (error: any) {
