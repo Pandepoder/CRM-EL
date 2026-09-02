@@ -1,9 +1,23 @@
 import { NextResponse } from "next/server";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
 import { getDatabaseClient } from "@/lib/db-client";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
+
+/**
+ * Caché en proceso del GeoJSON por municipio.
+ *
+ * `revalidate` no sirve aquí: la ruta lee la sesión mediante cookies, lo que la
+ * vuelve dinámica y desactiva el caché de respuesta de Next. Y el resultado es
+ * el mismo para todos los usuarios, así que se cachea el dato, no la respuesta.
+ *
+ * Son agregados —contactos, visitas, incidencias y representantes por sección—
+ * que cambian por horas, no por segundos; recalcularlos en cada apertura del
+ * mapa era el mayor coste de la vista.
+ */
+declare global {
+  var __tonalaGeojsonSecciones: Map<string, { en: number; payload: unknown }> | undefined;
+}
+const GEOJSON_TTL_MS = 60_000;
 
 
 /**
@@ -19,6 +33,12 @@ export async function GET(req: Request) {
   const targetMunicipality = url.searchParams.get("municipality") || "Tonalá";
 
   const db = getDatabaseClient();
+  const claveCache = targetMunicipality.toLowerCase();
+  const cache = (globalThis.__tonalaGeojsonSecciones ??= new Map());
+  const guardado = cache.get(claveCache);
+  if (guardado && Date.now() - guardado.en < GEOJSON_TTL_MS) {
+    return NextResponse.json(guardado.payload);
+  }
 
   try {
     const isFilterAll = !targetMunicipality || targetMunicipality.toLowerCase() === "all";
@@ -98,10 +118,9 @@ export async function GET(req: Request) {
       })
       .filter((f): f is NonNullable<typeof f> => Boolean(f));
 
-    return NextResponse.json({
-      type: "FeatureCollection",
-      features,
-    });
+    const payload = { type: "FeatureCollection", features };
+    cache.set(claveCache, { en: Date.now(), payload });
+    return NextResponse.json(payload);
   } catch (error) {
     console.error("Failed to load sections GeoJSON:", error);
     return NextResponse.json({ type: "FeatureCollection", features: [] });

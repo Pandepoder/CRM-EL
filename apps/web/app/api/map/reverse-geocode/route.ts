@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { getDatabaseClient } from "@/lib/db-client";
+import { getSeccionesEnPunto, getSeccionesGeo, type SeccionGeo } from "@/lib/sections-geo-cache";
+import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { point } from "@turf/helpers";
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import { sql } from "drizzle-orm";
@@ -64,6 +66,10 @@ function resolveMunicipalityByCoords(lat: number, lng: number): string {
  * Accurately detects street address, colony, municipality, and electoral section for any coordinate in Jalisco AMG.
  */
 export async function GET(request: Request) {
+  // Antes era pública: cada llamada cargaba las 3789 secciones con geometría, así
+  // que cualquiera sin credenciales podía encadenar peticiones y saturar la base.
+  const actor = await actorFromSession();
+  if (!actor) return unauthorized();
 
   const { searchParams } = new URL(request.url);
   const latStr = searchParams.get("lat");
@@ -89,72 +95,55 @@ export async function GET(request: Request) {
   let sectionColonies: string[] = [];
 
   try {
-    const sectionsRes = await db.execute<{
-      id: string;
-      section_num: number;
-      geom_json: any;
-      colonies: string[];
-      municipality: string;
-    }>(sql`
-      SELECT 
-        es.id::text,
-        es.section_num,
-        es.geom_json,
-        COALESCE(es.municipality, 'Tonalá') AS municipality,
-        COALESCE(ARRAY_AGG(DISTINCT col.name) FILTER (WHERE col.name IS NOT NULL), '{}') AS colonies
-      FROM electoral_sections es
-      LEFT JOIN section_colonies sc ON sc.section_id = es.id
-      LEFT JOIN colonies col ON col.id = sc.colony_id
-      WHERE es.geom_json IS NOT NULL
-      GROUP BY es.id, es.section_num, es.municipality, es.geom_json
-    `);
-
+    // Las secciones salen del caché compartido en vez de releerse de la base en
+    // cada petición, y el rectángulo envolvente descarta de golpe casi todas:
+    // solo se evalúa punto-en-polígono contra las que podrían contenerlo.
+    const candidatas = await getSeccionesEnPunto(lat, lng);
     const pt = point([lng, lat]);
-    let closestSection: any = null;
-    let minDistance = Infinity;
+    let seccionElegida: SeccionGeo | null = null;
 
-    for (const row of sectionsRes.rows) {
-      if (!row.geom_json) continue;
+    for (const sec of candidatas) {
       try {
-        const rawGeom = typeof row.geom_json === "string" ? JSON.parse(row.geom_json) : row.geom_json;
-        const polyFeature = rawGeom.type === "Feature" ? rawGeom : { type: "Feature" as const, geometry: rawGeom, properties: {} };
-        
-        // Exact Point-in-Polygon Match
-        if (booleanPointInPolygon(pt, polyFeature)) {
-          sectionId = row.id;
-          sectionNum = row.section_num;
-          sectionMunicipality = row.municipality || "Tonalá";
-          sectionColonies = row.colonies || [];
+        const raw: any = typeof sec.geomJson === "string" ? JSON.parse(sec.geomJson) : sec.geomJson;
+        const feature = raw.type === "Feature" ? raw : { type: "Feature" as const, geometry: raw, properties: {} };
+        if (booleanPointInPolygon(pt, feature)) {
+          seccionElegida = sec;
           break;
         }
-
-        // Centroid calculation for fallback if point is on edge or slightly beyond Voronoi box
-        const coords = rawGeom.type === "Polygon" ? rawGeom.coordinates[0] : rawGeom.geometry?.coordinates?.[0];
-        if (coords && coords.length > 0) {
-          let sumLng = 0, sumLat = 0;
-          for (const c of coords) {
-            sumLng += c[0];
-            sumLat += c[1];
-          }
-          const cLng = sumLng / coords.length;
-          const cLat = sumLat / coords.length;
-          const dist = Math.hypot(lng - cLng, lat - cLat);
-          if (dist < minDistance) {
-            minDistance = dist;
-            closestSection = row;
-          }
-        }
       } catch {
-        // Skip malformed geometry
+        // Geometría malformada: se ignora esa sección
       }
     }
 
-    // Centroid fallback if no polygon directly enclosed the point
-    if (!sectionId && closestSection) {
-      sectionId = closestSection.id;
-      sectionNum = closestSection.section_num;
-      sectionMunicipality = closestSection.municipality || "Tonalá";
-      sectionColonies = closestSection.colonies || [];
+    // Si ningún polígono lo contiene, se cae al centroide más cercano. También
+    // desde el caché, sin volver a la base.
+    if (!seccionElegida) {
+      let minDistancia = Infinity;
+      for (const sec of await getSeccionesGeo()) {
+        const cLng = (sec.bounds[0] + sec.bounds[2]) / 2;
+        const cLat = (sec.bounds[1] + sec.bounds[3]) / 2;
+        const d = Math.hypot(lng - cLng, lat - cLat);
+        if (d < minDistancia) {
+          minDistancia = d;
+          seccionElegida = sec;
+        }
+      }
+    }
+
+    if (seccionElegida) {
+      sectionId = seccionElegida.id;
+      sectionNum = seccionElegida.sectionNum;
+      sectionMunicipality = seccionElegida.municipality || "Tonalá";
+
+      // Las colonias solo hacen falta para la sección que ganó, así que se piden
+      // sueltas en lugar de unir el catálogo entero con todas las secciones.
+      const colRes = await db.execute<{ name: string }>(sql`
+        SELECT col.name
+        FROM section_colonies sc
+        JOIN colonies col ON col.id = sc.colony_id
+        WHERE sc.section_id = ${seccionElegida.id}::uuid
+      `);
+      sectionColonies = colRes.rows.map((r) => r.name).filter(Boolean);
     }
   } catch (err) {
     console.error("Section lookup error:", err);

@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import { getDatabaseClient } from "@/lib/db-client";
-import { schema } from "@tonala/shared/database";
+import { getSeccionesGeo } from "@/lib/sections-geo-cache";
+import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { point } from "@turf/helpers";
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 
@@ -22,6 +22,9 @@ const KNOWN_PLACES: Record<string, { lat: number; lng: number; address: string; 
 };
 
 export async function GET(request: Request) {
+  // Misma razón que en reverse-geocode: dejó de ser pública.
+  const actor = await actorFromSession();
+  if (!actor) return unauthorized();
 
   const { searchParams } = new URL(request.url);
   const query = (searchParams.get("q") || "").trim();
@@ -31,14 +34,10 @@ export async function GET(request: Request) {
   }
 
   const qLower = query.toLowerCase();
-  const db = getDatabaseClient();
 
-  // Load electoral sections for spatial detection
-  const sections = await db.select({
-    id: schema.electoralSections.id,
-    sectionNum: schema.electoralSections.sectionNum,
-    geomJson: schema.electoralSections.geomJson
-  }).from(schema.electoralSections);
+  // Desde el caché compartido en lugar de releer todas las secciones con su
+  // geometría en cada búsqueda.
+  const sections = await getSeccionesGeo();
 
   const results: any[] = [];
 
@@ -87,17 +86,19 @@ export async function GET(request: Request) {
             // Find electoral section
             let matchedSection: any = null;
             const pt = point([lng, lat]);
+            // El rectángulo envolvente descarta casi todas antes del cálculo caro.
+            // Sin este filtro se evaluaba punto-en-polígono contra las 3789
+            // secciones por cada resultado de Nominatim.
             for (const s of sections) {
-              if (s.geomJson) {
-                try {
-                  const geom = typeof s.geomJson === "string" ? JSON.parse(s.geomJson) : s.geomJson;
-                  if (booleanPointInPolygon(pt, geom)) {
-                    matchedSection = s;
-                    break;
-                  }
-                } catch {
-                  // ignore
+              if (lng < s.bounds[0] || lng > s.bounds[2] || lat < s.bounds[1] || lat > s.bounds[3]) continue;
+              try {
+                const geom = typeof s.geomJson === "string" ? JSON.parse(s.geomJson) : s.geomJson;
+                if (booleanPointInPolygon(pt, geom)) {
+                  matchedSection = s;
+                  break;
                 }
+              } catch {
+                // Geometría malformada: se ignora
               }
             }
 

@@ -26,8 +26,6 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/auth") || 
     pathname.startsWith("/api/public") || 
     pathname.startsWith("/api/catalog") ||
-    pathname.startsWith("/api/map/geocode") ||
-    pathname.startsWith("/api/map/reverse-geocode") ||
     pathname.startsWith("/api/map/sections") ||
     pathname.startsWith("/api/electoral/sections") ||
     pathname.startsWith("/api/crm/colonies") ||

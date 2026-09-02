@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { getDatabaseClient } from "@/lib/db-client";
+import { getSeccionesGeo } from "@/lib/sections-geo-cache";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
 // @ts-ignore
@@ -188,10 +189,14 @@ export async function GET(req: Request) {
         // Pre-fetch sections for Point-In-Polygon matching
         let cachedSections: any[] = [];
         try {
-          const sRes = await db.execute<{ id: string; section_num: number; geom_json: any }>(sql`
-            SELECT id::text, section_num, geom_json FROM electoral_sections WHERE geom_json IS NOT NULL
-          `);
-          cachedSections = sRes.rows;
+          // Desde el caché compartido. Antes releía las 3789 secciones con su
+          // geometría en cada pulsación de tecla del autocompletado.
+          cachedSections = (await getSeccionesGeo()).map((sec) => ({
+            id: sec.id,
+            section_num: sec.sectionNum,
+            geom_json: sec.geomJson,
+            bounds: sec.bounds
+          }));
         } catch (_dbErr) {
           // Ignore cache error
         }
