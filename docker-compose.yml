@@ -94,6 +94,40 @@ services:
       - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-Tonala OS}
       - NEXT_PUBLIC_APP_ENV=production
       - PORT=3000
+    # /api/upload escribe en `process.cwd()/public/uploads` y cwd es /app.
+    # Sin este volumen las fotos y videos de incidencias viven solo dentro del
+    # contenedor y desaparecen en cada `docker compose up --build`.
+    volumes:
+      - tonala_os_uploads:/app/public/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # Respaldo periódico de la base. Escribe un dump comprimido por ciclo y poda
+  # los más viejos que BACKUP_RETENTION_DAYS.
+  # PENDIENTE: estas copias quedan EN EL MISMO VPS. Para que sirvan ante pérdida
+  # del disco hay que replicarlas fuera (S3, rclone, scp a otra máquina).
+  backup:
+    image: postgres:16-alpine
+    container_name: tonala-os-backup
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - PGPASSWORD=${POSTGRES_PASSWORD:-tonala_dev_password}
+      - POSTGRES_USER=${POSTGRES_USER:-tonala}
+      - POSTGRES_DB=${POSTGRES_DB:-tonala_os}
+      - BACKUP_INTERVAL_SECONDS=${BACKUP_INTERVAL_SECONDS:-86400}
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - tonala_os_backups:/backups
+      - ./scripts/ops/backup.sh:/usr/local/bin/backup.sh:ro
+      - ./scripts/ops/restore.sh:/usr/local/bin/restore.sh:ro
+    entrypoint: ["sh", "/usr/local/bin/backup.sh"]
     restart: unless-stopped
 
   caddy:
@@ -114,5 +148,7 @@ services:
 
 volumes:
   tonala_os_postgres_data:
+  tonala_os_uploads:
+  tonala_os_backups:
   caddy_data:
   caddy_config:
