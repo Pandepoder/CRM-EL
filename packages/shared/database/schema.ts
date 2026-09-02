@@ -472,6 +472,10 @@ export const eventReports = pgTable(
     district: text("district"),
     sectionId: uuid("section_id").references(() => electoralSections.id),
     assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
+    // Una incidencia puede recaer en un equipo, en una persona, o en ambos: el
+    // equipo responde por ella y la persona es quien la atiende. Separarlos evita
+    // que la incidencia quede huérfana cuando el responsable individual causa baja.
+    assignedTeamId: uuid("assigned_team_id").references(() => teams.id),
     eventDate: timestamp("event_date", { withTimezone: true }),
     status: text("status").notNull().default("active"),
     mediaUrls: jsonb("media_urls"),
@@ -480,7 +484,11 @@ export const eventReports = pgTable(
   },
   (table) => [
     check("event_reports_category_check", sql`${table.category} IN ('emergencia', 'incidencia', 'mitin', 'propaganda', 'servicios', 'sospechoso', 'brigada', 'bache', 'alumbrado', 'fuga_agua', 'inundacion', 'basura', 'seguridad', 'lona_danada')`),
+    // `status` era texto libre mientras `category` sí estaba restringida, así que
+    // cualquier ruta podía escribir un estado inventado y romper los filtros.
+    check("event_reports_status_check", sql`${table.status} IN ('active', 'resolved', 'archived')`),
     index("event_reports_assigned_user_idx").on(table.assignedToUserId),
+    index("event_reports_assigned_team_idx").on(table.assignedTeamId),
     index("event_reports_status_idx").on(table.status),
     index("event_reports_category_idx").on(table.category),
     index("event_reports_event_date_idx").on(table.eventDate)

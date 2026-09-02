@@ -29,6 +29,7 @@ export async function GET(_request: Request) {
         district: eventReports.district,
         sectionId: eventReports.sectionId,
         assignedToUserId: eventReports.assignedToUserId,
+        assignedTeamId: eventReports.assignedTeamId,
         eventDate: eventReports.eventDate,
         createdAt: eventReports.createdAt,
         longitude: eventReports.longitude,
@@ -55,6 +56,7 @@ export async function GET(_request: Request) {
           sectionId: report.sectionId,
           sectionNum: report.sectionNum,
           assignedToUserId: report.assignedToUserId,
+          assignedTeamId: report.assignedTeamId,
           eventDate: report.eventDate,
           mediaUrls: Array.isArray(report.mediaUrls) ? report.mediaUrls : [],
           createdAt: report.createdAt
@@ -79,7 +81,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { title, description, latitude, longitude, category, municipality, district, eventDate, sectionId, assignedToUserId, mediaUrls } = body;
+    const { title, description, latitude, longitude, category, municipality, district, eventDate, sectionId, assignedToUserId, assignedTeamId, mediaUrls } = body;
 
     if (!title || !description || latitude === undefined || longitude === undefined || !category) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -170,7 +172,7 @@ export async function POST(request: Request) {
       else finalMunicipality = "Tonalá";
     }
 
-    await withOutbox("event_report", id, "EventReportCreated.v1", { id, title, description, latitude, longitude, category, municipality: finalMunicipality, district, eventDate: parsedEventDate, sectionId: finalSectionId, assignedToUserId, mediaUrls: safeMediaUrls }, actor.actorId, async (tx) => {
+    await withOutbox("event_report", id, "EventReportCreated.v1", { id, title, description, latitude, longitude, category, municipality: finalMunicipality, district, eventDate: parsedEventDate, sectionId: finalSectionId, assignedToUserId, assignedTeamId, mediaUrls: safeMediaUrls }, actor.actorId, async (tx) => {
       const [inserted] = await tx
         .insert(eventReports)
         .values({
@@ -184,6 +186,7 @@ export async function POST(request: Request) {
           district,
           sectionId: finalSectionId,
           assignedToUserId,
+          assignedTeamId: assignedTeamId || null,
           eventDate: parsedEventDate,
           mediaUrls: safeMediaUrls,
           createdByUserId: actor.actorId,

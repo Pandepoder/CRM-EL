@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 // @ts-ignore
-import { AlertTriangle, CheckCircle, ChevronRight, FileText, X, Landmark, Check, Loader2, Sparkles, Building2, Tag, Hash, UserCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle, ChevronRight, FileText, X, Landmark, Check, Loader2, Sparkles, Building2, Tag, Hash, UserCheck, Users } from "lucide-react";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import type { LocationValue } from "@/components/LocationPicker";
 import { LocationPicker } from "@/components/LocationPicker";
 
-export default function ReportesClient({ sections, users }: { sections: any[], users: any[] }) {
+export default function ReportesClient({ sections, users, teams = [] }: { sections: any[], users: any[], teams?: any[] }) {
   const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sectionsList, setSectionsList] = useState<any[]>(sections || []);
@@ -26,6 +26,7 @@ export default function ReportesClient({ sections, users }: { sections: any[], u
     district: "",
     sectionId: "",
     assignedToUserId: "",
+    assignedTeamId: "",
     eventDate: ""
   });
 
@@ -108,6 +109,7 @@ export default function ReportesClient({ sections, users }: { sections: any[], u
           district: form.district,
           sectionId: form.sectionId || undefined,
           assignedToUserId: form.assignedToUserId || undefined,
+          assignedTeamId: form.assignedTeamId || undefined,
           eventDate: form.eventDate || undefined
         })
       });
@@ -125,6 +127,7 @@ export default function ReportesClient({ sections, users }: { sections: any[], u
           district: "",
           sectionId: "",
           assignedToUserId: "",
+          assignedTeamId: "",
           eventDate: ""
         });
         setTimeout(() => setSuccess(false), 4000);
@@ -170,6 +173,14 @@ export default function ReportesClient({ sections, users }: { sections: any[], u
     value: u.id,
     label: u.displayName,
     badge: "Operador"
+  }));
+
+  const teamOptions = teams.map((t) => ({
+    value: t.id,
+    label: t.name,
+    sublabel: t.zone || undefined,
+    // Un equipo sin integrantes se marca aquí para que no se asigne a ciegas.
+    badge: t.memberCount > 0 ? `${t.memberCount} integrantes` : "Sin integrantes"
   }));
 
   return (
@@ -273,6 +284,19 @@ export default function ReportesClient({ sections, users }: { sections: any[], u
                   value={form.sectionId}
                   onChange={(val) => setForm({ ...form, sectionId: val })}
                   options={sectionOptions}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <PredictiveCombobox
+                  label="Asignar a Equipo"
+                  allowCustom={false}
+                  placeholder="Buscar brigada o equipo..."
+                  value={form.assignedTeamId}
+                  onChange={(val) => setForm({ ...form, assignedTeamId: val })}
+                  options={teamOptions}
+                  icon={<Users size={13} className="text-red-500" />}
+                  helperText="Opcional: el equipo responde por la incidencia aunque cambie quien la atiende"
                 />
               </div>
 

@@ -17,7 +17,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   
   try {
     const body = await request.json();
-    const { status, title, description, category, municipality, district, sectionId, assignedToUserId, eventDate } = body;
+    const { status, title, description, category, municipality, district, sectionId, assignedToUserId, assignedTeamId, eventDate } = body;
 
     const updatePayload: Record<string, any> = {};
 
@@ -35,6 +35,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (district !== undefined) updatePayload.district = district;
     if (sectionId !== undefined) updatePayload.sectionId = sectionId || null;
     if (assignedToUserId !== undefined) updatePayload.assignedToUserId = assignedToUserId || null;
+    if (assignedTeamId !== undefined) updatePayload.assignedTeamId = assignedTeamId || null;
     if (eventDate !== undefined) updatePayload.eventDate = eventDate ? new Date(eventDate) : null;
 
     if (Object.keys(updatePayload).length === 0) {

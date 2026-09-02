@@ -64,6 +64,13 @@
       "when": 1788292646162,
       "tag": "0008_add_missing_foreign_key_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788313848528,
+      "tag": "0009_add_incident_team_assignment",
+      "breakpoints": true
     }
   ]
 }
