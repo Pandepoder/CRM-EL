@@ -363,7 +363,7 @@ export function ColonySelector({
         <div className="relative">
           <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 flex items-center justify-between">
             <span className="flex items-center gap-1">
-              <Hash size={13} className="text-gray-500" /> Sección Electoral *
+              <Hash size={13} className="text-gray-500" /> Sección Electoral
             </span>
             {sectionNum && (
               <span className="text-[10px] text-blue-600 font-bold">#{sectionNum}</span>
@@ -383,7 +383,6 @@ export function ColonySelector({
                 setSelectedSectionId("");
                 setShowSectionDropdown(true);
               }}
-              required
               className="w-full p-2.5 bg-white border border-gray-200 rounded-xl font-bold text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm"
               autoComplete="off"
             />
