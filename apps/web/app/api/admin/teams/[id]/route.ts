@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 async function assertCanManageTeam(session: { isLoggedIn: boolean; userId: string }, teamId: string) {
@@ -71,11 +71,29 @@ export async function DELETE(
   try {
     const db = getDatabaseClient();
 
-    // First delete members of this team
-    await db.delete(schema.teamMembers).where(eq(schema.teamMembers.teamId, id));
+    // Las incidencias apuntan al equipo por clave foránea, así que borrarlo con
+    // trabajo asignado fallaría en la base con un 500 opaco. Se comprueba antes
+    // para decir qué pasa y cuántas incidencias hay que reasignar primero.
+    const filas = await db
+      .select({ pendientes: count() })
+      .from(schema.eventReports)
+      .where(eq(schema.eventReports.assignedTeamId, id));
+    const pendientes = filas[0]?.pendientes ?? 0;
 
-    // Then delete the team itself
-    await db.delete(schema.teams).where(eq(schema.teams.id, id));
+    if (pendientes > 0) {
+      return NextResponse.json(
+        {
+          error: `Este equipo tiene ${pendientes} incidencia${pendientes === 1 ? "" : "s"} asignada${pendientes === 1 ? "" : "s"}. Reasígnalas a otro equipo antes de eliminarlo.`,
+          assignedIncidents: pendientes
+        },
+        { status: 409 }
+      );
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.delete(schema.teamMembers).where(eq(schema.teamMembers.teamId, id));
+      await tx.delete(schema.teams).where(eq(schema.teams.id, id));
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

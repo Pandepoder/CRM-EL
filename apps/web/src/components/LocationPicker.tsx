@@ -66,11 +66,13 @@ export function LocationPicker({
         zoomControl: true
       });
 
-      // Standard OSM / CartoDB tiles with reliable fallbacks
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-        maxZoom: 19,
-        subdomains: "abcd"
+      // Mismos tiles que el mapa principal. Antes se usaban los de CARTO
+      // (basemaps.cartocdn.com), que pasaron a exigir clave y devolvían las
+      // baldosas con "API KEY REQUIRED" estampado encima: quien registraba una
+      // incidencia elegía la ubicación sobre un mapa ilegible.
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+        maxZoom: 19
       }).addTo(map);
 
       // Custom pulsing pin icon
