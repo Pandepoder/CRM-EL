@@ -87,7 +87,7 @@ def deploy():
     cmd_post_migrate = """
     cd /opt/crm-el
     echo "Verificando estado de migraciones Drizzle en el nuevo contenedor..."
-    docker compose exec -T web node scripts/migrate-elapp.js || true
+    docker compose exec -T web node scripts/migrate-elapp.cjs || true
     """
     run_remote_command(client, cmd_post_migrate, "4. Verificación de Migraciones Post-Despliegue")
 
