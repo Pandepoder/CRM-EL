@@ -89,7 +89,15 @@ export function AppShell({
       {/* DESKTOP SIDEBAR */}
       <aside className="sidebar" aria-label="Navegación general" style={{ paddingBottom: "24px" }}>
         <div className="brand" style={{ padding: "24px 20px 16px" }}>
-          <div className="brand-mark" aria-hidden="true" style={{ borderRadius: "8px" }} />
+          <div className="brand-mark" style={{ borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <img
+              src="/brand/el-monograma-blanco.png"
+              alt="EL"
+              width={26}
+              height={26}
+              style={{ objectFit: "contain" }}
+            />
+          </div>
           <div>
             <h1 className="brand-title" style={{ fontSize: "20px", letterSpacing: "-0.5px" }}>Tonalá OS</h1>
             <p className="brand-subtitle" style={{ color: "var(--primary-light)", fontWeight: 500 }}>Gestor de Campaña</p>
@@ -218,7 +226,15 @@ export function AppShell({
           <div className="mobile-drawer" onClick={e => e.stopPropagation()}>
             <div className="mobile-drawer-header">
               <div className="brand" style={{ padding: "0", border: "none" }}>
-                <div className="brand-mark" aria-hidden="true" style={{ borderRadius: "8px", width: 36, height: 36 }} />
+                <div className="brand-mark" style={{ borderRadius: "8px", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <img
+                    src="/brand/el-monograma-blanco.png"
+                    alt="EL"
+                    width={21}
+                    height={21}
+                    style={{ objectFit: "contain" }}
+                  />
+                </div>
                 <div>
                   <h1 className="brand-title" style={{ fontSize: "16px" }}>Tonalá OS</h1>
                   <p className="brand-subtitle" style={{ margin: 0, fontSize: "10px" }}>Gestor de Campaña</p>

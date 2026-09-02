@@ -297,6 +297,13 @@ export default function LoginPage() {
             el texto se alinea a la derecha para no taparlo. En el panel vertical
             de escritorio hay aire de sobra abajo y vuelve a la izquierda. */}
         <div className="relative flex flex-col items-end gap-3 text-right lg:items-start lg:gap-6 lg:text-left">
+          <img
+            src="/brand/el-monograma-blanco.png"
+            alt="EL"
+            width={52}
+            height={52}
+            className="hidden h-11 w-11 object-contain lg:block"
+          />
           <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/70">
             Edgar López
           </p>
