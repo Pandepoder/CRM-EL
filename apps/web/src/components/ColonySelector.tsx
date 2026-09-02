@@ -165,8 +165,21 @@ export function ColonySelector({
 
             setGpsStatus(`✓ Ubicación detectada: ${detectedMuni}${detectedSecNum ? ` · Secc. #${detectedSecNum}` : ""}${detectedColony ? ` (${detectedColony})` : ""}`);
 
-            if (onSelect && detectedColony) {
-              onSelect(data.sectionId || "", detectedColony, detectedMuni, detectedSecNum ? parseInt(detectedSecNum, 10) : undefined);
+            // Las coordenadas del dispositivo se conservan y se propagan. Antes
+            // se usaban solo para deducir colonia y sección y se descartaban, así
+            // que el contacto se guardaba sin ubicación exacta: el mapa no podía
+            // llevar a nadie a un domicilio, solo al centroide de la sección.
+            setCoords({ lat: latitude, lng: longitude });
+
+            if (onSelect) {
+              onSelect(
+                data.sectionId || "",
+                detectedColony,
+                detectedMuni,
+                detectedSecNum ? parseInt(detectedSecNum, 10) : undefined,
+                { lat: latitude, lng: longitude },
+                data.formattedAddress || data.address || undefined
+              );
             }
           } else {
             setGpsStatus("✓ Coordenadas obtenidas");
