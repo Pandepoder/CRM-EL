@@ -493,6 +493,13 @@ export default function MapaPage() {
 
       setTileLayerRef(initialTiles);
 
+      // Incidencias y contactos vivían en el mismo pane (markerPane, z-index 600)
+      // y los contactos se añadían después, así que siempre dibujaban encima:
+      // con 289 contactos y 21 incidencias, las incidencias quedaban sepultadas.
+      // Panes separados fijan el orden por z-index en vez de por orden de alta.
+      map.createPane("contactsPane").style.zIndex = "580";
+      map.createPane("incidentsPane").style.zIndex = "640";
+
       const layer = leafletModule.layerGroup().addTo(map);
       const cLayer = leafletModule.layerGroup().addTo(map);
       const labels = leafletModule.layerGroup().addTo(map);
@@ -991,7 +998,7 @@ export default function MapaPage() {
             iconAnchor: [19, 19]
           });
 
-          L.marker([avgLat, avgLng], { icon: clusterIcon })
+          L.marker([avgLat, avgLng], { icon: clusterIcon, pane: "incidentsPane" })
             .on("click", () => {
               mapRef.flyTo([avgLat, avgLng], Math.min(zoom + 2, 16), { duration: 0.8 });
             })
@@ -1120,7 +1127,7 @@ export default function MapaPage() {
         </div>
       `;
 
-      L.marker([lat, lng], { icon })
+      L.marker([lat, lng], { icon, pane: "incidentsPane" })
         .bindPopup(popupHtml, { closeButton: true, maxWidth: 320, offset: [0, -5] })
         .addTo(markersLayer);
     }
@@ -1157,14 +1164,18 @@ export default function MapaPage() {
         if (count === 1) {
           renderSingleContact(c.contacts[0], avgLat, avgLng);
         } else {
+          // A este zoom casi todo lo que se ve son clusters, así que si el grupo
+          // entero son ubicaciones aproximadas hay que decirlo aquí: es donde la
+          // gente mira antes de decidir a dónde ir.
+          const todosAprox = c.contacts.every((x: any) => x.properties?.isApproximate);
           const clusterIcon = L.divIcon({
             html: `
-              <div style="position:relative; width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2.5px solid #ffffff; box-shadow:0 6px 20px rgba(37,99,235,0.45); cursor:pointer; font-family:system-ui,-apple-system,sans-serif; transition:all 0.15s ease;">
+              <div title="${count} contactos${todosAprox ? " — ubicación aproximada por sección, sin GPS" : ""}" style="position:relative; width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2.5px ${todosAprox ? "dashed" : "solid"} #ffffff; box-shadow:0 6px 20px rgba(37,99,235,${todosAprox ? "0.25" : "0.45"}); cursor:pointer; font-family:system-ui,-apple-system,sans-serif; transition:all 0.15s ease;">
                 <div style="font-size:13px; font-weight:900; line-height:1; letter-spacing:-0.5px;">${count}</div>
-                ${c.panCount > 0 
+                ${c.panCount > 0
                   ? `<div style="font-size:9px; font-weight:800; color:#93c5fd; margin-top:2px; display:flex; align-items:center; gap:2px;">${PAN_BADGE_HTML} ${c.panCount}</div>`
-                  : `<div style="font-size:8px; font-weight:700; color:#bfdbfe; text-transform:uppercase; margin-top:1px;">Red</div>`}
-                <div style="position:absolute; inset:-4px; border-radius:50%; border:1.5px solid rgba(59,130,246,0.35); pointer-events:none;"></div>
+                  : `<div style="font-size:8px; font-weight:700; color:#bfdbfe; text-transform:uppercase; margin-top:1px;">${todosAprox ? "Aprox" : "Red"}</div>`}
+                <div style="position:absolute; inset:-4px; border-radius:50%; border:1.5px ${todosAprox ? "dashed" : "solid"} rgba(59,130,246,0.35); pointer-events:none;"></div>
               </div>
             `,
             className: "contact-cluster-marker",
@@ -1172,7 +1183,7 @@ export default function MapaPage() {
             iconAnchor: [22, 22]
           });
 
-          L.marker([avgLat, avgLng], { icon: clusterIcon })
+          L.marker([avgLat, avgLng], { icon: clusterIcon, pane: "contactsPane" })
             .on("click", () => {
               mapRef.flyTo([avgLat, avgLng], Math.min(zoom + 2, 16), { duration: 0.8 });
             })
@@ -1191,10 +1202,18 @@ export default function MapaPage() {
       const isPan = p.isPanConfirmed;
       const color = p.networkColor || "#2563eb";
 
+      // Un punto derivado del centroide de la sección no es un domicilio. Se
+      // dibuja con borde punteado y sin sombra para que se lea como "por aquí"
+      // y no como "en esta puerta".
+      const aprox = p.isApproximate === true;
+      const titulo = aprox
+        ? `${p.displayName} — ubicación aproximada${p.sectionNum ? ` (sección ${p.sectionNum})` : ""}, sin GPS`
+        : `${p.displayName} (${isPan ? "PAN Confirmado" : "Contacto"})`;
+
       const contactIcon = L.divIcon({
         html: `
-          <div style="position:relative; display:flex; align-items:center; justify-content:center; cursor:pointer;" title="${p.displayName} (${isPan ? 'PAN Confirmado' : 'Contacto'})">
-            <div style="width:30px; height:30px; border-radius:50%; background:${isPan ? '#2563eb' : '#ffffff'}; color:${isPan ? '#ffffff' : color}; border:2.5px solid ${isPan ? '#ffffff' : color}; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,0.25); font-size:12px; font-weight:900;">
+          <div style="position:relative; display:flex; align-items:center; justify-content:center; cursor:pointer;" title="${titulo}">
+            <div style="width:30px; height:30px; border-radius:50%; background:${isPan ? '#2563eb' : '#ffffff'}; color:${isPan ? '#ffffff' : color}; border:2.5px ${aprox ? "dashed" : "solid"} ${isPan ? '#ffffff' : color}; display:flex; align-items:center; justify-content:center; box-shadow:${aprox ? "none" : "0 4px 14px rgba(0,0,0,0.25)"}; opacity:${aprox ? "0.75" : "1"}; font-size:12px; font-weight:900;">
               ${isPan ? `<span style="color:#fff; font-size:0.85em; font-weight:900; line-height:1;">M</span>` : SVGS.User}
             </div>
           </div>
@@ -1217,7 +1236,7 @@ export default function MapaPage() {
         </div>
       `;
 
-      L.marker([lat, lng], { icon: contactIcon })
+      L.marker([lat, lng], { icon: contactIcon, pane: "contactsPane" })
         .bindPopup(popupHtml)
         .addTo(contactsLayer);
     }

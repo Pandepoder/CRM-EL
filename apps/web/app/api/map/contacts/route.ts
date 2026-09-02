@@ -19,6 +19,38 @@ const NETWORK_COLORS = [
   "#475569"  // slate
 ];
 
+/**
+ * Centroide aproximado de la geometría de una sección: promedio de los vértices
+ * del anillo exterior. No es el centroide de área exacto, pero para posicionar
+ * un punto "en algún lugar de esta sección" sobra, y evita cargar una librería
+ * geoespacial en una ruta que ya es pesada.
+ */
+function sectionCentroid(geom: unknown): [number, number] | null {
+  const g = geom as { type?: string; coordinates?: unknown } | null;
+  if (!g?.coordinates) return null;
+
+  // Polygon -> [ring][point][x,y] ; MultiPolygon -> [poly][ring][point][x,y]
+  const ring =
+    g.type === "MultiPolygon"
+      ? (g.coordinates as number[][][][])[0]?.[0]
+      : (g.coordinates as number[][][])[0];
+
+  if (!Array.isArray(ring) || ring.length === 0) return null;
+
+  let sx = 0;
+  let sy = 0;
+  let n = 0;
+  for (const p of ring) {
+    if (!Array.isArray(p) || p.length < 2) continue;
+    const [x, y] = p as [number, number];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    sx += x;
+    sy += y;
+    n += 1;
+  }
+  return n > 0 ? [sx / n, sy / n] : null;
+}
+
 export async function GET(_request: Request) {
   try {
     const session = await getServerSession();
@@ -40,6 +72,9 @@ export async function GET(_request: Request) {
         panMilitancyVerifiedAt: schema.contacts.panMilitancyVerifiedAt,
         exactLatitude: schema.contacts.exactLatitude,
         exactLongitude: schema.contacts.exactLongitude,
+        sectionId: schema.contacts.sectionId,
+        sectionNum: schema.electoralSections.sectionNum,
+        sectionGeom: schema.electoralSections.geomJson,
         createdByUserId: schema.contacts.createdByUserId,
         creatorName: schema.userProfiles.displayName,
         creatorAccessType: schema.userProfiles.accessType,
@@ -47,6 +82,7 @@ export async function GET(_request: Request) {
       })
       .from(schema.contacts)
       .leftJoin(schema.userProfiles, eq(schema.contacts.createdByUserId, schema.userProfiles.id))
+      .leftJoin(schema.electoralSections, eq(schema.contacts.sectionId, schema.electoralSections.id))
       .where(eq(schema.contacts.status, "active"))
       .$dynamic();
 
@@ -59,22 +95,27 @@ export async function GET(_request: Request) {
     // Build features for map
     const features: any[] = [];
 
-    contacts.forEach((c, idx) => {
+    // Un contacto sin GPS no se inventa. Antes se le calculaba un punto a partir
+    // del hash de su id dentro de un cuadro de ±0.025° alrededor del centro de
+    // Tonalá: en campo eso mandaba al brigadista a un domicilio inexistente, y
+    // nada en el mapa distinguía ese punto de uno medido. Ahora, sin GPS se cae
+    // al centroide de su sección electoral —una aproximación con significado
+    // real— marcada como tal, y si tampoco hay sección el contacto no se dibuja.
+    let omitidosSinUbicacion = 0;
+
+    contacts.forEach((c) => {
       let lat = c.exactLatitude;
       let lng = c.exactLongitude;
+      let precision: "exacta" | "seccion" = "exacta";
 
-      // If no exact GPS, generate a deterministic clustered point within Tonalá around center
-      if (!lat || !lng) {
-        // Deterministic offset based on string hash
-        let hash = 0;
-        for (let i = 0; i < c.id.length; i++) {
-          hash = (hash << 5) - hash + c.id.charCodeAt(i);
-          hash |= 0;
+      if (lat == null || lng == null) {
+        const centro = sectionCentroid(c.sectionGeom);
+        if (!centro) {
+          omitidosSinUbicacion += 1;
+          return;
         }
-        const offsetLat = ((hash % 1000) / 1000) * 0.05 - 0.025;
-        const offsetLng = (((hash >> 3) % 1000) / 1000) * 0.05 - 0.025;
-        lat = 20.6248 + offsetLat;
-        lng = -103.2422 + offsetLng;
+        [lng, lat] = centro;
+        precision = "seccion";
       }
 
       const colorIndex = Math.abs(c.createdByUserId.charCodeAt(0)) % NETWORK_COLORS.length;
@@ -93,6 +134,11 @@ export async function GET(_request: Request) {
           creatorName: c.creatorName || "Integrante",
           creatorAccessType: c.creatorAccessType || "conexion",
           networkColor,
+          // El cliente pinta distinto lo aproximado para que nadie lo confunda
+          // con un domicilio verificado.
+          precision,
+          isApproximate: precision !== "exacta",
+          sectionNum: c.sectionNum ?? null,
           createdAt: c.createdAt ? c.createdAt.toISOString() : new Date().toISOString()
         },
         geometry: {
@@ -105,7 +151,16 @@ export async function GET(_request: Request) {
     return NextResponse.json({
       type: "FeatureCollection",
       features,
-      total: features.length
+      total: features.length,
+      // El cliente necesita poder decir "289 registros, 155 ubicables" en vez de
+      // fingir que dibujó todo.
+      cobertura: {
+        contactos: contacts.length,
+        dibujados: features.length,
+        exactos: features.filter((f) => f.properties.precision === "exacta").length,
+        porSeccion: features.filter((f) => f.properties.precision === "seccion").length,
+        sinUbicacion: omitidosSinUbicacion
+      }
     });
   } catch (error: any) {
     console.error("Failed to fetch contacts for map:", error);
