@@ -116,8 +116,8 @@ export async function POST(request: Request) {
 
     // 1. Insert or update section in electoral_sections
     const secRes = await db.execute<{ id: string; section_num: number }>(sql`
-      INSERT INTO electoral_sections (section_num, geom_json)
-      VALUES (${sectionNum}, ${sql`${geomJson}::jsonb`})
+      INSERT INTO electoral_sections (section_num, geom_json, municipality)
+      VALUES (${sectionNum}, ${sql`${geomJson}::jsonb`}, ${municipality})
       ON CONFLICT (section_num) DO UPDATE
       SET geom_json = COALESCE(electoral_sections.geom_json, EXCLUDED.geom_json)
       RETURNING id::text, section_num

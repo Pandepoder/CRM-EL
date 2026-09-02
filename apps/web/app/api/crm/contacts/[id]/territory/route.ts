@@ -57,7 +57,9 @@ export async function POST(
         };
         const [newSec] = await db
           .insert(schema.electoralSections)
-          .values({ sectionNum, geomJson: defaultGeom })
+          // Sin municipio la sección queda fuera del filtro del mapa y nunca
+          // se dibuja, aunque tenga geometría.
+          .values({ sectionNum, geomJson: defaultGeom, municipality })
           .returning({ id: schema.electoralSections.id });
         if (newSec) resolvedSectionId = newSec.id;
       }

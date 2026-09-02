@@ -61,7 +61,7 @@ export async function GET(req: Request) {
       LEFT JOIN electoral_representatives erep ON erep.section_id = es.id
       LEFT JOIN user_profiles u ON u.id = erep.user_id
       WHERE es.geom_json IS NOT NULL
-        ${isFilterAll ? sql`` : sql`AND LOWER(es.municipality) = LOWER(${targetMunicipality})`}
+        ${isFilterAll ? sql`` : sql`AND LOWER(COALESCE(es.municipality, 'Tonalá')) = LOWER(${targetMunicipality})`}
       GROUP BY es.id, es.section_num, es.municipality, es.geom_json
       ORDER BY es.section_num ASC
     `);

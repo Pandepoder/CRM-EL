@@ -84,6 +84,16 @@ const MUNICIPALITY_COLORS: Record<string, { stroke: string; fill: string }> = {
   "Juanacatlán": { stroke: "#4338ca", fill: "#818cf8" },
 };
 
+// Etiqueta corta de cada capa para la barra. Antes se resolvía con ternarios
+// encadenados que mandaban a "OSM" todo lo que no fuera calles ni noche, así que
+// al mostrar la cuarta capa habría aparecido "OSM" dos veces.
+const TILE_LABELS: Record<string, string> = {
+  esriStreet: "Calles HD",
+  dark: "Noche",
+  osm: "OSM",
+  satellite: "Satélite"
+};
+
 const TILE_STYLES = {
   esriStreet: {
     name: "Calles HD (Color)",
@@ -1492,7 +1502,7 @@ export default function MapaPage() {
             <>
               {/* Quick Tile Style Switcher */}
               <div style={{ display: "flex", alignItems: "center", background: "#f1f5f9", padding: "2px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
-                {Object.entries(TILE_STYLES).slice(0, 3).map(([key, style]) => (
+                {Object.entries(TILE_STYLES).map(([key, style]) => (
                   <button
                     key={key}
                     onClick={() => handleChangeTileStyle(key)}
@@ -1513,7 +1523,7 @@ export default function MapaPage() {
                     }}
                   >
                     <style.icon size={16} />
-                    <span>{key === "esriStreet" ? "Calles HD" : key === "dark" ? "Noche" : "OSM"}</span>
+                    <span>{TILE_LABELS[key] ?? style.name}</span>
                   </button>
                 ))}
               </div>
