@@ -1,3 +1,5 @@
+@tailwind base;
+
 :root {
   --blue-950: #0b1f3a;
   --blue-900: #0f2d52;
@@ -991,3 +993,9 @@ input[placeholder*="buscar"] {
   border: none !important;
 }
 
+
+
+/* Las utilidades van al final para que ganen a las reglas de componente de
+   arriba por orden de cascada, igual que hacia el shim que sustituyen. */
+@tailwind components;
+@tailwind utilities;

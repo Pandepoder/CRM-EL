@@ -182,6 +182,56 @@ Tu CRM estará en línea con HTTPS seguro configurado automáticamente.
 
 ---
 
+## 💾 Respaldos y Restauración
+
+`docker compose up -d` levanta también el servicio `backup`, que vuelca la base
+una vez al día a un `pg_dump` comprimido en el volumen `tonala_os_backups` y poda
+los que superan la retención.
+
+| Variable | Por defecto | Qué controla |
+|---|---|---|
+| `BACKUP_INTERVAL_SECONDS` | `86400` | Cada cuánto se hace un volcado |
+| `BACKUP_RETENTION_DAYS` | `14` | Cuántos días se conservan |
+
+Listar lo que hay respaldado:
+
+```bash
+docker compose exec backup ls -lh /backups
+```
+
+**Ensayar la restauración** en una base desechable — hazlo antes de necesitarla,
+no el día que falle el disco:
+
+```bash
+docker compose exec db psql -U tonala -d postgres -c "CREATE DATABASE restore_test OWNER tonala;"
+```
+
+```bash
+docker compose run --rm --entrypoint sh -e CONFIRM_RESTORE=si-borra-la-base-destino -e RESTORE_TARGET_DB=restore_test backup /usr/local/bin/restore.sh /backups/tonala_os-<TIMESTAMP>.sql.gz
+```
+
+El script verifica el gzip, restaura e imprime los conteos de `contacts`,
+`user_profiles`, `colonies` y `electoral_sections` para que compares. Sin la
+variable `CONFIRM_RESTORE` aborta, y `--entrypoint sh` es obligatorio: sin él
+`compose run` arranca el bucle de respaldo y se queda colgado.
+
+Para restaurar de verdad sobre la base buena, omite `RESTORE_TARGET_DB`.
+
+> ⚠️ **Falta la copia fuera del servidor.** Estos respaldos viven en un volumen
+> del mismo VPS: sirven ante un borrado accidental de datos, no ante la pérdida
+> del disco o del servidor. Añade una réplica a S3, rclone o `scp` a otra máquina.
+
+### Archivos adjuntos
+
+Las fotos y videos de incidencias se guardan en el volumen `tonala_os_uploads`.
+No están cubiertos por `pg_dump` — respáldalos aparte:
+
+```bash
+docker run --rm -v tonala_os_uploads:/data -v "$PWD":/out alpine tar czf /out/uploads.tar.gz -C /data .
+```
+
+---
+
 ## 📜 Scripts Disponibles en el Proyecto
 
 | Comando | Descripción |

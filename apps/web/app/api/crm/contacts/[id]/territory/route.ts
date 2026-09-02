@@ -1,6 +1,6 @@
 import { DevelopmentLogger } from "@tonala/shared/observability";
 import { linkContactToColony } from "@tonala/modules/territory/application";
-import { schema, encryptData } from "@tonala/shared/database";
+import { schema } from "@tonala/shared/database";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -95,7 +95,14 @@ export async function POST(
             status: "active"
           })
           .onConflictDoUpdate({
-            target: [schema.colonies.catalogVersionId, schema.colonies.name],
+            // El índice único es (catalog_version_id, name, municipality) desde la
+            // migración 0008; omitir municipality hacía fallar el INSERT siempre,
+            // porque Postgres valida el ON CONFLICT al planificar, no al colisionar.
+            target: [
+              schema.colonies.catalogVersionId,
+              schema.colonies.name,
+              schema.colonies.municipality
+            ],
             set: { status: "active", municipality }
           })
           .returning({ id: schema.colonies.id });
@@ -116,9 +123,12 @@ export async function POST(
     }
 
     // 3. Update direct fields in contacts table
+    // `colony` y `municipality` son columnas encryptedText: el propio tipo cifra
+    // en toDriver. Cifrar aquí además guardaba E(E(valor)) y al leer devolvía el
+    // criptograma interno en vez del nombre.
     const updateFields: Record<string, any> = {};
-    if (colonyName) updateFields.colony = encryptData(colonyName);
-    if (municipality) updateFields.municipality = encryptData(municipality);
+    if (colonyName) updateFields.colony = colonyName;
+    if (municipality) updateFields.municipality = municipality;
     if (resolvedSectionId) updateFields.sectionId = resolvedSectionId;
 
     if (Object.keys(updateFields).length > 0) {
