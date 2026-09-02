@@ -280,18 +280,27 @@ export default function LoginPage() {
     // a la vista sin desplazarse, no una portada a pantalla completa.
     <main className="min-h-screen bg-white lg:grid lg:grid-cols-[1.05fr_1fr]">
       <section className="relative flex h-44 flex-col justify-end overflow-hidden bg-[#0b1f3a] p-6 sm:h-56 lg:h-auto lg:p-12">
-        <img
-          src="/media/edgar-retrato.jpg"
-          alt="Edgar López en el Comité Directivo del PAN Jalisco"
-          className="absolute inset-0 h-full w-full object-cover object-top"
-        />
+        {/* Dos recortes de la misma foto: uno vertical para el panel y una banda
+            horizontal encuadrada en el rostro para móvil. Un solo archivo
+            recortado por CSS dejaba la cara fuera de cuadro en una de las dos. */}
+        <picture>
+          <source media="(min-width: 1024px)" srcSet="/media/edgar-retrato.jpg" />
+          <img
+            src="/media/edgar-banner.jpg"
+            alt="Edgar López en el Comité Directivo del PAN Jalisco"
+            className="absolute inset-0 h-full w-full object-cover object-[35%_28%] lg:object-top"
+          />
+        </picture>
         <div className="absolute inset-0 bg-gradient-to-t from-[#0b1f3a] via-[#0b1f3a]/75 to-[#0b1f3a]/20 lg:bg-gradient-to-tr lg:from-[#0b1f3a] lg:via-[#0b1f3a]/80 lg:to-transparent" />
 
-        <div className="relative flex flex-col gap-3 lg:gap-6">
+        {/* En la banda de móvil el rostro cae a la izquierda del encuadre, así que
+            el texto se alinea a la derecha para no taparlo. En el panel vertical
+            de escritorio hay aire de sobra abajo y vuelve a la izquierda. */}
+        <div className="relative flex flex-col items-end gap-3 text-right lg:items-start lg:gap-6 lg:text-left">
           <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/70">
             Edgar López
           </p>
-          <h2 className="max-w-md text-2xl font-black leading-tight text-white text-balance sm:text-3xl lg:text-5xl">
+          <h2 className="max-w-[62%] text-2xl font-black leading-tight text-white text-balance sm:text-3xl lg:max-w-md lg:text-5xl">
             Un Tonalá Posible
           </h2>
           <p className="hidden max-w-sm text-sm leading-relaxed text-white/80 lg:block">
