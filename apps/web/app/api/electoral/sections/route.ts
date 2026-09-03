@@ -15,37 +15,6 @@ const createSectionSchema = z.object({
   geom: z.any().optional(),
 });
 
-function getDefaultGeometryForMunicipality(municipality: string, sectionNum: number) {
-  const centers: Record<string, [number, number]> = {
-    "Tonalá": [-103.2422, 20.6248],
-    "Guadalajara": [-103.3496, 20.6767],
-    "Zapopan": [-103.3886, 20.7214],
-    "San Pedro Tlaquepaque": [-103.3150, 20.6400],
-    "Tlajomulco de Zúñiga": [-103.4167, 20.4740],
-    "El Salto": [-103.2333, 20.5167],
-    "Zapotlanejo": [-103.0667, 20.6222],
-    "Ixtlahuacán de los Membrillos": [-103.1833, 20.3833],
-    "Juanacatlán": [-103.1667, 20.5000],
-  };
-
-  const center = centers[municipality] || centers["Tonalá"]!;
-  // Create a small bounding polygon box around the center with slight offset
-  const offset = 0.006;
-  const hash = (sectionNum % 10) * 0.002;
-  const cLng = center[0] + hash;
-  const cLat = center[1] + hash;
-
-  return {
-    type: "Polygon",
-    coordinates: [[
-      [cLng - offset, cLat - offset],
-      [cLng + offset, cLat - offset],
-      [cLng + offset, cLat + offset],
-      [cLng - offset, cLat + offset],
-      [cLng - offset, cLat - offset]
-    ]]
-  };
-}
 
 /**
  * GET /api/electoral/sections
@@ -110,9 +79,12 @@ export async function POST(request: Request) {
     const { sectionNum, municipality, colony, colonies, geom } = parsed.data;
     const db = getDatabaseClient();
 
-    // Prepare geometry
-    const geomData = geom || getDefaultGeometryForMunicipality(municipality, sectionNum);
-    const geomJson = JSON.stringify(geomData);
+    // Sin contorno real la sección se registra sin geometría. Fabricar un
+    // cuadrado alrededor del centro del municipio la hacía aparecer en el mapa
+    // como si fuera cartografía auténtica, superpuesta a las secciones reales.
+    // El mapa solo dibuja las que tienen geometría, que es lo correcto cuando
+    // no se sabe dónde está.
+    const geomJson = geom ? JSON.stringify(geom) : null;
 
     // 1. Insert or update section in electoral_sections
     const secRes = await db.execute<{ id: string; section_num: number }>(sql`

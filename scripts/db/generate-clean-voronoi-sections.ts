@@ -140,14 +140,28 @@ export async function run() {
   const voronoiSections = generateSeamlessVoronoiSections(METROPOLITAN_SECTIONS);
   console.log(`Generated ${voronoiSections.length} clean, non-overlapping polygonal sections.`);
 
+  // Solo se rellenan las secciones que no tienen contorno.
+  //
+  // Antes el UPDATE no llevaba condición, así que cada despliegue pisaba la
+  // cartografía del INE con estas teselas: de las 86 secciones que toca, 82
+  // tienen contorno oficial, y 46 de esas están en Tonalá. Eso es lo que se veía
+  // como secciones deformadas. Además la teselación se calcula por municipio
+  // sobre su propia envolvente, y hay siete pares de municipios cuyas
+  // envolventes se solapan, de modo que las celdas de uno invadían al vecino:
+  // de ahí las secciones superpuestas.
+  //
+  // Como aproximación para una sección sin cartografía sigue siendo válida, así
+  // que se conserva ese uso y se abandona el de sustituto de la realidad.
+  let rellenadas = 0;
   for (const s of voronoiSections) {
-    await pool.query(
-      `UPDATE electoral_sections SET geom_json = $1 WHERE section_num = $2`,
+    const res = await pool.query(
+      `UPDATE electoral_sections SET geom_json = $1 WHERE section_num = $2 AND geom_json IS NULL`,
       [JSON.stringify(s.geom), s.sectionNum]
     );
+    rellenadas += res.rowCount ?? 0;
   }
 
-  console.log("Database updated successfully with seamless electoral sections!");
+  console.log(`Sections filled with a Voronoi approximation: ${rellenadas}. Official INE geometry left untouched.`);
   await pool.end();
 }
 

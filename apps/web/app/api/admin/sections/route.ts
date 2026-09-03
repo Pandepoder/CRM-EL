@@ -115,23 +115,12 @@ export async function POST(request: Request) {
 
     for (const sec of sectionsToProcess) {
       const muni = sec.municipality || "Tonalá";
-      let geomJson = sec.geom ? JSON.stringify(sec.geom) : null;
-      if (!geomJson) {
-        // Generate default bounding box polygon
-        const cLng = muni === "Guadalajara" ? -103.3496 : muni === "Zapopan" ? -103.3886 : -103.2422;
-        const cLat = muni === "Guadalajara" ? 20.6767 : muni === "Zapopan" ? 20.7214 : 20.6248;
-        const offset = 0.005;
-        geomJson = JSON.stringify({
-          type: "Polygon",
-          coordinates: [[
-            [cLng - offset, cLat - offset],
-            [cLng + offset, cLat - offset],
-            [cLng + offset, cLat + offset],
-            [cLng - offset, cLat + offset],
-            [cLng - offset, cLat - offset]
-          ]]
-        });
-      }
+      // Sin geometría real la sección se importa sin ella. Antes se le fabricaba
+      // un cuadrado alrededor del centro del municipio: al dibujarse en el mapa
+      // era indistinguible de una sección auténtica y se superponía a las que sí
+      // tienen su contorno del INE. El mapa omite las secciones sin geometría,
+      // que es la respuesta honesta cuando no se sabe dónde están.
+      const geomJson = sec.geom ? JSON.stringify(sec.geom) : null;
       
       const secRes = await db.execute<{ id: string }>(sql`
         INSERT INTO electoral_sections (section_num, geom_json, municipality)

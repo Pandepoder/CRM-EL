@@ -71,17 +71,32 @@ def update_live():
     if not ok:
         sys.exit(1)
 
-    # 3. Regenerate seamless Voronoi sections in Postgres
+    # 3. Devolver a las secciones su contorno oficial del INE.
+    #
+    # Durante mucho tiempo el paso siguiente (Voronoi) sustituía la cartografía
+    # real por una teselación aproximada, porque su UPDATE no llevaba condición:
+    # deformaba 82 secciones con contorno oficial, 46 de ellas en Tonalá, en cada
+    # despliegue. Ya no lo hace, pero hay que reparar lo que quedó dañado. El
+    # script es idempotente: si todo está correcto no escribe nada.
     time.sleep(3)
+    cmd_ine = """
+    cd /opt/crm-el
+    docker compose exec -T web npx tsx scripts/db/restore-official-section-geometry.ts
+    """
+    ok, _ = run_remote_command(client, cmd_ine, "3. Restauración de la Cartografía Oficial del INE")
+    if not ok:
+        print("[WARN] Restauración de cartografía con avisos, continuando...")
+
+    # 4. Rellenar con Voronoi únicamente las secciones que siguen sin contorno.
     cmd_voronoi = """
     cd /opt/crm-el
     docker compose exec -T web npx tsx scripts/db/generate-clean-voronoi-sections.ts
     """
-    ok, _ = run_remote_command(client, cmd_voronoi, "3. Generación de Secciones Voronoi Continuas")
+    ok, _ = run_remote_command(client, cmd_voronoi, "4. Relleno Voronoi de Secciones sin Cartografía")
     if not ok:
         print("[WARN] Voronoi script inside container had a warning, continuing...")
 
-    # 4. Wait 5s and test health
+    # 5. Wait 5s and test health
     time.sleep(4)
     cmd_test = """
     echo "Verificando respuesta local..."
@@ -91,7 +106,7 @@ def update_live():
     curl -s https://elapp.com.mx/api/health
     echo ""
     """
-    ok, _ = run_remote_command(client, cmd_test, "4. Verificación de Salud en Vivo")
+    ok, _ = run_remote_command(client, cmd_test, "5. Verificación de Salud en Vivo")
     if not ok:
         sys.exit(1)
 

@@ -550,7 +550,15 @@ export default function MapaPage() {
       map.on("zoomend", recargarPorVista);
 
       setTimeout(() => map.invalidateSize(), 150);
-      setTimeout(() => map.invalidateSize(), 400);
+      setTimeout(() => {
+        map.invalidateSize();
+        // Primera carga de contactos, ya con el recuadro visible. Antes se
+        // pedían todos al montar el componente y, en cuanto el mapa encuadraba
+        // el municipio, se volvían a pedir recortados: dos peticiones, la
+        // primera de ellas con el listado completo que el recorte iba a
+        // descartar de inmediato.
+        recargarPorVista();
+      }, 400);
 
       const handleResize = () => map.invalidateSize();
       window.addEventListener("resize", handleResize);
@@ -605,23 +613,28 @@ export default function MapaPage() {
   // El mapa se inicializa una sola vez, así que sus manejadores no pueden
   // capturar `fetchContacts` directamente: se llega a la versión vigente por
   // referencia.
-  const fetchContactsRef = useRef<((mapa?: any) => Promise<void>) | null>(null);
+  const fetchContactsRef = useRef<((mapa?: any, intento?: number) => Promise<void>) | null>(null);
 
-  const fetchContacts = useCallback(async (mapa?: any) => {
+  const fetchContacts = useCallback(async (mapa?: any, intento = 0) => {
     try {
-      // Se pide solo el recuadro visible. Sin mapa todavía —primera carga— se
-      // piden todos, como antes.
+      // Se pide solo el recuadro visible.
       let url = "/api/map/contacts";
       if (mapa) {
         const b = mapa.getBounds();
         const ancho = b.getEast() - b.getWest();
         const alto = b.getNorth() - b.getSouth();
-        // Si el contenedor todavía no tiene tamaño, el recuadro sale degenerado
-        // y dejaría fuera a todos los contactos: mejor pedirlos sin recorte que
-        // mostrar un mapa vacío.
         if (ancho > 0.0001 && alto > 0.0001) {
           url += `?bbox=${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`;
+        } else if (intento < 5) {
+          // El contenedor aún no tiene ancho —pestaña en segundo plano, panel
+          // plegado, primer diseño en un móvil lento— y el recuadro saldría
+          // degenerado. Se espera a que lo tenga en vez de pedir el listado
+          // completo, que es lo que ocurría antes sin que nada lo delatara.
+          setTimeout(() => void fetchContactsRef.current?.(mapa, intento + 1), 300);
+          return;
         }
+        // Agotada la espera se piden todos: más vale el listado entero que un
+        // mapa vacío.
       }
       const res = await fetch(url, { cache: "no-store" });
       if (res.ok) {
@@ -665,9 +678,10 @@ export default function MapaPage() {
 
   useEffect(() => {
     fetchReports();
-    fetchContacts();
     fetchUsers();
-  }, [fetchReports, fetchContacts, fetchUsers]);
+    // Los contactos no se piden aquí: los pide el mapa en cuanto conoce su
+    // recuadro visible (ver `recargarPorVista`).
+  }, [fetchReports, fetchUsers]);
 
   // Fetch sections strictly for the selected municipality
   useEffect(() => {
@@ -821,8 +835,12 @@ export default function MapaPage() {
           });
         }, 1500);
       } else {
-        const errData = await res.json();
-        alert(errData.error || "Error al registrar la incidencia.");
+        const errData = await res.json().catch(() => ({}));
+        // El servidor explica el motivo en `message` cuando deniega por permisos
+        // y en `error` en los demás fallos. Antes solo se leía `error`, así que
+        // un "solo el líder puede levantar incidencias" se mostraba como un
+        // genérico "Error al registrar la incidencia".
+        alert(errData.message || errData.error || "Error al registrar la incidencia.");
       }
     } catch (err) {
       console.error("Report submit error:", err);

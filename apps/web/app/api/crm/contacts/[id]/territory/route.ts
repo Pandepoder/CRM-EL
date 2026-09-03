@@ -44,24 +44,21 @@ export async function POST(
       if (existingSec[0]) {
         resolvedSectionId = existingSec[0].id;
       } else {
-        const offset = 0.005;
-        const defaultGeom = {
-          type: "Polygon",
-          coordinates: [[
-            [-103.2422 - offset, 20.6248 - offset],
-            [-103.2422 + offset, 20.6248 - offset],
-            [-103.2422 + offset, 20.6248 + offset],
-            [-103.2422 - offset, 20.6248 + offset],
-            [-103.2422 - offset, 20.6248 - offset]
-          ]]
-        };
-        const [newSec] = await db
-          .insert(schema.electoralSections)
-          // Sin municipio la sección queda fuera del filtro del mapa y nunca
-          // se dibuja, aunque tenga geometría.
-          .values({ sectionNum, geomJson: defaultGeom, municipality })
-          .returning({ id: schema.electoralSections.id });
-        if (newSec) resolvedSectionId = newSec.id;
+        // La base ya tiene la cartografía completa del INE para los 124
+        // municipios de Jalisco (secciones 1 a 3891). Si un número no está,
+        // no es una sección nueva: es un error de captura.
+        //
+        // Antes la ruta la daba de alta con una geometría inventada —un
+        // cuadrado de 1.1 km sobre el centro del municipio—, así que un dedazo
+        // creaba una sección falsa, dibujada encima de las reales, y arrastraba
+        // al contacto a un domicilio que no existe. Ahora se avisa y se corrige
+        // en captura.
+        return NextResponse.json(
+          {
+            error: `La sección ${sectionNum} no existe en la cartografía electoral de Jalisco. Verifica el número.`
+          },
+          { status: 400 }
+        );
       }
     }
 

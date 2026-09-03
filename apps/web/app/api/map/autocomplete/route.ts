@@ -4,6 +4,7 @@ export const revalidate = 0;
 
 import { getDatabaseClient } from "@/lib/db-client";
 import { getSeccionesGeo } from "@/lib/sections-geo-cache";
+import { buscarDireccion } from "@/lib/osm-search";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
 // @ts-ignore
@@ -168,106 +169,91 @@ export async function GET(req: Request) {
 
   // 3. OPENSTREETMAP NOMINATIM SEARCH: Live Street / Place Geocoding Bounded to Jalisco
   try {
-    const searchTarget = `${q}, ${municipality}, Jalisco, México`;
-    const encoded = encodeURIComponent(searchTarget);
-    const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&addressdetails=1&limit=6&countrycodes=mx&viewbox=-105.7,21.9,-101.5,18.9&bounded=0&accept-language=es`;
+    // El recuadro anterior —de Nayarit a Guanajuato— iba con `bounded=0`, o sea
+    // que no restringía nada: era solo una preferencia. Ahora la búsqueda se
+    // acota de verdad al AMG y solo se amplía a Jalisco si no encuentra nada.
+    const osmData = await buscarDireccion(q, municipality, { limite: 6, msEspera: 2500 });
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    // Pre-fetch sections for Point-In-Polygon matching
+    let cachedSections: any[] = [];
+    try {
+      // Desde el caché compartido. Antes releía las 3789 secciones con su
+      // geometría en cada pulsación de tecla del autocompletado.
+      cachedSections = (await getSeccionesGeo()).map((sec) => ({
+        id: sec.id,
+        section_num: sec.sectionNum,
+        geom_json: sec.geomJson,
+        bounds: sec.bounds
+      }));
+    } catch (_dbErr) {
+      // Ignore cache error
+    }
 
-    const osmRes = await fetch(nominatimUrl, {
-      headers: {
-        "User-Agent": "Tonala-CRM-OS/2.0 (Municipal Electoral System; admin@tonala.gob.mx)"
-      },
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
+    for (const item of osmData) {
+      const lat = parseFloat(item.lat);
+      const lng = parseFloat(item.lon);
+      if (isNaN(lat) || isNaN(lng)) continue;
 
-    if (osmRes.ok) {
-      const osmData = await osmRes.json();
-      if (Array.isArray(osmData)) {
-        // Pre-fetch sections for Point-In-Polygon matching
-        let cachedSections: any[] = [];
-        try {
-          // Desde el caché compartido. Antes releía las 3789 secciones con su
-          // geometría en cada pulsación de tecla del autocompletado.
-          cachedSections = (await getSeccionesGeo()).map((sec) => ({
-            id: sec.id,
-            section_num: sec.sectionNum,
-            geom_json: sec.geomJson,
-            bounds: sec.bounds
-          }));
-        } catch (_dbErr) {
-          // Ignore cache error
-        }
+      const addr = item.address || {};
+      const road = addr.road || addr.pedestrian || addr.street || addr.highway || addr.path || item.name || "";
+      const houseNum = addr.house_number ? ` #${addr.house_number}` : "";
+      const rawSuburb = addr.suburb || addr.neighbourhood || addr.quarter || addr.residential || addr.village || addr.hamlet || "";
+      const suburb = rawSuburb.startsWith("Cabecera ") ? "" : rawSuburb;
+      const city = addr.city || addr.town || addr.county || addr.municipality || municipality;
+      const postcode = addr.postcode || "";
 
-        for (const item of osmData) {
-          const lat = parseFloat(item.lat);
-          const lng = parseFloat(item.lon);
-          if (isNaN(lat) || isNaN(lng)) continue;
+      const fullStreet = `${road}${houseNum}`.trim() || item.display_name.split(",")[0];
+      const dedupeKey = `addr-${fullStreet.toLowerCase()}-${suburb.toLowerCase()}-${city.toLowerCase()}`;
+      if (seenKeys.has(dedupeKey)) continue;
+      seenKeys.add(dedupeKey);
 
-          const addr = item.address || {};
-          const road = addr.road || addr.pedestrian || addr.street || addr.highway || addr.path || item.name || "";
-          const houseNum = addr.house_number ? ` #${addr.house_number}` : "";
-          const rawSuburb = addr.suburb || addr.neighbourhood || addr.quarter || addr.residential || addr.village || addr.hamlet || "";
-          const suburb = rawSuburb.startsWith("Cabecera ") ? "" : rawSuburb;
-          const city = addr.city || addr.town || addr.county || addr.municipality || municipality;
-          const postcode = addr.postcode || "";
+      // Point in Polygon matching to detect exact Section Electoral
+      let matchedSecNum: number | undefined;
+      let matchedSecId: string | undefined;
 
-          const fullStreet = `${road}${houseNum}`.trim() || item.display_name.split(",")[0];
-          const dedupeKey = `addr-${fullStreet.toLowerCase()}-${suburb.toLowerCase()}-${city.toLowerCase()}`;
-          if (seenKeys.has(dedupeKey)) continue;
-          seenKeys.add(dedupeKey);
-
-          // Point in Polygon matching to detect exact Section Electoral
-          let matchedSecNum: number | undefined;
-          let matchedSecId: string | undefined;
-
-          if (cachedSections.length > 0) {
-            const pt = point([lng, lat]);
-            for (const sec of cachedSections) {
-              if (!sec.geom_json) continue;
-              try {
-                const geom = typeof sec.geom_json === "string" ? JSON.parse(sec.geom_json) : sec.geom_json;
-                const poly = geom.type === "Feature" ? geom : { type: "Feature", geometry: geom, properties: {} };
-                if (booleanPointInPolygon(pt, poly)) {
-                  matchedSecNum = sec.section_num;
-                  matchedSecId = sec.id;
-                  break;
-                }
-              } catch (_polyErr) {
-                // Ignore polygon parsing issue
-              }
+      if (cachedSections.length > 0) {
+        const pt = point([lng, lat]);
+        for (const sec of cachedSections) {
+          if (!sec.geom_json) continue;
+          try {
+            const geom = typeof sec.geom_json === "string" ? JSON.parse(sec.geom_json) : sec.geom_json;
+            const poly = geom.type === "Feature" ? geom : { type: "Feature", geometry: geom, properties: {} };
+            if (booleanPointInPolygon(pt, poly)) {
+              matchedSecNum = sec.section_num;
+              matchedSecId = sec.id;
+              break;
             }
+          } catch (_polyErr) {
+            // Ignore polygon parsing issue
           }
-
-          const parts: string[] = [];
-          if (fullStreet) parts.push(fullStreet);
-          if (suburb) parts.push(`Col. ${suburb}`);
-          if (city) parts.push(city);
-          const formatted = parts.join(", ");
-
-          const subParts: string[] = [];
-          if (suburb) subParts.push(`Col. ${suburb}`);
-          subParts.push(city);
-          if (matchedSecNum) subParts.push(`Secc. #${matchedSecNum}`);
-
-          results.push({
-            id: `osm-${item.place_id || Math.random().toString(36).substring(7)}`,
-            type: "address",
-            title: fullStreet || item.name || formatted,
-            subtitle: subParts.join(" · "),
-            address: formatted,
-            colony: suburb,
-            municipality: city,
-            postcode,
-            lat,
-            lng,
-            sectionNum: matchedSecNum,
-            sectionId: matchedSecId
-          });
         }
       }
+
+      const parts: string[] = [];
+      if (fullStreet) parts.push(fullStreet);
+      if (suburb) parts.push(`Col. ${suburb}`);
+      if (city) parts.push(city);
+      const formatted = parts.join(", ");
+
+      const subParts: string[] = [];
+      if (suburb) subParts.push(`Col. ${suburb}`);
+      subParts.push(city);
+      if (matchedSecNum) subParts.push(`Secc. #${matchedSecNum}`);
+
+      results.push({
+        id: `osm-${item.place_id || Math.random().toString(36).substring(7)}`,
+        type: "address",
+        title: fullStreet || item.name || formatted,
+        subtitle: subParts.join(" · "),
+        address: formatted,
+        colony: suburb,
+        municipality: city,
+        postcode,
+        lat,
+        lng,
+        sectionNum: matchedSecNum,
+        sectionId: matchedSecId
+      });
     }
   } catch (_e) {
     // OpenStreetMap timed out or network error

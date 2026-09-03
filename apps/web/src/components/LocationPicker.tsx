@@ -206,17 +206,31 @@ export function LocationPicker({
     setSearchResults([]);
 
     try {
-      const res = await fetch(`/api/map/geocode?q=${encodeURIComponent(searchQuery.trim())}`);
+      // El municipio de captura orienta la búsqueda; sin él todo se resuelve
+      // contra Tonalá aunque se esté trabajando en otro municipio.
+      const municipio = value.municipality || defaultMunicipality || "Tonalá";
+      const res = await fetch(
+        `/api/map/geocode?q=${encodeURIComponent(searchQuery.trim())}&municipality=${encodeURIComponent(municipio)}`
+      );
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data.results) ? data.results : [];
         setSearchResults(list);
 
-        if (list.length > 0) {
-          // Select first result immediately
+        if (list.length === 0) {
+          setStatusMessage("No se encontró esa dirección. Márcala directamente en el mapa.");
+        } else if (list.length === 1) {
           applySearchResult(list[0]);
         } else {
-          setStatusMessage("No se encontraron resultados exactos. Puedes seleccionarlo directamente en el mapa.");
+          // Con varias coincidencias se muestran todas y elige quien captura.
+          //
+          // Antes se aplicaba la primera de inmediato y `applySearchResult`
+          // terminaba vaciando la lista en el mismo lote de renderizado, así
+          // que las otras coincidencias no llegaban a dibujarse nunca: el
+          // buscador se quedaba con una calle equivocada y no había forma de
+          // corregirlo salvo marcando el punto a mano en el mapa.
+          mapInstanceRef.current?.setView([list[0].lat, list[0].lng], 15);
+          setStatusMessage(`${list.length} coincidencias. Elige la correcta o marca el punto exacto en el mapa.`);
         }
       }
     } catch (err) {
@@ -244,7 +258,14 @@ export function LocationPicker({
       sectionNum: item.sectionNum || value.sectionNum
     });
 
-    setStatusMessage(`✓ Ubicado en: ${item.formattedAddress || item.displayName}`);
+    // OSM casi nunca tiene el número de casa en Tonalá. Cuando el resultado es
+    // solo la calle hay que decirlo: el pin cae en el punto de la vía, que puede
+    // quedar a varias cuadras del domicilio real.
+    setStatusMessage(
+      item.precision === "calle"
+        ? `Ubicado en ${item.formattedAddress || item.displayName} (calle, sin número). Ajusta el pin en el mapa.`
+        : `✓ Ubicado en: ${item.formattedAddress || item.displayName}`
+    );
     setSearchResults([]);
   };
 
@@ -331,7 +352,7 @@ export function LocationPicker({
         </div>
 
         {/* Search Results Suggestions */}
-        {searchResults.length > 1 && (
+        {searchResults.length > 0 && (
           <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-2 space-y-1 max-h-48 overflow-y-auto">
             <p className="text-[11px] font-bold text-gray-400 uppercase px-2 py-1">Coincidencias encontradas:</p>
             {searchResults.map((item, idx) => (
@@ -345,11 +366,18 @@ export function LocationPicker({
                   <MapPin size={14} className="text-red-500 shrink-0" />
                   <span className="truncate">{item.formattedAddress || item.displayName}</span>
                 </div>
-                {item.sectionNum && (
-                  <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full shrink-0">
-                    Secc. #{item.sectionNum}
-                  </span>
-                )}
+                <span className="flex items-center gap-1 shrink-0">
+                  {item.precision === "calle" && (
+                    <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full">
+                      sin número
+                    </span>
+                  )}
+                  {item.sectionNum && (
+                    <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
+                      Secc. #{item.sectionNum}
+                    </span>
+                  )}
+                </span>
               </button>
             ))}
           </div>
