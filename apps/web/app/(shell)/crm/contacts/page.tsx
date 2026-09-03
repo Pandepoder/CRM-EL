@@ -2,7 +2,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { getServerSession } from "@/lib/session-server";
 import { redirect } from "next/navigation";
 import { schema } from "@tonala/shared/database";
-import { eq, or, inArray, desc, ilike } from "drizzle-orm";
+import { and, eq, or, inArray, desc, ilike, type SQL } from "drizzle-orm";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import DirectorioClient from "./DirectorioClient";
 
@@ -41,7 +41,36 @@ export default async function ContactsPage({
   const networkScope = await resolveUserNetworkScope(session.userId, accessType);
 
   // 3. Query contacts with network restriction
-  let query = db
+  //
+  // Las condiciones se acumulan y se aplican de una sola vez. Encadenar varios
+  // `.where()` sobre una consulta `$dynamic()` no las suma: cada llamada
+  // SUSTITUYE a la anterior. Aquí eso significaba que en cuanto se escribía algo
+  // en el buscador, el filtro de red desaparecía y el directorio devolvía todos
+  // los contactos de la base. Comprobado: un capturista con cero contactos a su
+  // nombre veía 25 registros ajenos con solo teclear una letra.
+  const condiciones: SQL[] = [eq(schema.contacts.status, "active")];
+
+  if (!networkScope.isGlobal && networkScope.allowedUserIds && networkScope.allowedUserIds.length > 0) {
+    condiciones.push(
+      or(
+        inArray(schema.contacts.createdByUserId, networkScope.allowedUserIds),
+        inArray(schema.contacts.referredByUserId, networkScope.allowedUserIds),
+        inArray(schema.contacts.actualContactUserId, networkScope.allowedUserIds)
+      )!
+    );
+  }
+
+  if (q.trim()) {
+    const term = `%${q.trim()}%`;
+    condiciones.push(
+      or(
+        ilike(schema.contacts.displayName, term),
+        ilike(schema.contacts.colony, term)
+      )!
+    );
+  }
+
+  const query = db
     .select({
       id: schema.contacts.id,
       contactId: schema.contacts.id,
@@ -59,32 +88,7 @@ export default async function ContactsPage({
     })
     .from(schema.contacts)
     .leftJoin(schema.electoralSections, eq(schema.contacts.sectionId, schema.electoralSections.id))
-    .where(eq(schema.contacts.status, "active"))
-    .$dynamic();
-
-  // Apply network filter:
-  // If Coordinación: no restriction
-  // If Enlace: allowedUserIds
-  // If Conexión: [session.userId]
-  if (!networkScope.isGlobal && networkScope.allowedUserIds && networkScope.allowedUserIds.length > 0) {
-    query = query.where(
-      or(
-        inArray(schema.contacts.createdByUserId, networkScope.allowedUserIds),
-        inArray(schema.contacts.referredByUserId, networkScope.allowedUserIds),
-        inArray(schema.contacts.actualContactUserId, networkScope.allowedUserIds)
-      )
-    );
-  }
-
-  if (q.trim()) {
-    const term = `%${q.trim()}%`;
-    query = query.where(
-      or(
-        ilike(schema.contacts.displayName, term),
-        ilike(schema.contacts.colony, term)
-      )
-    );
-  }
+    .where(and(...condiciones));
 
   const allFiltered = await query.orderBy(desc(schema.contacts.createdAt));
   const totalCount = allFiltered.length;

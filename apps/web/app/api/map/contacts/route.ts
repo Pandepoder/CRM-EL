@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, type SQL } from "drizzle-orm";
 import { getServerSession } from "@/lib/session-server";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
@@ -73,7 +73,17 @@ export async function GET(request: Request) {
     const db = getDatabaseClient();
     const networkScope = await resolveUserNetworkScope(session.userId);
 
-    let query = db
+    // Las condiciones se acumulan y se aplican juntas. Encadenar `.where()` dos
+    // veces sobre una consulta `$dynamic()` no las suma: la segunda sustituye a
+    // la primera. Aquí el filtro de red borraba al de estado, así que el mapa
+    // devolvía también contactos archivados a todo el que no fuera administrador
+    // —medido: 255 contactos frente a los 253 activos del administrador—.
+    const condiciones: SQL[] = [eq(schema.contacts.status, "active")];
+    if (!networkScope.isGlobal && networkScope.allowedUserIds && networkScope.allowedUserIds.length > 0) {
+      condiciones.push(inArray(schema.contacts.createdByUserId, networkScope.allowedUserIds));
+    }
+
+    const query = db
       .select({
         id: schema.contacts.id,
         displayName: schema.contacts.displayName,
@@ -94,12 +104,7 @@ export async function GET(request: Request) {
       .from(schema.contacts)
       .leftJoin(schema.userProfiles, eq(schema.contacts.createdByUserId, schema.userProfiles.id))
       .leftJoin(schema.electoralSections, eq(schema.contacts.sectionId, schema.electoralSections.id))
-      .where(eq(schema.contacts.status, "active"))
-      .$dynamic();
-
-    if (!networkScope.isGlobal && networkScope.allowedUserIds && networkScope.allowedUserIds.length > 0) {
-      query = query.where(inArray(schema.contacts.createdByUserId, networkScope.allowedUserIds));
-    }
+      .where(and(...condiciones));
 
     const contacts = await query;
 

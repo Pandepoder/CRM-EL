@@ -2,14 +2,31 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
 import AnalyticsClient from "./AnalyticsClient";
 import { requirePageRole } from "@/lib/authorization";
+import { getServerSession } from "@/lib/session-server";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { and, eq, inArray } from "drizzle-orm";
 
 export default async function AnalyticsPage() {
   await requirePageRole("admin", "direction");
+  const session = await getServerSession();
 
   const db = getDatabaseClient();
 
-  // 1. Fetch ALL contacts (since we need to decrypt them to group them)
-  const contacts = await db.select().from(schema.contacts);
+  // El análisis se hace sobre lo que quien consulta puede ver, no sobre toda la
+  // base. Antes leía `SELECT * FROM contacts` sin condición alguna: ni alcance
+  // de equipo ni filtro de estado, así que Dirección obtenía la demografía
+  // completa del padrón y los conteos incluían registros dados de baja.
+  const alcance = await resolveUserNetworkScope(session.userId);
+  const enAlcance = alcance.isGlobal ? null : (alcance.allowedUserIds ?? [session.userId]);
+
+  const contacts = await db
+    .select()
+    .from(schema.contacts)
+    .where(
+      enAlcance
+        ? and(eq(schema.contacts.status, "active"), inArray(schema.contacts.createdByUserId, enAlcance))
+        : eq(schema.contacts.status, "active")
+    );
   
   const totalCitizens = contacts.length;
   

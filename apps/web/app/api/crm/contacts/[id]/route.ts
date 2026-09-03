@@ -4,6 +4,7 @@ import { DevelopmentLogger } from "@tonala/shared/observability";
 import { getDatabaseClient } from "@/lib/db-client";
 import { createCrmDependencies } from "@/lib/crm-deps";
 import { actorFromSession, permissionChecker, unauthorized } from "@/lib/api-helpers";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { schema } from "@tonala/shared/database";
 import { eq, sql, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -18,8 +19,16 @@ export async function GET(
   const { id } = await params;
   const db = getDatabaseClient();
   const { contactsReader } = await createCrmDependencies(db);
-  
-  const result = await getContactDetail(actor, { contactId: id }, {
+
+  // El alcance de equipo lo calcula la capa web y se le pasa al caso de uso.
+  // Sin esto, quien no es administración solo podría abrir sus propias fichas,
+  // ni siquiera las de su brigada.
+  const alcance = await resolveUserNetworkScope(actor.actorId);
+
+  const result = await getContactDetail(actor, {
+    contactId: id,
+    ...(alcance.allowedUserIds ? { scopedUserIds: alcance.allowedUserIds } : {})
+  }, {
     contactsReader,
     logger: new DevelopmentLogger(),
     permissionChecker

@@ -15,11 +15,14 @@ export interface UserNetworkScope {
 }
 
 /**
- * Resolves the hierarchical user IDs and brigade scope that a user is permitted to see according to ElApp access rules:
- * - Admin / Dirección: Global view of all records and users.
- * - Líder (territorial_coordinator): Manages teams/brigades, sees their brigade members, and can manage contacts of their brigade.
- * - Coordinador Territorial (capturist) & Brigadista (visit_responsible): Operates strictly within their brigade.
- *   Sees only teammates of their own brigade and contacts belonging to their brigade/themselves.
+ * Resuelve el alcance de un usuario: a qué otros usuarios y equipos puede ver.
+ *
+ * - Administración: vista global de todo el sistema.
+ * - Dirección: solo los equipos que un administrador le haya asignado, y puede
+ *   tener varios. Coordina dentro de ellos como un líder, pero no ve el resto
+ *   de la estructura. Antes tenía vista global igual que administración.
+ * - Líder (territorial_coordinator): sus equipos y la red que dependen de él.
+ * - Capturista y brigadista: su propio equipo y sus registros.
  */
 export async function resolveUserNetworkScope(
   userId: string,
@@ -41,8 +44,8 @@ export async function resolveUserNetworkScope(
   const roleKey = userRow[0]?.roleKey || "";
   const accessType: AccessType = (userAccessType as AccessType) || (userRow[0]?.accessType as AccessType) || "conexion";
 
-  // 1. Admin and Direction have full global access
-  if (roleKey === "admin" || roleKey === "direction") {
+  // 1. Solo administración tiene acceso global.
+  if (roleKey === "admin") {
     return {
       accessType: "coordinacion",
       roleKey,
@@ -73,7 +76,11 @@ export async function resolveUserNetworkScope(
     ])
   );
 
-  const isLeader = roleKey === "territorial_coordinator" || ledTeams.length > 0;
+  // Dirección coordina dentro de los equipos que le asignaron, sea como líder
+  // formal o como integrante: puede asignar trabajo y ver a sus compañeros de
+  // equipo, pero ya no al resto de la estructura.
+  const isLeader =
+    roleKey === "territorial_coordinator" || roleKey === "direction" || ledTeams.length > 0;
 
   // 4. Find all teammates across user's teams (including leaders and members)
   let teammateUserIds: string[] = [userId];

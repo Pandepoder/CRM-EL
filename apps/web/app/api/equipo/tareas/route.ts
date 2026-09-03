@@ -3,12 +3,15 @@ export const dynamic = "force-dynamic";
 
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { actorFromSession, unauthorized } from "@/lib/api-helpers";
+import { requireLiderParaIncidencias } from "@/lib/authorization";
 import { eq } from "drizzle-orm";
 
 export async function POST(req: Request) {
-  const actor = await actorFromSession();
-  if (!actor) return unauthorized();
+  // Esta ruta también da de alta incidencias, y solo comprobaba que hubiera
+  // sesión abierta: cualquier integrante podía crearlas por aquí aunque el mapa
+  // se lo impidiera. Misma puerta que en /api/map/reports.
+  const actor = await requireLiderParaIncidencias();
+  if (actor instanceof NextResponse) return actor;
 
   try {
     const body = await req.json();

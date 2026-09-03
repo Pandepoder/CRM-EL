@@ -8,6 +8,11 @@ import { type ListContactsDependencies, type UseCaseResult } from "./ports.js";
 
 export type ListContactsInput = Readonly<{
   assignedUserId?: string;
+  /**
+   * Usuarios cuyo trabajo puede ver quien consulta. Lo calcula la capa web, que
+   * es la que conoce la jerarquía de equipos; sin él se cae a "solo lo propio".
+   */
+  scopedUserIds?: readonly string[];
   q?: string;
   page?: number;
   pageSize?: number;
@@ -33,12 +38,18 @@ export async function listContacts(
       }
 
       try {
-        // Users who are not admin or direction can only view their own registered/assigned contacts
-        const isGlobalViewer = actor.roles.includes("admin") || actor.roles.includes("direction") || actor.isSystem;
-        const scopedUserId = !isGlobalViewer ? actor.actorId : undefined;
+        // Solo administración ve todo. Dirección dejó de ser global: ve los
+        // equipos que le asignaron, y ese conjunto llega en `scopedUserIds`.
+        const isGlobalViewer = actor.roles.includes("admin") || actor.isSystem;
+        const scopedUserIds = isGlobalViewer
+          ? undefined
+          : (input.scopedUserIds && input.scopedUserIds.length > 0
+              ? input.scopedUserIds
+              : [actor.actorId]
+            ).map((id) => createEntityId(id));
 
         const result = await dependencies.contactsReader.listContacts({
-          ...(scopedUserId !== undefined ? { scopedUserId } : {}),
+          ...(scopedUserIds !== undefined ? { scopedUserIds } : {}),
           ...(input.assignedUserId !== undefined ? { assignedUserId: createEntityId(input.assignedUserId) } : {}),
           ...(input.q !== undefined ? { q: input.q } : {}),
           ...(input.page !== undefined ? { page: input.page } : {}),

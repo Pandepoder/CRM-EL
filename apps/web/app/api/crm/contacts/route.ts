@@ -4,6 +4,7 @@ import { DevelopmentLogger } from "@tonala/shared/observability";
 import { getDatabaseClient } from "@/lib/db-client";
 import { createCrmDependencies } from "@/lib/crm-deps";
 import { actorFromSession, permissionChecker, resultToResponse, unauthorized } from "@/lib/api-helpers";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export async function GET() {
   const actor = await actorFromSession();
@@ -11,7 +12,10 @@ export async function GET() {
 
   const db = getDatabaseClient();
   const { contactsReader } = await createCrmDependencies(db);
-  const result = await listContacts(actor, {}, {
+  const alcance = await resolveUserNetworkScope(actor.actorId);
+  const result = await listContacts(actor, {
+    ...(alcance.allowedUserIds ? { scopedUserIds: alcance.allowedUserIds } : {})
+  }, {
     contactsReader,
     logger: new DevelopmentLogger(),
     permissionChecker

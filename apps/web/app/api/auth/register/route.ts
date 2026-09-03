@@ -67,19 +67,21 @@ export async function POST(request: Request) {
       .where(eq(schema.roles.key, "visit_responsible"))
       .limit(1);
 
-    let roleId: string;
-    if (roles.length > 0 && roles[0]) {
-      roleId = roles[0].id;
-    } else {
-      const anyRole = await db.select().from(schema.roles).limit(1);
-      if (anyRole.length === 0 || !anyRole[0]) {
-        return NextResponse.json(
-          { code: "internal_error", message: "Error interno: Catálogo de roles no inicializado." },
-          { status: 500 }
-        );
-      }
-      roleId = anyRole[0].id;
+    // Sin el rol de brigadista el alta no sigue adelante.
+    //
+    // Antes se echaba mano de `SELECT ... FROM roles LIMIT 1`, es decir, un rol
+    // cualquiera del catálogo, que podría ser el de administrador: un fallo de
+    // configuración se convertía en una escalada de privilegios abierta al
+    // formulario público. Vale más rechazar el alta y que se arregle el catálogo.
+    const rolBrigadista = roles[0];
+    if (!rolBrigadista) {
+      console.error("Catálogo de roles sin 'visit_responsible': registro rechazado.");
+      return NextResponse.json(
+        { code: "internal_error", message: "Error interno: Catálogo de roles no inicializado." },
+        { status: 500 }
+      );
     }
+    const roleId = rolBrigadista.id;
 
     const passwordHash = await hashPassword(password);
     const userId = randomUUID();

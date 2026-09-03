@@ -2,22 +2,43 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 import { getDatabaseClient } from "@/lib/db-client";
-import { requireActorPermission, Permission } from "@/lib/authorization";
+import { requireLiderParaIncidencias } from "@/lib/authorization";
 import { schema } from "@tonala/shared/database";
 const { eventReports } = schema;
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { actorFromSession, unauthorized } from "@/lib/api-helpers";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { withOutbox } from "@/lib/outbox-helper";
 import { randomUUID } from "crypto";
 import { point } from "@turf/helpers";
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 
 export async function GET(_request: Request) {
-  const actor = await requireActorPermission(Permission.DashboardRead);
-  if (actor instanceof NextResponse) return actor;
+  // El mapa de incidencias dejó de estar reservado a administración y dirección.
+  // Una incidencia sin equipo asignado es información general de la operación y
+  // la ve toda la estructura; en cuanto se asigna a un equipo pasa a ser trabajo
+  // de ese equipo y solo lo ven sus integrantes, quien la creó, la persona a la
+  // que se asignó y administración.
+  const actor = await actorFromSession();
+  if (!actor) return unauthorized();
 
   const db = getDatabaseClient();
 
   try {
+    const actorId = actor.actorId as string;
+    const alcance = await resolveUserNetworkScope(actorId);
+
+    const visibilidad = alcance.isGlobal
+      ? undefined
+      : or(
+          isNull(eventReports.assignedTeamId),
+          eq(eventReports.createdByUserId, actorId),
+          eq(eventReports.assignedToUserId, actorId),
+          ...(alcance.teamIds.length > 0
+            ? [inArray(eventReports.assignedTeamId, alcance.teamIds)]
+            : [])
+        );
+
     const reports = await db
       .select({
         id: eventReports.id,
@@ -39,6 +60,7 @@ export async function GET(_request: Request) {
       })
       .from(eventReports)
       .leftJoin(schema.electoralSections, eq(eventReports.sectionId, schema.electoralSections.id))
+      .where(visibilidad ? and(visibilidad) : undefined)
       .orderBy(desc(eventReports.createdAt));
 
     const geoJson = {
@@ -76,7 +98,7 @@ export async function GET(_request: Request) {
 }
 
 export async function POST(request: Request) {
-  const actor = await requireActorPermission(Permission.DashboardRead);
+  const actor = await requireLiderParaIncidencias();
   if (actor instanceof NextResponse) return actor;
 
   try {

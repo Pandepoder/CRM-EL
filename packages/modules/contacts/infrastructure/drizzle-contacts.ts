@@ -126,18 +126,19 @@ export class DrizzleContactsReader implements ContactsReader {
 
   public async listContacts(options?: {
     assignedUserId?: ReturnType<typeof createEntityId>;
-    scopedUserId?: ReturnType<typeof createEntityId>;
+    scopedUserIds?: readonly ReturnType<typeof createEntityId>[];
     q?: string;
     page?: number;
     pageSize?: number;
   }) {
     const conditions = [];
     conditions.push(sql`c.status = 'active'`);
-    if (options?.scopedUserId) {
+    if (options?.scopedUserIds && options.scopedUserIds.length > 0) {
+      const enAlcance = sql.join(options.scopedUserIds.map((id) => sql`${id}`), sql`, `);
       conditions.push(sql`(
-        c.created_by_user_id = ${options.scopedUserId} OR
-        c.referred_by_user_id = ${options.scopedUserId} OR
-        (ca.assigned_user_id = ${options.scopedUserId} AND ca.assignment_status = 'active')
+        c.created_by_user_id IN (${enAlcance}) OR
+        c.referred_by_user_id IN (${enAlcance}) OR
+        (ca.assigned_user_id IN (${enAlcance}) AND ca.assignment_status = 'active')
       )`);
     }
     if (options?.assignedUserId) {
@@ -226,7 +227,7 @@ export class DrizzleContactsReader implements ContactsReader {
 
   public async getContactDetail(
     contactId: ReturnType<typeof createEntityId>,
-    scopedUserId?: ReturnType<typeof createEntityId>
+    scopedUserIds?: readonly ReturnType<typeof createEntityId>[]
   ) {
     type DetailRow = {
       contactId: string;
@@ -252,11 +253,12 @@ export class DrizzleContactsReader implements ContactsReader {
     };
 
     const conditions = [sql`c.id = ${contactId}`];
-    if (scopedUserId) {
+    if (scopedUserIds && scopedUserIds.length > 0) {
+      const enAlcance = sql.join(scopedUserIds.map((id) => sql`${id}`), sql`, `);
       conditions.push(sql`(
-        c.created_by_user_id = ${scopedUserId} OR
-        c.referred_by_user_id = ${scopedUserId} OR
-        (ca.assigned_user_id = ${scopedUserId} AND ca.assignment_status = 'active')
+        c.created_by_user_id IN (${enAlcance}) OR
+        c.referred_by_user_id IN (${enAlcance}) OR
+        (ca.assigned_user_id IN (${enAlcance}) AND ca.assignment_status = 'active')
       )`);
     }
 

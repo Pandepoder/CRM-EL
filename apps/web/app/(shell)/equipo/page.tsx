@@ -209,11 +209,21 @@ export default async function EquipoMiDiaPage({
     })
     .from(schema.userProfiles)
     .leftJoin(schema.roles, eq(schema.userProfiles.roleId, schema.roles.id))
-    .where(eq(schema.userProfiles.status, "active"))
     .$dynamic();
 
+  // El filtro de red se une al de estado en una sola condición. Encadenar dos
+  // `.where()` sobre una consulta `$dynamic()` no los suma: el segundo sustituye
+  // al primero, así que el `status = 'active'` se perdía y la bitácora incluía
+  // registros dados de baja.
   if (!isGlobalAdmin && allowedTeammateIds.length > 0) {
-    userQuery = userQuery.where(inArray(schema.userProfiles.id, allowedTeammateIds));
+    userQuery = userQuery.where(
+      and(
+        eq(schema.userProfiles.status, "active"),
+        inArray(schema.userProfiles.id, allowedTeammateIds)
+      )
+    );
+  } else {
+    userQuery = userQuery.where(eq(schema.userProfiles.status, "active"));
   }
 
   const systemUsers = await userQuery.orderBy(schema.userProfiles.displayName);
@@ -263,11 +273,17 @@ export default async function EquipoMiDiaPage({
       createdByUserId: schema.contacts.createdByUserId
     })
     .from(schema.contacts)
-    .where(eq(schema.contacts.status, "active"))
     .$dynamic();
 
   if (!isGlobalAdmin && allowedContactUserIds.length > 0) {
-    contactQuery = contactQuery.where(inArray(schema.contacts.createdByUserId, allowedContactUserIds));
+    contactQuery = contactQuery.where(
+      and(
+        eq(schema.contacts.status, "active"),
+        inArray(schema.contacts.createdByUserId, allowedContactUserIds)
+      )
+    );
+  } else {
+    contactQuery = contactQuery.where(eq(schema.contacts.status, "active"));
   }
   const allContacts = await contactQuery;
 
@@ -370,11 +386,17 @@ export default async function EquipoMiDiaPage({
       colony: schema.contacts.colony
     })
     .from(schema.contacts)
-    .where(eq(schema.contacts.status, "active"))
     .$dynamic();
 
   if (!isGlobalAdmin && allowedContactUserIds.length > 0) {
-    rawContactsQuery = rawContactsQuery.where(inArray(schema.contacts.createdByUserId, allowedContactUserIds));
+    rawContactsQuery = rawContactsQuery.where(
+      and(
+        eq(schema.contacts.status, "active"),
+        inArray(schema.contacts.createdByUserId, allowedContactUserIds)
+      )
+    );
+  } else {
+    rawContactsQuery = rawContactsQuery.where(eq(schema.contacts.status, "active"));
   }
 
   const rawContacts = await rawContactsQuery.orderBy(schema.contacts.displayName).limit(100);

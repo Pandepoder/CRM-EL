@@ -11,6 +11,7 @@ import { actorFromSession, unauthorized, permissionChecker } from "@/lib/api-hel
 import { getHomePathForRole } from "@tonala/ui";
 import { getServerSession } from "@/lib/session-server";
 import { roleHasAny } from "@/lib/permissions";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export type AuthFailure = NextResponse;
 
@@ -90,3 +91,31 @@ export function assertActorPermission(
 }
 
 export { Permission, permissionChecker };
+
+/**
+ * Levantar una incidencia queda en manos de quien coordina la brigada, no de
+ * cada integrante: administración, dirección, los coordinadores territoriales y
+ * quien lidere un equipo. Un brigadista la reporta a su líder, que es quien la
+ * registra y responde de ella.
+ *
+ * El mensaje explica el motivo y qué hacer, en vez del "Acceso denegado" a secas
+ * que devolvía la comprobación genérica: quien se topa con esto en campo
+ * necesita saber si le falta un permiso o si está haciendo algo que no le toca.
+ */
+export async function requireLiderParaIncidencias(): Promise<ActorContext | AuthFailure> {
+  const actor = await actorFromSession();
+  if (!actor) return unauthorized();
+
+  const alcance = await resolveUserNetworkScope(actor.actorId);
+  if (alcance.isGlobal || alcance.isLeader) return actor;
+
+  return NextResponse.json(
+    {
+      code: "forbidden_no_es_lider",
+      message:
+        "Solo el líder de la brigada puede levantar incidencias. " +
+        "Repórtasela a tu líder o a tu coordinador territorial para que quede registrada a nombre del equipo."
+    },
+    { status: 403 }
+  );
+}

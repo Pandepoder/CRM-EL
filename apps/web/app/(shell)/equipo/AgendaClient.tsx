@@ -242,7 +242,7 @@ export default function AgendaClient({
         }, 1100);
       } else {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || "Error al registrar la actividad.");
+        alert(data.message || data.error || "Error al registrar la actividad.");
       }
     } catch (err) {
       console.error(err);

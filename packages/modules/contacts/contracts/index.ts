@@ -73,12 +73,17 @@ export interface ContactsReader {
   getContactStatus(contactId: EntityId): Promise<ContactStatusView | null>;
   listContacts(options?: {
     assignedUserId?: EntityId;
-    scopedUserId?: EntityId;
+    /**
+     * Usuarios cuyo trabajo puede ver quien consulta. Antes era una sola
+     * persona, así que un contacto solo se podía acotar a su autor; con equipos
+     * hace falta el conjunto, que lo calcula la capa web y se pasa aquí.
+     */
+    scopedUserIds?: readonly EntityId[];
     q?: string;
     page?: number;
     pageSize?: number;
   }): Promise<{ items: ContactListItem[]; total: number }>;
-  getContactDetail(contactId: EntityId, scopedUserId?: EntityId): Promise<ContactDetail | null>;
+  getContactDetail(contactId: EntityId, scopedUserIds?: readonly EntityId[]): Promise<ContactDetail | null>;
 }
 
 export type ContactRegisteredV1Payload = Readonly<{

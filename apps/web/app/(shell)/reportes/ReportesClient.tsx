@@ -132,7 +132,11 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
         });
         setTimeout(() => setSuccess(false), 4000);
       } else {
-        alert("Error al enviar el reporte");
+        // Se muestra el motivo que da el servidor —por ejemplo, que levantar
+        // incidencias corresponde al líder de la brigada— en vez de un mensaje
+        // genérico que deja a quien reporta sin saber qué hacer.
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.message || errData.error || "Error al enviar el reporte.");
       }
     } catch {
       alert("Error de conexión");

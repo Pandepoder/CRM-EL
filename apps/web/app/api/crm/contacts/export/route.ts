@@ -2,7 +2,8 @@ import { type NextRequest } from "next/server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
-import { like, or, eq, and } from "drizzle-orm";
+import { like, or, eq, and, inArray } from "drizzle-orm";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export async function GET(req: NextRequest) {
   const actor = await actorFromSession();
@@ -10,7 +11,12 @@ export async function GET(req: NextRequest) {
     return unauthorized();
   }
 
-  const isGlobal = actor.roles.includes("admin") || actor.roles.includes("direction") || actor.isSystem;
+  // La exportación se lleva los datos fuera del sistema, así que respeta el
+  // mismo alcance que el directorio. Antes Dirección exportaba la base entera;
+  // ahora exporta lo de sus equipos, y quien no tiene equipo, lo suyo.
+  const alcance = await resolveUserNetworkScope(actor.actorId);
+  const isGlobal = alcance.isGlobal || actor.isSystem;
+  const enAlcance = alcance.allowedUserIds ?? [actor.actorId];
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q");
@@ -20,8 +26,8 @@ export async function GET(req: NextRequest) {
 
   if (!isGlobal) {
     conditions.push(or(
-      eq(schema.contacts.createdByUserId, actor.actorId as string),
-      eq(schema.contacts.referredByUserId, actor.actorId as string)
+      inArray(schema.contacts.createdByUserId, enAlcance),
+      inArray(schema.contacts.referredByUserId, enAlcance)
     )!);
   }
 

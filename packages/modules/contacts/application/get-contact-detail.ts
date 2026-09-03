@@ -9,6 +9,8 @@ import { type GetContactDetailDependencies, type UseCaseResult } from "./ports.j
 
 export type GetContactDetailInput = Readonly<{
   contactId: string;
+  /** Usuarios cuyo trabajo puede ver quien consulta; lo calcula la capa web. */
+  scopedUserIds?: readonly string[];
 }>;
 
 export async function getContactDetail(
@@ -31,11 +33,18 @@ export async function getContactDetail(
       }
 
       try {
-        const isGlobalViewer = actor.roles.includes("admin") || actor.roles.includes("direction") || actor.isSystem;
-        const scopedUserId = !isGlobalViewer ? actor.actorId : undefined;
+        // Solo administración ve cualquier ficha. Dirección y los líderes ven las
+        // de su equipo, que llegan en `scopedUserIds` desde la capa web.
+        const isGlobalViewer = actor.roles.includes("admin") || actor.isSystem;
+        const scopedUserIds = isGlobalViewer
+          ? undefined
+          : (input.scopedUserIds && input.scopedUserIds.length > 0
+              ? input.scopedUserIds
+              : [actor.actorId]
+            ).map((id) => createEntityId(id));
 
         const entityId = createEntityId(input.contactId);
-        const contact = await dependencies.contactsReader.getContactDetail(entityId, scopedUserId);
+        const contact = await dependencies.contactsReader.getContactDetail(entityId, scopedUserIds);
         
         if (!contact) {
           return err(new ApplicationError({
