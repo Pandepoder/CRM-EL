@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getEdgeSession } from "@/lib/session-server";
 
-const publicPaths = new Set(["/", "/login", "/register"]);
+// `/conoceme` es material de campaña: se comparte por WhatsApp y se abre en
+// la puerta de una casa, así que tiene que verse sin cuenta.
+const publicPaths = new Set(["/", "/login", "/register", "/conoceme"]);
 
 function getHomePathForRole(roleKey: string): string {
   switch (roleKey) {
