@@ -81,7 +81,7 @@ def update_live():
     time.sleep(3)
     cmd_ine = """
     cd /opt/crm-el
-    docker compose exec -T web npx tsx scripts/db/restore-official-section-geometry.ts
+    docker compose run --rm migrate pnpm db:restore-geo
     """
     ok, _ = run_remote_command(client, cmd_ine, "3. Restauración de la Cartografía Oficial del INE")
     if not ok:
@@ -90,7 +90,7 @@ def update_live():
     # 4. Rellenar con Voronoi únicamente las secciones que siguen sin contorno.
     cmd_voronoi = """
     cd /opt/crm-el
-    docker compose exec -T web npx tsx scripts/db/generate-clean-voronoi-sections.ts
+    docker compose run --rm migrate npx tsx scripts/db/generate-clean-voronoi-sections.ts
     """
     ok, _ = run_remote_command(client, cmd_voronoi, "4. Relleno Voronoi de Secciones sin Cartografía")
     if not ok:
