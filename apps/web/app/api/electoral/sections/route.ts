@@ -4,6 +4,8 @@ export const revalidate = 0;
 
 import { getDatabaseClient } from "@/lib/db-client";
 import { getServerSession } from "@/lib/session-server";
+import { actorFromSession, unauthorized } from "@/lib/api-helpers";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -21,6 +23,22 @@ const createSectionSchema = z.object({
  * Returns list of electoral sections with their assigned colonies and municipality
  */
 export async function GET() {
+  // Esta ruta era pública: sin ninguna sesión devolvía el conteo de contactos de
+  // cada sección, es decir, dónde y cuánto trabaja la estructura. Ninguna página
+  // pública la necesita —el registro ciudadano solo llama a /api/public/registro—,
+  // así que ahora exige sesión.
+  const actor = await actorFromSession();
+  if (!actor) return unauthorized();
+
+  // Y el conteo se acota al alcance de quien pregunta: cuántos contactos tiene
+  // *su* brigada en cada sección, no cuántos tienen las demás. El número por
+  // sección es el termómetro con el que se comparan los equipos entre sí.
+  const alcance = await resolveUserNetworkScope(actor.actorId);
+  const enAlcance = alcance.isGlobal ? null : (alcance.allowedUserIds ?? [actor.actorId]);
+  const filtroContactos = enAlcance
+    ? sql`AND cont.created_by_user_id IN (${sql.join(enAlcance.map((id) => sql`${id}`), sql`, `)})`
+    : sql``;
+
   const db = getDatabaseClient();
   try {
     const result = await db.execute<{
@@ -39,7 +57,7 @@ export async function GET() {
       FROM electoral_sections es
       LEFT JOIN section_colonies sc ON sc.section_id = es.id
       LEFT JOIN colonies col ON col.id = sc.colony_id
-      LEFT JOIN contacts cont ON cont.section_id = es.id
+      LEFT JOIN contacts cont ON cont.section_id = es.id AND cont.status = 'active' ${filtroContactos}
       GROUP BY es.id, es.section_num, es.municipality
       ORDER BY es.section_num ASC
     `);

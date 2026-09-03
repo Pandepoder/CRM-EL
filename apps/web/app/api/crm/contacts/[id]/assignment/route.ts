@@ -4,6 +4,7 @@ import { assignResponsible } from "@tonala/modules/assignments/application";
 import { createAssignmentsMutationsDependencies } from "@/lib/crm-deps";
 import { getDatabaseClient } from "@/lib/db-client";
 import { processOutboxInline } from "@/lib/outbox";
+import { exigirAccesoAContacto } from "@/lib/permisos-contacto";
 import { actorFromSession, permissionChecker, resultToResponse, unauthorized } from "@/lib/api-helpers";
 
 export async function POST(
@@ -14,6 +15,9 @@ export async function POST(
   if (!actor) return unauthorized();
 
   const { id } = await params;
+
+  const vetado = await exigirAccesoAContacto(id, actor.actorId, actor.roles);
+  if (vetado) return vetado;
   const body = (await request.json()) as { assignedUserId: string };
   const db = getDatabaseClient();
   const deps = await createAssignmentsMutationsDependencies(db);

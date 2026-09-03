@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { createHash } from "crypto";
 
 /**
  * Caché en proceso del GeoJSON por municipio.
@@ -32,8 +34,34 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const targetMunicipality = url.searchParams.get("municipality") || "Tonalá";
 
+  // Los agregados por sección —cuántos contactos, cuántas visitas, cuántas
+  // incidencias, qué representantes— se acotan al alcance de quien pregunta.
+  // Antes cada persona veía la actividad de toda la estructura sección por
+  // sección: el termómetro exacto para comparar el rendimiento entre brigadas.
+  const alcance = await resolveUserNetworkScope(actor.actorId);
+  const enAlcance = alcance.isGlobal ? null : (alcance.allowedUserIds ?? [actor.actorId]);
+  const misEquipos = alcance.teamIds ?? [];
+
+  const lista = (ids: readonly string[]) => sql.join(ids.map((i) => sql`${i}`), sql`, `);
+  const filtroContactos = enAlcance ? sql`AND cont.created_by_user_id IN (${lista(enAlcance)})` : sql``;
+  const filtroRepresentantes = enAlcance ? sql`AND erep.user_id IN (${lista(enAlcance)})` : sql``;
+  const filtroIncidencias = enAlcance
+    ? sql`AND (
+        (rep.assigned_team_id IS NULL AND rep.assigned_to_user_id IS NULL)
+        OR rep.created_by_user_id = ${actor.actorId}
+        OR rep.assigned_to_user_id IN (${lista(alcance.teammateUserIds)})
+        ${misEquipos.length > 0 ? sql`OR rep.assigned_team_id IN (${lista(misEquipos)})` : sql``}
+      )`
+    : sql``;
+
   const db = getDatabaseClient();
-  const claveCache = targetMunicipality.toLowerCase();
+  // El caché se guardaba solo por municipio. Ahora la respuesta depende de quién
+  // pregunta, así que la clave lleva también la huella del alcance: sin esto,
+  // los números de una brigada se servirían a la siguiente que abriera el mapa.
+  const huellaAlcance = enAlcance
+    ? createHash("sha1").update([...enAlcance].sort().join(",") + "|" + [...misEquipos].sort().join(",")).digest("hex").slice(0, 12)
+    : "global";
+  const claveCache = `${targetMunicipality.toLowerCase()}::${huellaAlcance}`;
   const cache = (globalThis.__tonalaGeojsonSecciones ??= new Map());
   const guardado = cache.get(claveCache);
   if (guardado && Date.now() - guardado.en < GEOJSON_TTL_MS) {
@@ -75,10 +103,10 @@ export async function GET(req: Request) {
       FROM electoral_sections es
       LEFT JOIN section_colonies sc ON sc.section_id = es.id
       LEFT JOIN colonies col ON col.id = sc.colony_id
-      LEFT JOIN contacts cont ON cont.section_id = es.id AND cont.status = 'active'
+      LEFT JOIN contacts cont ON cont.section_id = es.id AND cont.status = 'active' ${filtroContactos}
       LEFT JOIN visits v ON v.contact_id = cont.id
-      LEFT JOIN event_reports rep ON rep.section_id = es.id
-      LEFT JOIN electoral_representatives erep ON erep.section_id = es.id
+      LEFT JOIN event_reports rep ON rep.section_id = es.id ${filtroIncidencias}
+      LEFT JOIN electoral_representatives erep ON erep.section_id = es.id ${filtroRepresentantes}
       LEFT JOIN user_profiles u ON u.id = erep.user_id
       WHERE es.geom_json IS NOT NULL
         ${isFilterAll ? sql`` : sql`AND LOWER(COALESCE(es.municipality, 'Tonalá')) = LOWER(${targetMunicipality})`}

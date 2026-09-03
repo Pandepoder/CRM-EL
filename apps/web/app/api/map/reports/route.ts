@@ -15,10 +15,15 @@ import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 
 export async function GET(_request: Request) {
   // El mapa de incidencias dejó de estar reservado a administración y dirección.
-  // Una incidencia sin equipo asignado es información general de la operación y
-  // la ve toda la estructura; en cuanto se asigna a un equipo pasa a ser trabajo
-  // de ese equipo y solo lo ven sus integrantes, quien la creó, la persona a la
-  // que se asignó y administración.
+  //
+  // Una incidencia sin asignar a nadie es información general de la operación y
+  // la ve toda la estructura. En cuanto se asigna —a un equipo o a una persona—
+  // se convierte en trabajo de esa brigada: la ven sus integrantes, su líder,
+  // quien la creó y administración, y nadie más.
+  //
+  // La asignación a una persona restringe igual que la de equipo. Antes solo
+  // contaba el equipo, así que una tarea con nombre y apellido seguía siendo
+  // visible para toda la estructura.
   const actor = await actorFromSession();
   if (!actor) return unauthorized();
 
@@ -31,9 +36,13 @@ export async function GET(_request: Request) {
     const visibilidad = alcance.isGlobal
       ? undefined
       : or(
-          isNull(eventReports.assignedTeamId),
+          // General: sin equipo y sin persona asignada.
+          and(isNull(eventReports.assignedTeamId), isNull(eventReports.assignedToUserId)),
           eq(eventReports.createdByUserId, actorId),
-          eq(eventReports.assignedToUserId, actorId),
+          // Asignada a alguien de mi equipo. `teammateUserIds` incluye al líder
+          // y a mí mismo, así que con esta condición la tarea de un brigadista
+          // la ven él, sus compañeros y su líder.
+          inArray(eventReports.assignedToUserId, alcance.teammateUserIds),
           ...(alcance.teamIds.length > 0
             ? [inArray(eventReports.assignedTeamId, alcance.teamIds)]
             : [])

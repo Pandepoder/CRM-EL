@@ -25,10 +25,11 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith("/api/auth") || 
     pathname.startsWith("/api/public") || 
-    pathname.startsWith("/api/catalog") ||
-    pathname.startsWith("/api/map/sections") ||
-    pathname.startsWith("/api/electoral/sections") ||
-    pathname.startsWith("/api/crm/colonies") ||
+    // El catálogo de secciones y colonias dejó de ser público: devolvía el
+    // conteo de contactos por sección a cualquiera, con o sin sesión. Ninguna
+    // página pública lo necesita; el registro ciudadano solo usa
+    // /api/public/registro. Las páginas internas que sí lo consultan van con
+    // sesión y pasan igual.
     pathname.startsWith("/registro") ||
     pathname === "/api/health" ||
     // Material gráfico de campaña. Sin esto el middleware redirige las imágenes

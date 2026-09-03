@@ -2,14 +2,18 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import { requireActorPermission, Permission } from "@/lib/authorization";
+import { requireActorRoles } from "@/lib/authorization";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 const { eventReports } = schema;
 import { inArray, eq, and } from "drizzle-orm";
 
 export async function POST(request: Request) {
-  const actor = await requireActorPermission(Permission.DashboardRead);
+  // Operaciones en bloque —purgar, resolver, reasignar o borrar muchas de golpe—
+  // no comprueban propiedad ni equipo una por una, así que quedan reservadas a
+  // administración. Dirección coordina sus brigadas desde la ficha de cada
+  // incidencia, donde sí se comprueba a quién pertenece.
+  const actor = await requireActorRoles("admin");
   if (actor instanceof NextResponse) return actor;
 
   const db = getDatabaseClient();

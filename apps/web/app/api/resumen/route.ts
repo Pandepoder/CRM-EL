@@ -4,15 +4,14 @@ import { getOperationalSummary } from "@tonala/modules/command-center/applicatio
 import { createResumenDependencies } from "@/lib/resumen-deps";
 
 import { getDatabaseClient } from "@/lib/db-client";
-import {
-  permissionChecker,
-  requireActorPermission,
-  Permission
-} from "@/lib/authorization";
+import { permissionChecker, requireActorRoles } from "@/lib/authorization";
 import { resultToResponse } from "@/lib/api-helpers";
 
 export async function GET() {
-  const actor = await requireActorPermission(Permission.DashboardRead);
+  // Devuelve totales de todo el sistema sin acotar por equipo, así que queda en
+  // administración. Dirección y los líderes ven los números de sus equipos en la
+  // página /resumen, que hace sus propias consultas ya acotadas.
+  const actor = await requireActorRoles("admin");
   if (actor instanceof NextResponse) return actor;
 
   const db = getDatabaseClient();

@@ -4,6 +4,7 @@ import { DevelopmentLogger } from "@tonala/shared/observability";
 import { getDatabaseClient } from "@/lib/db-client";
 import { createCrmDependencies, createVisitsMutationsDependencies } from "@/lib/crm-deps";
 import { processOutboxInline } from "@/lib/outbox";
+import { exigirAccesoAContacto } from "@/lib/permisos-contacto";
 import { actorFromSession, permissionChecker, resultToResponse, unauthorized } from "@/lib/api-helpers";
 
 export async function GET(
@@ -14,6 +15,9 @@ export async function GET(
   if (!actor) return unauthorized();
 
   const { id } = await params;
+
+  const vetado = await exigirAccesoAContacto(id, actor.actorId, actor.roles);
+  if (vetado) return vetado;
   const db = getDatabaseClient();
   const { visitsReader } = await createCrmDependencies(db);
   const result = await listVisitsByContact(actor, { contactId: id }, {
@@ -33,6 +37,9 @@ export async function POST(
   if (!actor) return unauthorized();
 
   const { id } = await params;
+
+  const vetado = await exigirAccesoAContacto(id, actor.actorId, actor.roles);
+  if (vetado) return vetado;
   const body = (await request.json()) as { scheduledAt: string; visitLocationText?: string };
   const db = getDatabaseClient();
   const deps = await createVisitsMutationsDependencies(db);

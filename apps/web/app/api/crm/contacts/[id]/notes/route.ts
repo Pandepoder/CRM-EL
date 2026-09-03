@@ -2,7 +2,8 @@ import type { NextRequest} from "next/server";
 import { NextResponse } from "next/server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { getServerSession } from "@/lib/session-server";
+import { actorFromSession, unauthorized } from "@/lib/api-helpers";
+import { exigirAccesoAContacto } from "@/lib/permisos-contacto";
 import { safeErrorMessage } from "@/lib/safe-error";
 
 export async function POST(
@@ -10,12 +11,16 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    if (!session || !session.userId) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    // `getServerSession` solo se fía de la cookie; `actorFromSession` vuelve a
+    // comprobar en la base que la cuenta siga activa y con qué rol. Alguien dado
+    // de baja podía seguir escribiendo notas con su sesión abierta.
+    const actor = await actorFromSession();
+    if (!actor) return unauthorized();
 
     const { id } = await params;
+
+    const vetado = await exigirAccesoAContacto(id, actor.actorId, actor.roles);
+    if (vetado) return vetado;
     const body = await req.json();
     const { noteText } = body;
 
@@ -29,7 +34,7 @@ export async function POST(
       .insert(schema.contactNotes)
       .values({
         contactId: id,
-        authorUserId: session.userId,
+        authorUserId: actor.actorId,
         noteText: noteText.trim(),
         createdAt: new Date()
       })
