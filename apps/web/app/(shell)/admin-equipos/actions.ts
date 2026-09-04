@@ -85,3 +85,70 @@ export async function removeMemberAction(teamId: string, userId: string) {
 
   revalidatePath("/admin-equipos");
 }
+
+/**
+ * Admisión de quien llegó por el QR de la brigada.
+ *
+ * Quien escanea queda apuntado al equipo desde el primer momento, pero con la
+ * cuenta en `pending`: no puede entrar. Es deliberado, porque un enlace acaba
+ * reenviado en cualquier grupo de WhatsApp y sin este paso bastaría tenerlo para
+ * estar dentro de la estructura.
+ *
+ * Aceptar activa la cuenta —ya está en el equipo, nadie tiene que acordarse de
+ * añadirla—. Rechazar la saca del equipo y deja la cuenta marcada, sin borrar a
+ * la persona: si fue un error, un administrador puede revisarlo.
+ */
+export async function aceptarSolicitudAction(teamId: string, userId: string) {
+  const actor = await actorFromSession();
+  try {
+    await assertCanManageTeam(actor, teamId);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Sin permiso" };
+  }
+
+  const db = getDatabaseClient();
+  const pertenece = await db.query.teamMembers.findFirst({
+    where: and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId))
+  });
+  if (!pertenece) return { error: "Esa persona no está en este equipo." };
+
+  await db
+    .update(schema.userProfiles)
+    .set({ status: "active" })
+    .where(eq(schema.userProfiles.id, userId));
+
+  revalidatePath(`/admin-equipos/${teamId}`);
+  revalidatePath("/admin-equipos");
+  return { success: true };
+}
+
+export async function rechazarSolicitudAction(teamId: string, userId: string) {
+  const actor = await actorFromSession();
+  try {
+    await assertCanManageTeam(actor, teamId);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Sin permiso" };
+  }
+
+  const db = getDatabaseClient();
+  const persona = await db.query.userProfiles.findFirst({
+    where: eq(schema.userProfiles.id, userId)
+  });
+  // Solo se rechaza a quien está esperando: una cuenta ya activa no se desactiva
+  // por aquí sin querer.
+  if (!persona || persona.status !== "pending") {
+    return { error: "Esa solicitud ya no está pendiente." };
+  }
+
+  await db
+    .delete(teamMembers)
+    .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)));
+  await db
+    .update(schema.userProfiles)
+    .set({ status: "rejected" })
+    .where(eq(schema.userProfiles.id, userId));
+
+  revalidatePath(`/admin-equipos/${teamId}`);
+  revalidatePath("/admin-equipos");
+  return { success: true };
+}

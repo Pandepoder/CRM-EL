@@ -1,9 +1,11 @@
+import { headers } from "next/headers";
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
 import { redirect } from "next/navigation";
 import { eq, inArray, or, and } from "drizzle-orm";
 import TeamDetailClient from "./TeamDetailClient";
+import { EnlaceBrigada, SolicitudesPendientes } from "./SolicitudesPendientes";
 import { requirePageRole } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
@@ -40,7 +42,11 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
       userId: schema.teamMembers.userId,
       joinedAt: schema.teamMembers.joinedAt,
       displayName: schema.userProfiles.displayName,
-      roleName: schema.roles.name
+      roleName: schema.roles.name,
+      // Quien llegó por el QR queda apuntado al equipo con la cuenta en
+      // `pending`: aparece como solicitud, no como integrante.
+      status: schema.userProfiles.status,
+      invitedByUserId: schema.userProfiles.invitedByUserId
     })
     .from(schema.teamMembers)
     .innerJoin(schema.userProfiles, eq(schema.teamMembers.userId, schema.userProfiles.id))
@@ -54,7 +60,9 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
       userId: team.leaderId,
       joinedAt: new Date().toISOString() as any,
       displayName: team.leaderName,
-      roleName: "Líder del Equipo"
+      roleName: "Líder del Equipo",
+      status: "active",
+      invitedByUserId: null
     });
   }
 
@@ -130,14 +138,50 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
   const availableUsers = await availableUsersQuery;
   const filteredUsers = availableUsers.filter(u => !memberUserIds.includes(u.id));
 
+  // Las solicitudes se muestran aparte y arriba: son las únicas que piden una
+  // decisión, y mezcladas con los integrantes pasaban desapercibidas.
+  const nombresPorId = new Map(availableUsers.map(u => [u.id, u.displayName]));
+  const solicitudes = members
+    .filter(m => m.status === "pending")
+    .map(m => ({
+      userId: m.userId,
+      displayName: m.displayName,
+      invitadoPor: m.invitedByUserId ? nombresPorId.get(m.invitedByUserId) ?? null : null,
+      joinedAt: m.joinedAt ? new Date(m.joinedAt).toISOString() : null
+    }));
+
+  const puedeGestionar = isGlobalAdmin || team.leaderId === session.userId;
+
+  // El enlace del QR es el de quien está mirando: así lo que se registre queda a
+  // su nombre, no al de un tercero.
+  const yo = await db
+    .select({ personalSlug: schema.userProfiles.personalSlug })
+    .from(schema.userProfiles)
+    .where(eq(schema.userProfiles.id, session.userId))
+    .limit(1);
+  const miSlug = yo[0]?.personalSlug ?? null;
+
+  const cabeceras = await headers();
+  const host = cabeceras.get("host") ?? "";
+  const protocolo = cabeceras.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const origen = host ? `${protocolo}://${host}` : "";
+
   return (
+    <>
+      {puedeGestionar ? (
+        <div className="px-6 pt-6 max-w-7xl mx-auto">
+          <SolicitudesPendientes teamId={id} solicitudes={solicitudes} />
+          {miSlug ? <EnlaceBrigada slug={miSlug} equipo={team.name} origen={origen} /> : null}
+        </div>
+      ) : null}
     <TeamDetailClient
       team={team}
       members={serializedMembers}
       contacts={teamContacts}
       availableUsers={filteredUsers}
-      canManage={isGlobalAdmin || team.leaderId === session.userId}
+      canManage={puedeGestionar}
       currentUserId={session.userId}
     />
+    </>
   );
 }

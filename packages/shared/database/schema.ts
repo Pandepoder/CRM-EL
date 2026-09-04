@@ -53,6 +53,9 @@ export const userProfiles = pgTable(
     invitedByUserId: uuid("invited_by_user_id"),
     parentEnlaceId: uuid("parent_enlace_id"),
     personalSlug: text("personal_slug"),
+    // Cifrado en reposo, igual que el de los contactos. Un líder necesita poder
+    // localizar a la gente de su brigada sin salirse del sistema.
+    phone: encryptedText("phone"),
     status: text("status").notNull().default("active"),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -483,10 +486,12 @@ export const eventReports = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
-    check("event_reports_category_check", sql`${table.category} IN ('emergencia', 'incidencia', 'mitin', 'propaganda', 'servicios', 'sospechoso', 'brigada', 'bache', 'alumbrado', 'fuga_agua', 'inundacion', 'basura', 'seguridad', 'lona_danada')`),
+    check("event_reports_category_check", sql`${table.category} IN ('emergencia', 'incidencia', 'mitin', 'propaganda', 'servicios', 'sospechoso', 'brigada', 'bache', 'alumbrado', 'fuga_agua', 'inundacion', 'basura', 'seguridad', 'lona_danada', 'otro')`),
     // `status` era texto libre mientras `category` sí estaba restringida, así que
     // cualquier ruta podía escribir un estado inventado y romper los filtros.
-    check("event_reports_status_check", sql`${table.status} IN ('active', 'in_progress', 'resolved', 'archived')`),
+    // pendiente -> active -> in_progress -> resolved -> archived, y rechazada
+    // como salida desde admisión. Ver lib/estados-incidencia.
+    check("event_reports_status_check", sql`${table.status} IN ('pendiente', 'active', 'in_progress', 'resolved', 'archived', 'rechazada')`),
     // El GeoJSON del mapa hace LEFT JOIN de event_reports por section_id para
     // cada sección; sin índice eso es un recorrido secuencial por sección.
     index("event_reports_section_idx").on(table.sectionId),

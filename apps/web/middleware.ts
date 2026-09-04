@@ -33,6 +33,9 @@ export async function middleware(request: NextRequest) {
     // /api/public/registro. Las páginas internas que sí lo consultan van con
     // sesión y pasan igual.
     pathname.startsWith("/registro") ||
+    // El QR de "súmate a mi brigada": quien lo escanea todavía no tiene cuenta.
+    pathname.startsWith("/unirme") ||
+    pathname.startsWith("/api/public/unirme") ||
     pathname === "/api/health" ||
     // Material gráfico de campaña. Sin esto el middleware redirige las imágenes
     // al login para quien no tiene sesión, que es justo todo el que ve el login,

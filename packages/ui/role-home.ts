@@ -43,6 +43,9 @@ export const primaryNavItems: Record<NavSectionKey, NavItemConfig[]> = {
   territorio: [
     { href: "/mapa", label: "Mapa en Vivo", key: "mapa", allowedRoles: "all" },
     { href: "/admin-incidencias", label: "Gestión de Incidencias", key: "admin-incidencias", allowedRoles: ["admin", "direction", "territorial_coordinator"] },
+    // Lo cerrado sale de la bandeja de trabajo pero no se borra: sigue aquí y
+    // sigue en el mapa.
+    { href: "/historial-incidencias", label: "Historial de Incidencias", key: "historial-incidencias", allowedRoles: ["admin", "direction", "territorial_coordinator"] },
     { href: "/escucha-social", label: "Escucha Social & Gestiones", key: "escucha-social", allowedRoles: "all" },
     { href: "/admin-inbox", label: "Auditoría de Eventos", key: "admin-inbox", allowedRoles: ["admin", "direction", "territorial_coordinator"] },
     { href: "/reportes", label: "Alta de Reportes", key: "reportes", allowedRoles: "all" },
