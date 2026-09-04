@@ -37,7 +37,10 @@ def run_remote_command(client, command, step_name):
 def update_live():
     host = "45.80.153.22"
     user = "root"
-    password=os.environ["VPS_SSH_PASSWORD"]
+    password = os.environ.get("VPS_SSH_PASSWORD") or (sys.argv[1] if len(sys.argv) > 1 else None)
+    if not password:
+        print("ERROR: Debe definir VPS_SSH_PASSWORD o pasar la contraseña como argumento.", file=sys.stderr)
+        sys.exit(1)
     
     print(f"Conectando a {user}@{host}...")
     client = paramiko.SSHClient()
@@ -64,6 +67,8 @@ def update_live():
     # 2. Rebuild and restart containers
     cmd_docker = """
     cd /opt/crm-el
+    docker compose build migrate
+    docker compose run --rm migrate pnpm db:migrate
     docker compose up -d --build
     docker compose ps
     """
@@ -96,12 +101,23 @@ def update_live():
     if not ok:
         print("[WARN] Voronoi script inside container had a warning, continuing...")
 
-    # 5. Wait 5s and test health
-    time.sleep(4)
+    # 5. Wait for web container to be ready and test health
+    print("\nEsperando a que el contenedor web responda...")
+    time.sleep(6)
     cmd_test = """
-    echo "Verificando respuesta local..."
-    curl -s http://localhost:3000/api/health
-    echo ""
+    echo "Verificando respuesta local (intentando hasta 10 veces)..."
+    for i in $(seq 1 10); do
+        RES=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health)
+        if [ "$RES" = "200" ]; then
+            echo "Contenedor web listo en intento $i (HTTP 200)"
+            curl -s http://localhost:3000/api/health
+            echo ""
+            break
+        fi
+        echo "Intento $i: esperando respuesta (código $RES)..."
+        sleep 3
+    done
+
     echo "Verificando respuesta pública en https://elapp.com.mx/api/health ..."
     curl -s https://elapp.com.mx/api/health
     echo ""
