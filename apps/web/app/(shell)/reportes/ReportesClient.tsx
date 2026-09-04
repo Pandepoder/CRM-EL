@@ -1,5 +1,7 @@
 "use client";
 
+import { OPCIONES_CATEGORIA } from "@/lib/categorias-incidencia";
+
 import { useState } from "react";
 // @ts-ignore
 import { AlertTriangle, CheckCircle, ChevronRight, FileText, X, Landmark, Check, Loader2, Sparkles, Building2, Tag, Hash, UserCheck, Users } from "lucide-react";
@@ -145,16 +147,10 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
     }
   };
 
-  const categoryOptions = [
-    { value: "bacheo", label: "Bacheo y Pavimentación", badge: "Infraestructura" },
-    { value: "alumbrado", label: "Alumbrado Público", badge: "Servicios" },
-    { value: "fuga_agua", label: "Fuga de Agua / Drenaje", badge: "Agua" },
-    { value: "basura", label: "Recolección de Basura", badge: "Limpia" },
-    { value: "seguridad", label: "Seguridad Ciudadana", badge: "Urgente" },
-    { value: "brigada", label: "Apoyo de Brigada", badge: "Territorial" },
-    { value: "emergencia", label: "Emergencia Crítica", badge: "Alta Prioridad" },
-    { value: "otro", label: "Otro / General", badge: "Otros" }
-  ];
+  // Se toman del catálogo único. Antes esta lista incluía `bacheo` y `otro`, que
+  // la base de datos no acepta: elegir cualquiera de las dos daba error 500 y el
+  // reporte se perdía sin que quien lo levantaba supiera por qué.
+  const categoryOptions = OPCIONES_CATEGORIA.map((o) => ({ value: o.value, label: o.label, badge: "" }));
 
   const municipalityOptions = [
     { value: "Tonalá", label: "Tonalá", badge: "Principal" },

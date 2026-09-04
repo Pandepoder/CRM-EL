@@ -2,7 +2,9 @@ import { requirePageRole } from "@/lib/authorization";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { AlertTriangle, MapPin, Calendar, CheckCircle2, Clock } from "lucide-react";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
+import Link from "next/link";
+import { ESTADOS_ABIERTOS } from "@/lib/estados-incidencia";
 import { StatusSelector } from "./StatusSelector";
 import { IncidentSectionAssigner } from "./IncidentSectionAssigner";
 import { MediaGallery } from "@/components/MediaGallery";
@@ -31,6 +33,9 @@ export default async function AdminIncidenciasPage() {
     })
     .from(schema.eventReports)
     .leftJoin(schema.electoralSections, eq(schema.eventReports.sectionId, schema.electoralSections.id))
+    // Solo lo que sigue requiriendo trabajo. Lo resuelto, archivado o rechazado
+    // vive en el Historial: mezclarlo aquí enterraba lo que hay que atender.
+    .where(inArray(schema.eventReports.status, ESTADOS_ABIERTOS))
     .orderBy(desc(schema.eventReports.createdAt));
 
   // 2. Fetch all sections with their colonies and municipalities
@@ -72,8 +77,9 @@ export default async function AdminIncidenciasPage() {
 
   // Summary counts
   const totalReports = reports.length;
+  const pendingCount = reports.filter(r => r.status === "pendiente").length;
   const activeCount = reports.filter(r => r.status === "active").length;
-  const resolvedCount = reports.filter(r => r.status === "resolved").length;
+  const resolvedCount = reports.filter(r => r.status === "in_progress").length;
   const missingSectionCount = reports.filter(r => !r.sectionId && !r.sectionNum).length;
 
   return (
@@ -85,10 +91,31 @@ export default async function AdminIncidenciasPage() {
             <AlertTriangle className="text-red-600 h-8 w-8" /> Centro de Gestión de Incidencias
           </h1>
           <p className="text-gray-500 mt-1">
-            Asignación territorial de secciones electorales, resolución de reportes y supervisión operativa.
+            Acepta los reportes que llegan de campo, asígnales su sección y sigue su avance.
           </p>
         </div>
+        <Link
+          href="/historial-incidencias"
+          className="text-sm font-semibold px-4 py-2.5 rounded-xl whitespace-nowrap"
+          style={{ background: "#eef2f8", color: "#0b1f3a" }}
+        >
+          Ver historial →
+        </Link>
       </div>
+
+      {pendingCount > 0 ? (
+        <div
+          className="rounded-2xl px-5 py-4 flex items-center gap-3"
+          style={{ background: "#fefce8", border: "1px solid #fde68a" }}
+        >
+          <Clock className="h-5 w-5" style={{ color: "#a16207" }} />
+          <p className="text-sm font-semibold" style={{ color: "#713f12" }}>
+            {pendingCount === 1
+              ? "Hay 1 reporte esperando aceptación."
+              : `Hay ${pendingCount} reportes esperando aceptación.`}
+          </p>
+        </div>
+      ) : null}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

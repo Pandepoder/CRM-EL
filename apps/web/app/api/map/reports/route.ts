@@ -8,6 +8,7 @@ const { eventReports } = schema;
 import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { esCategoriaValida } from "@/lib/categorias-incidencia";
 import { withOutbox } from "@/lib/outbox-helper";
 import { randomUUID } from "crypto";
 import { point } from "@turf/helpers";
@@ -115,7 +116,19 @@ export async function POST(request: Request) {
     const { title, description, latitude, longitude, category, municipality, district, eventDate, sectionId, assignedToUserId, assignedTeamId, mediaUrls } = body;
 
     if (!title || !description || latitude === undefined || longitude === undefined || !category) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json({ error: "Faltan datos obligatorios de la incidencia." }, { status: 400 });
+    }
+
+    // Una categoría fuera del catálogo reventaba contra la restricción de la
+    // base y salía como error 500: quien levantaba el reporte solo veía "error"
+    // y lo perdía. Ahora se rechaza antes, diciendo qué pasó.
+    const puedeAceptar = actor.roles.includes("admin") || actor.roles.includes("direction");
+
+    if (!esCategoriaValida(category)) {
+      return NextResponse.json(
+        { error: `La categoría "${category}" no existe. Elige una de la lista.` },
+        { status: 400 }
+      );
     }
 
     const id = randomUUID();
@@ -220,6 +233,11 @@ export async function POST(request: Request) {
           assignedTeamId: assignedTeamId || null,
           eventDate: parsedEventDate,
           mediaUrls: safeMediaUrls,
+          // Un reporte levantado en campo entra en admisión: alguien tiene que
+          // aceptarlo antes de que la estructura empiece a trabajarlo. Quien ya
+          // es la autoridad que acepta no se acepta a sí mismo, así que sus
+          // altas entran directamente como aceptadas.
+          status: puedeAceptar ? "active" : "pendiente",
           createdByUserId: actor.actorId,
         })
         .returning();

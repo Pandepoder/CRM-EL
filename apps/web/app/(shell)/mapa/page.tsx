@@ -47,6 +47,8 @@ import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
 import { MediaGallery } from "@/components/MediaGallery";
 
 // Lucide icon SVGs baked for crisp Leaflet HTML markers
+import { CATEGORIAS_INCIDENCIA } from "@/lib/categorias-incidencia";
+
 const SVGS = {
   TriangleAlert: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`,
   AlertCircle: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>`,
@@ -62,15 +64,7 @@ const SVGS = {
 // Compact badge used everywhere a contact's confirmed PAN militancy needs a visual mark
 const PAN_BADGE_HTML = `<span style="display:inline-flex; align-items:center; justify-content:center; width:1.35em; height:1.35em; border-radius:50%; background:#2563eb; flex-shrink:0;"><span style="color:#fff; font-size:0.7em; font-weight:900; line-height:1;">M</span></span>`;
 
-const CATEGORIES: Record<string, { label: string; svg: string; color: string; bg: string; border: string }> = {
-  emergencia: { label: "Emergencia Crítica", svg: SVGS.TriangleAlert, color: "#ef4444", bg: "#fef2f2", border: "#fecaca" },
-  servicios: { label: "Falla de Servicios", svg: SVGS.Wrench, color: "#8b5cf6", bg: "#f5f3ff", border: "#ddd6fe" },
-  incidencia: { label: "Incidencia Territorial", svg: SVGS.AlertCircle, color: "#f59e0b", bg: "#fffbeb", border: "#fde68a" },
-  propaganda: { label: "Propaganda / Lona", svg: SVGS.Megaphone, color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe" },
-  mitin: { label: "Mitin / Evento", svg: SVGS.Users, color: "#10b981", bg: "#f0fdf4", border: "#bbf7d0" },
-  sospechoso: { label: "Actividad Sospechosa", svg: SVGS.Eye, color: "#1f2937", bg: "#f8fafc", border: "#e2e8f0" },
-  brigada: { label: "Solicitud de Brigada", svg: SVGS.MapPin, color: "#ec4899", bg: "#fdf2f8", border: "#fbcfe8" },
-};
+const CATEGORIES = CATEGORIAS_INCIDENCIA;
 
 const MUNICIPALITY_COLORS: Record<string, { stroke: string; fill: string }> = {
   "Tonalá": { stroke: "#4f46e5", fill: "#6366f1" },
@@ -1024,8 +1018,14 @@ export default function MapaPage() {
 
     markersLayer.clearLayers();
 
+    // Una incidencia con una categoría fuera del catálogo se sigue dibujando.
+    // Antes este filtro la descartaba en silencio: como el catálogo del mapa
+    // tenía 7 categorías y la base admite 14, más de la mitad de los reportes se
+    // guardaban bien y no aparecían nunca. Quien lo levantaba creía haberlo
+    // perdido.
     const filtered = allReports.filter((r) => {
-      return activeCategories.has(r.properties.category);
+      const cat = r.properties.category;
+      return activeCategories.has(cat) || !Object.hasOwn(CATEGORIES, cat);
     });
 
     const zoom = mapRef.getZoom();

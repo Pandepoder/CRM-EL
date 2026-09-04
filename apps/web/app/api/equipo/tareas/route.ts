@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { requireLiderParaIncidencias } from "@/lib/authorization";
+import { CLAVES_CATEGORIA } from "@/lib/categorias-incidencia";
 import { eq } from "drizzle-orm";
 
 export async function POST(req: Request) {
@@ -58,7 +59,10 @@ export async function POST(req: Request) {
     }
 
     // 2. Normalize category to match event_reports constraint
-    const validCategories = ['emergencia', 'incidencia', 'mitin', 'propaganda', 'servicios', 'sospechoso', 'brigada', 'bache', 'alumbrado', 'fuga_agua', 'inundacion', 'basura', 'seguridad', 'lona_danada'];
+    // Del catálogo único. Antes esta lista estaba copiada aquí a mano, que es
+    // exactamente la duplicación por la que el mapa y los formularios acabaron
+    // con listas distintas y la mitad de los reportes se volvían invisibles.
+    const validCategories = CLAVES_CATEGORIA;
     let safeCategory = category;
     let activityPrefix = "";
 
