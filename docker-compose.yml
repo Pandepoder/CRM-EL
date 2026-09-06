@@ -2,8 +2,18 @@ services:
   db:
     image: postgres:16-alpine
     container_name: tonala-os-postgres
+    # Atado a la interfaz local a proposito. Con "54329:5432" Docker publica en
+    # todas las interfaces, asi que en el VPS la base con el padron ciudadano
+    # queda escuchando a internet detras de una sola contrasena. El contenedor
+    # "web" no usa este puerto —llega por la red interna de compose, a db:5432—,
+    # asi que solo sirve para conectarse desde la propia maquina: en local sigue
+    # funcionando igual, y en el servidor se alcanza por tunel SSH.
+    #
+    # Cuidado: un firewall no sustituye esta linea. Docker escribe sus reglas en
+    # la cadena DOCKER-USER, que se evalua antes que las de ufw, y un
+    # "ufw deny 54329" no cierra un puerto publicado.
     ports:
-      - "54329:5432"
+      - "127.0.0.1:54329:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-tonala_os}
       POSTGRES_USER: ${POSTGRES_USER:-tonala}
