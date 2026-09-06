@@ -1,4 +1,19 @@
+import path from "node:path";
+
+import { config as cargarEnv } from "dotenv";
 import type { NextConfig } from "next";
+
+// `next dev` y `next build` corren con el directorio de trabajo en apps/web, y
+// Next solo lee los .env de esa carpeta. El .env de la raiz del monorepo —el
+// mismo que usan los scripts `pnpm db:*`— no llegaba nunca a la aplicacion: el
+// servidor arrancaba, pero cada ruta respondia 500 con "Invalid environment
+// configuration" y "SESSION_SECRET must be set with at least 32 characters",
+// y la unica salida era mantener una copia duplicada en apps/web/.env.
+//
+// dotenv no pisa lo que ya este definido, asi que un apps/web/.env propio y las
+// variables que docker compose inyecta al contenedor conservan la prioridad.
+// Si el archivo no existe —el caso de la imagen de produccion— no hace nada.
+cargarEnv({ path: path.resolve(process.cwd(), "..", "..", ".env") });
 
 const isStandalone = process.env.BUILD_STANDALONE === "true" || process.platform !== "win32";
 
