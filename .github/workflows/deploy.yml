@@ -1,0 +1,143 @@
+name: Despliegue a producción
+
+# Publica en el VPS cada vez que main queda verde.
+#
+# No se dispara con el push directamente, sino cuando termina "CI Validation":
+# asi nunca sale a produccion un commit cuyas pruebas fallaron. El disparo
+# manual queda disponible para redesplegar sin tocar el codigo.
+#
+# ---------------------------------------------------------------------------
+# Secretos que hay que crear en Settings > Secrets and variables > Actions:
+#
+#   VPS_HOST          IP o dominio del servidor.
+#   VPS_USER          Usuario SSH. Conviene uno dedicado al despliegue, con
+#                     permiso sobre /opt/crm-el y sobre docker, en vez de root.
+#   VPS_SSH_KEY       Llave PRIVADA completa, incluidas las lineas BEGIN/END.
+#                     Generala solo para esto:
+#                       ssh-keygen -t ed25519 -f deploy_key -C "github-actions"
+#                     y deja la publica en ~/.ssh/authorized_keys del servidor.
+#                     Nunca reutilices tu llave personal.
+#
+#   VPS_KNOWN_HOSTS   Opcional pero recomendable. Fija la identidad del
+#                     servidor para que nadie pueda suplantarlo:
+#                       ssh-keyscan -H <IP>
+#                     Sin este secreto se acepta la que el servidor anuncie en
+#                     ese momento, que es mas comodo y menos seguro.
+#
+# Para exigir aprobacion humana antes de cada despliegue: Settings >
+# Environments > produccion > Required reviewers. El job se queda esperando.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_run:
+    workflows: ["CI Validation"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Un despliegue a la vez. Sin esto, dos merges seguidos pueden reconstruir
+# contenedores en paralelo sobre el mismo directorio.
+concurrency:
+  group: despliegue-produccion
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  desplegar:
+    name: Publicar en el VPS
+    runs-on: ubuntu-latest
+    environment: produccion
+
+    # En workflow_dispatch no existe github.event.workflow_run, de ahi el
+    # primer termino: sin el, el disparo manual nunca se ejecutaria.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Preparar el acceso SSH
+        env:
+          LLAVE: ${{ secrets.VPS_SSH_KEY }}
+          HOSTS_CONOCIDOS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          SERVIDOR: ${{ secrets.VPS_HOST }}
+        run: |
+          set -euo pipefail
+          if [ -z "${LLAVE:-}" ] || [ -z "${SERVIDOR:-}" ]; then
+            echo "Faltan los secretos VPS_SSH_KEY o VPS_HOST. Revisa la cabecera de este workflow."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$LLAVE" > ~/.ssh/id_despliegue
+          chmod 600 ~/.ssh/id_despliegue
+          if [ -n "${HOSTS_CONOCIDOS:-}" ]; then
+            printf '%s\n' "$HOSTS_CONOCIDOS" > ~/.ssh/known_hosts
+          else
+            echo "::warning::VPS_KNOWN_HOSTS no esta definido: se acepta la identidad que anuncie el servidor."
+            ssh-keyscan -H "$SERVIDOR" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Actualizar el codigo y reconstruir
+        env:
+          SERVIDOR: ${{ secrets.VPS_HOST }}
+          USUARIO: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_despliegue -o BatchMode=yes "${USUARIO}@${SERVIDOR}" 'bash -euo pipefail -s' <<'REMOTO'
+          cd /opt/crm-el
+
+          # El servidor tiene historia propia: deploy-vps.py escribe ahi el
+          # Caddyfile y el .env directamente. Un "reset --hard" a ciegas
+          # borraria esos cambios sin avisar y podria tumbar el HTTPS, asi que
+          # el despliegue se detiene y deja que una persona decida.
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "El servidor tiene cambios sin commitear en /opt/crm-el:"
+            git status --short
+            echo
+            echo "El despliegue se detiene para no borrarlos. Commitealos, descartalos"
+            echo "con 'git checkout -- <archivo>', o anadelos a .gitignore si son"
+            echo "configuracion propia del servidor."
+            exit 1
+          fi
+
+          anterior="$(git rev-parse --short HEAD)"
+          git fetch --prune origin
+          git checkout main
+          git reset --hard origin/main
+          nuevo="$(git rev-parse --short HEAD)"
+          echo "Desplegando ${anterior} -> ${nuevo}"
+
+          # El servicio "migrate" de compose aplica las migraciones pendientes y
+          # termina antes de que arranquen "web" y "outbox-worker", asi que la
+          # aplicacion nunca sirve trafico contra un esquema sin migrar.
+          docker compose up -d --build
+          docker compose ps
+          REMOTO
+
+      - name: Comprobar que la aplicación quedó sana
+        env:
+          SERVIDOR: ${{ secrets.VPS_HOST }}
+          USUARIO: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_despliegue -o BatchMode=yes "${USUARIO}@${SERVIDOR}" 'bash -euo pipefail -s' <<'REMOTO'
+          cd /opt/crm-el
+          for intento in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/api/health 2>/dev/null | grep -q '"status":"ok"'; then
+              echo "La aplicacion responde sana tras ${intento} intento(s)."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "El healthcheck no respondio 'ok' en 150 segundos. Ultimos registros:"
+          docker compose logs --tail=60 web
+          docker compose logs --tail=20 migrate
+          exit 1
+          REMOTO
+
+      - name: Retirar la llave
+        if: always()
+        run: rm -f ~/.ssh/id_despliegue
