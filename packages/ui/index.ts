@@ -1,5 +1,6 @@
 export { AppShell, type AppShellProps } from "./AppShell.js";
 export { EmptyState, type EmptyStateProps } from "./EmptyState.js";
+export { QuickCreateFab } from "./QuickCreateFab.js";
 export {
   getHomePathForRole,
   getNavSection,
