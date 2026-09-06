@@ -65,12 +65,41 @@ def deploy():
         print(f"Error al conectar por SSH: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # 1. Actualizar repositorios e instalar paquetes base (git, curl, ufw, etc.)
+    # 1. Actualizar repositorios e instalar paquetes base
+    # ufw aparecia en este comentario desde el principio, pero el apt-get real
+    # nunca lo instalaba: el servidor llevaba todo este tiempo sin firewall.
     cmd_packages = """
     export DEBIAN_FRONTEND=noninteractive
-    apt-get update && apt-get install -y git curl ca-certificates gnupg lsb-release
+    apt-get update && apt-get install -y git curl ca-certificates gnupg lsb-release ufw fail2ban unattended-upgrades
     """
     ok, _ = run_remote_command(client, cmd_packages, "1. Actualización e Instalación de Paquetes Base")
+    if not ok:
+        sys.exit(1)
+
+    # 1b. Firewall, baneo de fuerza bruta y parches automaticos.
+    #
+    # El "ufw allow 22" va antes del "enable" a proposito: al reves, el propio
+    # despliegue se corta la sesion SSH desde la que se esta ejecutando.
+    #
+    # Aviso importante: ufw NO cubre los puertos que publica Docker. Docker
+    # escribe sus reglas en la cadena DOCKER-USER, que se evalua antes que las
+    # de ufw, asi que un contenedor con "ports: 5432:5432" queda expuesto por
+    # mucho ufw que haya. Por eso la base se ata a 127.0.0.1 en docker-compose.yml
+    # y no se confia en el firewall para eso.
+    cmd_firewall = """
+    export DEBIAN_FRONTEND=noninteractive
+    ufw --force reset >/dev/null 2>&1 || true
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow 22/tcp
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw --force enable
+    ufw status verbose
+    systemctl enable --now fail2ban
+    fail2ban-client status sshd || true
+    """
+    ok, _ = run_remote_command(client, cmd_firewall, "1b. Firewall (ufw), fail2ban y parches automáticos")
     if not ok:
         sys.exit(1)
 
