@@ -9,10 +9,40 @@ import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { esCategoriaValida } from "@/lib/categorias-incidencia";
+import { getSeccionesEnPunto, getSeccionesGeo, type SeccionGeo } from "@/lib/sections-geo-cache";
 import { withOutbox } from "@/lib/outbox-helper";
 import { randomUUID } from "crypto";
 import { point } from "@turf/helpers";
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
+
+/**
+ * Municipio a partir del número de sección. Se mantiene tal cual estaba: la
+ * columna `municipality` de electoral_sections viene vacía en la base, así que
+ * estos rangos siguen siendo la única fuente.
+ */
+function municipioPorSeccion(sNum: number): string | null {
+  if (sNum >= 2700 && sNum <= 2800) return "Tonalá";
+  if (sNum >= 900 && sNum <= 1450) return "Guadalajara";
+  if (sNum >= 3000 && sNum <= 3500) return "Zapopan";
+  if (sNum >= 2500 && sNum <= 2699) return "San Pedro Tlaquepaque";
+  if (sNum >= 2400 && sNum <= 2499) return "Tlajomulco de Zúñiga";
+  if (sNum >= 1950 && sNum <= 2050) return "El Salto";
+  if (sNum >= 3600 && sNum <= 3650) return "Zapotlanejo";
+  if (sNum >= 1750 && sNum <= 1800) return "Ixtlahuacán de los Membrillos";
+  if (sNum >= 1850 && sNum <= 1900) return "Juanacatlán";
+  return null;
+}
+
+/** Convierte la geometría guardada en una Feature que Turf pueda evaluar. */
+function comoFeature(geomJson: unknown): any {
+  try {
+    const bruto: any = typeof geomJson === "string" ? JSON.parse(geomJson) : geomJson;
+    if (!bruto) return null;
+    return bruto.type === "Feature" ? bruto : { type: "Feature" as const, geometry: bruto, properties: {} };
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(_request: Request) {
   // El mapa de incidencias dejó de estar reservado a administración y dirección.
@@ -142,62 +172,57 @@ export async function POST(request: Request) {
     const db = getDatabaseClient();
 
     if (latitude !== undefined && longitude !== undefined) {
-      const sections = await db.select({ 
-        id: schema.electoralSections.id, 
-        sectionNum: schema.electoralSections.sectionNum,
-        geomJson: schema.electoralSections.geomJson 
-      }).from(schema.electoralSections);
-      
+      // Este bloque cargaba TODAS las secciones con su geometría completa en
+      // cada alta de incidencia: en producción son 3789 filas y unos 15 MB de
+      // JSONB por cada bache que reporta un brigadista desde el teléfono.
+      //
+      // El caché compartido ya resolvía exactamente esto para geocode,
+      // reverse-geocode y autocomplete; esta ruta se quedó sin migrar. Además
+      // del caché, el filtro por rectángulo envolvente deja el punto-en-polígono
+      // —que es lo caro— en unas pocas candidatas en vez de las 3789.
       const pt = point([Number(longitude), Number(latitude)]);
-      let closestSectionId: string | null = null;
-      let minDistance = Infinity;
+      const candidatas = await getSeccionesEnPunto(Number(latitude), Number(longitude));
 
-      for (const section of sections) {
-        if (section.geomJson) {
-          try {
-            const rawGeom: any = typeof section.geomJson === "string" ? JSON.parse(section.geomJson) : section.geomJson;
-            const polyFeature = rawGeom.type === "Feature" ? rawGeom : { type: "Feature" as const, geometry: rawGeom, properties: {} };
-            
-            if (booleanPointInPolygon(pt, polyFeature)) {
-              if (!finalSectionId) {
-                finalSectionId = section.id;
-              }
-              const sNum = section.sectionNum;
-              if (sNum >= 2700 && sNum <= 2800) detectedSectionMuni = "Tonalá";
-              else if (sNum >= 900 && sNum <= 1450) detectedSectionMuni = "Guadalajara";
-              else if (sNum >= 3000 && sNum <= 3500) detectedSectionMuni = "Zapopan";
-              else if (sNum >= 2500 && sNum <= 2699) detectedSectionMuni = "San Pedro Tlaquepaque";
-              else if (sNum >= 2400 && sNum <= 2499) detectedSectionMuni = "Tlajomulco de Zúñiga";
-              else if (sNum >= 1950 && sNum <= 2050) detectedSectionMuni = "El Salto";
-              else if (sNum >= 3600 && sNum <= 3650) detectedSectionMuni = "Zapotlanejo";
-              else if (sNum >= 1750 && sNum <= 1800) detectedSectionMuni = "Ixtlahuacán de los Membrillos";
-              else if (sNum >= 1850 && sNum <= 1900) detectedSectionMuni = "Juanacatlán";
-              break;
-            }
-
-            const coords = rawGeom.type === "Polygon" ? rawGeom.coordinates[0] : rawGeom.geometry?.coordinates?.[0];
-            if (coords && coords.length > 0) {
-              let sumLng = 0, sumLat = 0;
-              for (const c of coords) {
-                sumLng += c[0];
-                sumLat += c[1];
-              }
-              const cLng = sumLng / coords.length;
-              const cLat = sumLat / coords.length;
-              const dist = Math.hypot(Number(longitude) - cLng, Number(latitude) - cLat);
-              if (dist < minDistance) {
-                minDistance = dist;
-                closestSectionId = section.id;
-              }
-            }
-          } catch (e) {
-            console.error("Error checking polygon for section", section.id, e);
-          }
+      let contenedora: SeccionGeo | undefined;
+      for (const seccion of candidatas) {
+        const feature = comoFeature(seccion.geomJson);
+        if (feature && booleanPointInPolygon(pt, feature)) {
+          contenedora = seccion;
+          break;
         }
       }
 
-      if (!finalSectionId && closestSectionId) {
-        finalSectionId = closestSectionId;
+      if (contenedora) {
+        if (!finalSectionId) finalSectionId = contenedora.id;
+        detectedSectionMuni = municipioPorSeccion(contenedora.sectionNum);
+      } else if (!finalSectionId) {
+        // Ninguna sección contiene el punto: se toma la del centroide más
+        // cercano, igual que antes. Sale del caché, sin volver a la base.
+        let seccionCercana: string | null = null;
+        let distanciaMinima = Infinity;
+
+        for (const seccion of await getSeccionesGeo()) {
+          const bruto: any = comoFeature(seccion.geomJson)?.geometry;
+          const coords = bruto?.type === "Polygon" ? bruto.coordinates?.[0] : bruto?.coordinates?.[0]?.[0];
+          if (!coords || coords.length === 0) continue;
+
+          let sumaLng = 0;
+          let sumaLat = 0;
+          for (const c of coords) {
+            sumaLng += c[0];
+            sumaLat += c[1];
+          }
+          const distancia = Math.hypot(
+            Number(longitude) - sumaLng / coords.length,
+            Number(latitude) - sumaLat / coords.length
+          );
+          if (distancia < distanciaMinima) {
+            distanciaMinima = distancia;
+            seccionCercana = seccion.id;
+          }
+        }
+
+        if (seccionCercana) finalSectionId = seccionCercana;
       }
     }
 
