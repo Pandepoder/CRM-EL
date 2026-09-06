@@ -29,8 +29,8 @@
     "test:unit": "vitest run --exclude tests/integration/**/*.test.ts --exclude apps/web/tests/**/*.test.ts --exclude packages/shared/database/database.test.ts",
     "test:integration": "vitest run tests/integration apps/web/tests packages/shared/database/database.test.ts",
     "test:watch": "vitest",
-    "validate": "tsc --noEmit && tsc --noEmit -p apps/web && eslint . && node scripts/check-module-boundaries.mjs && vitest run",
-    "validate:unit": "tsc --noEmit && tsc --noEmit -p apps/web && eslint . && node scripts/check-module-boundaries.mjs && vitest run --exclude tests/integration/**/*.test.ts --exclude packages/shared/database/database.test.ts"
+    "validate": "tsc --noEmit && tsc --noEmit -p apps/web && eslint . && node scripts/check-module-boundaries.mjs && pnpm test",
+    "validate:unit": "tsc --noEmit && tsc --noEmit -p apps/web && eslint . && node scripts/check-module-boundaries.mjs && pnpm test:unit"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
