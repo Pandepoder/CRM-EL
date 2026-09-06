@@ -25,6 +25,11 @@ services:
       retries: 20
     volumes:
       - tonala_os_postgres_data:/var/lib/postgresql/data
+    # Era el unico servicio sin politica de reinicio. Al reiniciar el servidor
+    # volvian web, outbox-worker, caddy y backup, pero la base no: la aplicacion
+    # quedaba en pie respondiendo "Database connection failed" en cada ruta, y
+    # el sitio caido sin que ningun contenedor apareciera como fallido.
+    restart: unless-stopped
 
   # One-off job: applies pending Drizzle migrations, then exits. "web" and
   # "outbox-worker" wait for this to finish successfully before starting, so
