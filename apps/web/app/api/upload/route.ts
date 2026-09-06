@@ -17,15 +17,26 @@ const MAX_VIDEO_SIZE = 60 * 1024 * 1024; // 60 MB
 // abre. Con este mapa solo pueden existir en disco las extensiones de aqui.
 const IMAGE_TYPE_TO_EXT: Record<string, string> = {
   "image/jpeg": ".jpg",
+  // Variante no estandar, pero la mandan algunos navegadores y selectores de
+  // archivo de Android. Antes colaba por el `startsWith("image/")`; al quitarlo
+  // habria empezado a rechazar fotos buenas en campo.
+  "image/jpg": ".jpg",
   "image/png": ".png",
   "image/webp": ".webp",
   "image/heic": ".heic",
   "image/heif": ".heif",
+  // Live Photos de iPhone.
+  "image/heic-sequence": ".heic",
+  "image/heif-sequence": ".heif",
   "image/gif": ".gif"
 };
 
 const VIDEO_TYPE_TO_EXT: Record<string, string> = {
   "video/mp4": ".mp4",
+  // Lo que graba la camara de muchos Android, sobre todo gama de entrada.
+  "video/3gpp": ".3gp",
+  "video/3gpp2": ".3g2",
+  "video/x-m4v": ".m4v",
   "video/webm": ".webm",
   "video/quicktime": ".mov",
   "video/x-matroska": ".mkv",
