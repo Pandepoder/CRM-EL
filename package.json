@@ -12,6 +12,7 @@
     "db:migrate": "tsx scripts/db/migrate.ts",
     "db:restore-geo": "tsx scripts/db/restore-official-section-geometry.ts",
     "db:reset": "tsx scripts/db/reset.ts",
+    "db:rotate-key": "tsx scripts/db/rotate-encryption-key.ts",
     "db:seed": "tsx scripts/db/seed.ts",
     "db:clean": "tsx scripts/db/clean-production.ts",
     "db:start": "docker compose up -d db && tsx scripts/db/wait-for-db.ts",
