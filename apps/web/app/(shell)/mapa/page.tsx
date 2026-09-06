@@ -412,6 +412,44 @@ export default function MapaPage() {
     }
   }, [selectedMunicipality, sectionsData]);
 
+  // Abre el formulario de alta cuando se llega con ?crear=incidencia, que es lo
+  // que hace el botón flotante del panel. Intenta primero el GPS del dispositivo
+  // —es lo que quiere quien lo pulsa estando en la calle— y si no hay permiso o
+  // tarda, cae al centro del mapa, igual que el botón "+ Reportar".
+  //
+  // El parámetro se retira de la URL en cuanto se usa: así el formulario no
+  // vuelve a abrirse al recargar, y pulsar el botón otra vez estando ya aquí
+  // cambia la URL y lo dispara de nuevo.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const parametros = new URLSearchParams(window.location.search);
+    if (parametros.get("crear") !== "incidencia") return;
+
+    parametros.delete("crear");
+    const restante = parametros.toString();
+    window.history.replaceState({}, "", window.location.pathname + (restante ? `?${restante}` : ""));
+
+    const conCentroDelMapa = () => {
+      const centro = mapRef ? mapRef.getCenter() : { lat: 20.6248, lng: -103.2422 };
+      void triggerIncidentCreation(centro.lat, centro.lng);
+    };
+
+    if (!navigator.geolocation) {
+      conCentroDelMapa();
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (posicion) => {
+        const { latitude, longitude } = posicion.coords;
+        setNewReportCoords({ lat: latitude, lng: longitude });
+        void triggerIncidentCreation(latitude, longitude);
+        if (mapRef) mapRef.flyTo([latitude, longitude], 16, { duration: 1.2 });
+      },
+      conCentroDelMapa,
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }, [mapRef, triggerIncidentCreation]);
+
   // Mobile GPS Geolocation Handler
   const handleLocateMe = () => {
     if (!navigator.geolocation) {

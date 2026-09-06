@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Calendar, MapPin, CheckCircle, Clock, X, Plus, Users, User, Flag, Home, Check,
   Loader2, Coffee, Mic, Search, BarChart3, Award, Activity, Eye, Sparkles,
@@ -151,6 +151,20 @@ export default function AgendaClient({
   });
   const [creatingTask, setCreatingTask] = useState(false);
   const [taskSuccessMessage, setTaskSuccessMessage] = useState<string | null>(null);
+
+  // Abre el alta de actividad cuando se llega con ?crear=evento, que es lo que
+  // hace el botón flotante del panel. El parámetro se retira de la URL en cuanto
+  // se usa, para que el formulario no vuelva a abrirse al recargar.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const parametros = new URLSearchParams(window.location.search);
+    if (parametros.get("crear") !== "evento") return;
+
+    parametros.delete("crear");
+    const restante = parametros.toString();
+    window.history.replaceState({}, "", window.location.pathname + (restante ? `?${restante}` : ""));
+    setShowTaskModal(true);
+  }, []);
 
   // Handle reporting outcome for visits / tasks
   async function handleCompleteVisit(e: React.FormEvent) {

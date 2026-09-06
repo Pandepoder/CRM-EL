@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import type { NavItemConfig } from "./role-home.js";
 import { getNavSection } from "./role-home.js";
+import { QuickCreateFab } from "./QuickCreateFab.js";
 
 export type AppShellProps = Readonly<{
   children: ReactNode;
@@ -282,6 +283,9 @@ export function AppShell({
           <span style={{ fontSize: '10px', marginTop: '4px', fontWeight: 500 }}>Más</span>
         </button>
       </nav>
+
+      {/* Crear incidencia o evento desde cualquier pantalla, sin ir al mapa. */}
+      <QuickCreateFab />
     </div>
   );
 }
