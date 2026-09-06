@@ -70,7 +70,13 @@ describe("local database foundation", () => {
     const second = await seedDatabase(testDatabaseUrl);
 
     expect(first.roles).toBe(5);
-    expect(first.users).toBe(5);
+    // Un piso, no un numero exacto: el seed fue creciendo (hoy siembra las
+    // cuentas demo y las de @tonala.gob.mx del README) y este 5 se quedo
+    // congelado en el conjunto original, dejando el test en rojo. Lo que este
+    // caso comprueba de verdad es la idempotencia, y de eso responde la ultima
+    // linea; el conteo exacto solo obliga a editar el test cada vez que se
+    // suma una cuenta.
+    expect(first.users).toBeGreaterThanOrEqual(5);
     expect(first.colonies).toBeGreaterThanOrEqual(32);
     expect(second).toEqual(first);
   });

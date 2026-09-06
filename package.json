@@ -12,6 +12,7 @@
     "db:migrate": "tsx scripts/db/migrate.ts",
     "db:restore-geo": "tsx scripts/db/restore-official-section-geometry.ts",
     "db:reset": "tsx scripts/db/reset.ts",
+    "db:rotate-key": "tsx scripts/db/rotate-encryption-key.ts",
     "db:seed": "tsx scripts/db/seed.ts",
     "db:clean": "tsx scripts/db/clean-production.ts",
     "db:start": "docker compose up -d db && tsx scripts/db/wait-for-db.ts",
@@ -26,7 +27,7 @@
     "web:build": "pnpm --filter @tonala/web build",
     "test": "vitest run",
     "test:unit": "vitest run --exclude tests/integration/**/*.test.ts --exclude packages/shared/database/database.test.ts",
-    "test:integration": "vitest run tests/integration/**/*.test.ts packages/shared/database/database.test.ts",
+    "test:integration": "vitest run tests/integration packages/shared/database/database.test.ts",
     "test:watch": "vitest",
     "validate": "tsc --noEmit && tsc --noEmit -p apps/web && eslint . && node scripts/check-module-boundaries.mjs && vitest run",
     "validate:unit": "tsc --noEmit && tsc --noEmit -p apps/web && eslint . && node scripts/check-module-boundaries.mjs && vitest run --exclude tests/integration/**/*.test.ts --exclude packages/shared/database/database.test.ts"
