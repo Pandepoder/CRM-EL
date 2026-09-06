@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { resolveUserNetworkScope } from "../../apps/web/src/lib/network-hierarchy.js";
 import { getDatabaseClient } from "../../apps/web/src/lib/db-client.js";
 import { schema } from "@tonala/shared/database";
@@ -7,9 +7,33 @@ import { eq } from "drizzle-orm";
 import crypto from "crypto";
 
 describe("ElApp v1 Enhancements Integration Tests", () => {
+  // Este id se resolvia con un UUID escrito a mano ("Admin demo user ID"),
+  // tomado de la base local de alguien. Como el seed no lo crea, las cuatro
+  // pruebas que lo usaban fallaban: una porque resolveUserNetworkScope no
+  // encontraba el rol admin, y tres por violacion de clave foranea al insertar.
+  // Se busca el admin realmente sembrado.
+  let adminId = "";
+
+  beforeAll(async () => {
+    const db = getDatabaseClient();
+    const filas = await db
+      .select({ id: schema.userProfiles.id })
+      .from(schema.userProfiles)
+      .leftJoin(schema.roles, eq(schema.userProfiles.roleId, schema.roles.id))
+      .where(eq(schema.roles.key, "admin"))
+      .limit(1);
+
+    const admin = filas[0];
+    if (!admin) {
+      throw new Error(
+        "No hay ningun usuario con rol 'admin' en la base de pruebas. " +
+          "Corre `pnpm db:seed` antes de los tests de integracion."
+      );
+    }
+    adminId = admin.id;
+  });
+
   it("resolves global scope for coordinacion / admin users", async () => {
-    // Admin demo user ID
-    const adminId = "4178dcf3-a2b9-4d1f-a1db-bc3c6fd463ab";
     const scope = await resolveUserNetworkScope(adminId, "coordinacion");
 
     expect(scope.isGlobal).toBe(true);
@@ -29,7 +53,6 @@ describe("ElApp v1 Enhancements Integration Tests", () => {
 
   it("persists and queries social listening reports", async () => {
     const db = getDatabaseClient();
-    const adminId = "4178dcf3-a2b9-4d1f-a1db-bc3c6fd463ab";
     const reportId = crypto.randomUUID();
 
     const [inserted] = await db
@@ -56,7 +79,6 @@ describe("ElApp v1 Enhancements Integration Tests", () => {
 
   it("persists and queries rapid activity prospects", async () => {
     const db = getDatabaseClient();
-    const adminId = "4178dcf3-a2b9-4d1f-a1db-bc3c6fd463ab";
     const prospectId = crypto.randomUUID();
 
     const [inserted] = await db
@@ -82,7 +104,6 @@ describe("ElApp v1 Enhancements Integration Tests", () => {
 
   it("persists immutable contact notes with author tracking", async () => {
     const db = getDatabaseClient();
-    const adminId = "4178dcf3-a2b9-4d1f-a1db-bc3c6fd463ab";
     const contactId = crypto.randomUUID();
     const noteId = crypto.randomUUID();
 
