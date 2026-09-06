@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+import { esEstadoValido } from "@/lib/estados-incidencia";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -54,8 +56,12 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     const updatePayload: Record<string, any> = {};
 
     if (status !== undefined) {
-      if (!['active', 'in_progress', 'resolved', 'archived'].includes(status)) {
-        return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+      // Esta lista estaba escrita a mano y se habia quedado sin 'pendiente' ni
+      // 'rechazada', que la base si acepta: por aqui no se podia admitir ni
+      // rechazar una incidencia. Es la duplicacion que el catalogo compartido
+      // existe para evitar, y /api/equipo/tareas/[id] ya lo usaba.
+      if (!esEstadoValido(status)) {
+        return NextResponse.json({ error: `El estado "${status}" no existe.` }, { status: 400 });
       }
       updatePayload.status = status;
     }
