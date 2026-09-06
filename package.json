@@ -26,8 +26,8 @@
     "web:dev": "pnpm --filter @tonala/web dev",
     "web:build": "pnpm --filter @tonala/web build",
     "test": "vitest run",
-    "test:unit": "vitest run --exclude tests/integration/**/*.test.ts --exclude packages/shared/database/database.test.ts",
-    "test:integration": "vitest run tests/integration packages/shared/database/database.test.ts",
+    "test:unit": "vitest run --exclude tests/integration/**/*.test.ts --exclude apps/web/tests/**/*.test.ts --exclude packages/shared/database/database.test.ts",
+    "test:integration": "vitest run tests/integration apps/web/tests packages/shared/database/database.test.ts",
     "test:watch": "vitest",
     "validate": "tsc --noEmit && tsc --noEmit -p apps/web && eslint . && node scripts/check-module-boundaries.mjs && vitest run",
     "validate:unit": "tsc --noEmit && tsc --noEmit -p apps/web && eslint . && node scripts/check-module-boundaries.mjs && vitest run --exclude tests/integration/**/*.test.ts --exclude packages/shared/database/database.test.ts"
