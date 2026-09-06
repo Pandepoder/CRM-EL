@@ -9,22 +9,29 @@ import { randomUUID } from "crypto";
 const MAX_IMAGE_SIZE = 15 * 1024 * 1024; // 15 MB
 const MAX_VIDEO_SIZE = 60 * 1024 * 1024; // 60 MB
 
-const ALLOWED_IMAGE_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-  "image/gif"
-]);
+// El tipo declarado por el cliente decide la extension con la que se guarda el
+// archivo, nunca el nombre que venga en el formulario. `public/uploads` lo sirve
+// Next como estatico, asi que un archivo terminado en .html o .svg se entregaria
+// con su propio Content-Type y ejecutaria scripts en el mismo origen de la app:
+// una foto de incidencia se convierte en robo de sesion del coordinador que la
+// abre. Con este mapa solo pueden existir en disco las extensiones de aqui.
+const IMAGE_TYPE_TO_EXT: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/heic": ".heic",
+  "image/heif": ".heif",
+  "image/gif": ".gif"
+};
 
-const ALLOWED_VIDEO_TYPES = new Set([
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-  "video/x-matroska",
-  "video/avi"
-]);
+const VIDEO_TYPE_TO_EXT: Record<string, string> = {
+  "video/mp4": ".mp4",
+  "video/webm": ".webm",
+  "video/quicktime": ".mov",
+  "video/x-matroska": ".mkv",
+  "video/avi": ".avi",
+  "video/x-msvideo": ".avi"
+};
 
 export interface UploadedFileResponse {
   url: string;
@@ -53,9 +60,14 @@ export async function POST(req: Request) {
     for (const file of files) {
       if (!(file instanceof File) || file.size === 0) continue;
 
-      const mimeType = file.type.toLowerCase();
-      const isImage = ALLOWED_IMAGE_TYPES.has(mimeType) || mimeType.startsWith("image/");
-      const isVideo = ALLOWED_VIDEO_TYPES.has(mimeType) || mimeType.startsWith("video/");
+      // Sin el `|| mimeType.startsWith("image/")` que habia aqui: bastaba
+      // declarar "image/svg+xml" —o cualquier "image/loquesea"— para saltarse
+      // la lista blanca entera.
+      const mimeType = file.type.toLowerCase().split(";")[0]?.trim() ?? "";
+      const imageExt = IMAGE_TYPE_TO_EXT[mimeType];
+      const videoExt = VIDEO_TYPE_TO_EXT[mimeType];
+      const isImage = Boolean(imageExt);
+      const isVideo = Boolean(videoExt);
 
       if (!isImage && !isVideo) {
         return NextResponse.json(
@@ -78,9 +90,10 @@ export async function POST(req: Request) {
         );
       }
 
-      // Safe filename generation
-      const originalExt = path.extname(file.name).toLowerCase() || (isImage ? ".jpg" : ".mp4");
-      const safeExt = originalExt.replace(/[^a-z0-9.]/gi, "");
+      // La extension sale del tipo validado, no de `file.name`: el nombre lo
+      // elige quien sube el archivo y era la via para dejar un .html en
+      // public/uploads.
+      const safeExt = imageExt ?? videoExt ?? ".bin";
       const uniqueFilename = `${Date.now()}-${randomUUID()}${safeExt}`;
       const filePath = path.join(uploadDir, uniqueFilename);
 
