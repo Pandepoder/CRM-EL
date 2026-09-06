@@ -11,6 +11,7 @@
     "check:boundaries": "node scripts/check-module-boundaries.mjs",
     "db:migrate": "tsx scripts/db/migrate.ts",
     "db:restore-geo": "tsx scripts/db/restore-official-section-geometry.ts",
+    "db:clean-sections": "tsx scripts/db/clean-unofficial-sections.ts",
     "db:reset": "tsx scripts/db/reset.ts",
     "db:rotate-key": "tsx scripts/db/rotate-encryption-key.ts",
     "db:seed": "tsx scripts/db/seed.ts",
