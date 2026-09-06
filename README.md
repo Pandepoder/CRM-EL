@@ -92,6 +92,24 @@ Copia la plantilla de configuración:
 cp .env.example .env
 ```
 
+Copia además el mismo archivo dentro de `apps/web/`:
+```bash
+cp .env apps/web/.env
+```
+
+**Las dos copias son necesarias.** Los scripts `pnpm db:*` cargan el `.env` de la
+raíz con `dotenv`, pero `pnpm web:dev` ejecuta `next dev` con el directorio de
+trabajo en `apps/web/`, y Next.js solo lee los archivos `.env` de esa carpeta.
+Si falta la segunda copia el servidor arranca de todos modos, pero cada ruta
+responde 500 y en la consola aparece `Invalid environment configuration:
+DATABASE_URL: Invalid input; ...` junto con `SESSION_SECRET must be set with at
+least 32 characters.`. Cuando cambies un valor, actualiza ambos archivos (los dos
+están cubiertos por `.gitignore`).
+
+> Esto solo aplica al desarrollo local. En producción `docker compose` inyecta las
+> variables al contenedor `web` desde el `.env` de la raíz, así que ahí basta un
+> único archivo.
+
 ### 4. Levantar Base de Datos y Sembrar Datos de Desarrollo
 ```bash
 # Iniciar contenedor de PostgreSQL en Docker:
