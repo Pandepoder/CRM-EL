@@ -290,12 +290,30 @@ export function LocationPicker({
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const { latitude, longitude } = pos.coords;
+        const { latitude, longitude, accuracy } = pos.coords;
         if (mapInstanceRef.current && markerRef.current) {
           mapInstanceRef.current.setView([latitude, longitude], 17);
           markerRef.current.setLatLng([latitude, longitude]);
         }
         handleCoordsSelected(latitude, longitude);
+
+        // El dispositivo dice con cuanta precision ha fijado el punto, y hasta
+        // ahora ese dato se tiraba. Bajo techo o con mala senal un telefono
+        // devuelve facilmente un radio de cientos de metros —a veces la antena
+        // de telefonia en vez del GPS—, y ese punto se guardaba como domicilio
+        // exacto sin que nadie pudiera notarlo despues.
+        //
+        // No se bloquea: en campo un punto aproximado vale mas que ninguno. Pero
+        // quien captura tiene que saber lo que esta guardando para ajustar el pin
+        // si hace falta.
+        const metros = Math.round(accuracy);
+        if (metros > 50) {
+          setStatusMessage(
+            `Señal débil: el punto puede estar a ±${metros} m de donde estás. Arrastra el pin al lugar exacto antes de guardar.`
+          );
+        } else {
+          setStatusMessage(`Ubicación fijada por GPS (±${metros} m).`);
+        }
         setIsLocatingGPS(false);
       },
       (err) => {

@@ -26,8 +26,8 @@ export async function POST(req: Request) {
       sectionId,
       contactId,
       locationText = "",
-      latitude = 20.6248,
-      longitude = -103.2422,
+      latitude,
+      longitude,
       municipality = "Tonalá"
     } = body;
 
@@ -36,6 +36,17 @@ export async function POST(req: Request) {
     if (!title || !scheduledAt) {
       return NextResponse.json(
         { error: "El título de la actividad y la fecha son obligatorios." },
+        { status: 400 }
+      );
+    }
+
+    // El servidor traia la plaza principal de Tonalá como valor por defecto de
+    // las coordenadas, asi que toda actividad enviada sin ubicacion quedaba ahi
+    // como si fuera su sede, sin que nadie pudiera notarlo despues. Mas vale
+    // rechazarla y que se marque el punto.
+    if (typeof latitude !== "number" || typeof longitude !== "number") {
+      return NextResponse.json(
+        { error: "Falta la ubicación. Márcala en el mapa o usa el GPS antes de guardar." },
         { status: 400 }
       );
     }

@@ -21,9 +21,15 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
     title: "",
     category: "",
     description: "",
-    latitude: 20.6248,
-    longitude: -103.2422,
-    locationText: "Tonalá Centro, Jalisco",
+    // Sin ubicacion hasta que se fije una de verdad.
+    //
+    // Aqui venia la plaza principal de Tonala, con la etiqueta "Tonala Centro".
+    // La comprobacion de mas abajo —"debes proporcionar una ubicacion"— no se
+    // disparaba nunca, porque el formulario ya traia una: quien no tocaba el
+    // mapa guardaba la incidencia en la plaza, presentada como exacta.
+    latitude: null as number | null,
+    longitude: null as number | null,
+    locationText: "",
     municipality: "Tonalá",
     district: "",
     sectionId: "",
@@ -122,8 +128,8 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
           title: "",
           category: "",
           description: "",
-          latitude: 20.6248,
-          longitude: -103.2422,
+          latitude: null as number | null,
+          longitude: null as number | null,
           locationText: "",
           municipality: "Tonalá",
           district: "",
