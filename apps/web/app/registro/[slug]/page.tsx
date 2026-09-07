@@ -2,6 +2,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { BienvenidaConoceme } from "@/components/BienvenidaConoceme";
 import PublicRegistrationClient from "./PublicRegistrationClient";
 
 export default async function PublicRegistrationPage({
@@ -40,10 +41,18 @@ export default async function PublicRegistrationPage({
     .limit(300);
 
   return (
-    <PublicRegistrationClient
-      hostUser={hostUser}
-      slug={slug}
-      coloniesList={colonies.map(c => c.name)}
-    />
+    <>
+      {/* Quien escanea el QR en la calle ve primero de quien es la campana. */}
+      <BienvenidaConoceme
+        clave="registro"
+        accion="Continuar al registro"
+        invitadoPor={hostUser.displayName}
+      />
+      <PublicRegistrationClient
+        hostUser={hostUser}
+        slug={slug}
+        coloniesList={colonies.map(c => c.name)}
+      />
+    </>
   );
 }

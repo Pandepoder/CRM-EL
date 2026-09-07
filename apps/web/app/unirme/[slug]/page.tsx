@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
+import { BienvenidaConoceme } from "@/components/BienvenidaConoceme";
 import UnirmeForm from "./UnirmeForm";
 
 /**
@@ -53,6 +54,12 @@ export default async function UnirmePage({ params }: { params: Promise<{ slug: s
 
   return (
     <div className="min-h-screen flex flex-col font-sans" style={{ background: "#f7f8fb" }}>
+      {/* Quien escanea el QR de la brigada ve primero de quien es la campana. */}
+      <BienvenidaConoceme
+        clave="unirme"
+        accion="Continuar y sumarme"
+        invitadoPor={anfitrion.displayName}
+      />
       <section
         style={{
           background: "linear-gradient(155deg, #0b1f3a 0%, #12305c 58%, #16407a 100%)",
