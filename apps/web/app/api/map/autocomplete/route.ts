@@ -172,7 +172,7 @@ export async function GET(req: Request) {
     // El recuadro anterior —de Nayarit a Guanajuato— iba con `bounded=0`, o sea
     // que no restringía nada: era solo una preferencia. Ahora la búsqueda se
     // acota de verdad al AMG y solo se amplía a Jalisco si no encuentra nada.
-    const osmData = await buscarDireccion(q, municipality, { limite: 6, msEspera: 2500 });
+    const { filas: osmData } = await buscarDireccion(q, municipality, { limite: 6, msEspera: 2500 });
 
     // Pre-fetch sections for Point-In-Polygon matching
     let cachedSections: any[] = [];
