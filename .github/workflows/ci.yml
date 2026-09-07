@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
@@ -53,5 +53,24 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run Validation (Typecheck, Lint, Architecture, Unit Tests)
-        run: pnpm validate:unit
+      # Las pruebas que tocan la base necesitan el esquema y el catalogo de
+      # roles. database.test.ts crea ademas su propia base aparte, asi que
+      # sembrar esta no le estorba.
+      - name: Preparar la base de pruebas
+        run: |
+          pnpm db:migrate
+          pnpm db:seed
+
+      # Antes esto era `validate:unit`, que excluye todo lo que toca la base de
+      # datos: el servicio de Postgres de arriba estaba levantado y sin usar.
+      # Por eso cinco pruebas de integracion llevaban tiempo en rojo sin que
+      # nadie se enterara, y por eso `test:integration` podia ejecutar 1 de 12
+      # archivos sin que se notara.
+      - name: Validación (tipos, lint, arquitectura y TODAS las pruebas)
+        run: pnpm validate
+
+      # El despliegue construye la imagen, asi que un fallo de build tumbaba la
+      # publicacion en vez de detectarse en el PR. `validate` no lo cubre: hace
+      # typecheck, no compilacion de Next.
+      - name: Compilación de producción
+        run: pnpm web:build
