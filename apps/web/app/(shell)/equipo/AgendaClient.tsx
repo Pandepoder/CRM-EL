@@ -145,8 +145,10 @@ export default function AgendaClient({
     contactId: "",
     locationText: "",
     estimatedAttendees: "",
-    latitude: 20.6248,
-    longitude: -103.2422,
+    // Igual que en /reportes: la plaza de Tonala como valor inicial hacia que
+    // toda actividad sin ubicacion fijada quedara ahi, como si fuera su sede.
+    latitude: null as number | null,
+    longitude: null as number | null,
     mediaUrls: [] as MediaFile[]
   });
   const [creatingTask, setCreatingTask] = useState(false);
@@ -248,8 +250,8 @@ export default function AgendaClient({
             contactId: "",
             locationText: "",
             estimatedAttendees: "",
-            latitude: 20.6248,
-            longitude: -103.2422,
+            latitude: null as number | null,
+            longitude: null as number | null,
             mediaUrls: []
           });
           router.refresh();
