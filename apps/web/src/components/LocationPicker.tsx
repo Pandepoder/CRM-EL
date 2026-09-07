@@ -217,7 +217,16 @@ export function LocationPicker({
         const list = Array.isArray(data.results) ? data.results : [];
         setSearchResults(list);
 
-        if (list.length === 0) {
+        if (list.length === 0 && data.saturado) {
+          // No es lo mismo que el buscador no encuentre la dirección a que no
+          // haya podido preguntar. Nominatim limita por peticiones y todas las
+          // de este sistema salen por la misma IP, así que en jornada con varias
+          // personas capturando es un caso real, no teórico. Decirlo evita que
+          // se dé por inexistente un domicilio que sí está.
+          setStatusMessage(
+            "El buscador de direcciones no está respondiendo ahora mismo. Marca el punto en el mapa; la dirección se puede escribir a mano."
+          );
+        } else if (list.length === 0) {
           setStatusMessage("No se encontró esa dirección. Márcala directamente en el mapa.");
         } else if (list.length === 1) {
           applySearchResult(list[0]);

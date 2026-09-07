@@ -45,6 +45,7 @@ export async function GET(request: Request) {
   const sections = await getSeccionesGeo();
 
   const results: any[] = [];
+  let buscadorSaturado = false;
 
   // 1. Lugares conocidos, solo cuando la búsqueda contiene realmente el nombre.
   //
@@ -69,7 +70,8 @@ export async function GET(request: Request) {
 
   // 2. Nominatim, acotado al AMG (ver lib/osm-search).
   try {
-    const candidatos = await buscarDireccion(query, municipio);
+    const { filas: candidatos, saturado } = await buscarDireccion(query, municipio);
+    if (saturado) buscadorSaturado = true;
 
     const deOSM: any[] = [];
 
@@ -139,5 +141,9 @@ export async function GET(request: Request) {
   // 8000" y clavaba el pin en la plaza principal. Era indistinguible de un
   // acierto: quien capturaba se llevaba una coordenada falsa sin ningún aviso.
   // Vale más decir que no se encontró y que se marque en el mapa.
-  return NextResponse.json({ results });
+  // Se distingue "no hay resultados" de "no pudimos preguntar". Sin esto, un
+  // rechazo de Nominatim por exceso de peticiones se leía en pantalla como
+  // "dirección no encontrada", y quien capturaba daba por hecho que el domicilio
+  // no existía.
+  return NextResponse.json({ results, saturado: buscadorSaturado });
 }

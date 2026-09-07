@@ -89,7 +89,10 @@ export function AddressAutocomplete({
       if (inputValue && inputValue.trim().length >= 2 && document.activeElement === inputRef.current) {
         void performSearch(inputValue);
       }
-    }, 220);
+      // Nominatim admite una peticion por segundo y todas salen por la misma IP
+      // del servidor. Con 220 ms, una persona escribiendo una direccion generaba
+      // media docena de peticiones, y varias a la vez rebasaban el limite.
+    }, 600);
 
     return () => clearTimeout(timer);
   }, [inputValue, performSearch]);
