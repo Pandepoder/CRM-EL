@@ -1118,3 +1118,149 @@ input[placeholder*="buscar"] {
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Bienvenida de campaña antes del formulario (BienvenidaConoceme)
+
+   En globals.css a proposito: es el unico archivo de estilos que Next empaqueta.
+   packages/ui/styles.css define clases parecidas pero no lo importa nadie.
+   --------------------------------------------------------------------------- */
+
+.bienvenida {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #0b1f3a;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.bienvenida-caja {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.bienvenida-foto {
+  position: relative;
+  width: 100%;
+  height: 260px;
+}
+
+.bienvenida-velo {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(11, 31, 58, 0.94) 8%, rgba(11, 31, 58, 0.15) 60%, transparent);
+}
+
+.bienvenida-titulo {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #fff;
+}
+
+.bienvenida-titulo strong {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.bienvenida-titulo span {
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.bienvenida-cuerpo {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bienvenida-invita {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  background: #eef2f8;
+  border-radius: 10px;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.bienvenida-invita strong {
+  color: #0b1f3a;
+}
+
+.bienvenida-texto {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.bienvenida-continuar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  padding: 17px 20px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1d4ed8, #0b1f3a);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(29, 78, 216, 0.35);
+}
+
+.bienvenida-continuar:hover {
+  filter: brightness(1.08);
+}
+
+.bienvenida-continuar:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 3px;
+}
+
+.bienvenida-ver {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #0b1f3a;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.bienvenida-ver:hover {
+  background: #e2e8f0;
+}
+
+.bienvenida-ver:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+@media (max-height: 640px) {
+  .bienvenida-foto {
+    height: 180px;
+  }
+}

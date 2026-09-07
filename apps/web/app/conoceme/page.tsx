@@ -1,5 +1,5 @@
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 
 import VideoYoutube from "./VideoYoutube";
 
@@ -89,9 +89,19 @@ export default function ConocemePage() {
         className="w-full px-6 sm:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20"
         style={{ background: "rgba(255,255,255,.88)", backdropFilter: "blur(10px)", borderBottom: "1px solid #e6eaf2" }}
       >
-        <Link href="/" className="cm-volver flex items-center gap-2 font-semibold text-sm" style={{ color: "#0b1f3a" }}>
-          <ArrowLeft size={17} /> Volver
-        </Link>
+        {/* Antes habia aqui un "Volver" a la portada. Ahora la raiz redirige a
+            esta misma pagina, asi que ese enlace era un bucle: se queda el
+            monograma como identidad, sin navegacion a ninguna parte. */}
+        <span className="flex items-center gap-2 font-semibold text-sm" style={{ color: "#0b1f3a" }}>
+          <Image
+            src="/brand/el-monograma-color.png"
+            alt="Edgar López"
+            width={30}
+            height={30}
+            style={{ width: 30, height: 30, objectFit: "contain", display: "block" }}
+          />
+          Edgar López
+        </span>
         <Link
           href="/login"
           className="cm-volver font-semibold text-sm px-4 py-2 rounded-lg"
