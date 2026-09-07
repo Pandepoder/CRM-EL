@@ -1510,7 +1510,7 @@ export default function MapaPage() {
   }, []);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "calc(100vh - 64px)", minHeight: "600px", display: "flex", flexDirection: "column", background: "#0f172a", overflow: "hidden", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+    <div className="alto-mapa" style={{ position: "relative", width: "100%", display: "flex", flexDirection: "column", background: "#0f172a", overflow: "hidden", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
       
       {/* Top Floating Command Bar */}
       <header style={{ position: "absolute", top: "12px", left: "12px", right: "12px", zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "8px 12px", borderRadius: "14px", background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(226, 232, 240, 0.9)", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15)", flexWrap: "wrap" }}>

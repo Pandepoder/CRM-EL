@@ -1264,3 +1264,65 @@ input[placeholder*="buscar"] {
     height: 180px;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Ajustes para telefono (iOS y Android)
+   --------------------------------------------------------------------------- */
+
+/*
+   Safari en iPhone hace zoom sobre cualquier campo cuya letra mida menos de
+   16px, y no vuelve a alejarse solo: la pagina se queda ampliada y descuadrada.
+   Hay 40 campos por debajo de ese tamano repartidos por los formularios, asi que
+   se corrige aqui en vez de en cada uno.
+
+   El !important hace falta para ganarle a las clases de Tailwind (text-sm y
+   text-xs) que traen los campos escritos a mano.
+*/
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/*
+   Alto real de la ventana en el movil.
+
+   En Safari, 100vh incluye la barra del navegador que se esconde al desplazar,
+   de modo que el contenido queda mas alto que la pantalla y lo de abajo se sale.
+   `dvh` mide el alto disponible de verdad. Se deja 100vh delante como respaldo
+   para navegadores viejos, que ignoran la segunda linea.
+*/
+.alto-pantalla {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.min-alto-pantalla {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/*
+   El mapa ocupa la ventana menos la cabecera. Estaba con 100vh en un estilo en
+   linea, que en React no admite la declaracion doble del respaldo.
+*/
+.alto-mapa {
+  height: calc(100vh - 64px);
+  height: calc(100dvh - 64px);
+  min-height: 480px;
+}
+
+/*
+   Objetivos tactiles. Apple recomienda 44px de lado; Android, 48dp. Los botones
+   e iconos pequenos de las barras de herramientas se quedaban por debajo y en la
+   calle, con guantes o prisa, se falla el toque.
+*/
+@media (pointer: coarse) {
+  button,
+  a[role="button"],
+  [role="tab"] {
+    min-height: 40px;
+  }
+}
