@@ -118,19 +118,27 @@ export function PredictiveCombobox({
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        // If allowCustom and user typed something without selecting, keep the typed text
-        if (allowCustom && searchTerm.trim()) {
+
+        // Si lo escrito corresponde a una opción del catálogo, gana su clave.
+        //
+        // Antes esta rama iba después de `allowCustom`, y ahí estaba el fallo:
+        // con allowCustom en true, cualquier clic fuera del desplegable pisaba
+        // la clave ya elegida con la ETIQUETA que se ve en pantalla. Elegir
+        // "Bache" mandaba "bache" y, al tocar el siguiente campo, se convertía
+        // en "Bache". El alta de reportes desde /reportes rechazaba entonces
+        // todas las categorías con «la categoría "Bache" no existe», mientras
+        // que el mapa funcionaba porque usa allowCustom en false.
+        if (exactMatch) {
+          setSelectedValue(exactMatch.value);
+          setSearchTerm(exactMatch.label);
+          onChange?.(exactMatch.value, exactMatch);
+        } else if (allowCustom && searchTerm.trim()) {
+          // Texto libre de verdad: no corresponde a ninguna opción.
           setSelectedValue(searchTerm.trim());
           onChange?.(searchTerm.trim());
-        } else if (!allowCustom) {
-          if (exactMatch) {
-            setSelectedValue(exactMatch.value);
-            setSearchTerm(exactMatch.label);
-            onChange?.(exactMatch.value, exactMatch);
-          } else if (selectedValue) {
-            const current = safeOptions.find((o) => o.value === selectedValue);
-            if (current) setSearchTerm(current.label);
-          }
+        } else if (!allowCustom && selectedValue) {
+          const current = safeOptions.find((o) => o.value === selectedValue);
+          if (current) setSearchTerm(current.label);
         }
       }
     }
