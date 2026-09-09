@@ -1,4 +1,5 @@
 import puppeteer from "puppeteer";
+import { demoPassword } from "./demo-credentials.js";
 
 async function run() {
   const loginRes = await fetch("http://localhost:3001/api/auth/login", {
@@ -6,7 +7,7 @@ async function run() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       email: "admin.demo@tonala-os.local",
-      password: "TonalaDemo2026"
+      password: demoPassword()
     })
   });
 

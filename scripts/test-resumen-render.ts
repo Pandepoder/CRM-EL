@@ -1,4 +1,5 @@
 import puppeteer from "puppeteer";
+import { demoPassword } from "./demo-credentials.js";
 import path from "path";
 
 const ARTIFACT_DIR = "C:/Users/gino_/.gemini/antigravity-ide/brain/e9b3e289-7d45-428c-ade7-1488e43788a0";
@@ -9,7 +10,7 @@ async function run() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       email: "admin.demo@tonala-os.local",
-      password: "TonalaDemo2026"
+      password: demoPassword()
     })
   });
 

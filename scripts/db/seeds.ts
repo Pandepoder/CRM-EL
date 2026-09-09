@@ -18,7 +18,48 @@ async function countTable(pool: pg.Pool, table: string): Promise<number> {
   return Number(result.rows[0]?.count ?? 0);
 }
 
+/**
+ * Contrasena de las cuentas de demostracion. Deliberadamente sin valor por defecto.
+ *
+ * Antes esta funcion caia en un literal si faltaba la variable, asi que bastaba
+ * ejecutar la semilla sin configurar nada para dejar cuentas abiertas con una
+ * contrasena publicada en el repositorio.
+ */
+function requireDemoPassword(): string {
+  const password = process.env.DEMO_PASSWORD?.trim();
+  if (!password) {
+    throw new Error(
+      "Falta DEMO_PASSWORD: define la contrasena de las cuentas de demostracion antes " +
+        "de sembrar. No hay valor por defecto a proposito."
+    );
+  }
+  return password;
+}
+
+/**
+ * Impide sembrar cuentas demo sobre un entorno productivo.
+ *
+ * demoUserSeeds incluye correos de dominios reales (admin@tonala.gob.mx,
+ * admin@elapp.com.mx) y el upsert de mas abajo reescribe password_hash. Correr
+ * esta semilla contra la base de produccion le cambia la contrasena al
+ * administrador real por la de demostracion.
+ */
+function assertDemoSeedAllowed(): void {
+  const esProduccion = process.env.NODE_ENV === "production";
+  if (esProduccion && process.env.ALLOW_DEMO_SEED !== "true") {
+    throw new Error(
+      "Semilla de demostracion bloqueada: NODE_ENV=production. Estas cuentas sobrescriben " +
+        "el password_hash de cualquier usuario que ya tenga el mismo correo. Si de verdad " +
+        "es un entorno de prueba mal etiquetado, exporta ALLOW_DEMO_SEED=true."
+    );
+  }
+}
+
 export async function seedDatabase(connectionString: string): Promise<SeedResult> {
+  // Se valida antes de abrir la conexion: si falta configuracion, nada se toca.
+  assertDemoSeedAllowed();
+  const demoPassword = requireDemoPassword();
+
   const pool = new pg.Pool({ connectionString });
 
   try {
@@ -101,7 +142,6 @@ export async function seedDatabase(connectionString: string): Promise<SeedResult
     // Hashear la contraseña demo una vez antes de la transacción.
     // argon2id es intencionalmente lento: hacerlo dentro del transaction
     // mantendría el lock de BD durante ~200ms por usuario.
-    const demoPassword = process.env.DEMO_PASSWORD ?? "TonalaDemo2026";
     const passwordHash = await argon2.hash(demoPassword, { type: argon2.argon2id });
 
     for (const user of demoUserSeeds) {

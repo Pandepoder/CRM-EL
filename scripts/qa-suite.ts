@@ -3,6 +3,8 @@
  * Tests all end-to-end user journeys against the running HTTP server.
  */
 
+import { demoPassword } from "./demo-credentials.js";
+
 const BASE_URL = "http://localhost:3000";
 
 type TestResult = {
@@ -59,7 +61,7 @@ async function runQA() {
     const res = await fetch(`${BASE_URL}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "admin.demo@tonala-os.local", password: "TonalaDemo2026" })
+      body: JSON.stringify({ email: "admin.demo@tonala-os.local", password: demoPassword() })
     });
     if (!res.ok) throw new Error(`Login failed with status ${res.status}`);
     const setCookie = res.headers.get("set-cookie");

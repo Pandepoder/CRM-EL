@@ -35,7 +35,9 @@ jobs:
       NEXT_PUBLIC_APP_ENV: test
       SESSION_SECRET: ci-test-session-secret-at-least-32-chars
       DATABASE_ENCRYPTION_KEY: tonala-ci-encryption-key-32-chars-long!
-      DEMO_PASSWORD: TonalaDemo2026
+      # Valor de usar y tirar para la base efimera de CI. No corresponde a
+      # ninguna cuenta real y no debe reutilizarse fuera de este workflow.
+      DEMO_PASSWORD: ci-solo-para-pruebas-5adb20d70ae908fb
 
     steps:
       - name: Checkout code
@@ -74,3 +76,10 @@ jobs:
       # typecheck, no compilacion de Next.
       - name: Compilación de producción
         run: pnpm web:build
+
+      # El artefacto compilado es el unico sitio donde se puede comprobar esto:
+      # Next.js sustituye las NEXT_PUBLIC_* al compilar, asi que el .env o el
+      # Dockerfile dicen con que intencion se construyo, no que quedo dentro del
+      # JavaScript que descarga el navegador.
+      - name: Verificar que el bundle no lleva el acceso demo
+        run: pnpm check:bundle-secrets

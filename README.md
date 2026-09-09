@@ -128,10 +128,19 @@ pnpm web:dev
 ```
 Abre tu navegador en [http://localhost:3000](http://localhost:3000).
 
-> **Credenciales de Desarrollo (Demo):**
-> - **Administrador:** `admin@tonala.gob.mx` | Contraseña: `TonalaDemo2026`
-> - **Coordinador Territorial:** `coord.centro@tonala.gob.mx` | Contraseña: `TonalaDemo2026`
-> - **Brigadista:** `brigada.norte@tonala.gob.mx` | Contraseña: `TonalaDemo2026`
+> **Cuentas de Desarrollo (Demo):**
+> `pnpm db:seed` crea cuentas de prueba con la contraseña que hayas puesto en
+> `DEMO_PASSWORD`. No hay valor por defecto: si la variable está vacía, la semilla
+> falla en vez de sembrar una contraseña conocida.
+>
+> - **Administrador:** `admin@tonala.gob.mx`
+> - **Coordinador Territorial:** `coord.centro@tonala.gob.mx`
+> - **Brigadista:** `brigada.norte@tonala.gob.mx`
+>
+> Genera la tuya con `openssl rand -base64 18` y déjala solo en tu `.env` local.
+> Estas cuentas usan dominios reales y la semilla reescribe el `password_hash` de
+> cualquier usuario que ya tenga ese correo: nunca la ejecutes contra la base de
+> producción (con `NODE_ENV=production` está bloqueada).
 
 ---
 
@@ -176,7 +185,13 @@ nano .env
 ### 2. Configura `.env`:
 - Asigna contraseñas seguras a `POSTGRES_PASSWORD`, `SESSION_SECRET`, `DATABASE_ENCRYPTION_KEY` y `ADMIN_PASSWORD` (usa `openssl rand -base64 24` / `openssl rand -hex 16` según el caso — nunca dejes los valores de ejemplo).
 - Configura `DOMAIN` con tu dominio real (Caddy lo usa para emitir el certificado HTTPS).
-- Deja `NEXT_PUBLIC_ENABLE_DEMO_LOGIN=false`.
+- Deja `NEXT_PUBLIC_ENABLE_DEMO_LOGIN=false` y `NEXT_PUBLIC_DEMO_PASSWORD` vacía.
+  Next.js sustituye las variables `NEXT_PUBLIC_*` por su valor **al compilar**, no al
+  arrancar: si construyes la imagen con esas dos puestas, la contraseña queda escrita
+  dentro del JavaScript que descarga cualquier visitante, y cambiar el `.env` después
+  no la quita de ese build. Para corregirlo hay que reconstruir. Con
+  `NEXT_PUBLIC_DEMO_PASSWORD` vacía el bloque de acceso demo no se compila aunque el
+  flag quede encendido por error.
 
 ### 3. Levantar la Aplicación:
 ```bash
