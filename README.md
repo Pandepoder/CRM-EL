@@ -189,9 +189,17 @@ nano .env
   Next.js sustituye las variables `NEXT_PUBLIC_*` por su valor **al compilar**, no al
   arrancar: si construyes la imagen con esas dos puestas, la contraseña queda escrita
   dentro del JavaScript que descarga cualquier visitante, y cambiar el `.env` después
-  no la quita de ese build. Para corregirlo hay que reconstruir. Con
-  `NEXT_PUBLIC_DEMO_PASSWORD` vacía el bloque de acceso demo no se compila aunque el
-  flag quede encendido por error.
+  no la quita de ese build. Para corregirlo hay que reconstruir.
+
+  > **No basta con omitir la variable.** Si `NEXT_PUBLIC_ENABLE_DEMO_LOGIN` no está
+  > *definida* al compilar, la condición no es constante, el minificador no puede
+  > eliminar el bloque de acceso demo y este viaja entero al navegador. Tiene que
+  > estar definida con un valor. El `Dockerfile` la declara como `ARG` con valor
+  > `false` por omisión precisamente por esto: `.dockerignore` excluye el `.env` y el
+  > `env_file` de docker-compose solo aplica al contenedor en ejecución, no a la etapa
+  > de construcción, así que sin ese `ARG` ninguna imagen podía eliminar el bloque.
+  > Para una demo intencionada:
+  > `docker compose build --build-arg NEXT_PUBLIC_ENABLE_DEMO_LOGIN=true --build-arg NEXT_PUBLIC_DEMO_PASSWORD=...`
 
 ### 3. Levantar la Aplicación:
 ```bash

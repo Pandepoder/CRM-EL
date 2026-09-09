@@ -33,6 +33,12 @@ jobs:
       POSTGRES_PASSWORD: password
       NEXT_PUBLIC_APP_NAME: Tonala OS
       NEXT_PUBLIC_APP_ENV: test
+      # Tiene que estar definida con un valor, no solo ausente: Next.js sustituye
+      # las NEXT_PUBLIC_* al compilar y solo elimina el bloque de acceso demo si la
+      # condicion es constante. Sin definirla, el bloque sobrevive al minificador y
+      # acaba en el JavaScript que descarga el navegador.
+      NEXT_PUBLIC_ENABLE_DEMO_LOGIN: "false"
+      NEXT_PUBLIC_DEMO_PASSWORD: ""
       SESSION_SECRET: ci-test-session-secret-at-least-32-chars
       DATABASE_ENCRYPTION_KEY: tonala-ci-encryption-key-32-chars-long!
       # Valor de usar y tirar para la base efimera de CI. No corresponde a
