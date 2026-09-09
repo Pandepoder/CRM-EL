@@ -4,7 +4,9 @@ import unusedImports from "eslint-plugin-unused-imports";
 
 export default tseslint.config(
   {
-    ignores: ["node_modules/**", "outputs/**", "work/**", "coverage/**", "dist/**", "apps/**/public/**", "apps/**/.next/**", "apps/**/next-env.d.ts"]
+    // docs/ no es codigo del proyecto: guarda informes y los scripts sueltos que
+    // los acompanan, que no siguen (ni deben seguir) las reglas del monorepo.
+    ignores: ["node_modules/**", "outputs/**", "work/**", "coverage/**", "dist/**", "docs/**", "apps/**/public/**", "apps/**/.next/**", "apps/**/next-env.d.ts"]
   },
   js.configs.recommended,
   {
