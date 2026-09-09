@@ -1,7 +1,6 @@
-import paramiko
+import vps_ssh
 import sys
 import time
-import os
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -35,17 +34,13 @@ def run_remote_command(client, command, step_name):
     return True, "".join(output_lines)
 
 def deploy():
-    host = "45.80.153.22"
-    user = "root"
-    password=os.environ["VPS_SSH_PASSWORD"]
+    host, user, _ = vps_ssh.target_or_exit()
     
     print(f"Conectando a {user}@{host}...")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     
     try:
-        client.connect(host, port=22, username=user, password=password, timeout=15)
-        print("[OK] Conexión SSH establecida con el servidor VPS (45.80.153.22).")
+        client = vps_ssh.connect_or_exit(timeout=15)
+        print(f"[OK] Conexión SSH establecida con el servidor VPS ({host}).")
     except Exception as e:
         print(f"Error al conectar por SSH: {e}", file=sys.stderr)
         sys.exit(1)
@@ -109,7 +104,7 @@ def deploy():
     print("🚀 ¡DESPLIEGUE FINALIZADO Y ACTIVO EN LA WEB REAL!")
     print("=======================================================")
     print("🌐 URL Pública: https://elapp.com.mx")
-    print("🌐 URL Alternativa (IP): http://45.80.153.22")
+    print(f"🌐 URL Alternativa (IP): http://{host}")
     print("=======================================================")
 
 if __name__ == "__main__":

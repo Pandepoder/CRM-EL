@@ -5,7 +5,10 @@ Limpia secciones foráneas y establece polígonos continuos sin sobreposiciones 
 
 import json
 import math
-import paramiko
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+import vps_ssh
 import sys
 import os
 
@@ -560,9 +563,7 @@ def generate_sql():
     return "\n".join(sql_lines)
 
 def sync_to_vps():
-    host = "45.80.153.22"
-    user = "root"
-    password=os.environ["VPS_SSH_PASSWORD"]
+    host, user, _ = vps_ssh.target_or_exit()
     
     print(f"1. Generando SQL cartográfico oficial para {len(TONALA_SECTIONS)} secciones de Tonalá...")
     sql_content = generate_sql()
@@ -573,9 +574,7 @@ def sync_to_vps():
     print(f"[OK] Archivo SQL generado en {local_sql} ({len(sql_content)} bytes)")
 
     print(f"2. Conectando por SSH a {user}@{host}...")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(host, port=22, username=user, password=password, timeout=15)
+    client = vps_ssh.connect_or_exit(timeout=15)
     print("[OK] Conectado al VPS.")
 
     print("3. Subiendo SQL al servidor...")

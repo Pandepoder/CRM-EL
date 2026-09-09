@@ -1,8 +1,12 @@
 import urllib.request
 import json
 
+import vps_ssh
+
+BASE = vps_ssh.app_base_url()
+
 try:
-    req = urllib.request.Request("http://45.80.153.22/login", headers={"User-Agent": "Mozilla/5.0"})
+    req = urllib.request.Request(f"{BASE}/login", headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=10) as response:
         print(f"Status Code: {response.getcode()}")
         print(f"Server Header: {response.headers.get('Server')}")

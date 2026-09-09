@@ -1,4 +1,4 @@
-import paramiko
+import vps_ssh
 import sys
 import time
 import os
@@ -34,8 +34,9 @@ def run_remote_command(client, command, step_name):
     print(f"[OK] {step_name} completado con éxito.")
     return True, "".join(output_lines)
 
+# VPS_SSH_PASSWORD no se lista aqui: vps_ssh acepta llave (VPS_SSH_KEY_FILE) o
+# contrasena, y valida esa eleccion al conectar.
 REQUIRED_ENV_VARS = [
-    "VPS_SSH_PASSWORD",
     "PROD_POSTGRES_PASSWORD",
     "PROD_SESSION_SECRET",
     "PROD_DATABASE_ENCRYPTION_KEY",
@@ -50,16 +51,12 @@ def deploy():
         print(f"[ERROR] Missing required environment variables: {', '.join(missing)}", file=sys.stderr)
         sys.exit(1)
 
-    host = "45.80.153.22"
-    user = "root"
-    password = os.environ["VPS_SSH_PASSWORD"]
+    host, user, _ = vps_ssh.target_or_exit()
 
     print(f"Conectando a {user}@{host}...")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     
     try:
-        client.connect(host, port=22, username=user, password=password, timeout=15)
+        client = vps_ssh.connect_or_exit(timeout=15)
         print("[OK] Conexión SSH establecida con el servidor VPS.")
     except Exception as e:
         print(f"Error al conectar por SSH: {e}", file=sys.stderr)
@@ -246,8 +243,8 @@ EOF
     print("\n=======================================================")
     print("🎉 ¡DESPLIEGUE EN PRODUCCIÓN FINALIZADO CON ÉXITO! 🎉")
     print("=======================================================")
-    print(f"🌐 URL por Dominio: https://elapp.com.mx (apunta el registro DNS A a 45.80.153.22)")
-    print(f"🌐 URL por IP Directa: http://45.80.153.22")
+    print(f"🌐 URL por Dominio: https://elapp.com.mx (apunta el registro DNS A a {host})")
+    print(f"🌐 URL por IP Directa: http://{host}")
     print(f"👤 Usuario Administrador: admin@elapp.com.mx")
     print(f"🔑 Contraseña Administrador: (configurada via PROD_ADMIN_PASSWORD)")
     print("=======================================================")

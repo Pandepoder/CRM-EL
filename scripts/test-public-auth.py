@@ -2,6 +2,10 @@ import urllib.request
 import json
 import os
 
+import vps_ssh
+
+BASE = vps_ssh.app_base_url()
+
 data = json.dumps({
     "email": "admin@elapp.com.mx",
     "password": os.environ["APP_ADMIN_PASSWORD"]
@@ -9,7 +13,7 @@ data = json.dumps({
 
 try:
     req = urllib.request.Request(
-        "http://45.80.153.22/api/auth/login",
+        f"{BASE}/api/auth/login",
         data=data,
         headers={
             "Content-Type": "application/json",

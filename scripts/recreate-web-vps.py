@@ -1,6 +1,5 @@
-import paramiko
+import vps_ssh
 import sys
-import os
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -10,14 +9,10 @@ if sys.stdout.encoding != 'utf-8':
         pass
 
 def recreate_web():
-    host = "45.80.153.22"
-    user = "root"
-    password=os.environ["VPS_SSH_PASSWORD"]
+    host, user, _ = vps_ssh.target_or_exit()
     
     print(f"Conectando por SSH a {user}@{host}...")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(host, port=22, username=user, password=password, timeout=15)
+    client = vps_ssh.connect_or_exit(timeout=15)
     print("[OK] Conectado.")
 
     cmd = """

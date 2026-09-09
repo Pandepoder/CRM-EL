@@ -18,11 +18,15 @@ name: Despliegue a producción
 #                     y deja la publica en ~/.ssh/authorized_keys del servidor.
 #                     Nunca reutilices tu llave personal.
 #
-#   VPS_KNOWN_HOSTS   Opcional pero recomendable. Fija la identidad del
-#                     servidor para que nadie pueda suplantarlo:
+#   VPS_KNOWN_HOSTS   Obligatorio. Fija la identidad del servidor para que nadie
+#                     pueda suplantarlo. Obtenlo con:
 #                       ssh-keyscan -H <IP>
-#                     Sin este secreto se acepta la que el servidor anuncie en
-#                     ese momento, que es mas comodo y menos seguro.
+#                     pero contrasta la huella resultante con la que muestre el
+#                     panel del proveedor o una consola fuera de banda antes de
+#                     guardarla: si te limitas a copiar lo que anuncie el
+#                     servidor, no has verificado nada, solo has registrado a
+#                     quien haya contestado. Sin este secreto el job falla a
+#                     proposito, en vez de aceptar cualquier clave.
 #
 # Para exigir aprobacion humana antes de cada despliegue: Settings >
 # Environments > produccion > Required reviewers. El job se queda esperando.
@@ -72,12 +76,17 @@ jobs:
           chmod 700 ~/.ssh
           printf '%s\n' "$LLAVE" > ~/.ssh/id_despliegue
           chmod 600 ~/.ssh/id_despliegue
-          if [ -n "${HOSTS_CONOCIDOS:-}" ]; then
-            printf '%s\n' "$HOSTS_CONOCIDOS" > ~/.ssh/known_hosts
-          else
-            echo "::warning::VPS_KNOWN_HOSTS no esta definido: se acepta la identidad que anuncie el servidor."
-            ssh-keyscan -H "$SERVIDOR" >> ~/.ssh/known_hosts 2>/dev/null
+          # Sin known_hosts el despliegue se detiene. El respaldo anterior era
+          # ssh-keyscan contra el mismo servidor al que ibamos a conectar: eso da
+          # por buena la clave que anuncie quien conteste, que es justo lo que
+          # known_hosts existe para evitar.
+          if [ -z "${HOSTS_CONOCIDOS:-}" ]; then
+            echo "Falta el secreto VPS_KNOWN_HOSTS. Obten la clave del servidor por un"
+            echo "canal de confianza (panel del proveedor o consola fuera de banda),"
+            echo "verifica su huella y guardala como secreto antes de desplegar."
+            exit 1
           fi
+          printf '%s\n' "$HOSTS_CONOCIDOS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Actualizar el codigo y reconstruir

@@ -1,6 +1,5 @@
-import paramiko
+import vps_ssh
 import sys
-import os
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -10,13 +9,9 @@ if sys.stdout.encoding != 'utf-8':
         pass
 
 def verify_db():
-    host = "45.80.153.22"
-    user = "root"
-    password=os.environ["VPS_SSH_PASSWORD"]
+    host, user, _ = vps_ssh.target_or_exit()
     
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(host, port=22, username=user, password=password, timeout=10)
+    client = vps_ssh.connect_or_exit(timeout=10)
     
     print("=== 1. LISTING TABLES IN POSTGRES ===")
     stdin, stdout, stderr = client.exec_command("docker compose -f /opt/crm-el/docker-compose.yml exec -T db psql -U tonala -d tonala_os -c '\\dt'")

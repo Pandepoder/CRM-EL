@@ -1,9 +1,6 @@
-import paramiko
-import os
+import vps_ssh
 
-client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('45.80.153.22', username='root', password=os.environ["VPS_SSH_PASSWORD"])
+client = vps_ssh.connect_or_exit()
 
 def run_query(q):
     stdin, stdout, stderr = client.exec_command(f"docker exec tonala-os-postgres psql -U tonala -d tonala_os -c \"{q}\"")
