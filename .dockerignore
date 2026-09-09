@@ -34,3 +34,10 @@ README.md
 CONTRIBUTING.md
 CODE_OF_CONDUCT.md
 walkthrough.md
+
+# Utilidades de operacion y datos de origen: no participan en el build de la app
+# ni se ejecutan dentro del contenedor. Mantenerlos fuera del contexto evita que
+# lleguen a la imagen por descuido y acorta el build.
+scripts/geo
+scripts/*.py
+scripts/db/*.py

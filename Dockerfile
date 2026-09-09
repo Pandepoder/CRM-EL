@@ -20,7 +20,14 @@ COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /app/db ./db
-COPY --from=builder /app/scripts ./scripts
+# Solo los scripts que el contenedor ejecuta de verdad: las migraciones y tareas
+# de base (servicio `migrate`, `docker compose exec web pnpm db:clean`), el worker
+# de outbox y el motor de proyeccion que ese worker y apps/web/src/lib/outbox.ts
+# importan. Antes se copiaba scripts/ entero (~48 MiB), lo que metia en la imagen
+# de produccion las utilidades de VPS: despliegue, inspeccion y acceso SSH.
+COPY --from=builder /app/scripts/db ./scripts/db
+COPY --from=builder /app/scripts/outbox ./scripts/outbox
+COPY --from=builder /app/scripts/composition ./scripts/composition
 COPY --from=builder /app/packages ./packages
 RUN mkdir -p apps/web/public
 COPY --from=builder /app/apps/web/.next/standalone ./
