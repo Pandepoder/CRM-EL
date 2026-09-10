@@ -118,7 +118,7 @@ pnpm db:start
 # Aplicar migraciones del esquema:
 pnpm db:migrate
 
-# Sembrar usuarios demo y polígonos base:
+# Sembrar usuarios de prueba y polígonos base:
 pnpm db:seed
 ```
 
@@ -128,27 +128,23 @@ pnpm web:dev
 ```
 Abre tu navegador en [http://localhost:3000](http://localhost:3000).
 
-> **Cuentas de Desarrollo (Demo):**
-> `pnpm db:seed` crea cuentas de prueba con la contraseña que hayas puesto en
-> `DEMO_PASSWORD`. No hay valor por defecto: si la variable está vacía, la semilla
-> falla en vez de sembrar una contraseña conocida.
+> **Usuarios de prueba:**
+> `pnpm db:seed` crea un usuario por rol, todos con el dominio reservado `.local`, y genera
+> una contraseña aleatoria distinta en cada ejecución que imprime al terminar. No hay ninguna
+> contraseña que configurar ni que compartir.
 >
-> - **Administrador:** `admin.demo@tonala-os.local`
-> - **Coordinador Territorial:** `coordinador.demo@tonala-os.local`
-> - **Capturista:** `capturista.demo@tonala-os.local`
-> - **Brigadista:** `responsable.demo@tonala-os.local`
-> - **Dirección:** `direccion.demo@tonala-os.local`
+> - **Administrador:** `admin@pruebas.local`
+> - **Coordinador Territorial:** `coordinador@pruebas.local`
+> - **Capturista:** `capturista@pruebas.local`
+> - **Brigadista:** `responsable@pruebas.local`
+> - **Dirección:** `direccion@pruebas.local`
 >
-> Genera la contraseña con `openssl rand -base64 18` y déjala solo en tu `.env` local.
+> Si necesitas una contraseña estable —por ejemplo para los scripts sueltos de `scripts/`
+> que entran por HTTP— siembra con `SEED_USER_PASSWORD=... pnpm db:seed`.
 >
-> Todas usan el dominio `.local`, que está reservado y no puede resolver a un dominio
-> real: así ninguna cuenta de demostración comparte identidad con una cuenta de trabajo.
-> Antes esta lista incluía `admin@tonala.gob.mx` y `admin@elapp.com.mx`, que son los
-> valores por omisión de `ADMIN_EMAIL` — y como la semilla reescribe el `password_hash`,
-> sembrar sobre una base real le cambiaba la contraseña al administrador de producción.
->
-> Aun así, `pnpm db:seed` pide confirmación explícita del nombre de la base si
-> `DATABASE_URL` no apunta a `localhost`.
+> `pnpm db:seed` pide confirmación explícita del nombre de la base si `DATABASE_URL` no
+> apunta a `localhost`: reescribe la contraseña de cualquier usuario que ya exista con esos
+> correos.
 
 ---
 
@@ -193,21 +189,7 @@ nano .env
 ### 2. Configura `.env`:
 - Asigna contraseñas seguras a `POSTGRES_PASSWORD`, `SESSION_SECRET`, `DATABASE_ENCRYPTION_KEY` y `ADMIN_PASSWORD` (usa `openssl rand -base64 24` / `openssl rand -hex 16` según el caso — nunca dejes los valores de ejemplo).
 - Configura `DOMAIN` con tu dominio real (Caddy lo usa para emitir el certificado HTTPS).
-- Deja `NEXT_PUBLIC_ENABLE_DEMO_LOGIN=false` y `NEXT_PUBLIC_DEMO_PASSWORD` vacía.
-  Next.js sustituye las variables `NEXT_PUBLIC_*` por su valor **al compilar**, no al
-  arrancar: si construyes la imagen con esas dos puestas, la contraseña queda escrita
-  dentro del JavaScript que descarga cualquier visitante, y cambiar el `.env` después
-  no la quita de ese build. Para corregirlo hay que reconstruir.
-
-  > **No basta con omitir la variable.** Si `NEXT_PUBLIC_ENABLE_DEMO_LOGIN` no está
-  > *definida* al compilar, la condición no es constante, el minificador no puede
-  > eliminar el bloque de acceso demo y este viaja entero al navegador. Tiene que
-  > estar definida con un valor. El `Dockerfile` la declara como `ARG` con valor
-  > `false` por omisión precisamente por esto: `.dockerignore` excluye el `.env` y el
-  > `env_file` de docker-compose solo aplica al contenedor en ejecución, no a la etapa
-  > de construcción, así que sin ese `ARG` ninguna imagen podía eliminar el bloque.
-  > Para una demo intencionada:
-  > `docker compose build --build-arg NEXT_PUBLIC_ENABLE_DEMO_LOGIN=true --build-arg NEXT_PUBLIC_DEMO_PASSWORD=...`
+- No hay acceso de demostración que desactivar: se eliminó del sistema.
 
 ### 3. Levantar la Aplicación:
 ```bash
@@ -291,7 +273,7 @@ docker run --rm -v tonala_os_uploads:/data -v "$PWD":/out alpine tar czf /out/up
 | `pnpm db:start` | Levanta PostgreSQL en Docker en el puerto local configurado. |
 | `pnpm db:stop` | Detiene el contenedor de base de datos local. |
 | `pnpm db:migrate` | Ejecuta las migraciones SQL pendientes con Drizzle ORM. |
-| `pnpm db:seed` | Carga datos de prueba y usuarios demo para desarrollo. |
+| `pnpm db:seed` | Carga datos y usuarios de prueba para desarrollo (contraseña aleatoria, se imprime). |
 | `pnpm db:clean` | **Limpia la base de datos para producción** (deja solo catálogos y admin maestro). |
 | `pnpm db:reset` | Borra la base de datos local por completo y la reinicia desde cero. |
 | `pnpm exec tsx scripts/qa-suite.ts` | Ejecuta la suite de 16 pruebas automatizadas E2E de calidad. |

@@ -16,5 +16,14 @@ WHERE email IN (
   'capturista.demo@tonala-os.local',
   'responsable.demo@tonala-os.local',
   'brigada.norte@tonala.gob.mx',
-  'direccion.demo@tonala-os.local'
+  'direccion.demo@tonala-os.local',
+  -- Nombres actuales de los usuarios que crea la semilla, tras retirar el concepto de
+  -- "demo" del sistema. Su contraseña ahora es aleatoria por ejecución, así que en una
+  -- base real no representan una credencial conocida: siguen aquí porque su presencia
+  -- indica igualmente que alguien sembró contra un entorno que no debía.
+  'admin@pruebas.local',
+  'coordinador@pruebas.local',
+  'capturista@pruebas.local',
+  'responsable@pruebas.local',
+  'direccion@pruebas.local'
 );

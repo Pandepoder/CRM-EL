@@ -3,28 +3,7 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ShieldCheck, Mail, Lock, ArrowRight, Loader2, Shield, MapPin, Footprints, ClipboardList } from "lucide-react";
-
-const demoButtonIconStyle = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" } as const;
-
-// Los accesos de demostracion solo existen si el build los habilita Y recibe una
-// contrasena por variable de entorno. Antes la contrasena estaba escrita en este
-// archivo: quedaba en el repositorio y viajaba dentro del JavaScript de cualquier
-// build hecho con el flag activo. Next.js sustituye las NEXT_PUBLIC_* al compilar,
-// asi que apagar el flag en tiempo de ejecucion no la quita del bundle ya generado;
-// la unica garantia es que la credencial no este en el codigo.
-const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? "";
-const DEMO_HABILITADO = process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === "true" && DEMO_PASSWORD !== "";
-
-const CUENTAS_DEMO = [
-  // admin.demo@, no admin@tonala.gob.mx: ese ultimo es el correo del Administrador
-  // Maestro real (ADMIN_EMAIL), y apuntar el boton de demo a una cuenta de trabajo es
-  // lo que hacia que demo y produccion compartieran identidad.
-  { etiqueta: "Administrador", email: "admin.demo@tonala-os.local", destino: "/crm/contacts", Icono: Shield, estilo: { background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534" } },
-  { etiqueta: "Coordinador", email: "coordinador.demo@tonala-os.local", destino: "/crm/contacts", Icono: MapPin, estilo: { background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e40af" } },
-  { etiqueta: "Brigadista", email: "responsable.demo@tonala-os.local", destino: "/equipo", Icono: Footprints, estilo: { background: "#fefce8", border: "1px solid #fef08a", color: "#854d0e" } },
-  { etiqueta: "Capturista", email: "capturista.demo@tonala-os.local", destino: "/crm/contacts", Icono: ClipboardList, estilo: { background: "#faf5ff", border: "1px solid #e9d5ff", color: "#6b21a8" } }
-] as const;
+import { ShieldCheck, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -128,44 +107,6 @@ function LoginForm() {
           </>
         )}
       </button>
-
-      {/* Accesos de demostracion: exigen flag y contrasena fijados en tiempo de build. */}
-      {DEMO_HABILITADO ? (
-      <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #e2e8f0" }}>
-        <p style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "10px", textAlign: "center" }}>
-          Acceso Rápido de Demostración (1 Clic)
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-          {CUENTAS_DEMO.map(({ etiqueta, email: emailDemo, destino, Icono, estilo }) => (
-            <button
-              key={emailDemo}
-              type="button"
-              disabled={loading}
-              onClick={async () => {
-                setEmail(emailDemo);
-                setPassword(DEMO_PASSWORD);
-                setLoading(true);
-                try {
-                  const res = await fetch("/api/auth/login", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email: emailDemo, password: DEMO_PASSWORD })
-                  });
-                  const data = await res.json() as { redirectTo?: string };
-                  window.location.href = data.redirectTo || destino;
-                } catch {
-                  setError("Error de conexión");
-                  setLoading(false);
-                }
-              }}
-              style={{ padding: "8px 10px", fontSize: "12px", fontWeight: 600, borderRadius: "8px", cursor: "pointer", textAlign: "center", ...estilo }}
-            >
-              <span style={demoButtonIconStyle}><Icono size={14} /> {etiqueta}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-      ) : null}
 
       <div style={{ textAlign: "center", marginTop: "20px", paddingTop: "14px", borderTop: "1px solid #f1f5f9" }}>
         <p style={{ fontSize: "14px", color: "#64748b", margin: 0 }}>

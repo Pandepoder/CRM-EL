@@ -23,16 +23,16 @@ describe("credenciales del Administrador Maestro", () => {
   beforeEach(() => {
     delete process.env.ADMIN_EMAIL;
     delete process.env.ADMIN_PASSWORD;
-    delete process.env.DEMO_PASSWORD;
+    delete process.env.SEED_USER_PASSWORD;
   });
 
   afterEach(() => {
     process.env = { ...entornoOriginal };
   });
 
-  it("no acepta DEMO_PASSWORD como respaldo de ADMIN_PASSWORD", () => {
+  it("no acepta ninguna otra variable como respaldo de ADMIN_PASSWORD", () => {
     process.env.ADMIN_EMAIL = "admin@ejemplo.invalid";
-    process.env.DEMO_PASSWORD = "contrasena-de-demostracion";
+    process.env.SEED_USER_PASSWORD = "contrasena-de-los-fixtures";
     // ADMIN_PASSWORD ausente: antes esto seguía adelante usando la de demostración.
 
     expect(() => resolveMasterAdminCredentials()).toThrow(/ADMIN_PASSWORD/);
@@ -43,17 +43,17 @@ describe("credenciales del Administrador Maestro", () => {
     // cuando docker-compose pasaba ADMIN_PASSWORD=${ADMIN_PASSWORD} sin valor.
     process.env.ADMIN_EMAIL = "admin@ejemplo.invalid";
     process.env.ADMIN_PASSWORD = "   ";
-    process.env.DEMO_PASSWORD = "contrasena-de-demostracion";
+    process.env.SEED_USER_PASSWORD = "contrasena-de-los-fixtures";
 
     expect(() => resolveMasterAdminCredentials()).toThrow(/ADMIN_PASSWORD/);
   });
 
-  it("rechaza que ADMIN_PASSWORD coincida con DEMO_PASSWORD", () => {
+  it("rechaza que ADMIN_PASSWORD coincida con SEED_USER_PASSWORD", () => {
     process.env.ADMIN_EMAIL = "admin@ejemplo.invalid";
     process.env.ADMIN_PASSWORD = "la-misma-de-siempre";
-    process.env.DEMO_PASSWORD = "la-misma-de-siempre";
+    process.env.SEED_USER_PASSWORD = "la-misma-de-siempre";
 
-    expect(() => resolveMasterAdminCredentials()).toThrow(/DEMO_PASSWORD/);
+    expect(() => resolveMasterAdminCredentials()).toThrow(/SEED_USER_PASSWORD/);
   });
 
   it("exige ADMIN_EMAIL en vez de caer en un correo escrito en el código", () => {
@@ -68,7 +68,7 @@ describe("credenciales del Administrador Maestro", () => {
   it("devuelve las credenciales cuando la configuración es correcta", () => {
     process.env.ADMIN_EMAIL = "  admin@ejemplo.invalid  ";
     process.env.ADMIN_PASSWORD = "una-contrasena-propia";
-    process.env.DEMO_PASSWORD = "otra-distinta-de-demostracion";
+    process.env.SEED_USER_PASSWORD = "otra-distinta";
 
     expect(resolveMasterAdminCredentials()).toEqual({
       email: "admin@ejemplo.invalid",

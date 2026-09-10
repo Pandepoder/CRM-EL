@@ -10,11 +10,12 @@
  *
  *   const adminPassword = process.env.ADMIN_PASSWORD || process.env.DEMO_PASSWORD;
  *
- * con una guarda que solo abortaba si faltaban LAS DOS. Como scripts/deploy-vps.py
- * escribía DEMO_PASSWORD en el `.env` del servidor y ejecutaba `pnpm db:clean` durante el
- * despliegue, un ADMIN_PASSWORD vacío —y la cadena vacía es falsy— creaba al administrador
- * de producción con la contraseña de demostración. En silencio, y en el script cuyo
- * propósito declarado es dejar la base lista para producción.
+ * con una guarda que solo abortaba si faltaban LAS DOS. Como scripts/deploy-vps.py escribía
+ * DEMO_PASSWORD en el `.env` del servidor y ejecutaba `pnpm db:clean` durante el despliegue,
+ * un ADMIN_PASSWORD vacío —y la cadena vacía es falsy— creaba al administrador de producción
+ * con la contraseña de demostración. En silencio, y en el script cuyo propósito declarado es
+ * dejar la base lista para producción. DEMO_PASSWORD ya no existe, pero la guarda se queda:
+ * el respaldo silencioso era el defecto, no la variable concreta.
  */
 
 export type MasterAdminCredentials = {
@@ -40,11 +41,14 @@ export function resolveMasterAdminCredentials(): MasterAdminCredentials {
     );
   }
 
-  const demoPassword = process.env.DEMO_PASSWORD?.trim();
-  if (demoPassword && demoPassword === password) {
+  // La semilla ya no usa una contraseña compartida, pero SEED_USER_PASSWORD sigue
+  // existiendo para fijarla cuando hace falta repetibilidad. Si alguien la reutiliza como
+  // contraseña del administrador, vuelve el problema que motivó todo esto.
+  const seedPassword = process.env.SEED_USER_PASSWORD?.trim();
+  if (seedPassword && seedPassword === password) {
     throw new Error(
-      "ADMIN_PASSWORD es idéntica a DEMO_PASSWORD. La contraseña de demostración es de " +
-        "conocimiento público: no puede ser la del administrador."
+      "ADMIN_PASSWORD es idéntica a SEED_USER_PASSWORD. La contraseña de los usuarios " +
+        "sembrados no puede ser la del administrador."
     );
   }
 

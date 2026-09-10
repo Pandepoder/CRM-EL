@@ -7,48 +7,40 @@ export const roleSeeds = [
 ] as const;
 
 /**
- * Cuentas de demostracion. TODAS usan el dominio .local a proposito.
+ * Usuarios que crea la semilla: fixtures para las pruebas de integracion y para tener
+ * con que entrar en desarrollo local. No son un "modo demo" ni una funcion del producto.
  *
- * Antes esta lista incluia admin@tonala.gob.mx, admin@elapp.com.mx,
- * coord.centro@tonala.gob.mx y brigada.norte@tonala.gob.mx. Esos correos no son
- * ficticios: admin@elapp.com.mx es el valor por omision de ADMIN_EMAIL en
- * docker-compose.yml y el que scripts/deploy-vps.py escribe en el .env del
- * servidor, y admin@tonala.gob.mx es el del .env.example y del Administrador
- * Maestro de clean-production.ts. Como el upsert de seeds.ts reescribe
- * password_hash, sembrar sobre una base real le cambiaba la contrasena al
- * administrador de produccion por la de demostracion.
+ * Todos usan el dominio .local, reservado por RFC 6762 y por tanto incapaz de coincidir
+ * con un correo de trabajo. Antes esta lista incluia admin@tonala.gob.mx y
+ * admin@elapp.com.mx, que son valores por omision de ADMIN_EMAIL: como el upsert reescribe
+ * password_hash, sembrar sobre una base real le cambiaba la contrasena al administrador.
  *
- * .local esta reservado y no puede resolver a un dominio real (RFC 6762), asi
- * que ninguna cuenta de aqui puede colisionar con una cuenta de trabajo. Los
- * cinco roles quedan cubiertos; los correos retirados solo duplicaban roles.
- *
- * Si agregas una cuenta, usa .local. La prueba en
- * tests/unit/demo-seed-isolation.test.ts falla si no lo haces.
+ * Si agregas uno, usa .local. tests/unit/seed-user-isolation.test.ts falla si no lo haces.
  */
-export const demoUserSeeds = [
+export const userSeeds = [
   {
-    email: "admin.demo@tonala-os.local",
-    displayName: "Admin Demo",
+    email: "admin@pruebas.local",
+    displayName: "Admin de Pruebas",
     roleKey: "admin"
   },
   {
-    email: "coordinador.demo@tonala-os.local",
-    displayName: "Coordinador Demo",
+    email: "coordinador@pruebas.local",
+    displayName: "Coordinador de Pruebas",
     roleKey: "territorial_coordinator"
   },
   {
-    email: "capturista.demo@tonala-os.local",
-    displayName: "Capturista Demo",
+    email: "capturista@pruebas.local",
+    displayName: "Capturista de Pruebas",
     roleKey: "capturist"
   },
   {
-    email: "responsable.demo@tonala-os.local",
-    displayName: "Responsable Demo",
+    email: "responsable@pruebas.local",
+    displayName: "Responsable de Pruebas",
     roleKey: "visit_responsible"
   },
   {
-    email: "direccion.demo@tonala-os.local",
-    displayName: "Direccion Demo",
+    email: "direccion@pruebas.local",
+    displayName: "Direccion de Pruebas",
     roleKey: "direction"
   }
 ] as const;

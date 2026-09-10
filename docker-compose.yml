@@ -109,8 +109,6 @@ services:
       # aborta con un mensaje claro en vez de crear un administrador que nadie esperaba.
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - DEMO_PASSWORD=${DEMO_PASSWORD}
-      - NEXT_PUBLIC_ENABLE_DEMO_LOGIN=${NEXT_PUBLIC_ENABLE_DEMO_LOGIN:-false}
       - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-Tonala OS}
       - NEXT_PUBLIC_APP_ENV=production
       - PORT=3000

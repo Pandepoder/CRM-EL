@@ -1,5 +1,5 @@
 import puppeteer from "puppeteer";
-import { demoPassword } from "./demo-credentials.js";
+import { seedUserPassword } from "./seed-credentials.js";
 
 async function testTileSwitching() {
   const browser = await puppeteer.launch({ 
@@ -11,8 +11,8 @@ async function testTileSwitching() {
 
   console.log("1. Logging in...");
   await page.goto("http://localhost:3000/login", { waitUntil: "networkidle2" });
-  await page.type('input[id="email"]', "admin.demo@tonala-os.local");
-  await page.type('input[id="password"]', demoPassword());
+  await page.type('input[id="email"]', "admin@pruebas.local");
+  await page.type('input[id="password"]', seedUserPassword());
   await page.click('input[id="terms"]');
   
   await Promise.all([

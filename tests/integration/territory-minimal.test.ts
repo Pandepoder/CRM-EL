@@ -131,7 +131,7 @@ describe("territory minimal integration", () => {
     await seedDatabase(testDatabaseUrl);
     pool = createPgPool(testDatabaseUrl);
     const user = await pool.query<{ id: string }>(
-      "SELECT id::text AS id FROM user_profiles WHERE email = 'admin.demo@tonala-os.local'"
+      "SELECT id::text AS id FROM user_profiles WHERE email = 'admin@pruebas.local'"
     );
     adminUserId = user.rows[0]?.id ?? "";
     const colonies = await pool.query<{ id: string }>("SELECT id::text AS id FROM colonies ORDER BY name");

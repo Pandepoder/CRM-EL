@@ -221,8 +221,8 @@ describe("visits minimal integration", () => {
     const users = await pool.query<{ id: string; email: string }>(
       "SELECT id::text AS id, email FROM user_profiles ORDER BY email"
     );
-    adminUserId = users.rows.find((row) => row.email === "admin.demo@tonala-os.local")?.id ?? "";
-    coordinatorUserId = users.rows.find((row) => row.email === "coordinador.demo@tonala-os.local")?.id ?? "";
+    adminUserId = users.rows.find((row) => row.email === "admin@pruebas.local")?.id ?? "";
+    coordinatorUserId = users.rows.find((row) => row.email === "coordinador@pruebas.local")?.id ?? "";
     const visitResponsible = await pool.query<{ id: string }>(`
       INSERT INTO user_profiles (email, display_name, role_id)
       SELECT 'visit.responsible.block7@tonala-os.local', 'Visit Responsible Block 7', roles.id

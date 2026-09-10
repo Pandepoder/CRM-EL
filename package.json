@@ -9,7 +9,6 @@
   },
   "scripts": {
     "check:boundaries": "node scripts/check-module-boundaries.mjs",
-    "check:bundle-secrets": "node scripts/check-bundle-secrets.mjs",
     "db:migrate": "tsx scripts/db/migrate.ts",
     "db:restore-geo": "tsx scripts/db/restore-official-section-geometry.ts",
     "db:clean-sections": "tsx scripts/db/clean-unofficial-sections.ts",

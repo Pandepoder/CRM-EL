@@ -7,3 +7,5 @@ const env = loadAppEnv();
 const result = await seedDatabase(env.private.DATABASE_URL);
 
 console.warn(`Seed complete: roles=${result.roles}, users=${result.users}, colonies=${result.colonies}`);
+console.warn(`Contraseña de los usuarios sembrados: ${result.userPassword}`);
+console.warn("Se genera una distinta en cada ejecución. Fija SEED_USER_PASSWORD si necesitas repetirla.");

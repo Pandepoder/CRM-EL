@@ -22,9 +22,9 @@ async function run() {
   const db = getDatabaseClient();
 
   try {
-    const adminUserRes = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.email, 'admin.demo@tonala-os.local')).limit(1);
+    const adminUserRes = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.email, 'admin@pruebas.local')).limit(1);
     const adminUser = adminUserRes[0];
-    if (!adminUser) throw new Error("No admin.demo@tonala-os.local user found");
+    if (!adminUser) throw new Error("No admin@pruebas.local user found");
 
     const sectionsRes = await db.select().from(schema.electoralSections).limit(20);
     const sections = sectionsRes.map(s => s.id);

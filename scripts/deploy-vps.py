@@ -43,7 +43,6 @@ REQUIRED_ENV_VARS = [
     "PROD_ADMIN_PASSWORD",
 ]
 
-
 def deploy():
     missing = [name for name in REQUIRED_ENV_VARS if not os.environ.get(name)]
     if missing:
@@ -156,11 +155,6 @@ ALLOW_PUBLIC_REGISTRATION=false
 
 ADMIN_EMAIL=admin@elapp.com.mx
 ADMIN_PASSWORD={admin_password}
-# DEMO_PASSWORD no se escribe aqui a proposito. El login demo esta apagado en
-# produccion, asi que no hace falta, y su presencia era lo que permitia que
-# clean-production.ts creara al administrador real con la contrasena de
-# demostracion cuando ADMIN_PASSWORD venia vacia.
-NEXT_PUBLIC_ENABLE_DEMO_LOGIN=false
 
 DOMAIN=elapp.com.mx
 NEXT_PUBLIC_APP_NAME="Tonala OS - CRM Territorial"

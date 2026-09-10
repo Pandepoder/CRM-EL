@@ -1,13 +1,16 @@
 import argon2 from "argon2";
+import { randomBytes } from "node:crypto";
 import pg from "pg";
 
 import { confirmDestructiveOperation } from "./confirm-destructive.js";
-import { catalogSeed, colonySeeds, demoUserSeeds, roleSeeds, electoralSectionSeeds } from "./seed-data.js";
+import { catalogSeed, colonySeeds, userSeeds, roleSeeds, electoralSectionSeeds } from "./seed-data.js";
 
 export type SeedResult = {
   readonly roles: number;
   readonly users: number;
   readonly colonies: number;
+  /** Contrasena con la que quedaron los usuarios sembrados, para poder entrar en local. */
+  readonly userPassword: string;
 };
 
 type CountRow = {
@@ -20,56 +23,36 @@ async function countTable(pool: pg.Pool, table: string): Promise<number> {
 }
 
 /**
- * Contrasena de las cuentas de demostracion. Deliberadamente sin valor por defecto.
+ * Contrasena de los usuarios que crea la semilla.
  *
- * Antes esta funcion caia en un literal si faltaba la variable, asi que bastaba
- * ejecutar la semilla sin configurar nada para dejar cuentas abiertas con una
- * contrasena publicada en el repositorio.
- */
-function requireDemoPassword(): string {
-  const password = process.env.DEMO_PASSWORD?.trim();
-  if (!password) {
-    throw new Error(
-      "Falta DEMO_PASSWORD: define la contrasena de las cuentas de demostracion antes " +
-        "de sembrar. No hay valor por defecto a proposito."
-    );
-  }
-  return password;
-}
-
-/**
- * Primera barrera, por etiqueta de entorno.
+ * Aleatoria por omision, distinta en cada ejecucion, y devuelta en el resultado para que
+ * quien siembre en local pueda entrar. No hay valor compartido en el repositorio ni en la
+ * configuracion: antes existia DEMO_PASSWORD, presente en .env, CI, Dockerfile,
+ * docker-compose y el despliegue, y eso era exactamente lo que habia que blindar, rotar y
+ * vigilar. Un secreto que no existe no se filtra.
  *
- * Es barata pero debil: NODE_ENV puede estar sin definir (es el caso en CI) o valer
- * "development" mientras DATABASE_URL apunta a una base remota de produccion. Por eso
- * no es la unica: la comprobacion que de verdad decide es la del destino, mas abajo.
+ * SEED_USER_PASSWORD permite fijarla cuando hace falta repetibilidad, por ejemplo para
+ * los scripts sueltos de scripts/ que entran por HTTP.
  */
-function assertDemoSeedAllowed(): void {
-  const esProduccion = process.env.NODE_ENV === "production";
-  if (esProduccion && process.env.ALLOW_DEMO_SEED !== "true") {
-    throw new Error(
-      "Semilla de demostracion bloqueada: NODE_ENV=production. Si de verdad es un entorno " +
-        "de prueba mal etiquetado, exporta ALLOW_DEMO_SEED=true."
-    );
-  }
+function resolveSeedPassword(): string {
+  const fijada = process.env.SEED_USER_PASSWORD?.trim();
+  if (fijada) return fijada;
+  return randomBytes(18).toString("base64url");
 }
 
 export async function seedDatabase(connectionString: string): Promise<SeedResult> {
-  // Se valida todo antes de abrir la conexion: si falta configuracion, nada se toca.
-  assertDemoSeedAllowed();
-  const demoPassword = requireDemoPassword();
+  const userPassword = resolveSeedPassword();
 
-  // Segunda barrera, por destino real. El upsert de mas abajo reescribe password_hash,
-  // asi que sembrar sobre una base que ya tenga usuarios les cambia la contrasena por la
-  // de demostracion. confirmDestructiveOperation decide segun el host de DATABASE_URL,
-  // no segun una etiqueta: localhost pasa sin ruido y cualquier host remoto exige
-  // confirmar el nombre exacto de la base. Es el mismo control que ya usaban db:clean y
-  // db:reset; esta semilla deberia haberlo usado desde el principio.
+  // El upsert de mas abajo reescribe password_hash, asi que sembrar sobre una base que ya
+  // tenga usuarios con esos correos les cambia la contrasena. confirmDestructiveOperation
+  // decide segun el host de DATABASE_URL, no segun una etiqueta de entorno: localhost pasa
+  // sin ruido y cualquier host remoto exige confirmar el nombre exacto de la base. Es el
+  // mismo control que ya usaban db:clean y db:reset.
   await confirmDestructiveOperation({
     databaseUrl: connectionString,
     actionLabel:
-      "SEMBRAR cuentas de demostracion, reescribiendo la contrasena de cualquier usuario " +
-      "que ya exista con esos correos"
+      "SEMBRAR usuarios de prueba, reescribiendo la contrasena de cualquier usuario que ya " +
+      "exista con esos correos"
   });
 
   const pool = new pg.Pool({ connectionString });
@@ -151,12 +134,12 @@ export async function seedDatabase(connectionString: string): Promise<SeedResult
       }
     }
 
-    // Hashear la contraseña demo una vez antes de la transacción.
+    // Hashear la contraseña una sola vez antes de la transacción.
     // argon2id es intencionalmente lento: hacerlo dentro del transaction
     // mantendría el lock de BD durante ~200ms por usuario.
-    const passwordHash = await argon2.hash(demoPassword, { type: argon2.argon2id });
+    const passwordHash = await argon2.hash(userPassword, { type: argon2.argon2id });
 
-    for (const user of demoUserSeeds) {
+    for (const user of userSeeds) {
       await pool.query(
         `
           INSERT INTO user_profiles (email, display_name, role_id, password_hash)
@@ -179,7 +162,8 @@ export async function seedDatabase(connectionString: string): Promise<SeedResult
     return {
       roles: await countTable(pool, "roles"),
       users: await countTable(pool, "user_profiles"),
-      colonies: await countTable(pool, "colonies")
+      colonies: await countTable(pool, "colonies"),
+      userPassword
     };
   } catch (error) {
     await pool.query("ROLLBACK");
