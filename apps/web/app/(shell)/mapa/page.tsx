@@ -39,6 +39,7 @@ import {
   Vote
 } from "lucide-react";
 import type { ComponentType } from "react";
+import { CENTRO_JALISCO, MUNICIPIOS_JALISCO, RECUADRO_JALISCO, TODO_JALISCO, TOTAL_SECCIONES_JALISCO, buscarMunicipio, guardarMunicipioPreferido, leerMunicipioPreferido } from "@/lib/municipios-jalisco";
 
 type MapIconType = ComponentType<{ size?: number | string; className?: string }>;
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
@@ -115,18 +116,6 @@ const TILE_STYLES = {
   }
 };
 
-const MUNICIPALITY_CENTERS = {
-  "all": { center: [20.6300, -103.2800] as [number, number], zoom: 11 },
-  "Tonalá": { center: [20.6240, -103.2350] as [number, number], zoom: 13 },
-  "Guadalajara": { center: [20.6750, -103.3450] as [number, number], zoom: 13 },
-  "San Pedro Tlaquepaque": { center: [20.6050, -103.3250] as [number, number], zoom: 13 },
-  "Zapopan": { center: [20.7100, -103.4100] as [number, number], zoom: 12 },
-  "Tlajomulco de Zúñiga": { center: [20.4800, -103.4100] as [number, number], zoom: 12 },
-  "El Salto": { center: [20.5200, -103.2300] as [number, number], zoom: 13 },
-  "Zapotlanejo": { center: [20.6250, -103.0750] as [number, number], zoom: 13 },
-  "Ixtlahuacán de los Membrillos": { center: [20.4100, -103.1850] as [number, number], zoom: 13 },
-  "Juanacatlán": { center: [20.5050, -103.1600] as [number, number], zoom: 13 },
-};
 
 type ReportFeature = {
   properties: {
@@ -158,7 +147,73 @@ type SectionProperties = {
   incidentsActive: number;
   incidentsResolved: number;
   representatives: Array<{ name: string; role: string }>;
+  /** Datos del atlas de campaña. Null en las secciones que el documento no cubre. */
+  atlas: AtlasSeccion | null;
 };
+
+type AtlasSeccion = {
+  priority: "A" | "B" | "C" | "D";
+  mainColony: string | null;
+  pollingPlace: string | null;
+  votes: { pan: number; morena: number; mc: number };
+  source: string | null;
+};
+
+type BloqueElectoral = "pan" | "morena" | "mc";
+
+/**
+ * Bloques del atlas. Son los del documento impreso, no partidos sueltos: "PAN y socios" y
+ * "Morena y socios" agrupan coaliciones. Los colores son los de identidad de cada fuerza,
+ * que es como la campaña los lee de un vistazo.
+ */
+const BLOQUES: Record<BloqueElectoral, { etiqueta: string; corto: string; color: string; borde: string }> = {
+  pan: { etiqueta: "PAN y socios", corto: "PAN", color: "#2563eb", borde: "#1d4ed8" },
+  morena: { etiqueta: "Morena y socios", corto: "Morena", color: "#9f1239", borde: "#881337" },
+  mc: { etiqueta: "MC", corto: "MC", color: "#ea580c", borde: "#c2410c" }
+};
+
+/** Gris para las secciones sin ficha: "no hay dato" no es lo mismo que "empate". */
+const SIN_ATLAS = { color: "#94a3b8", borde: "#64748b" };
+
+type Resultado = {
+  ganador: BloqueElectoral;
+  votosGanador: number;
+  total: number;
+  /** Puntos porcentuales sobre el segundo lugar. Es lo que separa un bastión de una plaza en disputa. */
+  margen: number;
+  empate: boolean;
+};
+
+function calcularResultado(atlas: AtlasSeccion): Resultado {
+  const orden = (Object.keys(BLOQUES) as BloqueElectoral[])
+    .map((clave) => ({ clave, votos: atlas.votes[clave] }))
+    .sort((a, b) => b.votos - a.votos);
+
+  const primero = orden[0]!;
+  const segundo = orden[1]!;
+  const total = orden.reduce((suma, x) => suma + x.votos, 0);
+
+  return {
+    ganador: primero.clave,
+    votosGanador: primero.votos,
+    total,
+    margen: total > 0 ? ((primero.votos - segundo.votos) / total) * 100 : 0,
+    empate: primero.votos === segundo.votos
+  };
+}
+
+/**
+ * Opacidad según el margen: cuanto más holgada la ventaja, más sólido el color.
+ *
+ * Sin esto, un bastión con 40 puntos de ventaja y una sección ganada por 20 votos se veían
+ * idénticos, que es justo la distinción que la campaña necesita para decidir dónde empujar.
+ */
+function opacidadPorMargen(margen: number): number {
+  if (margen >= 30) return 0.62;
+  if (margen >= 15) return 0.48;
+  if (margen >= 5) return 0.34;
+  return 0.22;
+}
 
 type UserOption = {
   id: string;
@@ -234,28 +289,29 @@ export default function MapaPage() {
   // tramo, solo se rehacen cuando de verdad cambia la forma de agrupar.
   const nivelAgrupacion = mapZoom > 14 ? 0 : mapZoom <= 11 ? 1 : mapZoom <= 13 ? 2 : 3;
 
-  // Filters & Search for Map (Tonalá por defecto, carga por municipio ultra liviana)
+  // Filtros y búsqueda del mapa. La cartografía se pide por municipio.
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMunicipality, setSelectedMunicipality] = useState<string>("Tonalá");
-  const [availableMunicipalities, setAvailableMunicipalities] = useState<Array<{ name: string; count: number }>>([
-    { name: "Tonalá", count: 113 },
-    { name: "Guadalajara", count: 997 },
-    { name: "Zapopan", count: 500 },
-    { name: "San Pedro Tlaquepaque", count: 225 },
-    { name: "Tlajomulco de Zúñiga", count: 168 },
-    { name: "El Salto", count: 88 },
-    { name: "Puerto Vallarta", count: 42 },
-    { name: "Zapotlanejo", count: 25 },
-    { name: "Lagos de Moreno", count: 70 },
-    { name: "Tepatitlán de Morelos", count: 64 },
-    { name: "Zapotlán el Grande", count: 55 },
-    { name: "Chapala", count: 35 }
-  ]);
+  const [selectedMunicipality, setSelectedMunicipality] = useState<string>("");
+  const availableMunicipalities = MUNICIPIOS_JALISCO;
+
+  // Municipio inicial: el de la dirección (?municipio=) o el último que eligió esta persona
+  // en este navegador; sin ninguno, todo Jalisco. Antes arrancaba siempre en Tonalá y cada
+  // recarga devolvía ahí a quien trabajaba en otro municipio. Se resuelve al montar porque
+  // en el servidor no hay URL del cliente ni localStorage; mientras, va vacío y no se
+  // descarga cartografía que no se va a mostrar.
+  useEffect(() => {
+    const desdeUrl = new URLSearchParams(window.location.search).get("municipio");
+    setSelectedMunicipality(
+      desdeUrl === TODO_JALISCO
+        ? TODO_JALISCO
+        : buscarMunicipio(desdeUrl)?.name ?? leerMunicipioPreferido() ?? TODO_JALISCO
+    );
+  }, []);
   const [activeCategories] = useState<Set<string>>(new Set(Object.keys(CATEGORIES)));
 
   // Incident Center Specific Filters & Controls
   const [incidentSearchQuery, setIncidentSearchQuery] = useState("");
-  const [incidentMunicipalityFilter, setIncidentMunicipalityFilter] = useState<string>("Tonalá");
+  const [incidentMunicipalityFilter, setIncidentMunicipalityFilter] = useState<string>(TODO_JALISCO);
   const [incidentCategoryFilter, setIncidentCategoryFilter] = useState<string>("all");
 
   // New report creation modal & Reverse Geocoding State
@@ -276,7 +332,7 @@ export default function MapaPage() {
     address: "",
     description: "", 
     category: "servicios",
-    municipality: "Tonalá",
+    municipality: "",
     sectionId: "",
     assignedToUserId: "",
     mediaUrls: [] as MediaFile[]
@@ -290,7 +346,7 @@ export default function MapaPage() {
     title: "",
     description: "",
     category: "servicios",
-    municipality: "Tonalá",
+    municipality: "",
     status: "active",
     assignedToUserId: ""
   });
@@ -326,7 +382,7 @@ export default function MapaPage() {
     // 1. Instant client-side match with loaded sectionsData (0ms instant feedback)
     let instantSectionNum: number | undefined;
     let instantSectionId = explicitSectionId;
-    let instantMuni = explicitMuni || (selectedMunicipality !== "all" ? selectedMunicipality : "Tonalá");
+    let instantMuni = explicitMuni || (selectedMunicipality !== TODO_JALISCO ? selectedMunicipality : "");
     let instantColony: string | undefined;
 
     if (sectionsData?.features) {
@@ -358,16 +414,16 @@ export default function MapaPage() {
     }
 
     setDetectedLocationInfo({
-      address: `Ubicación en ${instantMuni}`,
+      address: instantMuni ? `Ubicación en ${instantMuni}` : "Ubicando el punto…",
       sectionNum: instantSectionNum,
       sectionId: instantSectionId,
       municipality: instantMuni,
       colony: instantColony,
-      postcode: "45400"
+      postcode: ""
     });
 
     setReportForm({
-      title: instantColony ? `Reporte en ${instantColony}` : `Reporte en ${instantMuni}`,
+      title: instantColony ? `Reporte en ${instantColony}` : instantMuni ? `Reporte en ${instantMuni}` : "Nuevo reporte",
       address: `Coordenadas: ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
       description: "",
       category: "servicios",
@@ -383,7 +439,7 @@ export default function MapaPage() {
       if (res.ok) {
         const data = await res.json();
         const detectedMuni = explicitMuni || data.municipality || instantMuni;
-        const detectedAddress = data.formattedAddress || data.address || `Ubicación en ${detectedMuni}, Jalisco`;
+        const detectedAddress = data.formattedAddress || data.address || (detectedMuni ? `Ubicación en ${detectedMuni}, Jalisco` : "Ubicación en Jalisco");
         const detectedSecNum = data.sectionNum || instantSectionNum;
         const detectedSecId = data.sectionId || instantSectionId;
         const detectedCol = data.colony || instantColony;
@@ -394,7 +450,7 @@ export default function MapaPage() {
           sectionId: detectedSecId,
           municipality: detectedMuni,
           colony: detectedCol,
-          postcode: data.postalCode || data.postcode || "45400"
+          postcode: data.postalCode || data.postcode || ""
         });
 
         setReportForm((prev) => ({
@@ -430,7 +486,7 @@ export default function MapaPage() {
     window.history.replaceState({}, "", window.location.pathname + (restante ? `?${restante}` : ""));
 
     const conCentroDelMapa = () => {
-      const centro = mapRef ? mapRef.getCenter() : { lat: 20.6248, lng: -103.2422 };
+      const centro = mapRef ? mapRef.getCenter() : { lat: CENTRO_JALISCO[0], lng: CENTRO_JALISCO[1] };
       void triggerIncidentCreation(centro.lat, centro.lng);
     };
 
@@ -534,8 +590,10 @@ export default function MapaPage() {
       if (!container || (container as any)._leaflet_id) return;
 
       const map = leafletModule.map(container, {
-        center: [20.6240, -103.2350],
-        zoom: 13,
+        // Arranca en Jalisco completo; el efecto de encuadre lo lleva al municipio elegido en
+        // cuanto se conoce. Antes arrancaba siempre sobre la plaza de Tonalá.
+        center: [CENTRO_JALISCO[0], CENTRO_JALISCO[1]],
+        zoom: 8,
         zoomControl: false,
       });
 
@@ -564,6 +622,14 @@ export default function MapaPage() {
       setLabelsLayer(labels);
       setMapRef(map);
       (window as any).__leafletMap = map;
+
+      // Leaflet solo vuelve a medirse cuando cambia la ventana, no su contenedor. Si el mapa
+      // nace sin ancho —pestaña en segundo plano, barra lateral a mitad de animación— se queda
+      // con tamaño cero y todo encuadre posterior sale al zoom máximo sobre un rincón del
+      // municipio. Se le avisa cada vez que su contenedor cambia de tamaño.
+      if (typeof ResizeObserver !== "undefined") {
+        new ResizeObserver(() => map.invalidateSize()).observe(container);
+      }
 
       map.on("zoomend", () => {
         setMapZoom(map.getZoom());
@@ -683,7 +749,7 @@ export default function MapaPage() {
 
   // 3. Fetch Sections GeoJSON on demand strictly for the selected municipality
   const fetchSections = useCallback(async (muni?: string) => {
-    const targetMuni = muni || selectedMunicipality || "Tonalá";
+    const targetMuni = muni || selectedMunicipality || TODO_JALISCO;
     try {
       const res = await fetch(`/api/map/sections/geojson?municipality=${encodeURIComponent(targetMuni)}`, { cache: "no-store" });
       if (res.ok) {
@@ -722,17 +788,8 @@ export default function MapaPage() {
     }
   }, [selectedMunicipality, fetchSections]);
 
-  // Load complete 124 Jalisco municipalities index on mount
-  useEffect(() => {
-    fetch("/geo/jalisco-municipalities.json")
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setAvailableMunicipalities(data);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  // La lista de municipios sale del catálogo compartido (lib/municipios-jalisco): ya no
+  // hace falta pedirla aparte ni arrancar con una lista escrita a mano.
 
   // 5. Toggle Single Report Status
   const handleToggleReportStatus = useCallback(async (reportId: string, newStatus: string) => {
@@ -860,7 +917,7 @@ export default function MapaPage() {
             address: "",
             description: "",
             category: "servicios",
-            municipality: selectedMunicipality !== "all" ? selectedMunicipality : "Tonalá",
+            municipality: selectedMunicipality !== TODO_JALISCO ? selectedMunicipality : "",
             sectionId: "",
             assignedToUserId: "",
             mediaUrls: []
@@ -889,7 +946,7 @@ export default function MapaPage() {
       title: r.properties.title,
       description: r.properties.description,
       category: r.properties.category,
-      municipality: r.properties.municipality || "Tonalá",
+      municipality: r.properties.municipality || "",
       status: r.properties.status,
       assignedToUserId: r.properties.assignedToUserId || ""
     });
@@ -944,20 +1001,52 @@ export default function MapaPage() {
       return;
     }
 
-    const filteredFeatures = selectedMunicipality === "all"
-      ? sectionsData.features
-      : sectionsData.features.filter((f: any) => f.properties?.municipality === selectedMunicipality);
+    // El servidor ya filtró por municipio. Repetir aquí el filtro con igualdad exacta de
+    // cadena descartaba secciones en cuanto el nombre variaba en un acento.
+    const filteredFeatures = sectionsData.features;
 
     const layerData = { ...sectionsData, features: filteredFeatures };
 
     const layer = L.geoJSON(layerData, {
       style: (feature: any) => {
-        const mun = feature?.properties?.municipality || "Tonalá";
+        const mun = feature?.properties?.municipality || "Sin municipio";
         const theme = MUNICIPALITY_COLORS[mun] || { stroke: "#4f46e5", fill: "#6366f1" };
         const isSelected = selectedSection?.section_num === feature?.properties?.section_num;
 
         // Density 1: Subtle line, low fill. Density 2: Full contrast
         const isLevel1 = infoDensity === 1;
+
+        // Nivel "Detallado": el color deja de decir a qué municipio pertenece la sección y
+        // pasa a decir quién ganó ahí, que es la pregunta que se hace en campaña. El
+        // municipio ya se sabe por dónde está uno mirando; el resultado no se sabe sin esto.
+        const atlas: AtlasSeccion | null = feature?.properties?.atlas ?? null;
+        if (infoDensity === 2 && atlas) {
+          const resultado = calcularResultado(atlas);
+          const bloque = BLOQUES[resultado.ganador];
+          return {
+            color: isSelected ? "#0f172a" : bloque.borde,
+            weight: isSelected ? 3.5 : 1.4,
+            opacity: isSelected ? 1 : 0.9,
+            fillColor: bloque.color,
+            fillOpacity: isSelected ? 0.75 : opacidadPorMargen(resultado.margen),
+            lineJoin: "round",
+            lineCap: "round"
+          };
+        }
+
+        // Sección sin ficha en el atlas, con el nivel al máximo: gris explícito en vez de
+        // heredar el color del municipio, para que se vea que ahí no hay dato electoral.
+        if (infoDensity === 2) {
+          return {
+            color: isSelected ? "#0f172a" : SIN_ATLAS.borde,
+            weight: isSelected ? 3.5 : 1,
+            opacity: isSelected ? 1 : 0.55,
+            fillColor: SIN_ATLAS.color,
+            fillOpacity: isSelected ? 0.5 : 0.12,
+            lineJoin: "round",
+            lineCap: "round"
+          };
+        }
 
         return {
           color: isSelected ? "#1e1b4b" : theme.stroke,
@@ -971,17 +1060,36 @@ export default function MapaPage() {
       },
       onEachFeature: (feature: any, layerItem: any) => {
         const p = feature.properties as SectionProperties;
-        const mun = p.municipality || "Tonalá";
+        const mun = p.municipality || "Sin municipio";
         
+        // Resumen electoral en el tooltip, solo con el nivel al máximo: en los niveles
+        // bajos estorbaría, y ahí las secciones ni siquiera están coloreadas por resultado.
+        const resumenAtlas = (() => {
+          if (infoDensity !== 2 || !p.atlas) return "";
+          const r = calcularResultado(p.atlas);
+          const b = BLOQUES[r.ganador];
+          const pct = r.total > 0 ? Math.round((r.votosGanador / r.total) * 100) : 0;
+          const veredicto = r.empate
+            ? "Empate técnico"
+            : `Gana ${b.corto} · ${pct}% · +${r.margen.toFixed(1)} pts`;
+          return `
+              <div style="margin-top:5px; padding-top:5px; border-top:1px solid #e2e8f0; display:flex; align-items:center; gap:5px;">
+                <span style="width:9px; height:9px; border-radius:50%; background:${b.color}; flex-shrink:0;"></span>
+                <span style="font-size:10px; font-weight:800; color:#0f172a;">${veredicto}</span>
+              </div>
+              <div style="font-size:9px; color:#64748b; margin-top:2px;">Prioridad ${p.atlas.priority} · ${r.total.toLocaleString("es-MX")} votos</div>`;
+        })();
+
         layerItem.bindTooltip(
           `
             <div style="font-family:system-ui,sans-serif; padding:4px;">
               <div style="font-size:12px; font-weight:800; color:#0f172a;">Sección ${p.section_num} <span style="font-weight:600; color:#6366f1;">(${mun})</span></div>
-              <div style="font-size:10px; color:#475569; margin-top:2px;">${p.colonies.slice(0, 3).join(", ") || mun}</div>
+              <div style="font-size:10px; color:#475569; margin-top:2px;">${p.atlas?.mainColony || p.colonies.slice(0, 3).join(", ") || mun}</div>
               <div style="display:flex; gap:8px; margin-top:4px; font-size:10px; font-weight:700; color:#1e293b;">
                 <span>${p.contactsCount} simpatizantes</span>
                 <span>${p.visitsCompleted} visitas</span>
               </div>
+              ${resumenAtlas}
             </div>
           `,
           { sticky: true, className: "section-map-tooltip" }
@@ -1026,29 +1134,62 @@ export default function MapaPage() {
 
     layer.bringToBack();
     setGeoJsonLayer(layer);
-
-    // Auto-center on the newly loaded municipality boundary
-    if (sectionsData?.features && sectionsData.features.length > 0 && mapRef) {
-      try {
-        const bounds = layer.getBounds();
-        if (bounds.isValid()) {
-          mapRef.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
-        }
-      } catch {
-        // fallback
-      }
-    }
+    // Aquí había un auto-encuadre sobre la capa. Sobraba —el encuadre por municipio lo hace el
+    // efecto del recuadro del catálogo— y estorbaba: este efecto se rehace al elegir sección o
+    // mover el nivel, así que cada clic en una sección alejaba el mapa al municipio entero, y
+    // sin guarda de tamaño dejaba el zoom al máximo cuando el contenedor aún no tenía ancho.
   }, [L, mapRef, labelsLayer, sectionsData, showSections, showSectionLabels, infoDensity, selectedSection, selectedMunicipality]);
 
   const handleMunicipalityChange = (muni: string) => {
     setSelectedMunicipality(muni);
     setSelectedSection(null);
-    if (!mapRef) return;
-
-    const config = (MUNICIPALITY_CENTERS as Record<string, { center: [number, number]; zoom: number }>)[muni] || { center: [20.6240, -103.2350], zoom: 13 };
-    mapRef.flyTo(config.center, config.zoom, { duration: 1.0 });
-    showToast(`Municipio: ${muni}`);
+    // Se recuerda en el navegador y en la dirección: antes cada recarga devolvía el mapa a
+    // Tonalá y había que volver a elegir el municipio en cada visita. Con la dirección, un
+    // enlace compartido abre el mapa ya en el municipio que se estaba viendo.
+    guardarMunicipioPreferido(muni);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("municipio", muni);
+      window.history.replaceState(window.history.state, "", url);
+    } catch {
+      // Sin acceso a la dirección solo se pierde poder compartir el enlace filtrado.
+    }
+    showToast(muni === TODO_JALISCO ? "Todo Jalisco" : `Municipio: ${muni}`);
   };
+
+  /**
+   * Encuadra el mapa en el municipio elegido con su recuadro del catálogo.
+   *
+   * Antes el encuadre salía de una tabla de diez municipios del AMG y, para cualquier otro,
+   * el mapa volaba al centro de Tonalá: el selector decía "Puerto Vallarta" y la pantalla
+   * mostraba Tonalá. El catálogo trae el recuadro de los 125 municipios, así que tampoco hay
+   * que esperar a que lleguen los polígonos para mover el mapa.
+   */
+  useEffect(() => {
+    if (!mapRef || !selectedMunicipality) return;
+    const bbox =
+      selectedMunicipality === TODO_JALISCO ? RECUADRO_JALISCO : buscarMunicipio(selectedMunicipality)?.bbox;
+    if (!bbox) return;
+    const encuadrar = () =>
+      mapRef.fitBounds(
+        [
+          [bbox[1], bbox[0]],
+          [bbox[3], bbox[2]]
+        ],
+        { padding: [40, 40], maxZoom: 14 }
+      );
+    const { x, y } = mapRef.getSize();
+    if (x > 0 && y > 0) {
+      encuadrar();
+      return;
+    }
+    // Sin tamaño, fitBounds calcula un zoom inválido y el mapa se queda en el máximo: se
+    // espera a que el contenedor tenga medidas (el ResizeObserver del arranque dispara resize).
+    mapRef.once("resize", encuadrar);
+    return () => {
+      mapRef.off("resize", encuadrar);
+    };
+  }, [mapRef, selectedMunicipality]);
 
   // 11. Render Incident Markers with Guaranteed Prominence, Radial Dispersion & Zero Overlap
   useEffect(() => {
@@ -1353,7 +1494,7 @@ export default function MapaPage() {
             <strong style="font-size:14px; font-weight:800; color:#0f172a;">${p.displayName}</strong>
             ${isPan ? '<span style="background:#2563eb; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:999px;">PAN Confirmado</span>' : ''}
           </div>
-          <p style="margin:0 0 2px 0; font-size:11px; color:#475569;">${p.colony || 'Colonia por definir'}, ${p.municipality || 'Tonalá'}</p>
+          <p style="margin:0 0 2px 0; font-size:11px; color:#475569;">${p.colony || 'Colonia por definir'}, ${p.municipality || 'municipio sin registrar'}</p>
           <p style="margin:0 0 8px 0; font-size:11px; color:#64748b;">Red: <strong style="color:#0f172a;">${p.creatorName || 'Equipo'}</strong></p>
           <a href="/crm/contacts/${p.id}" style="display:block; text-align:center; padding:7px 12px; background:#2563eb; color:white; border-radius:8px; font-size:11px; font-weight:800; text-decoration:none; box-shadow:0 2px 6px rgba(37,99,235,0.3);">Ver Ficha 360°</a>
         </div>
@@ -1370,11 +1511,8 @@ export default function MapaPage() {
     if (!sectionsData?.features) return [];
     const query = searchQuery.toLowerCase().trim();
     
-    let baseList = sectionsData.features.map((f: any) => f.properties as SectionProperties);
-    if (selectedMunicipality !== "all") {
-      baseList = baseList.filter((p: SectionProperties) => p.municipality === selectedMunicipality);
-    }
-
+    const baseList = sectionsData.features.map((f: any) => f.properties as SectionProperties);
+    
     if (!query) return baseList;
 
     return baseList.filter((p: SectionProperties) => {
@@ -1477,7 +1615,7 @@ export default function MapaPage() {
       `"${r.properties.title.replace(/"/g, '""')}"`,
       r.properties.category,
       r.properties.status,
-      r.properties.municipality || "Tonalá",
+      r.properties.municipality || "",
       r.properties.sectionNum || "",
       new Date(r.properties.createdAt).toISOString()
     ]);
@@ -1574,7 +1712,8 @@ export default function MapaPage() {
                 }}
                 title="Seleccionar municipio de Jalisco para enfocar el mapa"
               >
-                {availableMunicipalities.map((m) => (
+                <option value={TODO_JALISCO}>Todo Jalisco ({TOTAL_SECCIONES_JALISCO.toLocaleString("es-MX")} secc.)</option>
+                  {availableMunicipalities.map((m) => (
                   <option key={m.name} value={m.name}>
                     {m.name} ({m.count} secc.)
                   </option>
@@ -1610,15 +1749,15 @@ export default function MapaPage() {
                   } else {
                     setShowSections(true);
                     setShowSectionLabels(true);
-                    showToast("Modo Detallado: Mapa completo con métricas");
+                    showToast("Modo Electoral: secciones coloreadas por quién ganó la última elección");
                   }
                 }}
                 style={{ width: "75px", accentColor: "#2563eb", cursor: "pointer" }}
-                title="Desliza para ver más o menos capas e información"
+                title="Desliza a la derecha para colorear las secciones por resultado electoral"
               />
 
               <span style={{ fontSize: "11px", fontWeight: "800", color: infoDensity === 0 ? "#dc2626" : infoDensity === 1 ? "#0284c7" : "#4f46e5", minWidth: "95px" }}>
-                {infoDensity === 0 ? "Limpio" : infoDensity === 1 ? "Territorial" : "Detallado"}
+                {infoDensity === 0 ? "Limpio" : infoDensity === 1 ? "Territorial" : "Electoral"}
               </span>
             </div>
           </div>
@@ -1787,7 +1926,7 @@ export default function MapaPage() {
           {/* Quick Create Report Button */}
           <button
             onClick={() => {
-              const defaultCoords = mapRef ? mapRef.getCenter() : { lat: 20.6248, lng: -103.2422 };
+              const defaultCoords = mapRef ? mapRef.getCenter() : { lat: CENTRO_JALISCO[0], lng: CENTRO_JALISCO[1] };
               void triggerIncidentCreation(defaultCoords.lat, defaultCoords.lng);
             }}
             style={{ display: "flex", alignItems: "center", gap: "4px", padding: "8px 14px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #ef4444, #dc2626)", color: "white", fontSize: "11px", fontWeight: "800", cursor: "pointer", boxShadow: "0 2px 6px rgba(220,38,38,0.35)" }}
@@ -1841,6 +1980,37 @@ export default function MapaPage() {
           </div>
         )}
 
+        {/* Leyenda del coloreado por resultado. Solo con el nivel al máximo, que es cuando
+            las secciones dejan de pintarse por municipio: un color sin leyenda obliga a
+            adivinar, y adivinar sobre un mapa electoral es peor que no colorear. */}
+        {activeTab === "map" && infoDensity === 2 && showSections && (
+          <div style={{ position: "absolute", bottom: "62px", left: "16px", zIndex: 20, padding: "9px 12px", borderRadius: "12px", background: "rgba(255,255,255,0.97)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid #cbd5e1", boxShadow: "0 10px 25px -8px rgba(0,0,0,0.25)", pointerEvents: "auto", maxWidth: "calc(100vw - 32px)" }}>
+            <div style={{ fontSize: "9px", fontWeight: "800", color: "#475569", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "6px" }}>
+              Quién ganó la última elección
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              {(Object.keys(BLOQUES) as BloqueElectoral[]).map((clave) => (
+                <div key={clave} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <span style={{ width: "11px", height: "11px", borderRadius: "3px", background: BLOQUES[clave].color, border: `1px solid ${BLOQUES[clave].borde}`, display: "inline-block" }} />
+                  <span style={{ fontSize: "11px", fontWeight: "700", color: "#0f172a" }}>{BLOQUES[clave].etiqueta}</span>
+                </div>
+              ))}
+              <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                <span style={{ width: "11px", height: "11px", borderRadius: "3px", background: SIN_ATLAS.color, border: `1px solid ${SIN_ATLAS.borde}`, opacity: 0.5, display: "inline-block" }} />
+                <span style={{ fontSize: "11px", fontWeight: "600", color: "#64748b" }}>Sin ficha</span>
+              </div>
+            </div>
+            <div style={{ fontSize: "9px", color: "#64748b", marginTop: "6px", display: "flex", alignItems: "center", gap: "5px" }}>
+              <span style={{ display: "inline-flex", gap: "2px" }}>
+                {[0.22, 0.34, 0.48, 0.62].map((o) => (
+                  <span key={o} style={{ width: "10px", height: "8px", background: "#0f172a", opacity: o, borderRadius: "2px", display: "inline-block" }} />
+                ))}
+              </span>
+              <span>A más intenso, más holgada la ventaja. Clic en una sección para el detalle.</span>
+            </div>
+          </div>
+        )}
+
         {/* Floating Toast Notification */}
         {toastMessage && (
           <div style={{ position: "absolute", top: "72px", left: "50%", transform: "translateX(-50%)", zIndex: 1200, background: "rgba(15, 23, 42, 0.92)", color: "white", padding: "8px 18px", borderRadius: "30px", boxShadow: "0 10px 25px rgba(0,0,0,0.3)", fontSize: "12px", fontWeight: "700", border: "1px solid rgba(255,255,255,0.2)", backdropFilter: "blur(8px)", width: "max-content", maxWidth: "90vw", textAlign: "center" }}>
@@ -1884,7 +2054,8 @@ export default function MapaPage() {
                       onChange={(e) => handleMunicipalityChange(e.target.value)}
                       style={{ width: "100%", padding: "8px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", color: "#0f172a", outline: "none", cursor: "pointer" }}
                     >
-                      {availableMunicipalities.map((m) => (
+                      <option value={TODO_JALISCO}>Todo Jalisco ({TOTAL_SECCIONES_JALISCO.toLocaleString("es-MX")} secciones)</option>
+                  {availableMunicipalities.map((m) => (
                         <option key={m.name} value={m.name}>
                           {m.name} ({m.count} secciones)
                         </option>
@@ -1911,7 +2082,7 @@ export default function MapaPage() {
                           showToast(`Centrado en: ${item.title}`);
                         }
                       }}
-                      municipality={selectedMunicipality}
+                      municipality={selectedMunicipality && selectedMunicipality !== TODO_JALISCO ? selectedMunicipality : undefined}
                       placeholder="Escribe calle, colonia o sección..."
                     />
                   </div>
@@ -1933,7 +2104,7 @@ export default function MapaPage() {
                       >
                         <div>
                           <div style={{ fontSize: "11px", fontWeight: "800", color: "#0f172a" }}>
-                            Sección #{sec.section_num} <span style={{ fontSize: "10px", color: "#2563eb", fontWeight: "600" }}>({sec.municipality || 'Tonalá'})</span>
+                            Sección #{sec.section_num} <span style={{ fontSize: "10px", color: "#2563eb", fontWeight: "600" }}>({sec.municipality || 'Sin municipio'})</span>
                           </div>
                           <div style={{ fontSize: "10px", color: "#64748b" }}>{sec.colonies.slice(0, 3).join(", ") || sec.municipality}</div>
                         </div>
@@ -1950,12 +2121,109 @@ export default function MapaPage() {
                   <>
                     <div>
                       <span style={{ display: "inline-block", background: "#dbeafe", color: "#1e40af", fontWeight: "800", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.5px", padding: "2px 6px", borderRadius: "4px", marginBottom: "4px" }}>
-                        {selectedSection.municipality || "Tonalá"}
+                        {selectedSection.municipality || "Sin municipio"}
                       </span>
                       <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "900", color: "#0f172a" }}>
                         Sección Electoral #{selectedSection.section_num}
                       </h2>
+                      {selectedSection.atlas?.mainColony ? (
+                        <div style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>
+                          {selectedSection.atlas.mainColony}
+                        </div>
+                      ) : null}
                     </div>
+
+                    {/* Resultado de la última elección, del atlas de campaña.
+                        Se muestra siempre que la sección tenga ficha, sin depender del nivel
+                        de detalle: quien abrió el panel ya pidió ver esta sección a fondo. */}
+                    {selectedSection.atlas ? (() => {
+                      const atlas = selectedSection.atlas;
+                      const r = calcularResultado(atlas);
+                      const ganador = BLOQUES[r.ganador];
+                      const barras = (Object.keys(BLOQUES) as BloqueElectoral[])
+                        .map((clave) => ({
+                          clave,
+                          votos: atlas.votes[clave],
+                          pct: r.total > 0 ? (atlas.votes[clave] / r.total) * 100 : 0
+                        }))
+                        .sort((a, b) => b.votos - a.votos);
+
+                      const PRIORIDADES: Record<string, { fondo: string; texto: string; leyenda: string }> = {
+                        A: { fondo: "#fee2e2", texto: "#991b1b", leyenda: "máxima" },
+                        B: { fondo: "#ffedd5", texto: "#9a3412", leyenda: "alta" },
+                        C: { fondo: "#fef9c3", texto: "#854d0e", leyenda: "media" },
+                        D: { fondo: "#f1f5f9", texto: "#475569", leyenda: "baja" }
+                      };
+                      const prio = PRIORIDADES[atlas.priority] ?? PRIORIDADES.D!;
+
+                      return (
+                        <div style={{ border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
+                          <div style={{ background: ganador.color, padding: "10px 12px", color: "#ffffff" }}>
+                            <div style={{ fontSize: "9px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.6px", opacity: 0.85 }}>
+                              Última elección
+                            </div>
+                            <div style={{ fontSize: "15px", fontWeight: "900", marginTop: "1px" }}>
+                              {r.empate ? "Empate técnico" : `Ganó ${ganador.etiqueta}`}
+                            </div>
+                            <div style={{ fontSize: "11px", fontWeight: "600", opacity: 0.9, marginTop: "1px" }}>
+                              {r.empate
+                                ? `${r.votosGanador.toLocaleString("es-MX")} votos cada uno`
+                                : `Ventaja de ${r.margen.toFixed(1)} puntos sobre el segundo`}
+                            </div>
+                          </div>
+
+                          <div style={{ padding: "10px 12px", background: "#ffffff" }}>
+                            {barras.map((b) => {
+                              const bloque = BLOQUES[b.clave];
+                              return (
+                                <div key={b.clave} style={{ marginBottom: "7px" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "3px" }}>
+                                    <span style={{ fontWeight: "700", color: "#0f172a" }}>{bloque.etiqueta}</span>
+                                    <span style={{ fontWeight: "800", color: bloque.color }}>
+                                      {b.votos.toLocaleString("es-MX")} · {b.pct.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                  <div style={{ height: "7px", background: "#f1f5f9", borderRadius: "4px", overflow: "hidden" }}>
+                                    <div style={{ width: `${b.pct}%`, height: "100%", background: bloque.color, borderRadius: "4px" }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px", paddingTop: "9px", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
+                              <span style={{ background: prio.fondo, color: prio.texto, fontSize: "10px", fontWeight: "800", padding: "3px 8px", borderRadius: "6px" }}>
+                                Prioridad {atlas.priority} ({prio.leyenda})
+                              </span>
+                              <span style={{ fontSize: "11px", color: "#475569", fontWeight: "600" }}>
+                                {r.total.toLocaleString("es-MX")} votos totales
+                              </span>
+                            </div>
+
+                            {atlas.pollingPlace ? (
+                              <div style={{ marginTop: "9px", paddingTop: "9px", borderTop: "1px solid #f1f5f9" }}>
+                                <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                  Casilla de referencia
+                                </div>
+                                <div style={{ fontSize: "11px", color: "#334155", marginTop: "3px", lineHeight: 1.45 }}>
+                                  {atlas.pollingPlace}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {atlas.source ? (
+                              <div style={{ fontSize: "9px", color: "#94a3b8", marginTop: "8px", fontStyle: "italic" }}>
+                                Fuente: {atlas.source}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })() : (
+                      <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "10px", padding: "10px 12px", fontSize: "11px", color: "#64748b" }}>
+                        Esta sección no tiene ficha en el atlas de campaña, así que no hay resultado
+                        electoral que mostrar. Las métricas de abajo sí son de esta sección.
+                      </div>
+                    )}
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px" }}>
                       <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
@@ -2002,7 +2270,7 @@ export default function MapaPage() {
 
                       <button
                         onClick={() => {
-                          const defaultCoords = mapRef ? mapRef.getCenter() : { lat: 20.6248, lng: -103.2422 };
+                          const defaultCoords = mapRef ? mapRef.getCenter() : { lat: CENTRO_JALISCO[0], lng: CENTRO_JALISCO[1] };
                           void triggerIncidentCreation(defaultCoords.lat, defaultCoords.lng, selectedSection.municipality);
                         }}
                         style={{ display: "flex", alignItems: "center", gap: "4px", background: "#dc2626", color: "white", border: "none", fontWeight: "800", padding: "9px 12px", borderRadius: "8px", fontSize: "11px", cursor: "pointer" }}
@@ -2030,11 +2298,10 @@ export default function MapaPage() {
                       onChange={(e) => handleMunicipalityChange(e.target.value)}
                       style={{ padding: "4px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "10px", fontWeight: "700", outline: "none" }}
                     >
-                      <option value="all">Todos</option>
-                      <option value="Tonalá">Tonalá</option>
-                      <option value="Guadalajara">Guadalajara</option>
-                      <option value="San Pedro Tlaquepaque">Tlaquepaque</option>
-                      <option value="Zapopan">Zapopan</option>
+                      <option value={TODO_JALISCO}>Todo Jalisco</option>
+                      {availableMunicipalities.map((m) => (
+                        <option key={m.name} value={m.name}>{m.name}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -2060,7 +2327,7 @@ export default function MapaPage() {
                           <h4 style={{ margin: "0 0 2px", fontWeight: "800", fontSize: "12px", color: "#0f172a" }}>{r.properties.title}</h4>
                           <p style={{ margin: "0 0 6px", fontSize: "11px", color: "#475569", lineHeight: "1.3" }}>{r.properties.description}</p>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #e2e8f0", paddingTop: "6px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: "700", color: "#1d4ed8", display: "inline-flex", alignItems: "center", gap: "3px" }}><MapPin size={10} /> {r.properties.municipality || "Tonalá"}</span>
+                            <span style={{ fontSize: "10px", fontWeight: "700", color: "#1d4ed8", display: "inline-flex", alignItems: "center", gap: "3px" }}><MapPin size={10} /> {r.properties.municipality || "Sin municipio"}</span>
                             <button
                               onClick={() => handleFocusOnMap(r)}
                               style={{ display: "flex", alignItems: "center", gap: "3px", background: "#2563eb", color: "white", border: "none", fontWeight: "700", padding: "4px 8px", borderRadius: "6px", fontSize: "10px", cursor: "pointer" }}
@@ -2214,14 +2481,10 @@ export default function MapaPage() {
                     onChange={(e) => setIncidentMunicipalityFilter(e.target.value)}
                     style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none", cursor: "pointer" }}
                   >
-                    <option value="all">Todos los Municipios</option>
-                    <option value="Tonalá">Tonalá</option>
-                    <option value="Guadalajara">Guadalajara</option>
-                    <option value="San Pedro Tlaquepaque">San Pedro Tlaquepaque</option>
-                    <option value="Zapopan">Zapopan</option>
-                    <option value="Tlajomulco de Zúñiga">Tlajomulco</option>
-                    <option value="El Salto">El Salto</option>
-                    <option value="Zapotlanejo">Zapotlanejo</option>
+                    <option value={TODO_JALISCO}>Todos los municipios</option>
+                    {availableMunicipalities.map((m) => (
+                      <option key={m.name} value={m.name}>{m.name}</option>
+                    ))}
                   </select>
 
                   <select
@@ -2292,7 +2555,7 @@ export default function MapaPage() {
 
                         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #f1f5f9", paddingTop: "8px", gap: "6px" }}>
                           <span style={{ fontSize: "11px", fontWeight: "700", color: "#1d4ed8", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                            <MapPin size={10} /> {r.properties.municipality || "Tonalá"} {r.properties.sectionNum ? `· Sección #${r.properties.sectionNum}` : ""}
+                            <MapPin size={10} /> {r.properties.municipality || "Sin municipio"} {r.properties.sectionNum ? `· Sección #${r.properties.sectionNum}` : ""}
                           </span>
 
                           <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -2378,7 +2641,7 @@ export default function MapaPage() {
                     options={availableMunicipalities.map((m) => ({
                       value: m.name,
                       label: m.name,
-                      badge: m.name === "Tonalá" ? "Principal" : `${m.count} secc.`
+                      badge: `${m.count} secc.`
                     }))}
                   />
                 </div>
@@ -2636,7 +2899,7 @@ export default function MapaPage() {
                           sectionId: newSecId,
                           municipality: newMuni,
                           colony: newCol,
-                          postcode: item.postcode || "45400"
+                          postcode: item.postcode || ""
                         });
 
                         if (item.lat && item.lng && mapRef) {
@@ -2684,7 +2947,7 @@ export default function MapaPage() {
                       options={availableMunicipalities.map((m) => ({
                         value: m.name,
                         label: m.name,
-                        badge: m.name === "Tonalá" ? "Principal" : `${m.count} secc.`
+                        badge: `${m.count} secc.`
                       }))}
                     />
                   </div>
@@ -2706,7 +2969,7 @@ export default function MapaPage() {
                       options={(sectionsData?.features || []).map((f: any) => ({
                         value: f.properties.id,
                         label: `Sección #${f.properties.section_num}`,
-                        sublabel: f.properties.municipality || "Tonalá",
+                        sublabel: f.properties.municipality || "Sin municipio",
                         badge: `Sección ${f.properties.section_num}`
                       }))}
                     />

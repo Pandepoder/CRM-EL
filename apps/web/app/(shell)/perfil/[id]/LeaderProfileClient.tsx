@@ -503,7 +503,7 @@ export default function LeaderProfileClient({
                         </td>
 
                         <td className="py-3.5 px-3 font-semibold text-gray-700">
-                          {c.colony || "Tonalá"}
+                          {c.colony || "—"}
                         </td>
 
                         <td className="py-3.5 px-3 text-center">

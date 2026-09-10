@@ -23,9 +23,12 @@ import { loadAppEnv } from "../../packages/config/index.js";
  */
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const ARCHIVO_INE = path.join(RAIZ, "apps/web/public/geo/jalisco-secciones.geojson");
+// El `municipality` del geojson está corrido en 62 municipios; el nombre se toma por la clave
+// del INE (ver load-jalisco-cartography.ts).
+const TABLA_MUNICIPIOS = path.join(RAIZ, "scripts/geo/municipios-ine-jalisco.json");
 
 type Feature = {
-  properties?: { section_num?: number; municipality?: string };
+  properties?: { section_num?: number; municipalityCode?: number };
   geometry?: unknown;
 };
 
@@ -34,6 +37,12 @@ export async function run() {
   const pool = new pg.Pool({ connectionString: env.private.DATABASE_URL });
 
   const features: Feature[] = JSON.parse(readFileSync(ARCHIVO_INE, "utf8")).features ?? [];
+  const nombrePorClave = new Map<number, string>(
+    (JSON.parse(readFileSync(TABLA_MUNICIPIOS, "utf8")) as Array<{ code: number; name: string }>).map((m) => [
+      m.code,
+      m.name
+    ])
+  );
   console.log(`Cartografía oficial leída: ${features.length} secciones.`);
 
   // Qué secciones existen en la base: sin esto no se distingue "ya estaba
@@ -64,7 +73,7 @@ export async function run() {
               municipality = COALESCE(municipality, $3)
         WHERE section_num = $2
           AND geom_json IS DISTINCT FROM $1::jsonb`,
-      [JSON.stringify(f.geometry), num, f.properties?.municipality ?? null]
+      [JSON.stringify(f.geometry), num, nombrePorClave.get(Number(f.properties?.municipalityCode)) ?? null]
     );
     if (res.rowCount && res.rowCount > 0) restauradas += res.rowCount;
     else yaCorrectas += 1;

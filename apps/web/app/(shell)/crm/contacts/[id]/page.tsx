@@ -98,7 +98,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedColonyId, setSelectedColonyId] = useState("");
   const [selectedColonyName, setSelectedColonyName] = useState("");
-  const [selectedMunicipality, setSelectedMunicipality] = useState("Tonalá");
+  const [selectedMunicipality, setSelectedMunicipality] = useState("");
   const [selectedSectionNum, setSelectedSectionNum] = useState<number | undefined>(undefined);
   const [scheduledAt, setScheduledAt] = useState("");
   const [visitLocation, setVisitLocation] = useState("");
@@ -166,7 +166,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         body: JSON.stringify({ 
           colonyId: selectedColonyId,
           colonyName: selectedColonyName || selectedColonyId,
-          municipality: selectedMunicipality,
+          // Vacío: el servidor usa el municipio de la sección.
+          municipality: selectedMunicipality || undefined,
           sectionNum: selectedSectionNum
         }),
       });
@@ -396,7 +397,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               {detail.territory?.colonyName || "Por identificar"}
             </div>
             <div className="text-xs text-gray-500 font-medium">
-              {detail.section?.sectionNum ? `Sección ${detail.section.sectionNum}` : "Sección no asignada"} · Tonalá
+              {detail.section?.sectionNum ? `Sección ${detail.section.sectionNum}` : "Sección no asignada"}
             </div>
           </div>
         </div>
@@ -492,7 +493,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </div>
 
             <div className="p-3 bg-gray-50 rounded-2xl">
-              <span className="font-extrabold text-gray-500 uppercase text-[10px] block mb-1">2. Lo que más valora de Tonalá</span>
+              <span className="font-extrabold text-gray-500 uppercase text-[10px] block mb-1">2. Lo que más valora de su municipio</span>
               <p className="font-bold text-gray-900">{detail.survey.tonalaValues || "No especificado"}</p>
             </div>
 
@@ -660,8 +661,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
             <div className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
               <ColonySelector
-                municipality="Tonalá"
                 defaultValue={detail.territory?.colonyName || ""}
+                onSelect={(_sectionId, _colony, municipio) => {
+                  if (municipio) setSelectedMunicipality(municipio);
+                }}
                 onChange={(c, s) => {
                   setSelectedColonyName(c);
                   setSelectedColonyId(c);

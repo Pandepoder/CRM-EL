@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import { getSeccionesGeo } from "@/lib/sections-geo-cache";
+import { ubicarEnSeccion } from "@/lib/sections-geo-cache";
+import { buscarMunicipio, resolverMunicipio } from "@/lib/municipios-jalisco";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { buscarDireccion } from "@/lib/osm-search";
-import { point } from "@turf/helpers";
-import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 
-// Coordinates for key hubs in Tonalá and Jalisco AMG for quick fallback
+// Lugares de referencia de Tonalá. Solo se ofrecen cuando se captura en Tonalá o la
+// búsqueda nombra Tonalá: antes "comité pan" llevaba a Tonalá desde cualquier municipio.
 const KNOWN_PLACES: Record<string, { lat: number; lng: number; address: string; municipality: string; sectionNum?: number }> = {
   "comité directivo municipal pan": { lat: 20.6256, lng: -103.2435, address: "Comité Directivo Municipal PAN, Tonalá Centro, Jal.", municipality: "Tonalá", sectionNum: 2704 },
   "comite pan": { lat: 20.6256, lng: -103.2435, address: "Comité Directivo Municipal PAN, Tonalá Centro, Jal.", municipality: "Tonalá", sectionNum: 2704 },
@@ -29,20 +29,15 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const query = (searchParams.get("q") || "").trim();
-  // El municipio en el que se está capturando. Sin él toda búsqueda se orienta
-  // a Tonalá, que es la cabecera de la estructura pero no el único municipio
-  // del selector.
-  const municipio = (searchParams.get("municipality") || "Tonalá").trim() || "Tonalá";
+  // El municipio en el que se está capturando orienta y acota la búsqueda. Sin él se
+  // busca en todo Jalisco; antes, a falta de parámetro, todo se orientaba a Tonalá.
+  const municipio = buscarMunicipio(searchParams.get("municipality"))?.name ?? null;
 
   if (!query || query.length < 2) {
     return NextResponse.json({ results: [] });
   }
 
   const qLower = query.toLowerCase();
-
-  // Desde el caché compartido en lugar de releer todas las secciones con su
-  // geometría en cada búsqueda.
-  const sections = await getSeccionesGeo();
 
   const results: any[] = [];
   let buscadorSaturado = false;
@@ -54,7 +49,7 @@ export async function GET(request: Request) {
   // encabezara los resultados. Cualquier búsqueda corta que fuera subcadena de
   // un lugar conocido se desviaba a ese lugar.
   for (const [key, place] of Object.entries(KNOWN_PLACES)) {
-    if (qLower.includes(key)) {
+    if (qLower.includes(key) && (municipio === "Tonalá" || key.includes("tonal"))) {
       results.push({
         lat: place.lat,
         lng: place.lng,
@@ -68,7 +63,7 @@ export async function GET(request: Request) {
     }
   }
 
-  // 2. Nominatim, acotado al AMG (ver lib/osm-search).
+  // 2. Nominatim, acotado al municipio de captura y luego a Jalisco (ver lib/osm-search).
   try {
     const { filas: candidatos, saturado } = await buscarDireccion(query, municipio);
     if (saturado) buscadorSaturado = true;
@@ -80,27 +75,18 @@ export async function GET(request: Request) {
       const lng = parseFloat(item.lon);
       if (isNaN(lat) || isNaN(lng)) continue;
 
-      // Find electoral section
-      let matchedSection: any = null;
-      const pt = point([lng, lat]);
-      // El rectángulo envolvente descarta casi todas antes del cálculo caro.
-      // Sin este filtro se evaluaba punto-en-polígono contra las 3789
-      // secciones por cada resultado de Nominatim.
-      for (const s of sections) {
-        if (lng < s.bounds[0] || lng > s.bounds[2] || lat < s.bounds[1] || lat > s.bounds[3]) continue;
-        try {
-          const geom = typeof s.geomJson === "string" ? JSON.parse(s.geomJson) : s.geomJson;
-          if (booleanPointInPolygon(pt, geom)) {
-            matchedSection = s;
-            break;
-          }
-        } catch {
-          // Geometría malformada: se ignora
-        }
-      }
+      // Sección y municipio del punto, desde el polígono del INE que lo contiene.
+      const ubicacion = await ubicarEnSeccion(lat, lng);
+      const matchedSection = ubicacion?.seccion ?? null;
 
       const addr = item.address || {};
-      const municipality = addr.city || addr.town || addr.municipality || addr.county || "Tonalá";
+      // Manda el municipio de la sección cuando el punto cae dentro de su polígono; si
+      // no, el de OpenStreetMap ya normalizado al catálogo. Antes, sin dato, "Tonalá".
+      const municipality =
+        (ubicacion?.precision === "exacta" ? matchedSection?.municipality : null) ??
+        resolverMunicipio(addr.city || addr.town || addr.municipality || addr.county) ??
+        matchedSection?.municipality ??
+        "";
       const colony = addr.suburb || addr.neighbourhood || addr.quarter || addr.city_district || "";
       // OSM rara vez tiene el número de casa en Tonalá. Cuando no lo tiene, el
       // punto es el de la calle entera, no el del domicilio: quien captura debe
@@ -112,7 +98,7 @@ export async function GET(request: Request) {
         lat,
         lng,
         displayName: item.display_name,
-        formattedAddress: `${addr.road ? addr.road + (addr.house_number ? " #" + addr.house_number : "") : item.name || query}${colony ? `, Col. ${colony}` : ""}, ${municipality}`,
+        formattedAddress: `${addr.road ? addr.road + (addr.house_number ? " #" + addr.house_number : "") : item.name || query}${colony ? `, Col. ${colony}` : ""}${municipality ? `, ${municipality}` : ""}`,
         municipality,
         colony,
         postalCode: addr.postcode || "",

@@ -8,6 +8,7 @@ import { AlertTriangle, CheckCircle, ChevronRight, FileText, X, Landmark, Check,
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import type { LocationValue } from "@/components/LocationPicker";
 import { LocationPicker } from "@/components/LocationPicker";
+import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 
 export default function ReportesClient({ sections, users, teams = [] }: { sections: any[], users: any[], teams?: any[] }) {
   const [error, setError] = useState("");
@@ -16,7 +17,7 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
   const [saving, setSaving] = useState(false);
   const [sectionsList, setSectionsList] = useState<any[]>(sections || []);
   const [showNewSectionModal, setShowNewSectionModal] = useState(false);
-  const [newSectionForm, setNewSectionForm] = useState({ sectionNum: "", municipality: "Tonalá", colony: "" });
+  const [newSectionForm, setNewSectionForm] = useState({ sectionNum: "", municipality: "", colony: "" });
   const [creatingSection, setCreatingSection] = useState(false);
 
   const [form, setForm] = useState({
@@ -32,7 +33,7 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
     latitude: null as number | null,
     longitude: null as number | null,
     locationText: "",
-    municipality: "Tonalá",
+    municipality: "",
     district: "",
     sectionId: "",
     assignedToUserId: "",
@@ -84,7 +85,7 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
         setSectionsList(prev => [created, ...prev]);
         setForm(prev => ({ ...prev, sectionId: created.id }));
         setShowNewSectionModal(false);
-        setNewSectionForm({ sectionNum: "", municipality: "Tonalá", colony: "" });
+        setNewSectionForm({ sectionNum: "", municipality: "", colony: "" });
       } else {
         const errData = await res.json().catch(() => ({}));
         alert(errData.error || "Error al crear la sección.");
@@ -141,7 +142,7 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
           latitude: null as number | null,
           longitude: null as number | null,
           locationText: "",
-          municipality: "Tonalá",
+          municipality: "",
           district: "",
           sectionId: "",
           assignedToUserId: "",
@@ -168,20 +169,12 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
   // reporte se perdía sin que quien lo levantaba supiera por qué.
   const categoryOptions = OPCIONES_CATEGORIA.map((o) => ({ value: o.value, label: o.label, badge: "" }));
 
-  const municipalityOptions = [
-    { value: "Tonalá", label: "Tonalá", badge: "Principal" },
-    { value: "Guadalajara", label: "Guadalajara" },
-    { value: "San Pedro Tlaquepaque", label: "Tlaquepaque" },
-    { value: "Zapopan", label: "Zapopan" },
-    { value: "Tlajomulco de Zúñiga", label: "Tlajomulco" },
-    { value: "El Salto", label: "El Salto" },
-    { value: "Zapotlanejo", label: "Zapotlanejo" }
-  ];
+  const municipalityOptions = MUNICIPIOS_JALISCO.map((m) => ({ value: m.name, label: m.name, badge: `${m.count} secc.` }));
 
   const sectionOptions = sectionsList.map((s) => ({
     value: s.id,
     label: `Sección #${s.sectionNum}`,
-    sublabel: s.municipality || "Tonalá",
+    sublabel: s.municipality || "Sin municipio",
     badge: `Sección ${s.sectionNum}`
   }));
 
@@ -285,7 +278,7 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
               key={locationKey}
               label="2. ¿Dónde ocurre? *"
               helperText="Escribe el domicilio (ej. Comité Directivo Municipal del PAN, Calle Juárez #123, Tonalá Centro), marca el punto en el mapa interactivo o usa tu GPS."
-              defaultMunicipality={form.municipality || "Tonalá"}
+              defaultMunicipality={form.municipality || undefined}
               value={{
                 latitude: form.latitude,
                 longitude: form.longitude,
@@ -414,13 +407,10 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
                   onChange={e => setNewSectionForm({...newSectionForm, municipality: e.target.value})}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
                 >
-                  <option value="Tonalá">Tonalá</option>
-                  <option value="Guadalajara">Guadalajara</option>
-                  <option value="San Pedro Tlaquepaque">Tlaquepaque</option>
-                  <option value="Zapopan">Zapopan</option>
-                  <option value="Tlajomulco de Zúñiga">Tlajomulco</option>
-                  <option value="El Salto">El Salto</option>
-                  <option value="Zapotlanejo">Zapotlanejo</option>
+                  <option value="" disabled>Selecciona un municipio…</option>
+                          {MUNICIPIOS_JALISCO.map((m) => (
+                            <option key={m.name} value={m.name}>{m.name}</option>
+                          ))}
                 </select>
               </div>
 

@@ -64,8 +64,9 @@ export default async function LeaderProfilePage({
   const team = teamRows[0] || {
     id: targetUser.id,
     name: `Equipo de ${targetUser.displayName.split(" ")[0]}`,
-    zone: "Tonalá Centro",
-    municipality: "Tonalá"
+    // Quien no dirige un equipo no tiene zona: antes se le asignaba "Tonalá Centro".
+    zone: null,
+    municipality: null
   };
 
   // 3. Fetch Contacts Registered by this user
@@ -101,7 +102,7 @@ export default async function LeaderProfilePage({
     email: decryptData(c.email),
     address: decryptData(c.address),
     colony: decryptData(c.colony),
-    municipality: decryptData(c.municipality) || "Tonalá",
+    municipality: decryptData(c.municipality) || "",
     profession: decryptData(c.profession),
     companyOrWork: decryptData(c.companyOrWork),
     sectionNum: c.sectionNum || undefined,
@@ -173,7 +174,7 @@ export default async function LeaderProfilePage({
         category: cat,
         title: e.title,
         description: e.description || "",
-        location: e.sectionNum ? `Sección #${e.sectionNum} (${e.municipality || "Tonalá"})` : (e.municipality || "Tonalá"),
+        location: e.sectionNum ? `Sección #${e.sectionNum}${e.municipality ? ` (${e.municipality})` : ""}` : (e.municipality || "Sin ubicación"),
         status: e.status,
         scheduledAt: (e.eventDate instanceof Date ? e.eventDate : new Date(e.eventDate || Date.now())).toISOString(),
         createdAt: (e.createdAt instanceof Date ? e.createdAt : new Date(e.createdAt)).toISOString(),

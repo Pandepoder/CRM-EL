@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Landmark, Users, Search, Plus, Map, X, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
+import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 
 type Representative = {
   id: string;
@@ -44,7 +45,7 @@ export default function EstructuraClient({ representatives, availableUsers, sect
   
   const [newSectionForm, setNewSectionForm] = useState({
     sectionNum: "",
-    municipality: "Tonalá",
+    municipality: "",
     colony: ""
   });
 
@@ -111,7 +112,7 @@ export default function EstructuraClient({ representatives, availableUsers, sect
           setForm(f => ({ ...f, sectionId: created.id }));
         }
         setShowNewSectionModal(false);
-        setNewSectionForm({ sectionNum: "", municipality: "Tonalá", colony: "" });
+        setNewSectionForm({ sectionNum: "", municipality: "", colony: "" });
         alert(`✓ Sección #${num} registrada con éxito en la base de datos.`);
         router.refresh();
       } else {
@@ -257,7 +258,7 @@ export default function EstructuraClient({ representatives, availableUsers, sect
                   options={sectionsList.map((s) => ({
                     value: s.id,
                     label: `Sección #${s.sectionNum}`,
-                    sublabel: s.municipality || "Tonalá",
+                    sublabel: s.municipality || "Sin municipio",
                     badge: `Sección ${s.sectionNum}`
                   }))}
                 />
@@ -357,17 +358,7 @@ export default function EstructuraClient({ representatives, availableUsers, sect
                   allowCustom={false}
                   value={newSectionForm.municipality}
                   onChange={(val) => setNewSectionForm({ ...newSectionForm, municipality: val })}
-                  options={[
-                    { value: "Tonalá", label: "Tonalá", badge: "Principal" },
-                    { value: "Guadalajara", label: "Guadalajara" },
-                    { value: "San Pedro Tlaquepaque", label: "Tlaquepaque" },
-                    { value: "Zapopan", label: "Zapopan" },
-                    { value: "Tlajomulco de Zúñiga", label: "Tlajomulco" },
-                    { value: "El Salto", label: "El Salto" },
-                    { value: "Zapotlanejo", label: "Zapotlanejo" },
-                    { value: "Ixtlahuacán de los Membrillos", label: "Ixtlahuacán" },
-                    { value: "Juanacatlán", label: "Juanacatlán" }
-                  ]}
+                  options={MUNICIPIOS_JALISCO.map((m) => ({ value: m.name, label: m.name, badge: `${m.count} secc.` }))}
                 />
               </div>
 

@@ -23,6 +23,35 @@ const GEOJSON_TTL_MS = 60_000;
 
 
 /**
+ * Contorno aligerado para la vista de todo Jalisco.
+ *
+ * Son 3,787 secciones: con la geometría completa la respuesta pesaba del orden de 15 MB,
+ * demasiado para abrir el mapa desde un teléfono en campo. A la escala del estado entero cada
+ * sección ocupa unos pocos píxeles, así que se conserva uno de cada N vértices (hasta
+ * VERTICES_POR_ANILLO por anillo) y se redondea a cuatro decimales, unos 11 metros. En cuanto
+ * se elige un municipio se descarga su geometría completa.
+ */
+const VERTICES_POR_ANILLO = 32;
+
+function simplificarGeometria(geom: any): any {
+  const redondear = (p: number[]) => [Math.round(p[0]! * 1e4) / 1e4, Math.round(p[1]! * 1e4) / 1e4];
+  const anillo = (a: number[][]): number[][] => {
+    if (!Array.isArray(a) || a.length <= VERTICES_POR_ANILLO) return Array.isArray(a) ? a.map(redondear) : a;
+    const paso = Math.ceil(a.length / VERTICES_POR_ANILLO);
+    const reducido = a.filter((_, i) => i % paso === 0).map(redondear);
+    const primero = reducido[0]!;
+    const ultimo = reducido[reducido.length - 1]!;
+    if (primero[0] !== ultimo[0] || primero[1] !== ultimo[1]) reducido.push(primero);
+    return reducido.length >= 4 ? reducido : a;
+  };
+  if (geom?.type === "Polygon") return { type: "Polygon", coordinates: geom.coordinates.map(anillo) };
+  if (geom?.type === "MultiPolygon") {
+    return { type: "MultiPolygon", coordinates: geom.coordinates.map((pol: number[][][]) => pol.map(anillo)) };
+  }
+  return geom;
+}
+
+/**
  * GET /api/map/sections/geojson
  * Returns a GeoJSON FeatureCollection of electoral sections.
  * Uses the geom_json column if available, filtered by municipality.
@@ -32,7 +61,10 @@ export async function GET(req: Request) {
   if (!actor) return unauthorized();
 
   const url = new URL(req.url);
-  const targetMunicipality = url.searchParams.get("municipality") || "Tonalá";
+  // Sin parámetro se devuelve todo Jalisco. Antes el valor por omisión era "Tonalá", que
+  // convertía cualquier llamada sin filtro en una respuesta de un solo municipio y hacía
+  // parecer que el resto no existía.
+  const targetMunicipality = url.searchParams.get("municipality") || "all";
 
   // Los agregados por sección —cuántos contactos, cuántas visitas, cuántas
   // incidencias, qué representantes— se acotan al alcance de quien pregunta.
@@ -83,12 +115,22 @@ export async function GET(req: Request) {
       incidents_active: string;
       incidents_resolved: string;
       representatives: Array<{ name: string; role: string }>;
+      atlas_priority: string | null;
+      atlas_main_colony: string | null;
+      atlas_polling_place: string | null;
+      atlas_votes_pan: number | null;
+      atlas_votes_morena: number | null;
+      atlas_votes_mc: number | null;
+      atlas_source: string | null;
     }>(sql`
       SELECT
         es.id::text AS id,
         es.section_num,
         es.geom_json,
-        COALESCE(es.municipality, 'Tonalá') AS municipality,
+        -- Una sección sin municipio se declara como tal. Antes se rotulaba "Tonalá", así
+        -- que las secciones inventadas que quedaron sin municipio aparecían dentro de
+        -- Tonalá y contaminaban su mapa con polígonos que no son de ahí.
+        COALESCE(es.municipality, 'Sin municipio') AS municipality,
         COALESCE(ARRAY_AGG(DISTINCT col.name) FILTER (WHERE col.name IS NOT NULL), '{}') AS colonies,
         COUNT(DISTINCT cont.id)::text AS contacts_count,
         COUNT(DISTINCT v.id) FILTER (WHERE v.status = 'scheduled')::text AS visits_scheduled,
@@ -96,11 +138,21 @@ export async function GET(req: Request) {
         COUNT(DISTINCT rep.id) FILTER (WHERE rep.status = 'active')::text AS incidents_active,
         COUNT(DISTINCT rep.id) FILTER (WHERE rep.status = 'resolved')::text AS incidents_resolved,
         COALESCE(
-          JSON_AGG(DISTINCT JSONB_BUILD_OBJECT('name', u.display_name, 'role', erep.role)) 
-          FILTER (WHERE erep.id IS NOT NULL), 
+          JSON_AGG(DISTINCT JSONB_BUILD_OBJECT('name', u.display_name, 'role', erep.role))
+          FILTER (WHERE erep.id IS NOT NULL),
           '[]'::json
-        ) AS representatives
+        ) AS representatives,
+        -- Atlas de la campaña. Va por LEFT JOIN porque solo cubre un distrito: el resto de
+        -- las secciones seguirá llegando sin estos campos, y el mapa las pinta como antes.
+        ser.priority AS atlas_priority,
+        ser.main_colony AS atlas_main_colony,
+        ser.polling_place_reference AS atlas_polling_place,
+        ser.votes_pan AS atlas_votes_pan,
+        ser.votes_morena AS atlas_votes_morena,
+        ser.votes_mc AS atlas_votes_mc,
+        ser.source AS atlas_source
       FROM electoral_sections es
+      LEFT JOIN section_electoral_results ser ON ser.section_num = es.section_num
       LEFT JOIN section_colonies sc ON sc.section_id = es.id
       LEFT JOIN colonies col ON col.id = sc.colony_id
       LEFT JOIN contacts cont ON cont.section_id = es.id AND cont.status = 'active' ${filtroContactos}
@@ -109,8 +161,10 @@ export async function GET(req: Request) {
       LEFT JOIN electoral_representatives erep ON erep.section_id = es.id ${filtroRepresentantes}
       LEFT JOIN user_profiles u ON u.id = erep.user_id
       WHERE es.geom_json IS NOT NULL
-        ${isFilterAll ? sql`` : sql`AND LOWER(COALESCE(es.municipality, 'Tonalá')) = LOWER(${targetMunicipality})`}
-      GROUP BY es.id, es.section_num, es.municipality, es.geom_json
+        ${isFilterAll ? sql`` : sql`AND LOWER(COALESCE(es.municipality, 'Sin municipio')) = LOWER(${targetMunicipality})`}
+      GROUP BY es.id, es.section_num, es.municipality, es.geom_json,
+               ser.priority, ser.main_colony, ser.polling_place_reference,
+               ser.votes_pan, ser.votes_morena, ser.votes_mc, ser.source
       ORDER BY es.section_num ASC
     `);
 
@@ -132,16 +186,32 @@ export async function GET(req: Request) {
             id: row.id,
             section_num: row.section_num,
             name: `Sección ${row.section_num}`,
-            municipality: row.municipality || "Tonalá",
+            municipality: row.municipality,
             colonies: (row.colonies || []).filter(c => c && !c.startsWith("Cabecera ") && !c.startsWith("Municipio ")),
             contactsCount: Number(row.contacts_count || 0),
             visitsScheduled: Number(row.visits_scheduled || 0),
             visitsCompleted: Number(row.visits_completed || 0),
             incidentsActive: Number(row.incidents_active || 0),
             incidentsResolved: Number(row.incidents_resolved || 0),
-            representatives: typeof row.representatives === "string" ? JSON.parse(row.representatives) : (row.representatives || [])
+            representatives: typeof row.representatives === "string" ? JSON.parse(row.representatives) : (row.representatives || []),
+            // `atlas` es null en las secciones que el documento no cubre. El mapa distingue
+            // "sin datos" de "cero votos": pintar de gris una sección sin información no es
+            // lo mismo que pintarla como empate.
+            atlas: row.atlas_priority
+              ? {
+                  priority: row.atlas_priority,
+                  mainColony: row.atlas_main_colony,
+                  pollingPlace: row.atlas_polling_place,
+                  votes: {
+                    pan: Number(row.atlas_votes_pan || 0),
+                    morena: Number(row.atlas_votes_morena || 0),
+                    mc: Number(row.atlas_votes_mc || 0)
+                  },
+                  source: row.atlas_source
+                }
+              : null
           },
-          geometry,
+          geometry: isFilterAll ? simplificarGeometria(geometry) : geometry,
         };
       })
       .filter((f): f is NonNullable<typeof f> => Boolean(f));

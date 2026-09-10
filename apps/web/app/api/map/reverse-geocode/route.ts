@@ -3,67 +3,24 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { getDatabaseClient } from "@/lib/db-client";
-import { getSeccionesEnPunto, getSeccionesGeo, type SeccionGeo } from "@/lib/sections-geo-cache";
+import { ubicarEnSeccion } from "@/lib/sections-geo-cache";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
-import { point } from "@turf/helpers";
-import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
+import { resolverMunicipio } from "@/lib/municipios-jalisco";
 import { sql } from "drizzle-orm";
-
-// High-precision bounding box heuristic for Metropolitan Municipalities of Jalisco
-const METRO_BOUNDS: Array<{
-  municipality: string;
-  minLng: number;
-  maxLng: number;
-  minLat: number;
-  maxLat: number;
-}> = [
-  // 1. Tonalá
-  { municipality: "Tonalá", minLng: -103.285, maxLng: -103.170, minLat: 20.570, maxLat: 20.685 },
-  // 2. Guadalajara
-  { municipality: "Guadalajara", minLng: -103.395, maxLng: -103.285, minLat: 20.620, maxLat: 20.735 },
-  // 3. Zapopan
-  { municipality: "Zapopan", minLng: -103.520, maxLng: -103.350, minLat: 20.635, maxLat: 20.820 },
-  // 4. San Pedro Tlaquepaque
-  { municipality: "San Pedro Tlaquepaque", minLng: -103.420, maxLng: -103.275, minLat: 20.550, maxLat: 20.640 },
-  // 5. Tlajomulco de Zúñiga
-  { municipality: "Tlajomulco de Zúñiga", minLng: -103.500, maxLng: -103.310, minLat: 20.410, maxLat: 20.570 },
-  // 6. El Salto
-  { municipality: "El Salto", minLng: -103.285, maxLng: -103.175, minLat: 20.470, maxLat: 20.570 },
-  // 7. Zapotlanejo
-  { municipality: "Zapotlanejo", minLng: -103.170, maxLng: -103.020, minLat: 20.570, maxLat: 20.730 },
-  // 8. Ixtlahuacán de los Membrillos
-  { municipality: "Ixtlahuacán de los Membrillos", minLng: -103.260, maxLng: -103.140, minLat: 20.350, maxLat: 20.460 },
-  // 9. Juanacatlán
-  { municipality: "Juanacatlán", minLng: -103.200, maxLng: -103.120, minLat: 20.470, maxLat: 20.550 },
-];
-
-function normalizeMunicipalityName(rawMuni: string = ""): string {
-  const m = rawMuni.toLowerCase();
-  if (m.includes("tonal") || m.includes("tonala")) return "Tonalá";
-  if (m.includes("guadalajara")) return "Guadalajara";
-  if (m.includes("zapopan")) return "Zapopan";
-  if (m.includes("tlaquepaque") || m.includes("san pedro")) return "San Pedro Tlaquepaque";
-  if (m.includes("tlajomulco")) return "Tlajomulco de Zúñiga";
-  if (m.includes("salto")) return "El Salto";
-  if (m.includes("zapotlanejo")) return "Zapotlanejo";
-  if (m.includes("ixtlahuac") || m.includes("ixtlahuacán")) return "Ixtlahuacán de los Membrillos";
-  if (m.includes("juanacat") || m.includes("juanacatlán")) return "Juanacatlán";
-  return rawMuni || "Tonalá";
-}
-
-function resolveMunicipalityByCoords(lat: number, lng: number): string {
-  for (const b of METRO_BOUNDS) {
-    if (lng >= b.minLng && lng <= b.maxLng && lat >= b.minLat && lat <= b.maxLat) {
-      return b.municipality;
-    }
-  }
-  return "Tonalá";
-}
-
 
 /**
  * GET /api/map/reverse-geocode?lat=20.624&lng=-103.235
- * Accurately detects street address, colony, municipality, and electoral section for any coordinate in Jalisco AMG.
+ *
+ * Domicilio, colonia, municipio y sección electoral de una coordenada de Jalisco.
+ *
+ * Antes el municipio salía de nueve recuadros dibujados a mano sobre el AMG y, fuera de
+ * ellos, se devolvía "Tonalá"; la sección salía del polígono que contenía el punto o, si
+ * ninguno, del centroide más cercano sin límite de distancia. Con solo el AMG cargado, un
+ * punto de Puerto Vallarta volvía como una sección de Tlaquepaque en el municipio de
+ * Tonalá, sin ninguna señal de que era un respaldo.
+ *
+ * Ahora la cartografía de los 125 municipios está en la base y el polígono del INE que
+ * contiene el punto trae el municipio correcto. Cuando no se sabe, se devuelve vacío.
  */
 export async function GET(request: Request) {
   // Antes era pública: cada llamada cargaba las 3789 secciones con geometría, así
@@ -88,52 +45,22 @@ export async function GET(request: Request) {
 
   const db = getDatabaseClient();
 
-  // 1. Cross-reference against PostgreSQL Electoral Sections database (Point-in-Polygon + Centroid Fallback)
+  // 1. Sección electoral que contiene el punto.
   let sectionId: string | null = null;
   let sectionNum: number | null = null;
   let sectionMunicipality: string | null = null;
   let sectionColonies: string[] = [];
+  // "sin_seccion" le dice al cliente que no hay sección fiable, en vez de darle una
+  // lejana como si fuera la buena.
+  let precision: "exacta" | "aproximada" | "sin_seccion" = "sin_seccion";
 
   try {
-    // Las secciones salen del caché compartido en vez de releerse de la base en
-    // cada petición, y el rectángulo envolvente descarta de golpe casi todas:
-    // solo se evalúa punto-en-polígono contra las que podrían contenerlo.
-    const candidatas = await getSeccionesEnPunto(lat, lng);
-    const pt = point([lng, lat]);
-    let seccionElegida: SeccionGeo | null = null;
-
-    for (const sec of candidatas) {
-      try {
-        const raw: any = typeof sec.geomJson === "string" ? JSON.parse(sec.geomJson) : sec.geomJson;
-        const feature = raw.type === "Feature" ? raw : { type: "Feature" as const, geometry: raw, properties: {} };
-        if (booleanPointInPolygon(pt, feature)) {
-          seccionElegida = sec;
-          break;
-        }
-      } catch {
-        // Geometría malformada: se ignora esa sección
-      }
-    }
-
-    // Si ningún polígono lo contiene, se cae al centroide más cercano. También
-    // desde el caché, sin volver a la base.
-    if (!seccionElegida) {
-      let minDistancia = Infinity;
-      for (const sec of await getSeccionesGeo()) {
-        const cLng = (sec.bounds[0] + sec.bounds[2]) / 2;
-        const cLat = (sec.bounds[1] + sec.bounds[3]) / 2;
-        const d = Math.hypot(lng - cLng, lat - cLat);
-        if (d < minDistancia) {
-          minDistancia = d;
-          seccionElegida = sec;
-        }
-      }
-    }
-
-    if (seccionElegida) {
-      sectionId = seccionElegida.id;
-      sectionNum = seccionElegida.sectionNum;
-      sectionMunicipality = seccionElegida.municipality || "Tonalá";
+    const ubicacion = await ubicarEnSeccion(lat, lng);
+    if (ubicacion) {
+      sectionId = ubicacion.seccion.id;
+      sectionNum = ubicacion.seccion.sectionNum;
+      sectionMunicipality = ubicacion.seccion.municipality;
+      precision = ubicacion.precision;
 
       // Las colonias solo hacen falta para la sección que ganó, así que se piden
       // sueltas en lugar de unir el catálogo entero con todas las secciones.
@@ -141,7 +68,7 @@ export async function GET(request: Request) {
         SELECT col.name
         FROM section_colonies sc
         JOIN colonies col ON col.id = sc.colony_id
-        WHERE sc.section_id = ${seccionElegida.id}::uuid
+        WHERE sc.section_id = ${ubicacion.seccion.id}::uuid
       `);
       sectionColonies = colRes.rows.map((r) => r.name).filter(Boolean);
     }
@@ -149,13 +76,17 @@ export async function GET(request: Request) {
     console.error("Section lookup error:", err);
   }
 
-  // 2. Fetch real street address from OpenStreetMap Nominatim Reverse Geocoding
+  // 2. Domicilio real desde OpenStreetMap.
   let streetAddress = "";
   // Filter out any dummy 'Cabecera' placeholder from section colonies
-  const validSectionColonies = (sectionColonies || []).filter(c => c && !c.startsWith("Cabecera ") && !c.startsWith("Municipio "));
+  const validSectionColonies = sectionColonies.filter((c) => c && !c.startsWith("Cabecera ") && !c.startsWith("Municipio "));
   let detectedColony = validSectionColonies[0] || "";
-  let detectedMunicipality = sectionMunicipality || resolveMunicipalityByCoords(lat, lng);
-  let postcode = "45400";
+  let municipioOSM: string | null = null;
+  // Antes arrancaba en "45400", el código postal de Tonalá centro, y se quedaba ahí si
+  // Nominatim no traía uno: cualquier punto de Jalisco sin CP salía con el de Tonalá.
+  let postcode = "";
+  let road = "";
+  let houseNum = "";
 
   try {
     const controller = new AbortController();
@@ -163,47 +94,43 @@ export async function GET(request: Request) {
 
     const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=es`;
     const res = await fetch(nominatimUrl, {
-      headers: {
-        "User-Agent": "Tonala-CRM-OS/2.0 (Municipal Electoral System; admin@tonala.gob.mx)"
-      },
+      // Sin el correo del administrador: iba en cada petición a un servicio de terceros.
+      headers: { "User-Agent": "Tonala-OS-CRM/1.0 (territorial-planning-system)" },
       signal: controller.signal
     });
     clearTimeout(timeoutId);
 
     if (res.ok) {
       const data = await res.json();
-      if (data && data.address) {
+      if (data?.address) {
         const a = data.address;
-        
-        const road = a.road || a.pedestrian || a.street || a.highway || a.neighbourhood_road || a.path || a.footway || "";
-        const houseNum = a.house_number ? ` #${a.house_number}` : "";
+        road = a.road || a.pedestrian || a.street || a.highway || a.neighbourhood_road || a.path || a.footway || "";
+        houseNum = a.house_number ? ` #${a.house_number}` : "";
         const suburb = a.suburb || a.neighbourhood || a.quarter || a.residential || a.village || a.hamlet || a.subdivision || "";
-        const city = a.city || a.town || a.county || a.municipality || a.state_district || "";
-        
         if (a.postcode) postcode = a.postcode;
-
-        if (city) {
-          detectedMunicipality = normalizeMunicipalityName(city);
-        }
-
-        if (suburb && !suburb.startsWith("Cabecera ")) {
-          detectedColony = suburb;
-        }
-
-        // Build friendly formatted address
-        const parts: string[] = [];
-        if (road) parts.push(`${road}${houseNum}`);
-        if (detectedColony) parts.push(`Col. ${detectedColony}`);
-        if (detectedMunicipality) parts.push(detectedMunicipality);
-        
-        streetAddress = parts.join(", ") || data.display_name || "";
+        municipioOSM = resolverMunicipio(a.city || a.town || a.county || a.municipality || a.state_district);
+        if (suburb && !suburb.startsWith("Cabecera ")) detectedColony = suburb;
+        if (!road && data.display_name) streetAddress = data.display_name;
       }
     }
   } catch (_e) {
-    // OpenStreetMap fetch failed or timed out — fallback to coordinates
-    streetAddress = `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
+    // OpenStreetMap no respondió: se sigue con lo que dice la cartografía.
   }
 
+  // El municipio del polígono manda cuando el punto cae dentro: es el dato del INE y el
+  // que ordena el trabajo electoral, mientras que Nominatim rotula "Guadalajara" a colonias
+  // de Zapopan y viceversa. Si no hay polígono que lo contenga, se usa Nominatim; si
+  // tampoco, la sección cercana; y si nada, se deja vacío en lugar de inventarlo.
+  const detectedMunicipality =
+    (precision === "exacta" ? sectionMunicipality : null) ?? municipioOSM ?? sectionMunicipality ?? null;
+
+  if (road || detectedColony || detectedMunicipality) {
+    const parts: string[] = [];
+    if (road) parts.push(`${road}${houseNum}`);
+    if (detectedColony) parts.push(`Col. ${detectedColony}`);
+    if (detectedMunicipality) parts.push(detectedMunicipality);
+    streetAddress = parts.join(", ");
+  }
   if (!streetAddress) {
     streetAddress = `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
   }
@@ -217,10 +144,11 @@ export async function GET(request: Request) {
     colony: detectedColony,
     municipality: detectedMunicipality,
     postalCode: postcode,
-    postcode: postcode,
+    postcode,
     sectionId,
     sectionNum,
     sectionName: sectionNum ? `Sección ${sectionNum}` : undefined,
+    precision,
     colonies: sectionColonies
   });
 }

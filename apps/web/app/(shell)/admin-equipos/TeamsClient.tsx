@@ -5,6 +5,7 @@ import { Users, Plus, MapPin, X, Edit, Trash, ArrowRight, User, Search, ChevronR
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
+import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 
 type Team = {
   id: string;
@@ -38,12 +39,12 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = true, curren
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [form, setForm] = useState({ name: "", leaderId: "", zone: "Tonalá", municipality: "Tonalá", section: "" });
+  const [form, setForm] = useState({ name: "", leaderId: "", zone: "", municipality: "", section: "" });
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   function openCreateModal() {
     setEditingId(null);
-    setForm({ name: "", leaderId: currentUserId || (users[0]?.id ?? ""), zone: "Tonalá", municipality: "Tonalá", section: "" });
+    setForm({ name: "", leaderId: currentUserId || (users[0]?.id ?? ""), zone: "", municipality: "", section: "" });
     setShowModal(true);
   }
 
@@ -52,8 +53,8 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = true, curren
     setForm({
       name: t.name,
       leaderId: t.leaderId,
-      zone: t.zone || "Tonalá",
-      municipality: t.municipality || "Tonalá",
+      zone: t.zone || "",
+      municipality: t.municipality || "",
       section: t.section || ""
     });
     setShowModal(true);
@@ -70,11 +71,13 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = true, curren
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form)
+        // Vacío viaja como null. Antes el formulario mandaba zone: "Tonalá" —campo que ni se
+        // muestra en el modal— y todo equipo de Jalisco quedaba con zona Tonalá.
+        body: JSON.stringify({ ...form, zone: form.zone || null, municipality: form.municipality || null })
       });
       if (res.ok) {
         setShowModal(false);
-        setForm({ name: "", leaderId: "", zone: "Tonalá", municipality: "Tonalá", section: "" });
+        setForm({ name: "", leaderId: "", zone: "", municipality: "", section: "" });
         router.refresh();
       } else {
         alert("Error al guardar equipo");
@@ -201,7 +204,7 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = true, curren
                       </h3>
                       <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                         <MapPin size={12} className="text-rose-500" />
-                        {t.municipality || "Tonalá"} {t.section ? `· Secc #${t.section}` : ""}
+                        {t.municipality || "Sin municipio"} {t.section ? `· Secc #${t.section}` : ""}
                       </p>
                     </div>
                   </div>
@@ -350,15 +353,7 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = true, curren
                     allowCustom={false}
                     value={form.municipality}
                     onChange={(val) => setForm({ ...form, municipality: val })}
-                    options={[
-                      { value: "Tonalá", label: "Tonalá", badge: "Principal" },
-                      { value: "Guadalajara", label: "Guadalajara" },
-                      { value: "San Pedro Tlaquepaque", label: "Tlaquepaque" },
-                      { value: "Zapopan", label: "Zapopan" },
-                      { value: "Tlajomulco de Zúñiga", label: "Tlajomulco" },
-                      { value: "El Salto", label: "El Salto" },
-                      { value: "Zapotlanejo", label: "Zapotlanejo" }
-                    ]}
+                    options={MUNICIPIOS_JALISCO.map((m) => ({ value: m.name, label: m.name, badge: `${m.count} secc.` }))}
                     icon={<MapPin size={13} className="text-rose-500" />}
                   />
                 </div>

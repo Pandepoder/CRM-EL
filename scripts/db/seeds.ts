@@ -107,13 +107,14 @@ export async function seedDatabase(connectionString: string): Promise<SeedResult
     for (const section of electoralSectionSeeds) {
       const secRes = await pool.query<{ id: string }>(
         `
-          INSERT INTO electoral_sections (section_num, geom_json)
-          VALUES ($1, $2)
+          INSERT INTO electoral_sections (section_num, municipality, geom_json)
+          VALUES ($1, $2, $3)
           ON CONFLICT (section_num) DO UPDATE 
-          SET geom_json = EXCLUDED.geom_json
+          SET municipality = EXCLUDED.municipality,
+              geom_json = EXCLUDED.geom_json
           RETURNING id
         `,
-        [section.sectionNum, JSON.stringify(section.geom)]
+        [section.sectionNum, section.municipality, JSON.stringify(section.geom)]
       );
       
       const sectionId = secRes.rows[0]?.id;

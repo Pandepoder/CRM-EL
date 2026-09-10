@@ -55,7 +55,8 @@ export async function POST(
       origin: "toca_toca",
       firstContactDate: prospect.activityDate || new Date(),
       colony: prospect.locationText || "Por identificar",
-      municipality: "Tonalá",
+      // El registro rápido no captura municipio: se deja vacío en vez de suponer Tonalá.
+      municipality: null,
       knowMeBetter: prospect.dispositionNotes || null,
       createdAt: new Date(),
       version: 1

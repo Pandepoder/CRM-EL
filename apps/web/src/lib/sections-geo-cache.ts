@@ -1,4 +1,6 @@
 import { sql } from "drizzle-orm";
+import { point } from "@turf/helpers";
+import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 
 import { getDatabaseClient } from "@/lib/db-client";
 
@@ -110,14 +112,98 @@ export async function getSeccionesEnPunto(lat: number, lng: number): Promise<Sec
   );
 }
 
-/** Secciones de un municipio; sin municipio se asume Tonalá, igual que el mapa. */
+/**
+ * Secciones de un municipio. Una sección sin municipio no pertenece a ninguno: antes se
+ * daba por hecha de Tonalá, y así las secciones que quedaron sin ese dato aparecían dentro
+ * de Tonalá sin serlo.
+ */
 export async function getSeccionesDeMunicipio(municipio: string): Promise<SeccionGeo[]> {
   const todas = await getSeccionesGeo();
   const objetivo = municipio.toLowerCase();
-  return todas.filter((s) => (s.municipality ?? "Tonalá").toLowerCase() === objetivo);
+  return todas.filter((s) => s.municipality?.toLowerCase() === objetivo);
 }
 
 /** Invalida el caché. Útil tras dar de alta o modificar secciones. */
 export function invalidarSeccionesGeo(): void {
   globalThis.__tonalaSectionsGeo = undefined;
+}
+
+/**
+ * Distancia máxima, en kilómetros, a la que se acepta la sección más cercana cuando ningún
+ * polígono contiene el punto.
+ *
+ * Con la cartografía completa de Jalisco cargada, casi todo punto del estado cae dentro de
+ * algún polígono; el respaldo solo cubre las rendijas entre polígonos vecinos y los puntos
+ * que el GPS deja apenas fuera del borde. Antes no tenía límite: con 244 secciones en la
+ * base, una incidencia levantada en Puerto Vallarta se enganchaba a la sección del AMG menos
+ * lejana, a 250 km, y se archivaba ahí sin ninguna señal de que era un respaldo.
+ */
+export const RADIO_RESPALDO_KM = 1.5;
+
+export type UbicacionEnSeccion = Readonly<{
+  seccion: SeccionGeo;
+  /** "exacta": el punto está dentro del polígono. "aproximada": es la más cercana dentro del radio. */
+  precision: "exacta" | "aproximada";
+}>;
+
+function comoFeature(geomJson: unknown): any {
+  try {
+    const bruto: any = typeof geomJson === "string" ? JSON.parse(geomJson) : geomJson;
+    if (!bruto) return null;
+    return bruto.type === "Feature" ? bruto : { type: "Feature" as const, geometry: bruto, properties: {} };
+  } catch {
+    return null;
+  }
+}
+
+/** Distancia aproximada en km; basta con equirectangular a estas escalas. */
+function kilometros(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const kmPorGrado = 111.32;
+  const dLat = (lat2 - lat1) * kmPorGrado;
+  const dLng = (lng2 - lng1) * kmPorGrado * Math.cos(((lat1 + lat2) / 2) * (Math.PI / 180));
+  return Math.hypot(dLat, dLng);
+}
+
+/**
+ * Sección electoral en la que cae un punto, o null si no hay ninguna razonable.
+ *
+ * Es la fuente del municipio de cualquier punto de Jalisco: la sección trae el suyo del INE.
+ * Las rutas de geocodificación y el alta de incidencias resolvían esto cada una por su lado,
+ * con respaldos distintos y sin límite de distancia.
+ */
+export async function ubicarEnSeccion(lat: number, lng: number): Promise<UbicacionEnSeccion | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  const pt = point([lng, lat]);
+  // Se revisan todas las que contienen el punto, no solo la primera: quedan secciones
+  // inventadas, sin municipio, encimadas sobre secciones reales —la 2360 cubre el centro de
+  // Tlajomulco encima de la 2440—, y si ganaba la primera el punto se quedaba sin municipio.
+  // Manda la que trae municipio del INE.
+  let sinMunicipio: SeccionGeo | null = null;
+  for (const seccion of await getSeccionesEnPunto(lat, lng)) {
+    const feature = comoFeature(seccion.geomJson);
+    try {
+      if (!feature || !booleanPointInPolygon(pt, feature)) continue;
+    } catch {
+      // Geometría malformada: se ignora esa sección.
+      continue;
+    }
+    if (seccion.municipality) return { seccion, precision: "exacta" };
+    sinMunicipio ??= seccion;
+  }
+  if (sinMunicipio) return { seccion: sinMunicipio, precision: "exacta" };
+
+  let masCercana: SeccionGeo | null = null;
+  let distanciaMinima = Infinity;
+  for (const seccion of await getSeccionesGeo()) {
+    const cLng = (seccion.bounds[0] + seccion.bounds[2]) / 2;
+    const cLat = (seccion.bounds[1] + seccion.bounds[3]) / 2;
+    const d = kilometros(lat, lng, cLat, cLng);
+    if (d < distanciaMinima) {
+      distanciaMinima = d;
+      masCercana = seccion;
+    }
+  }
+
+  return masCercana && distanciaMinima <= RADIO_RESPALDO_KM ? { seccion: masCercana, precision: "aproximada" } : null;
 }

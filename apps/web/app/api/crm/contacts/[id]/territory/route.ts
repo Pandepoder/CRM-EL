@@ -9,6 +9,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { processOutboxInline } from "@/lib/outbox";
 import { exigirAccesoAContacto } from "@/lib/permisos-contacto";
 import { actorFromSession, permissionChecker, resultToResponse, unauthorized } from "@/lib/api-helpers";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
 
 export async function POST(
   request: Request,
@@ -31,24 +32,28 @@ export async function POST(
   const db = getDatabaseClient();
   let targetColonyId = body.colonyId || "";
   const colonyName = (body.colonyName || "").trim();
-  const municipality = (body.municipality || "Tonalá").trim();
+  // Solo un municipio real del catálogo. Antes, sin dato, se escribía "Tonalá" sobre el
+  // contacto aunque fuera de otro municipio.
+  const municipality = buscarMunicipio(body.municipality)?.name ?? null;
   const sectionNum = typeof body.sectionNum === "number" ? body.sectionNum : parseInt(String(body.sectionNum || ""), 10);
 
   try {
     let resolvedSectionId: string | null = null;
+    let municipioDeSeccion: string | null = null;
 
     // 1. Resolve or create section if sectionNum is provided
     if (!isNaN(sectionNum) && sectionNum > 0) {
       const existingSec = await db
-        .select({ id: schema.electoralSections.id })
+        .select({ id: schema.electoralSections.id, municipality: schema.electoralSections.municipality })
         .from(schema.electoralSections)
         .where(eq(schema.electoralSections.sectionNum, sectionNum))
         .limit(1);
 
       if (existingSec[0]) {
         resolvedSectionId = existingSec[0].id;
+        municipioDeSeccion = existingSec[0].municipality;
       } else {
-        // La base ya tiene la cartografía completa del INE para los 124
+        // La base ya tiene la cartografía completa del INE para los 125
         // municipios de Jalisco (secciones 1 a 3891). Si un número no está,
         // no es una sección nueva: es un error de captura.
         //
@@ -67,6 +72,12 @@ export async function POST(
     }
 
     // 2. Resolve or create colony in catalog if colonyName is provided
+    // La colonia se registra en el municipio indicado o, si no se indicó, en el de su sección.
+    const municipioColonia = municipality ?? municipioDeSeccion;
+    if (colonyName && !municipioColonia) {
+      return NextResponse.json({ error: "Selecciona el municipio de la colonia." }, { status: 400 });
+    }
+
     if (colonyName) {
       const catRes = await db
         .select({ id: schema.catalogVersions.id })
@@ -93,8 +104,9 @@ export async function POST(
           .values({
             catalogVersionId,
             name: colonyName,
-            municipality,
-            postalCode: "45400",
+            municipality: municipioColonia,
+            // Sin CP conocido se deja vacío: antes se ponía el de Tonalá a cualquier colonia.
+            postalCode: null,
             status: "active"
           })
           .onConflictDoUpdate({
@@ -106,7 +118,7 @@ export async function POST(
               schema.colonies.name,
               schema.colonies.municipality
             ],
-            set: { status: "active", municipality }
+            set: { status: "active", municipality: municipioColonia }
           })
           .returning({ id: schema.colonies.id });
 
@@ -131,7 +143,8 @@ export async function POST(
     // criptograma interno en vez del nombre.
     const updateFields: Record<string, any> = {};
     if (colonyName) updateFields.colony = colonyName;
-    if (municipality) updateFields.municipality = municipality;
+    const municipioContacto = municipality ?? municipioDeSeccion;
+    if (municipioContacto) updateFields.municipality = municipioContacto;
     if (resolvedSectionId) updateFields.sectionId = resolvedSectionId;
 
     if (Object.keys(updateFields).length > 0) {

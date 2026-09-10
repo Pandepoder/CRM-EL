@@ -185,7 +185,7 @@ export default async function EquipoMiDiaPage({
         scheduledAt: ((e.scheduledAt instanceof Date ? e.scheduledAt : new Date(e.scheduledAt || Date.now()))).toISOString(),
         title: e.title,
         description: e.description || "",
-        location: e.sectionNum ? `Sección #${e.sectionNum} (${e.municipality || "Tonalá"})` : (e.municipality || "Tonalá"),
+        location: e.sectionNum ? `Sección #${e.sectionNum}${e.municipality ? ` (${e.municipality})` : ""}` : (e.municipality || "Sin ubicación"),
         category: cat,
         sectionId: e.sectionId || undefined,
         sectionNum: e.sectionNum || undefined,

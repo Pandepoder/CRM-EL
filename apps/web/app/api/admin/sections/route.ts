@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
         sectionNum: Number(body.sectionNum),
         geom: body.geom,
         colonies: colArr,
-        municipality: body.municipality || "Tonalá"
+        municipality: body.municipality
       }];
     } else {
       return NextResponse.json({ error: "Debe proporcionar sectionNum o un arreglo de sections." }, { status: 400 });
@@ -114,7 +115,8 @@ export async function POST(request: Request) {
     let lastSectionId: string | null = null;
 
     for (const sec of sectionsToProcess) {
-      const muni = sec.municipality || "Tonalá";
+      // Sin municipio reconocible se importa sin él, en vez de atribuirla a Tonalá.
+      const muni = buscarMunicipio(sec.municipality)?.name ?? null;
       // Sin geometría real la sección se importa sin ella. Antes se le fabricaba
       // un cuadrado alrededor del centro del municipio: al dibujarse en el mapa
       // era indistinguible de una sección auténtica y se superponía a las que sí
@@ -126,7 +128,8 @@ export async function POST(request: Request) {
         INSERT INTO electoral_sections (section_num, geom_json, municipality)
         VALUES (${sec.sectionNum}, ${sql`${geomJson}::jsonb`}, ${muni})
         ON CONFLICT (section_num) DO UPDATE
-        SET geom_json = COALESCE(EXCLUDED.geom_json, electoral_sections.geom_json)
+        SET geom_json = COALESCE(EXCLUDED.geom_json, electoral_sections.geom_json),
+            municipality = COALESCE(electoral_sections.municipality, EXCLUDED.municipality)
         RETURNING id::text
       `);
 
@@ -137,7 +140,7 @@ export async function POST(request: Request) {
         for (const colName of sec.colonies) {
           const colRes = await db.execute<{ id: string }>(sql`
             INSERT INTO colonies (catalog_version_id, name, postal_code, municipality, status)
-            VALUES (${catalogVersionId}::uuid, ${colName}, '45400', ${muni}, 'active')
+            VALUES (${catalogVersionId}::uuid, ${colName}, NULL, ${muni}, 'active')
             ON CONFLICT (catalog_version_id, name, municipality) DO UPDATE SET status = 'active'
             RETURNING id::text
           `);
