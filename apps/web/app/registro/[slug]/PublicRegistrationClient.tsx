@@ -27,7 +27,7 @@ export default function PublicRegistrationClient({
     birthYear: "",
     address: "",
     colony: "",
-    municipality: "Tonalá",
+    municipality: "",
     sectionNum: "",
     profession: "",
     preferredContactMethod: "whatsapp",
@@ -127,7 +127,7 @@ export default function PublicRegistrationClient({
           </div>
 
           <div className="p-4 bg-blue-50/80 rounded-2xl border border-blue-100 text-xs text-blue-900 font-semibold space-y-1">
-            <p className="flex items-center justify-center gap-1.5"><Sparkles size={13} /> Estamos construyendo un proyecto cercano, ordenado y con visión para Tonalá.</p>
+            <p className="flex items-center justify-center gap-1.5"><Sparkles size={13} /> Estamos construyendo un proyecto cercano, ordenado y con visión para tu municipio.</p>
             <p className="text-gray-500">Nos pondremos en contacto contigo pronto.</p>
           </div>
         </div>
@@ -143,7 +143,7 @@ export default function PublicRegistrationClient({
           <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 bg-cyan-400/10 rounded-full blur-2xl" />
           
           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-bold text-cyan-200 border border-white/15 mb-3">
-            <Sparkles size={13} /> Registro Social · Tonalá
+            <Sparkles size={13} /> Registro Social
           </span>
 
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">
@@ -385,7 +385,7 @@ export default function PublicRegistrationClient({
                 </span>
                 <div>
                   <h4 className="font-extrabold text-xs text-indigo-950">Encuesta Opcional de Opinión (2 minutos)</h4>
-                  <p className="text-[11px] text-indigo-700 font-medium">Ayúdanos contestando estas preguntas sobre Tonalá.</p>
+                  <p className="text-[11px] text-indigo-700 font-medium">Ayúdanos contestando estas preguntas sobre tu municipio.</p>
                 </div>
               </div>
               {showSurvey ? <ChevronUp size={16} className="text-indigo-600" /> : <ChevronDown size={16} className="text-indigo-600" />}
@@ -427,7 +427,7 @@ export default function PublicRegistrationClient({
 
                 {/* P2 */}
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-gray-900">2. ¿Qué es lo que más valoras de Tonalá?</label>
+                  <label className="block text-xs font-bold text-gray-900">2. ¿Qué es lo que más valoras de tu municipio?</label>
                   <select
                     value={survey.tonalaValues}
                     onChange={e => setSurvey({ ...survey, tonalaValues: e.target.value })}
@@ -473,7 +473,7 @@ export default function PublicRegistrationClient({
 
                 {/* P4 */}
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-gray-900">4. ¿Qué esperarías de un nuevo proyecto para Tonalá?</label>
+                  <label className="block text-xs font-bold text-gray-900">4. ¿Qué esperarías de un nuevo proyecto para tu municipio?</label>
                   <select
                     value={survey.projectExpectations}
                     onChange={e => setSurvey({ ...survey, projectExpectations: e.target.value })}
@@ -510,7 +510,7 @@ export default function PublicRegistrationClient({
                 {/* P6 - Pregunta abierta final */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-gray-900">
-                    6. Si pudieras cambiar, mejorar o proponer algo para Tonalá, ¿qué nos dirías?
+                    6. Si pudieras cambiar, mejorar o proponer algo para tu municipio, ¿qué nos dirías?
                   </label>
                   <textarea
                     rows={2}

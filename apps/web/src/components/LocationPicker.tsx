@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 // @ts-ignore
 import { MapPin, Search, Navigation, Check, Loader2, Sparkles, Crosshair } from "lucide-react";
 import "leaflet/dist/leaflet.css";
+import { CENTRO_JALISCO, buscarMunicipio } from "@/lib/municipios-jalisco";
 
 export type LocationValue = {
   latitude: number | null | undefined;
@@ -19,7 +20,7 @@ export type LocationValue = {
 export function LocationPicker({
   value,
   onChange,
-  defaultMunicipality = "Tonalá",
+  defaultMunicipality,
   label = "Ubicación del Evento o Incidencia *",
   helperText = "Escribe el domicilio del lugar, selecciónalo en el mapa interactivo o usa tu GPS actual."
 }: {
@@ -40,8 +41,12 @@ export function LocationPicker({
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
 
-  const currentLat = value.latitude ?? 20.6248; // Default Tonalá Centro
-  const currentLng = value.longitude ?? -103.2422;
+  // Sin coordenadas, el mapa arranca en el centro del municipio de captura y, si no se
+  // conoce, en el de Jalisco. Antes arrancaba siempre en la plaza de Tonalá.
+  const municipioConocido = buscarMunicipio(value.municipality || defaultMunicipality);
+  const centroInicial = municipioConocido?.center ?? CENTRO_JALISCO;
+  const currentLat = value.latitude ?? centroInicial[0];
+  const currentLng = value.longitude ?? centroInicial[1];
 
   // Initialize Leaflet Map
   useEffect(() => {
@@ -62,7 +67,7 @@ export function LocationPicker({
 
       const map = L.map(mapContainerRef.current, {
         center: [currentLat, currentLng],
-        zoom: value.latitude ? 16 : 14,
+        zoom: value.latitude ? 16 : municipioConocido ? 12 : 8,
         zoomControl: true
       });
 
@@ -208,7 +213,7 @@ export function LocationPicker({
     try {
       // El municipio de captura orienta la búsqueda; sin él todo se resuelve
       // contra Tonalá aunque se esté trabajando en otro municipio.
-      const municipio = value.municipality || defaultMunicipality || "Tonalá";
+      const municipio = value.municipality || defaultMunicipality || "";
       const res = await fetch(
         `/api/map/geocode?q=${encodeURIComponent(searchQuery.trim())}&municipality=${encodeURIComponent(municipio)}`
       );

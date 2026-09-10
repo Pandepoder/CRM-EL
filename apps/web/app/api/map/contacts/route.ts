@@ -154,8 +154,10 @@ export async function GET(request: Request) {
           // El teléfono se retiró del GeoJSON: el mapa no lo usa en ninguna parte
           // y se enviaba descifrado para todos los contactos del alcance. Si algún
           // día hace falta en el detalle, se pide al abrir la ficha.
-          colony: decryptData(c.colony) || "Tonalá",
-          municipality: c.municipality || "Tonalá",
+          // Sin dato va vacío: antes se rellenaba con "Tonalá" y un contacto de cualquier
+          // municipio sin colonia capturada aparecía viviendo en Tonalá.
+          colony: decryptData(c.colony) || null,
+          municipality: c.municipality || null,
           panMilitancy: c.panMilitancy || "no_registrada",
           isPanConfirmed: c.panMilitancy === "confirmada",
           creatorName: c.creatorName || "Integrante",

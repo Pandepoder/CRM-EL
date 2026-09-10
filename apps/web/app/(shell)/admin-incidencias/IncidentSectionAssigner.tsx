@@ -4,6 +4,7 @@ import { useState } from "react";
 // @ts-ignore
 import { MapPin, Check, Plus, Loader2, Sparkles, X, Layers, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 
 type SectionOption = {
   id: string;
@@ -53,7 +54,7 @@ export function IncidentSectionAssigner({
   // New section form state
   const [newSectionForm, setNewSectionForm] = useState({
     sectionNum: "",
-    municipality: currentMunicipality || "Tonalá",
+    municipality: currentMunicipality || "",
     colony: "",
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -84,7 +85,7 @@ export function IncidentSectionAssigner({
           setDetectedSection({
             sectionId: data.sectionId,
             sectionNum: data.sectionNum,
-            municipality: data.municipality || "Tonalá",
+            municipality: data.municipality || "",
             address: data.formattedAddress || data.address
           });
           setSelectedSectionId(data.sectionId);
@@ -117,7 +118,9 @@ export function IncidentSectionAssigner({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sectionId: finalSecId,
-          municipality: matched?.municipality || currentMunicipality || "Tonalá"
+          // Solo si la sección elegida tiene municipio: antes se mandaba "Tonalá" como respaldo y
+          // el servidor lo guardaba encima del municipio real de la incidencia.
+          ...(matched?.municipality ? { municipality: matched.municipality } : {})
         })
       });
 
@@ -311,7 +314,7 @@ export function IncidentSectionAssigner({
                         >
                           <div>
                             <span className="font-bold text-sm text-gray-900">Sección #{sec.sectionNum}</span>
-                            <span className="text-[11px] text-gray-500 ml-2">({sec.municipality || "Tonalá"})</span>
+                            <span className="text-[11px] text-gray-500 ml-2">({sec.municipality || "sin municipio"})</span>
                             {sec.colonies && sec.colonies.length > 0 && (
                               <div className="text-[10px] text-gray-500 truncate max-w-[220px]">
                                 {sec.colonies.slice(0, 2).join(", ")}
@@ -376,13 +379,10 @@ export function IncidentSectionAssigner({
                           onChange={(e) => setNewSectionForm({ ...newSectionForm, municipality: e.target.value })}
                           className="w-full px-2 py-1.5 text-xs font-bold border border-gray-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-500"
                         >
-                          <option value="Tonalá">Tonalá</option>
-                          <option value="Guadalajara">Guadalajara</option>
-                          <option value="San Pedro Tlaquepaque">Tlaquepaque</option>
-                          <option value="Zapopan">Zapopan</option>
-                          <option value="Tlajomulco de Zúñiga">Tlajomulco</option>
-                          <option value="El Salto">El Salto</option>
-                          <option value="Zapotlanejo">Zapotlanejo</option>
+                          <option value="" disabled>Selecciona un municipio…</option>
+                          {MUNICIPIOS_JALISCO.map((m) => (
+                            <option key={m.name} value={m.name}>{m.name}</option>
+                          ))}
                         </select>
                       </div>
                     </div>

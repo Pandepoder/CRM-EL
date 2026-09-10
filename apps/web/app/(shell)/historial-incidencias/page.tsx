@@ -144,7 +144,7 @@ export default async function HistorialIncidenciasPage() {
                           <MapPin size={13} style={{ color: "#94a3b8" }} />
                           {r.sectionNum ? `Sección ${r.sectionNum}` : "Sin sección"}
                         </span>
-                        <div className="text-xs mt-0.5" style={{ color: "#94a3b8" }}>{r.municipality || "Tonalá"}</div>
+                        <div className="text-xs mt-0.5" style={{ color: "#94a3b8" }}>{r.municipality || "—"}</div>
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap text-xs" style={{ color: "#64748b" }}>
                         <span className="inline-flex items-center gap-1.5">

@@ -22,7 +22,9 @@ export function AddressAutocomplete({
   value = "",
   onChange,
   onSelect,
-  municipality = "Tonalá",
+  // Sin municipio se busca en todo Jalisco. Antes el valor por omisión era "Tonalá" y
+  // cualquier formulario que no lo pasara proponía calles de Tonalá.
+  municipality,
   label = "Dirección / Calle y Número *",
   placeholder = "Escribe calle, número, colonia o sección (ej. Av. Tonaltecas, Loma Dorada...)",
   required = false,
@@ -32,7 +34,7 @@ export function AddressAutocomplete({
   value?: string;
   onChange?: (val: string) => void;
   onSelect?: (item: AutocompleteItem) => void;
-  municipality?: string;
+  municipality?: string | undefined;
   label?: string;
   placeholder?: string;
   required?: boolean;
@@ -67,7 +69,8 @@ export function AddressAutocomplete({
       setIsLoading(true);
       try {
         const res = await fetch(
-          `/api/map/autocomplete?q=${encodeURIComponent(q)}&municipality=${encodeURIComponent(municipality)}`
+          `/api/map/autocomplete?q=${encodeURIComponent(q)}` +
+            (municipality ? `&municipality=${encodeURIComponent(municipality)}` : "")
         );
         if (res.ok) {
           const data = await res.json();

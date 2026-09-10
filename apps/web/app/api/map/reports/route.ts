@@ -9,40 +9,10 @@ import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { esCategoriaValida } from "@/lib/categorias-incidencia";
-import { getSeccionesEnPunto, getSeccionesGeo, type SeccionGeo } from "@/lib/sections-geo-cache";
+import { getSeccionesGeo, ubicarEnSeccion } from "@/lib/sections-geo-cache";
+import { resolverMunicipio } from "@/lib/municipios-jalisco";
 import { withOutbox } from "@/lib/outbox-helper";
 import { randomUUID } from "crypto";
-import { point } from "@turf/helpers";
-import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
-
-/**
- * Municipio a partir del número de sección. Se mantiene tal cual estaba: la
- * columna `municipality` de electoral_sections viene vacía en la base, así que
- * estos rangos siguen siendo la única fuente.
- */
-function municipioPorSeccion(sNum: number): string | null {
-  if (sNum >= 2700 && sNum <= 2800) return "Tonalá";
-  if (sNum >= 900 && sNum <= 1450) return "Guadalajara";
-  if (sNum >= 3000 && sNum <= 3500) return "Zapopan";
-  if (sNum >= 2500 && sNum <= 2699) return "San Pedro Tlaquepaque";
-  if (sNum >= 2400 && sNum <= 2499) return "Tlajomulco de Zúñiga";
-  if (sNum >= 1950 && sNum <= 2050) return "El Salto";
-  if (sNum >= 3600 && sNum <= 3650) return "Zapotlanejo";
-  if (sNum >= 1750 && sNum <= 1800) return "Ixtlahuacán de los Membrillos";
-  if (sNum >= 1850 && sNum <= 1900) return "Juanacatlán";
-  return null;
-}
-
-/** Convierte la geometría guardada en una Feature que Turf pueda evaluar. */
-function comoFeature(geomJson: unknown): any {
-  try {
-    const bruto: any = typeof geomJson === "string" ? JSON.parse(geomJson) : geomJson;
-    if (!bruto) return null;
-    return bruto.type === "Feature" ? bruto : { type: "Feature" as const, geometry: bruto, properties: {} };
-  } catch {
-    return null;
-  }
-}
 
 export async function GET(_request: Request) {
   // El mapa de incidencias dejó de estar reservado a administración y dirección.
@@ -169,77 +139,33 @@ export async function POST(request: Request) {
 
     let finalSectionId = sectionId;
     let detectedSectionMuni: string | null = null;
-    const db = getDatabaseClient();
 
     if (latitude !== undefined && longitude !== undefined) {
-      // Este bloque cargaba TODAS las secciones con su geometría completa en
-      // cada alta de incidencia: en producción son 3789 filas y unos 15 MB de
-      // JSONB por cada bache que reporta un brigadista desde el teléfono.
+      // La sección y el municipio salen del polígono del INE que contiene el punto.
       //
-      // El caché compartido ya resolvía exactamente esto para geocode,
-      // reverse-geocode y autocomplete; esta ruta se quedó sin migrar. Además
-      // del caché, el filtro por rectángulo envolvente deja el punto-en-polígono
-      // —que es lo caro— en unas pocas candidatas en vez de las 3789.
-      const pt = point([Number(longitude), Number(latitude)]);
-      const candidatas = await getSeccionesEnPunto(Number(latitude), Number(longitude));
-
-      let contenedora: SeccionGeo | undefined;
-      for (const seccion of candidatas) {
-        const feature = comoFeature(seccion.geomJson);
-        if (feature && booleanPointInPolygon(pt, feature)) {
-          contenedora = seccion;
-          break;
-        }
-      }
-
-      if (contenedora) {
-        if (!finalSectionId) finalSectionId = contenedora.id;
-        detectedSectionMuni = municipioPorSeccion(contenedora.sectionNum);
-      } else if (!finalSectionId) {
-        // Ninguna sección contiene el punto: se toma la del centroide más
-        // cercano, igual que antes. Sale del caché, sin volver a la base.
-        let seccionCercana: string | null = null;
-        let distanciaMinima = Infinity;
-
-        for (const seccion of await getSeccionesGeo()) {
-          const bruto: any = comoFeature(seccion.geomJson)?.geometry;
-          const coords = bruto?.type === "Polygon" ? bruto.coordinates?.[0] : bruto?.coordinates?.[0]?.[0];
-          if (!coords || coords.length === 0) continue;
-
-          let sumaLng = 0;
-          let sumaLat = 0;
-          for (const c of coords) {
-            sumaLng += c[0];
-            sumaLat += c[1];
-          }
-          const distancia = Math.hypot(
-            Number(longitude) - sumaLng / coords.length,
-            Number(latitude) - sumaLat / coords.length
-          );
-          if (distancia < distanciaMinima) {
-            distanciaMinima = distancia;
-            seccionCercana = seccion.id;
-          }
-        }
-
-        if (seccionCercana) finalSectionId = seccionCercana;
+      // Antes el municipio se deducía con rangos de número de sección escritos a mano
+      // para nueve municipios del AMG, luego con nueve recuadros, y si nada cuadraba se
+      // archivaba como "Tonalá": toda incidencia levantada fuera del AMG quedaba guardada
+      // en Tonalá. Y el respaldo por cercanía no tenía límite de distancia, así que una
+      // incidencia de Puerto Vallarta se enganchaba a la sección menos lejana del AMG.
+      // ubicarEnSeccion trae el municipio de la propia sección y acota ese respaldo.
+      const ubicacion = await ubicarEnSeccion(Number(latitude), Number(longitude));
+      if (ubicacion) {
+        if (!finalSectionId) finalSectionId = ubicacion.seccion.id;
+        detectedSectionMuni = ubicacion.seccion.municipality;
       }
     }
 
-    // Auto-resolve municipality
-    let finalMunicipality = municipality || detectedSectionMuni;
-    if (!finalMunicipality && latitude !== undefined && longitude !== undefined) {
-      if (longitude >= -103.285 && longitude <= -103.170 && latitude >= 20.570 && latitude <= 20.685) finalMunicipality = "Tonalá";
-      else if (longitude >= -103.395 && longitude <= -103.285 && latitude >= 20.620 && latitude <= 20.735) finalMunicipality = "Guadalajara";
-      else if (longitude >= -103.520 && longitude <= -103.350 && latitude >= 20.635 && latitude <= 20.820) finalMunicipality = "Zapopan";
-      else if (longitude >= -103.420 && longitude <= -103.275 && latitude >= 20.550 && latitude <= 20.640) finalMunicipality = "San Pedro Tlaquepaque";
-      else if (longitude >= -103.500 && longitude <= -103.310 && latitude >= 20.410 && latitude <= 20.570) finalMunicipality = "Tlajomulco de Zúñiga";
-      else if (longitude >= -103.285 && longitude <= -103.175 && latitude >= 20.470 && latitude <= 20.570) finalMunicipality = "El Salto";
-      else if (longitude >= -103.170 && longitude <= -103.020 && latitude >= 20.570 && latitude <= 20.730) finalMunicipality = "Zapotlanejo";
-      else if (longitude >= -103.260 && longitude <= -103.140 && latitude >= 20.350 && latitude <= 20.460) finalMunicipality = "Ixtlahuacán de los Membrillos";
-      else if (longitude >= -103.200 && longitude <= -103.120 && latitude >= 20.470 && latitude <= 20.550) finalMunicipality = "Juanacatlán";
-      else finalMunicipality = "Tonalá";
+    // Si quien levanta la incidencia eligió la sección a mano, el municipio es el de esa
+    // sección y no el del punto.
+    if (sectionId) {
+      const elegida = (await getSeccionesGeo()).find((s) => s.id === sectionId);
+      if (elegida?.municipality) detectedSectionMuni = elegida.municipality;
     }
+
+    // El municipio explícito manda si es uno real del catálogo. Si no se sabe, se guarda
+    // vacío: un hueco se ve y se corrige, un "Tonalá" inventado se queda para siempre.
+    const finalMunicipality = resolverMunicipio(municipality) ?? detectedSectionMuni ?? null;
 
     await withOutbox("event_report", id, "EventReportCreated.v1", { id, title, description, latitude, longitude, category, municipality: finalMunicipality, district, eventDate: parsedEventDate, sectionId: finalSectionId, assignedToUserId, assignedTeamId, mediaUrls: safeMediaUrls }, actor.actorId, async (tx) => {
       const [inserted] = await tx

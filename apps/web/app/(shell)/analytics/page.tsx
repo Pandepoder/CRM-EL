@@ -40,6 +40,7 @@ export default async function AnalyticsPage() {
     const availability = c.availability ? decryptData(c.availability) : null;
     const skill = c.skill ? decryptData(c.skill) : null;
     const colony = c.colony ? decryptData(c.colony) : null;
+    const municipio = c.municipality ? decryptData(c.municipality) : null;
 
     if (availability) {
       availabilityCount[availability] = (availabilityCount[availability] || 0) + 1;
@@ -48,7 +49,10 @@ export default async function AnalyticsPage() {
       skillCount[skill] = (skillCount[skill] || 0) + 1;
     }
     if (colony) {
-      colonyCount[colony] = (colonyCount[colony] || 0) + 1;
+      // "Centro" existe en decenas de municipios: sin el municipio en la clave, el Centro
+      // de Tonalá, el de Zapopan y el de Tepatitlán se sumaban en una sola barra.
+      const clave = municipio ? `${colony} (${municipio})` : colony;
+      colonyCount[clave] = (colonyCount[clave] || 0) + 1;
     }
   }
 

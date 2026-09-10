@@ -4,15 +4,16 @@ import { useState, useEffect, useRef } from "react";
 // @ts-ignore
 import { Search, MapPin, Check, ChevronDown, Sparkles, Hash, Building2, Navigation, Loader2, Crosshair, X } from "lucide-react";
 import { LocationPicker } from "@/components/LocationPicker";
+import { MUNICIPIOS_JALISCO, TODO_JALISCO, guardarMunicipioPreferido, leerMunicipioPreferido } from "@/lib/municipios-jalisco";
 
 export function ColonySelector({ 
   defaultColony, 
   defaultValue,
-  defaultMunicipality = "Tonalá",
+  defaultMunicipality,
   municipality: customMunicipality,
   defaultSectionNum,
   defaultSectionId,
-  defaultPostalCode = "45400",
+  defaultPostalCode = "",
   onSelect,
   onChange
 }: { 
@@ -26,11 +27,18 @@ export function ColonySelector({
   onSelect?: ((sectionId: string, colony: string, municipality: string, sectionNum?: number, coords?: { lat: number; lng: number }, address?: string) => void) | undefined;
   onChange?: ((colony: string, sectionNum?: number) => void) | undefined;
 }) {
-  const [municipality, setMunicipality] = useState(customMunicipality || defaultMunicipality || "Tonalá");
+  const [municipality, setMunicipality] = useState(customMunicipality || defaultMunicipality || "");
+  // Sin municipio indicado arranca en el último que usó esta persona en este navegador, en
+  // vez de en Tonalá. Se lee al montar porque en el servidor no hay localStorage.
+  useEffect(() => {
+    if (customMunicipality || defaultMunicipality) return;
+    const preferido = leerMunicipioPreferido();
+    if (preferido && preferido !== TODO_JALISCO) setMunicipality(preferido);
+  }, [customMunicipality, defaultMunicipality]);
   const [sectionNum, setSectionNum] = useState<string>(defaultSectionNum ? String(defaultSectionNum) : "");
   const [selectedSectionId, setSelectedSectionId] = useState<string>(defaultSectionId || "");
   const [colony, setColony] = useState<string>(defaultValue || defaultColony || "");
-  const [postalCode, setPostalCode] = useState<string>(defaultPostalCode || "45400");
+  const [postalCode, setPostalCode] = useState<string>(defaultPostalCode || "");
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   
@@ -65,7 +73,7 @@ export function ColonySelector({
     const timer = setTimeout(async () => {
       setLoadingSuggestions(true);
       try {
-        let url = `/api/catalog/colonies/search?mun=${encodeURIComponent(municipality || "Tonalá")}`;
+        let url = `/api/catalog/colonies/search?mun=${encodeURIComponent(municipality || TODO_JALISCO)}`;
         if (sectionNum && !isNaN(parseInt(sectionNum, 10))) {
           url += `&section=${encodeURIComponent(sectionNum)}`;
         }
@@ -152,10 +160,10 @@ export function ColonySelector({
           const res = await fetch(`/api/map/reverse-geocode?lat=${latitude}&lng=${longitude}`);
           if (res.ok) {
             const data = await res.json();
-            const detectedMuni = data.municipality || "Tonalá";
+            const detectedMuni = data.municipality || municipality;
             const detectedSecNum = data.sectionNum ? String(data.sectionNum) : "";
             const detectedColony = data.colony || data.neighborhood || "";
-            const detectedCP = data.postalCode || "45400";
+            const detectedCP = data.postalCode || "";
 
             setMunicipality(detectedMuni);
             if (detectedSecNum) setSectionNum(detectedSecNum);
@@ -281,7 +289,7 @@ export function ColonySelector({
               <LocationPicker
                 label="Seleccionar Ubicación Exacta"
                 helperText="Busca una dirección o haz clic en cualquier calle del mapa para colocar el pin."
-                defaultMunicipality={municipality || "Tonalá"}
+                defaultMunicipality={municipality || undefined}
                 value={{
                   latitude: coords.lat,
                   longitude: coords.lng,
@@ -342,33 +350,27 @@ export function ColonySelector({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         
-        {/* 1. Municipio - Predeterminado Tonalá */}
+        {/* 1. Municipio: los de Jalisco con cartografía */}
         <div>
           <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 flex items-center justify-between">
             <span className="flex items-center gap-1">
               <Building2 size={13} className="text-gray-500" /> Municipio *
             </span>
-            {municipality === "Tonalá" && (
-              <span className="text-[10px] text-blue-600 font-bold">Predeterminado</span>
-            )}
+            
           </label>
           <select
             value={municipality}
             onChange={(e) => {
               setMunicipality(e.target.value);
+              guardarMunicipioPreferido(e.target.value);
               setSuggestedColonies([]);
             }}
             className="w-full p-2.5 bg-white border border-gray-200 rounded-xl font-bold text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer shadow-sm"
           >
-            <option value="Tonalá">Tonalá (Predeterminado)</option>
-            <option value="Guadalajara">Guadalajara</option>
-            <option value="San Pedro Tlaquepaque">Tlaquepaque</option>
-            <option value="Zapopan">Zapopan</option>
-            <option value="Tlajomulco de Zúñiga">Tlajomulco</option>
-            <option value="El Salto">El Salto</option>
-            <option value="Zapotlanejo">Zapotlanejo</option>
-            <option value="Ixtlahuacán de los Membrillos">Ixtlahuacán</option>
-            <option value="Juanacatlán">Juanacatlán</option>
+            <option value="" disabled>Selecciona un municipio…</option>
+            {MUNICIPIOS_JALISCO.map((m) => (
+              <option key={m.name} value={m.name}>{m.name}</option>
+            ))}
           </select>
         </div>
 
@@ -427,7 +429,7 @@ export function ColonySelector({
                 >
                   <span className="font-bold text-sm text-gray-900">Sección #{s.sectionNum}</span>
                   <span className="text-[10px] text-blue-600 font-semibold bg-blue-100/60 px-2 py-0.5 rounded-md">
-                    {s.municipality || "Tonalá"}
+                    {s.municipality || "Sin municipio"}
                   </span>
                 </button>
               ))}
@@ -500,7 +502,7 @@ export function ColonySelector({
           <div className="absolute z-40 left-0 right-0 mt-1.5 bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
             <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100 flex items-center justify-between">
               <span>
-                {loadingSuggestions ? "Buscando coincidencias..." : `Predicciones en ${municipality || "Tonalá"} ${sectionNum ? `(Sección #${sectionNum})` : ""}`}
+                {loadingSuggestions ? "Buscando coincidencias..." : `Predicciones en ${municipality || "Jalisco"} ${sectionNum ? `(Sección #${sectionNum})` : ""}`}
               </span>
               <button type="button" onClick={() => setShowColonyDropdown(false)} className="text-gray-400 hover:text-gray-600"><X size={12} /></button>
             </div>
@@ -519,7 +521,7 @@ export function ColonySelector({
                         {item.name}
                       </div>
                       <div className="text-[11px] text-gray-500 mt-0.5">
-                        {item.municipality || "Tonalá"} {item.postalCode ? `· CP ${item.postalCode}` : ""}
+                        {item.municipality || "Sin municipio"} {item.postalCode ? `· CP ${item.postalCode}` : ""}
                       </div>
                     </div>
                     <span className="text-[11px] font-bold text-blue-600 bg-blue-100/60 px-2 py-0.5 rounded-full">
@@ -558,7 +560,7 @@ export function ColonySelector({
         <div className="flex items-center gap-2 text-xs text-emerald-900 bg-emerald-100/90 p-3 rounded-xl border border-emerald-200 shadow-sm animate-in fade-in">
           <Check size={16} className="text-emerald-700 shrink-0 font-bold" />
           <span>
-            Preseleccionado: <strong>{colony}</strong> · Sección <strong>#{sectionNum}</strong> ({municipality || "Tonalá"})
+            Preseleccionado: <strong>{colony}</strong> · Sección <strong>#{sectionNum}</strong> ({municipality || "sin municipio"})
           </span>
         </div>
       )}

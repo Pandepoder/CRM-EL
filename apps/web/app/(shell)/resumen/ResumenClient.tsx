@@ -94,7 +94,7 @@ export default function ResumenClient({
       }
     }
 
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`¡Hola! Te comparto mi enlace para registrarte en la red ciudadana de Tonalá:\n${shareUrl}`)}`;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`¡Hola! Te comparto mi enlace para registrarte en nuestra red ciudadana:\n${shareUrl}`)}`;
     window.open(whatsappUrl, "_blank");
   };
 
@@ -116,7 +116,7 @@ export default function ResumenClient({
             setCurrentTerritoryInfo({
               colony: data.colony,
               sectionNum: data.sectionNum,
-              municipality: data.municipality || "Tonalá",
+              municipality: data.municipality || "",
               formattedAddress: data.formattedAddress
             });
             showToast("success", `Ubicado en Col. ${data.colony || "Centro"} · Secc. #${data.sectionNum || "S/N"}`);
@@ -241,7 +241,7 @@ export default function ResumenClient({
                 <div className="text-xs">
                   <p className="font-bold text-white">Col. {currentTerritoryInfo.colony || "Zona Centro"}</p>
                   <p className="text-blue-200/80 font-medium">
-                    Sección #{currentTerritoryInfo.sectionNum || "—"} · {currentTerritoryInfo.municipality || "Tonalá"}
+                    Sección #{currentTerritoryInfo.sectionNum || "—"} · {currentTerritoryInfo.municipality || "Municipio no identificado"}
                   </p>
                 </div>
               </div>

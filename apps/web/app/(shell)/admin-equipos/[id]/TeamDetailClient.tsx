@@ -174,7 +174,7 @@ export default function TeamDetailClient({
                 )}
               </span>
               <span>&bull;</span>
-              <span className="flex items-center gap-1"><MapPin size={12} className="text-rose-500" /> {team.municipality || "Tonalá"} {team.section ? `· Secc #${team.section}` : ""}</span>
+              <span className="flex items-center gap-1"><MapPin size={12} className="text-rose-500" /> {team.municipality || "Sin municipio asignado"} {team.section ? `· Secc #${team.section}` : ""}</span>
             </p>
           </div>
         </div>
@@ -224,7 +224,7 @@ export default function TeamDetailClient({
             <MapPin size={24} />
           </div>
           <div>
-            <div className="text-base font-black text-gray-900">{team.municipality || "Tonalá"}</div>
+            <div className="text-base font-black text-gray-900">{team.municipality || "Sin municipio asignado"}</div>
             <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">{team.section ? `Sección #${team.section}` : "Cobertura Municipal"}</div>
           </div>
         </div>
@@ -320,7 +320,7 @@ export default function TeamDetailClient({
                           {c.phone || "—"}
                         </td>
                         <td className="p-4 text-gray-700">
-                          <div className="font-semibold">{c.colony || "Tonalá"}</div>
+                          <div className="font-semibold">{c.colony || "—"}</div>
                           {c.sectionNum && (
                             <div className="text-[10px] text-gray-400 font-bold">Secc #{c.sectionNum}</div>
                           )}

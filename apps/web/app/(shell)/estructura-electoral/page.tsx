@@ -41,7 +41,9 @@ export default async function EstructuraPage() {
   try {
     sections = await db.select({
       id: schema.electoralSections.id,
-      sectionNum: schema.electoralSections.sectionNum
+      sectionNum: schema.electoralSections.sectionNum,
+      // Sin esto el combo rotulaba "Tonalá" al 100% de las secciones.
+      municipality: schema.electoralSections.municipality
     }).from(schema.electoralSections).orderBy(schema.electoralSections.sectionNum);
   } catch (_err) {
     console.warn("Table electoral_sections not found yet, returning empty list");

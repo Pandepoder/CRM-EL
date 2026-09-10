@@ -20,6 +20,13 @@ const UNA_FILA = [{ lat: "20.62", lon: "-103.24", display_name: "Av. Río Nilo, 
 
 let fetchFalso: ReturnType<typeof vi.fn>;
 
+/** Recuadro (viewbox) que llevó la n-ésima petición a Nominatim, como números. */
+function recuadroDeLlamada(n: number): [number, number, number, number] {
+  const url = new URL(String(fetchFalso.mock.calls[n]?.[0]));
+  const [izq = NaN, arriba = NaN, der = NaN, abajo = NaN] = (url.searchParams.get("viewbox") ?? "").split(",").map(Number);
+  return [izq, arriba, der, abajo];
+}
+
 beforeEach(() => {
   invalidarCacheOSM();
   fetchFalso = vi.fn(async () => respuesta(UNA_FILA));
@@ -94,7 +101,7 @@ describe("cuando Nominatim rechaza la petición", () => {
 });
 
 describe("ampliación a Jalisco", () => {
-  it("amplía la búsqueda cuando dentro del AMG no hay nada", async () => {
+  it("amplía la búsqueda cuando dentro del municipio no hay nada", async () => {
     fetchFalso.mockResolvedValueOnce(respuesta([]));
     fetchFalso.mockResolvedValue(respuesta(UNA_FILA));
 
@@ -122,6 +129,27 @@ describe("ampliación a Jalisco", () => {
     expect(fetchFalso).toHaveBeenCalledTimes(1);
     expect(resultado.filas).toHaveLength(1);
   });
+
+  it("sin municipio conocido busca una sola vez en todo Jalisco", async () => {
+    await buscarDireccion("Av. Hidalgo 10", null);
+
+    expect(fetchFalso).toHaveBeenCalledTimes(1);
+    const [izq, arriba, der, abajo] = recuadroDeLlamada(0);
+    // Debe cubrir de Puerto Vallarta (-105.2) a Lagos de Moreno (-101.9).
+    expect(izq).toBeLessThan(-105);
+    expect(der).toBeGreaterThan(-102);
+    expect(arriba).toBeGreaterThan(abajo);
+  });
+
+  it("acota al recuadro del municipio de captura aunque esté fuera del AMG", async () => {
+    await buscarDireccion("Av. México 100", "Puerto Vallarta");
+
+    // Antes la primera consulta iba siempre al recuadro del AMG, a 250 km de
+    // Vallarta: el buscador ni siquiera miraba el municipio en que se capturaba.
+    const [izq, , der] = recuadroDeLlamada(0);
+    expect(izq).toBeLessThan(-105);
+    expect(der).toBeLessThan(-104.5);
+  });
 });
 
 describe("situar la consulta", () => {
@@ -132,5 +160,19 @@ describe("situar la consulta", () => {
   it("lo deja igual si el texto ya lo dice", () => {
     expect(situarConsulta("Loma Dorada, Tonalá", "Tonalá")).toBe("Loma Dorada, Tonalá");
     expect(situarConsulta("Centro, Zapopan", "Tonalá")).toBe("Centro, Zapopan");
+  });
+
+  it("reconoce cualquier municipio de Jalisco, no solo los del AMG", () => {
+    expect(situarConsulta("Centro, Tepatitlán de Morelos", "Tonalá")).toBe("Centro, Tepatitlán de Morelos");
+    expect(situarConsulta("Malecón, puerto vallarta", "Zapopan")).toBe("Malecón, puerto vallarta");
+  });
+
+  it("no confunde una calle con nombre de municipio con el municipio", () => {
+    // "Tequila" es un municipio, pero aquí es una calle de Guadalajara.
+    expect(situarConsulta("Calle Tequila 123", "Guadalajara")).toBe("Calle Tequila 123, Guadalajara, Jalisco");
+  });
+
+  it("sin municipio de captura solo sitúa en Jalisco", () => {
+    expect(situarConsulta("Av. Hidalgo 10", null)).toBe("Av. Hidalgo 10, Jalisco");
   });
 });

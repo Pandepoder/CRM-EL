@@ -56,12 +56,15 @@ export default async function AdminIncidenciasPage() {
       SELECT
         es.id::text,
         es.section_num,
-        COALESCE(MIN(col.municipality), 'Tonalá') AS municipality,
+        -- El municipio de la sección primero (viene del INE); el de sus colonias solo si falta.
+        -- Antes se ignoraba el de la sección y, sin colonias ligadas, se inventaba 'Tonalá',
+        -- que el asignador luego guardaba sobre la incidencia.
+        COALESCE(es.municipality, MIN(col.municipality)) AS municipality,
         COALESCE(ARRAY_AGG(DISTINCT col.name) FILTER (WHERE col.name IS NOT NULL), '{}') AS colonies
       FROM electoral_sections es
       LEFT JOIN section_colonies sc ON sc.section_id = es.id
       LEFT JOIN colonies col ON col.id = sc.colony_id
-      GROUP BY es.id, es.section_num
+      GROUP BY es.id, es.section_num, es.municipality
       ORDER BY es.section_num ASC
     `);
 
@@ -183,7 +186,7 @@ export default async function AdminIncidenciasPage() {
                     <div className="flex items-start gap-1.5 text-xs text-gray-700 whitespace-nowrap">
                       <MapPin size={14} className="text-gray-400 shrink-0 mt-0.5" />
                       <div>
-                        <div className="font-semibold text-gray-800">{r.municipality || "Tonalá"}</div>
+                        <div className="font-semibold text-gray-800">{r.municipality || "Municipio sin determinar"}</div>
                         {r.latitude && r.longitude ? (
                           <div className="text-[11px] font-mono text-gray-400 mt-0.5">
                             {Number(r.latitude).toFixed(4)}, {Number(r.longitude).toFixed(4)}

@@ -15,6 +15,7 @@ import { schema } from "@tonala/shared/database";
 import { eq } from "drizzle-orm";
 import { processOutboxInline } from "@/lib/outbox";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
 
 export async function createContactAction(formData: FormData) {
   const actor = await actorFromSession();
@@ -43,60 +44,41 @@ export async function createContactAction(formData: FormData) {
   const db = getDatabaseClient();
 
   const colony = ((formData.get("colony") as string) || "").trim() || "Por identificar";
-  const municipality = ((formData.get("municipality") as string) || "Tonalá").trim();
+  // Solo un municipio del catálogo; si falta, se toma el de la sección más abajo. Antes el
+  // valor por omisión era "Tonalá" y cualquier alta sin municipio quedaba en Tonalá.
+  let municipality = buscarMunicipio(formData.get("municipality") as string | null)?.name ?? null;
   const sectionNumStr = (formData.get("sectionNum") as string) || "";
   let sectionId = ((formData.get("sectionId") as string) || "").trim() || null;
 
   // Resolve section number or create on the fly
   const sectionNum = parseInt(sectionNumStr, 10);
+  let seccionInexistente = false;
   if (!isNaN(sectionNum) && sectionNum > 0) {
     try {
       const existingSec = await db
-        .select({ id: schema.electoralSections.id })
+        .select({ id: schema.electoralSections.id, municipality: schema.electoralSections.municipality })
         .from(schema.electoralSections)
         .where(eq(schema.electoralSections.sectionNum, sectionNum))
         .limit(1);
 
       if (existingSec.length > 0 && existingSec[0]) {
         sectionId = existingSec[0].id;
+        municipality = municipality ?? existingSec[0].municipality;
       } else {
-        const centers: Record<string, [number, number]> = {
-          "Tonalá": [-103.2422, 20.6248],
-          "Guadalajara": [-103.3496, 20.6767],
-          "Zapopan": [-103.3886, 20.7214],
-          "San Pedro Tlaquepaque": [-103.3150, 20.6400],
-          "Tlajomulco de Zúñiga": [-103.4167, 20.4740],
-          "El Salto": [-103.2333, 20.5167],
-          "Zapotlanejo": [-103.0667, 20.6222]
-        };
-        const center = centers[municipality] || centers["Tonalá"]!;
-        const offset = 0.005;
-        const defaultGeom = {
-          type: "Polygon",
-          coordinates: [[
-            [center[0] - offset, center[1] - offset],
-            [center[0] + offset, center[1] - offset],
-            [center[0] + offset, center[1] + offset],
-            [center[0] - offset, center[1] + offset],
-            [center[0] - offset, center[1] - offset]
-          ]]
-        };
-
-        const [newSec] = await db
-          .insert(schema.electoralSections)
-          .values({
-            sectionNum,
-            geomJson: defaultGeom
-          })
-          .returning({ id: schema.electoralSections.id });
-
-        if (newSec) {
-          sectionId = newSec.id;
-        }
+        // La cartografía del INE de los 125 municipios está completa: un número que no existe
+        // es un error de captura, no una sección nueva. Antes aquí se fabricaba un cuadrado de
+        // un kilómetro sobre el centro del municipio —sobre Tonalá si el municipio no estaba
+        // en una tabla de siete—, que se dibujaba en el mapa como si fuera real.
+        seccionInexistente = true;
       }
     } catch (err) {
       console.error("Error auto-resolving section in createContactAction:", err);
     }
+  }
+
+  // Fuera del try: dentro, el catch lo tragaba y el contacto se creaba sin sección.
+  if (seccionInexistente) {
+    throw new Error(`La sección ${sectionNum} no existe en la cartografía electoral de Jalisco. Verifica el número.`);
   }
 
   const deps = await createExtendedContactsMutationsDependencies(db);

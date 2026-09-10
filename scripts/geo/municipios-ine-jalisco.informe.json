@@ -1,0 +1,1635 @@
+{
+ "codigos": 125,
+ "sinResolver": [],
+ "repetidos": {},
+ "faltantes": [],
+ "anclasQueNoCoinciden": {},
+ "nombresCorregidos": 62,
+ "detalle": [
+  {
+   "code": 1,
+   "name": "Acatic",
+   "nombreAnterior": "Acatic",
+   "secciones": 11,
+   "muestras": [
+    {
+     "seccion": 6,
+     "osm": null,
+     "oficial": "Acatic"
+    }
+   ]
+  },
+  {
+   "code": 2,
+   "name": "Acatlán de Juárez",
+   "nombreAnterior": "Acatlán de Juárez",
+   "secciones": 11,
+   "muestras": [
+    {
+     "seccion": 14,
+     "osm": "Acatlán de Juárez",
+     "oficial": "Acatlán de Juárez"
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "name": "Ahualulco de Mercado",
+   "nombreAnterior": "Ahualulco de Mercado",
+   "secciones": 12,
+   "muestras": [
+    {
+     "seccion": 29,
+     "osm": "Ahualulco de Mercado",
+     "oficial": "Ahualulco de Mercado"
+    }
+   ]
+  },
+  {
+   "code": 4,
+   "name": "Amacueca",
+   "nombreAnterior": "Amacueca",
+   "secciones": 4,
+   "muestras": [
+    {
+     "seccion": 36,
+     "osm": "Amacueca",
+     "oficial": "Amacueca"
+    }
+   ]
+  },
+  {
+   "code": 5,
+   "name": "Amatitán",
+   "nombreAnterior": "Amatitán",
+   "secciones": 8,
+   "muestras": [
+    {
+     "seccion": 40,
+     "osm": "Amatitán",
+     "oficial": "Amatitán"
+    }
+   ]
+  },
+  {
+   "code": 6,
+   "name": "Ameca",
+   "nombreAnterior": "Ameca",
+   "secciones": 44,
+   "muestras": [
+    {
+     "seccion": 58,
+     "osm": "Ameca",
+     "oficial": "Ameca"
+    }
+   ]
+  },
+  {
+   "code": 7,
+   "name": "San Juanito de Escobedo",
+   "nombreAnterior": "San Juanito de Escobedo",
+   "secciones": 8,
+   "muestras": [
+    {
+     "seccion": 96,
+     "osm": "San Juanito de Escobedo",
+     "oficial": "San Juanito de Escobedo"
+    }
+   ]
+  },
+  {
+   "code": 8,
+   "name": "Arandas",
+   "nombreAnterior": "Arandas",
+   "secciones": 30,
+   "muestras": [
+    {
+     "seccion": 105,
+     "osm": "Arandas",
+     "oficial": "Arandas"
+    }
+   ]
+  },
+  {
+   "code": 9,
+   "name": "El Arenal",
+   "nombreAnterior": "El Arenal",
+   "secciones": 5,
+   "muestras": [
+    {
+     "seccion": 141,
+     "osm": "El Arenal",
+     "oficial": "El Arenal"
+    }
+   ]
+  },
+  {
+   "code": 10,
+   "name": "Atemajac de Brizuela",
+   "nombreAnterior": "Atemajac de Brizuela",
+   "secciones": 5,
+   "muestras": [
+    {
+     "seccion": 145,
+     "osm": "Atemajac de Brizuela",
+     "oficial": "Atemajac de Brizuela"
+    }
+   ]
+  },
+  {
+   "code": 11,
+   "name": "Atengo",
+   "nombreAnterior": "Atengo",
+   "secciones": 6,
+   "muestras": [
+    {
+     "seccion": 153,
+     "osm": "Atengo",
+     "oficial": "Atengo"
+    }
+   ]
+  },
+  {
+   "code": 12,
+   "name": "Atenguillo",
+   "nombreAnterior": "Atenguillo",
+   "secciones": 5,
+   "muestras": [
+    {
+     "seccion": 158,
+     "osm": "Atenguillo",
+     "oficial": "Atenguillo"
+    }
+   ]
+  },
+  {
+   "code": 13,
+   "name": "Atotonilco el Alto",
+   "nombreAnterior": "Atotonilco el Alto",
+   "secciones": 30,
+   "muestras": [
+    {
+     "seccion": 166,
+     "osm": "Atotonilco el Alto",
+     "oficial": "Atotonilco el Alto"
+    }
+   ]
+  },
+  {
+   "code": 14,
+   "name": "Atoyac",
+   "nombreAnterior": "Atoyac",
+   "secciones": 6,
+   "muestras": [
+    {
+     "seccion": 190,
+     "osm": "Atoyac",
+     "oficial": "Atoyac"
+    }
+   ]
+  },
+  {
+   "code": 15,
+   "name": "Autlán de Navarro",
+   "nombreAnterior": "Autlán de Navarro",
+   "secciones": 30,
+   "muestras": [
+    {
+     "seccion": 209,
+     "osm": "Autlán de Navarro",
+     "oficial": "Autlán de Navarro"
+    }
+   ]
+  },
+  {
+   "code": 16,
+   "name": "Ayotlán",
+   "nombreAnterior": "Ayotlán",
+   "secciones": 19,
+   "muestras": [
+    {
+     "seccion": 238,
+     "osm": "Ayotlán",
+     "oficial": "Ayotlán"
+    }
+   ]
+  },
+  {
+   "code": 17,
+   "name": "Ayutla",
+   "nombreAnterior": "Ayutla",
+   "secciones": 12,
+   "muestras": [
+    {
+     "seccion": 248,
+     "osm": "Ayutla",
+     "oficial": "Ayutla"
+    }
+   ]
+  },
+  {
+   "code": 18,
+   "name": "La Barca",
+   "nombreAnterior": "La Barca",
+   "secciones": 36,
+   "muestras": [
+    {
+     "seccion": 283,
+     "osm": "La Barca",
+     "oficial": "La Barca"
+    }
+   ]
+  },
+  {
+   "code": 19,
+   "name": "Bolaños",
+   "nombreAnterior": "Bolaños",
+   "secciones": 5,
+   "muestras": [
+    {
+     "seccion": 293,
+     "osm": "Bolaños",
+     "oficial": "Bolaños"
+    }
+   ]
+  },
+  {
+   "code": 20,
+   "name": "Cabo Corrientes",
+   "nombreAnterior": "Cabo Corrientes",
+   "secciones": 6,
+   "muestras": [
+    {
+     "seccion": 300,
+     "osm": "Cabo Corrientes",
+     "oficial": "Cabo Corrientes"
+    }
+   ]
+  },
+  {
+   "code": 21,
+   "name": "Casimiro Castillo",
+   "nombreAnterior": "Casimiro Castillo",
+   "secciones": 14,
+   "muestras": [
+    {
+     "seccion": 309,
+     "osm": "Casimiro Castillo",
+     "oficial": "Casimiro Castillo"
+    }
+   ]
+  },
+  {
+   "code": 22,
+   "name": "Cihuatlán",
+   "nombreAnterior": "Cihuatlán",
+   "secciones": 17,
+   "muestras": [
+    {
+     "seccion": 316,
+     "osm": "Cihuatlán",
+     "oficial": "Cihuatlán"
+    }
+   ]
+  },
+  {
+   "code": 23,
+   "name": "Zapotlán el Grande",
+   "nombreAnterior": "Zapotlán el Grande",
+   "secciones": 55,
+   "muestras": [
+    {
+     "seccion": 364,
+     "osm": "Zapotlán el Grande",
+     "oficial": "Zapotlán el Grande"
+    }
+   ]
+  },
+  {
+   "code": 24,
+   "name": "San Gabriel",
+   "nombreAnterior": "Cocula",
+   "secciones": 10,
+   "muestras": [
+    {
+     "seccion": 385,
+     "osm": "San Gabriel",
+     "oficial": "San Gabriel"
+    }
+   ]
+  },
+  {
+   "code": 25,
+   "name": "Cocula",
+   "nombreAnterior": "Colotlán",
+   "secciones": 17,
+   "muestras": [
+    {
+     "seccion": 396,
+     "osm": "Cocula",
+     "oficial": "Cocula"
+    }
+   ]
+  },
+  {
+   "code": 26,
+   "name": "Colotlán",
+   "nombreAnterior": "Concepción de Buenos Aires",
+   "secciones": 15,
+   "muestras": [
+    {
+     "seccion": 419,
+     "osm": "Colotlán",
+     "oficial": "Colotlán"
+    }
+   ]
+  },
+  {
+   "code": 27,
+   "name": "Concepción de Buenos Aires",
+   "nombreAnterior": "Cuautitlán de García Barragán",
+   "secciones": 5,
+   "muestras": [
+    {
+     "seccion": 428,
+     "osm": "Concepción de Buenos Aires",
+     "oficial": "Concepción de Buenos Aires"
+    }
+   ]
+  },
+  {
+   "code": 28,
+   "name": "Cuautitlán de García Barragán",
+   "nombreAnterior": "Cuautla",
+   "secciones": 9,
+   "muestras": [
+    {
+     "seccion": 432,
+     "osm": null,
+     "oficial": "Cuautitlán de García Barragán"
+    }
+   ]
+  },
+  {
+   "code": 29,
+   "name": "Cuautla",
+   "nombreAnterior": "Cuquío",
+   "secciones": 4,
+   "muestras": [
+    {
+     "seccion": 442,
+     "osm": "Cuautla",
+     "oficial": "Cuautla"
+    }
+   ]
+  },
+  {
+   "code": 30,
+   "name": "Cuquío",
+   "nombreAnterior": "Chapala",
+   "secciones": 12,
+   "muestras": [
+    {
+     "seccion": 447,
+     "osm": "Cuquío",
+     "oficial": "Cuquío"
+    }
+   ]
+  },
+  {
+   "code": 31,
+   "name": "Chapala",
+   "nombreAnterior": "Chimaltitán",
+   "secciones": 19,
+   "muestras": [
+    {
+     "seccion": 458,
+     "osm": "Chapala",
+     "oficial": "Chapala"
+    }
+   ]
+  },
+  {
+   "code": 32,
+   "name": "Chimaltitán",
+   "nombreAnterior": "Chiquilistlán",
+   "secciones": 3,
+   "muestras": [
+    {
+     "seccion": 476,
+     "osm": "Chimaltitán",
+     "oficial": "Chimaltitán"
+    }
+   ]
+  },
+  {
+   "code": 33,
+   "name": "Chiquilistlán",
+   "nombreAnterior": "Degollado",
+   "secciones": 4,
+   "muestras": [
+    {
+     "seccion": 481,
+     "osm": "Chiquilistlán",
+     "oficial": "Chiquilistlán"
+    }
+   ]
+  },
+  {
+   "code": 34,
+   "name": "Degollado",
+   "nombreAnterior": "Ejutla",
+   "secciones": 16,
+   "muestras": [
+    {
+     "seccion": 484,
+     "osm": "Degollado",
+     "oficial": "Degollado"
+    }
+   ]
+  },
+  {
+   "code": 35,
+   "name": "Ejutla",
+   "nombreAnterior": "Encarnación de Díaz",
+   "secciones": 2,
+   "muestras": [
+    {
+     "seccion": 500,
+     "osm": "Ejutla",
+     "oficial": "Ejutla"
+    }
+   ]
+  },
+  {
+   "code": 36,
+   "name": "Encarnación de Díaz",
+   "nombreAnterior": "Etzatlán",
+   "secciones": 31,
+   "muestras": [
+    {
+     "seccion": 506,
+     "osm": "Encarnación de Díaz",
+     "oficial": "Encarnación de Díaz"
+    }
+   ]
+  },
+  {
+   "code": 37,
+   "name": "Etzatlán",
+   "nombreAnterior": "El Grullo",
+   "secciones": 11,
+   "muestras": [
+    {
+     "seccion": 536,
+     "osm": "Etzatlán",
+     "oficial": "Etzatlán"
+    }
+   ]
+  },
+  {
+   "code": 38,
+   "name": "Gómez Farías",
+   "nombreAnterior": "Guachinango",
+   "secciones": 8,
+   "muestras": [
+    {
+     "seccion": 545,
+     "osm": "Gómez Farías",
+     "oficial": "Gómez Farías"
+    }
+   ]
+  },
+  {
+   "code": 39,
+   "name": "El Grullo",
+   "nombreAnterior": "Guadalajara",
+   "secciones": 12,
+   "muestras": [
+    {
+     "seccion": 557,
+     "osm": "El Grullo",
+     "oficial": "El Grullo"
+    }
+   ]
+  },
+  {
+   "code": 40,
+   "name": "Guachinango",
+   "nombreAnterior": "Hostotipaquillo",
+   "secciones": 8,
+   "muestras": [
+    {
+     "seccion": 567,
+     "osm": "Guachinango",
+     "oficial": "Guachinango"
+    }
+   ]
+  },
+  {
+   "code": 41,
+   "name": "Guadalajara",
+   "nombreAnterior": "Guadalajara",
+   "secciones": 985,
+   "muestras": [
+    {
+     "seccion": 1043,
+     "osm": "Guadalajara",
+     "oficial": "Guadalajara"
+    }
+   ]
+  },
+  {
+   "code": 42,
+   "name": "Hostotipaquillo",
+   "nombreAnterior": "Huejúcar",
+   "secciones": 11,
+   "muestras": [
+    {
+     "seccion": 1549,
+     "osm": null,
+     "oficial": "Hostotipaquillo"
+    }
+   ]
+  },
+  {
+   "code": 43,
+   "name": "Huejúcar",
+   "nombreAnterior": "Huejuquilla el Alto",
+   "secciones": 5,
+   "muestras": [
+    {
+     "seccion": 1562,
+     "osm": "Huejúcar",
+     "oficial": "Huejúcar"
+    }
+   ]
+  },
+  {
+   "code": 44,
+   "name": "Huejuquilla el Alto",
+   "nombreAnterior": "La Huerta",
+   "secciones": 7,
+   "muestras": [
+    {
+     "seccion": 1566,
+     "osm": "Huejuquilla el Alto",
+     "oficial": "Huejuquilla el Alto"
+    }
+   ]
+  },
+  {
+   "code": 45,
+   "name": "La Huerta",
+   "nombreAnterior": "Ixtlahuacán de los Membrillos",
+   "secciones": 19,
+   "muestras": [
+    {
+     "seccion": 1573,
+     "osm": "La Huerta",
+     "oficial": "La Huerta"
+    }
+   ]
+  },
+  {
+   "code": 46,
+   "name": "Ixtlahuacán de los Membrillos",
+   "nombreAnterior": "Ixtlahuacán del Río",
+   "secciones": 19,
+   "muestras": [
+    {
+     "seccion": 3855,
+     "osm": "Ixtlahuacán de los Membrillos",
+     "oficial": "Ixtlahuacán de los Membrillos"
+    }
+   ]
+  },
+  {
+   "code": 47,
+   "name": "Ixtlahuacán del Río",
+   "nombreAnterior": "Jalostotitlán",
+   "secciones": 12,
+   "muestras": [
+    {
+     "seccion": 1605,
+     "osm": "Ixtlahuacán del Río",
+     "oficial": "Ixtlahuacán del Río"
+    }
+   ]
+  },
+  {
+   "code": 48,
+   "name": "Jalostotitlán",
+   "nombreAnterior": "Jamay",
+   "secciones": 22,
+   "muestras": [
+    {
+     "seccion": 1617,
+     "osm": "Jalostotitlán",
+     "oficial": "Jalostotitlán"
+    }
+   ]
+  },
+  {
+   "code": 49,
+   "name": "Jamay",
+   "nombreAnterior": "Jesús María",
+   "secciones": 13,
+   "muestras": [
+    {
+     "seccion": 1638,
+     "osm": "Jamay",
+     "oficial": "Jamay"
+    }
+   ]
+  },
+  {
+   "code": 50,
+   "name": "Jesús María",
+   "nombreAnterior": "Jilotlán de los Dolores",
+   "secciones": 14,
+   "muestras": [
+    {
+     "seccion": 1657,
+     "osm": "Jesús María",
+     "oficial": "Jesús María"
+    }
+   ]
+  },
+  {
+   "code": 51,
+   "name": "Jilotlán de los Dolores",
+   "nombreAnterior": "Jocotepec",
+   "secciones": 9,
+   "muestras": [
+    {
+     "seccion": 1661,
+     "osm": "Jilotlán de los Dolores",
+     "oficial": "Jilotlán de los Dolores"
+    }
+   ]
+  },
+  {
+   "code": 52,
+   "name": "Jocotepec",
+   "nombreAnterior": "Juanacatlán",
+   "secciones": 20,
+   "muestras": [
+    {
+     "seccion": 1673,
+     "osm": "Jocotepec",
+     "oficial": "Jocotepec"
+    }
+   ]
+  },
+  {
+   "code": 53,
+   "name": "Juanacatlán",
+   "nombreAnterior": "Juchitlán",
+   "secciones": 7,
+   "muestras": [
+    {
+     "seccion": 1691,
+     "osm": "Juanacatlán",
+     "oficial": "Juanacatlán"
+    }
+   ]
+  },
+  {
+   "code": 54,
+   "name": "Juchitlán",
+   "nombreAnterior": "Lagos de Moreno",
+   "secciones": 6,
+   "muestras": [
+    {
+     "seccion": 1697,
+     "osm": "Juchitlán",
+     "oficial": "Juchitlán"
+    }
+   ]
+  },
+  {
+   "code": 55,
+   "name": "Lagos de Moreno",
+   "nombreAnterior": "El Limón",
+   "secciones": 82,
+   "muestras": [
+    {
+     "seccion": 1709,
+     "osm": "Lagos de Moreno",
+     "oficial": "Lagos de Moreno"
+    }
+   ]
+  },
+  {
+   "code": 56,
+   "name": "El Limón",
+   "nombreAnterior": "Magdalena",
+   "secciones": 6,
+   "muestras": [
+    {
+     "seccion": 1778,
+     "osm": "El Limón",
+     "oficial": "El Limón"
+    }
+   ]
+  },
+  {
+   "code": 57,
+   "name": "Magdalena",
+   "nombreAnterior": "Santa María del Oro",
+   "secciones": 12,
+   "muestras": [
+    {
+     "seccion": 1783,
+     "osm": "Magdalena",
+     "oficial": "Magdalena"
+    }
+   ]
+  },
+  {
+   "code": 58,
+   "name": "Santa María del Oro",
+   "nombreAnterior": "La Manzanilla de la Paz",
+   "secciones": 5,
+   "muestras": [
+    {
+     "seccion": 1794,
+     "osm": "Santa María del Oro",
+     "oficial": "Santa María del Oro"
+    }
+   ]
+  },
+  {
+   "code": 59,
+   "name": "La Manzanilla de la Paz",
+   "nombreAnterior": "Mascota",
+   "secciones": 5,
+   "muestras": [
+    {
+     "seccion": 1798,
+     "osm": "La Manzanilla de la Paz",
+     "oficial": "La Manzanilla de la Paz"
+    }
+   ]
+  },
+  {
+   "code": 60,
+   "name": "Mascota",
+   "nombreAnterior": "Mazamitla",
+   "secciones": 14,
+   "muestras": [
+    {
+     "seccion": 3676,
+     "osm": "Mascota",
+     "oficial": "Mascota"
+    }
+   ]
+  },
+  {
+   "code": 61,
+   "name": "Mazamitla",
+   "nombreAnterior": "Mexticacán",
+   "secciones": 9,
+   "muestras": [
+    {
+     "seccion": 1817,
+     "osm": "Mazamitla",
+     "oficial": "Mazamitla"
+    }
+   ]
+  },
+  {
+   "code": 62,
+   "name": "Mexticacán",
+   "nombreAnterior": "Mezquitic",
+   "secciones": 7,
+   "muestras": [
+    {
+     "seccion": 1826,
+     "osm": null,
+     "oficial": "Mexticacán"
+    }
+   ]
+  },
+  {
+   "code": 63,
+   "name": "Mezquitic",
+   "nombreAnterior": "Mixtlán",
+   "secciones": 11,
+   "muestras": [
+    {
+     "seccion": 1838,
+     "osm": "Mezquitic",
+     "oficial": "Mezquitic"
+    }
+   ]
+  },
+  {
+   "code": 64,
+   "name": "Mixtlán",
+   "nombreAnterior": "Ocotlán",
+   "secciones": 4,
+   "muestras": [
+    {
+     "seccion": 1843,
+     "osm": "Mixtlán",
+     "oficial": "Mixtlán"
+    }
+   ]
+  },
+  {
+   "code": 65,
+   "name": "Ocotlán",
+   "nombreAnterior": "Ojuelos de Jalisco",
+   "secciones": 46,
+   "muestras": [
+    {
+     "seccion": 1860,
+     "osm": "Ocotlán",
+     "oficial": "Ocotlán"
+    }
+   ]
+  },
+  {
+   "code": 66,
+   "name": "Ojuelos de Jalisco",
+   "nombreAnterior": "Pihuamo",
+   "secciones": 15,
+   "muestras": [
+    {
+     "seccion": 1893,
+     "osm": "Ojuelos de Jalisco",
+     "oficial": "Ojuelos de Jalisco"
+    }
+   ]
+  },
+  {
+   "code": 67,
+   "name": "Pihuamo",
+   "nombreAnterior": "Poncitlán",
+   "secciones": 12,
+   "muestras": [
+    {
+     "seccion": 1906,
+     "osm": "Pihuamo",
+     "oficial": "Pihuamo"
+    }
+   ]
+  },
+  {
+   "code": 68,
+   "name": "Poncitlán",
+   "nombreAnterior": "Puerto Vallarta",
+   "secciones": 21,
+   "muestras": [
+    {
+     "seccion": 1920,
+     "osm": "Poncitlán",
+     "oficial": "Poncitlán"
+    }
+   ]
+  },
+  {
+   "code": 69,
+   "name": "Puerto Vallarta",
+   "nombreAnterior": "El Salto",
+   "secciones": 88,
+   "muestras": [
+    {
+     "seccion": 1944,
+     "osm": "Puerto Vallarta",
+     "oficial": "Puerto Vallarta"
+    }
+   ]
+  },
+  {
+   "code": 70,
+   "name": "Villa Purificación",
+   "nombreAnterior": "Quitupan",
+   "secciones": 10,
+   "muestras": [
+    {
+     "seccion": 2003,
+     "osm": "Villa Purificación",
+     "oficial": "Villa Purificación"
+    }
+   ]
+  },
+  {
+   "code": 71,
+   "name": "Quitupan",
+   "nombreAnterior": "Villa Purificación",
+   "secciones": 13,
+   "muestras": [
+    {
+     "seccion": 2018,
+     "osm": "Quitupan",
+     "oficial": "Quitupan"
+    }
+   ]
+  },
+  {
+   "code": 72,
+   "name": "El Salto",
+   "nombreAnterior": "San Cristóbal de la Barranca",
+   "secciones": 26,
+   "muestras": [
+    {
+     "seccion": 2049,
+     "osm": null,
+     "oficial": "El Salto"
+    }
+   ]
+  },
+  {
+   "code": 73,
+   "name": "San Cristóbal de la Barranca",
+   "nombreAnterior": "San Diego de Alejandría",
+   "secciones": 5,
+   "muestras": [
+    {
+     "seccion": 2054,
+     "osm": "San Cristóbal de la Barranca",
+     "oficial": "San Cristóbal de la Barranca"
+    }
+   ]
+  },
+  {
+   "code": 74,
+   "name": "San Diego de Alejandría",
+   "nombreAnterior": "San Juan de los Lagos",
+   "secciones": 8,
+   "muestras": [
+    {
+     "seccion": 3883,
+     "osm": "San Diego de Alejandría",
+     "oficial": "San Diego de Alejandría"
+    }
+   ]
+  },
+  {
+   "code": 75,
+   "name": "San Juan de los Lagos",
+   "nombreAnterior": "San Julián",
+   "secciones": 42,
+   "muestras": [
+    {
+     "seccion": 2064,
+     "osm": "San Juan de los Lagos",
+     "oficial": "San Juan de los Lagos"
+    }
+   ]
+  },
+  {
+   "code": 76,
+   "name": "San Julián",
+   "nombreAnterior": "San Marcos",
+   "secciones": 9,
+   "muestras": [
+    {
+     "seccion": 2102,
+     "osm": "San Julián",
+     "oficial": "San Julián"
+    }
+   ]
+  },
+  {
+   "code": 77,
+   "name": "San Marcos",
+   "nombreAnterior": "San Martín de Bolaños",
+   "secciones": 2,
+   "muestras": [
+    {
+     "seccion": 2107,
+     "osm": null,
+     "oficial": "San Marcos"
+    }
+   ]
+  },
+  {
+   "code": 78,
+   "name": "San Martín de Bolaños",
+   "nombreAnterior": "San Martín Hidalgo",
+   "secciones": 3,
+   "muestras": [
+    {
+     "seccion": 2111,
+     "osm": "San Martín de Bolaños",
+     "oficial": "San Martín de Bolaños"
+    }
+   ]
+  },
+  {
+   "code": 79,
+   "name": "San Martín Hidalgo",
+   "nombreAnterior": "San Miguel el Alto",
+   "secciones": 17,
+   "muestras": [
+    {
+     "seccion": 2121,
+     "osm": "San Martín Hidalgo",
+     "oficial": "San Martín Hidalgo"
+    }
+   ]
+  },
+  {
+   "code": 80,
+   "name": "San Miguel el Alto",
+   "nombreAnterior": "Gómez Farías",
+   "secciones": 18,
+   "muestras": [
+    {
+     "seccion": 2137,
+     "osm": null,
+     "oficial": "San Miguel el Alto"
+    }
+   ]
+  },
+  {
+   "code": 81,
+   "name": "San Sebastián del Oeste",
+   "nombreAnterior": "San Sebastián del Oeste",
+   "secciones": 7,
+   "muestras": [
+    {
+     "seccion": 2155,
+     "osm": "San Sebastián del Oeste",
+     "oficial": "San Sebastián del Oeste"
+    }
+   ]
+  },
+  {
+   "code": 82,
+   "name": "Santa María de los Ángeles",
+   "nombreAnterior": "Santa María de los Ángeles",
+   "secciones": 5,
+   "muestras": [
+    {
+     "seccion": 2159,
+     "osm": "Santa María de los Ángeles",
+     "oficial": "Santa María de los Ángeles"
+    }
+   ]
+  },
+  {
+   "code": 83,
+   "name": "Sayula",
+   "nombreAnterior": "Sayula",
+   "secciones": 18,
+   "muestras": [
+    {
+     "seccion": 2170,
+     "osm": "Sayula",
+     "oficial": "Sayula"
+    }
+   ]
+  },
+  {
+   "code": 84,
+   "name": "Tala",
+   "nombreAnterior": "Tala",
+   "secciones": 38,
+   "muestras": [
+    {
+     "seccion": 2184,
+     "osm": "Tala",
+     "oficial": "Tala"
+    }
+   ]
+  },
+  {
+   "code": 85,
+   "name": "Talpa de Allende",
+   "nombreAnterior": "Talpa de Allende",
+   "secciones": 10,
+   "muestras": [
+    {
+     "seccion": 2215,
+     "osm": "Talpa de Allende",
+     "oficial": "Talpa de Allende"
+    }
+   ]
+  },
+  {
+   "code": 86,
+   "name": "Tamazula de Gordiano",
+   "nombreAnterior": "Tamazula de Gordiano",
+   "secciones": 34,
+   "muestras": [
+    {
+     "seccion": 2227,
+     "osm": "Tamazula de Gordiano",
+     "oficial": "Tamazula de Gordiano"
+    }
+   ]
+  },
+  {
+   "code": 87,
+   "name": "Tapalpa",
+   "nombreAnterior": "Tapalpa",
+   "secciones": 11,
+   "muestras": [
+    {
+     "seccion": 2262,
+     "osm": "Tapalpa",
+     "oficial": "Tapalpa"
+    }
+   ]
+  },
+  {
+   "code": 88,
+   "name": "Tecalitlán",
+   "nombreAnterior": "Tecalitlán",
+   "secciones": 16,
+   "muestras": [
+    {
+     "seccion": 2276,
+     "osm": null,
+     "oficial": "Tecalitlán"
+    }
+   ]
+  },
+  {
+   "code": 89,
+   "name": "Tecolotlán",
+   "nombreAnterior": "Tecolotlán",
+   "secciones": 13,
+   "muestras": [
+    {
+     "seccion": 2286,
+     "osm": "Tecolotlán",
+     "oficial": "Tecolotlán"
+    }
+   ]
+  },
+  {
+   "code": 90,
+   "name": "Techaluta de Montenegro",
+   "nombreAnterior": "Techaluta de Montenegro",
+   "secciones": 3,
+   "muestras": [
+    {
+     "seccion": 2299,
+     "osm": "Techaluta de Montenegro",
+     "oficial": "Techaluta de Montenegro"
+    }
+   ]
+  },
+  {
+   "code": 91,
+   "name": "Tenamaxtlán",
+   "nombreAnterior": "Tenamaxtlán",
+   "secciones": 6,
+   "muestras": [
+    {
+     "seccion": 2303,
+     "osm": "Tenamaxtlán",
+     "oficial": "Tenamaxtlán"
+    }
+   ]
+  },
+  {
+   "code": 92,
+   "name": "Teocaltiche",
+   "nombreAnterior": "Teocaltiche",
+   "secciones": 23,
+   "muestras": [
+    {
+     "seccion": 2309,
+     "osm": "Teocaltiche",
+     "oficial": "Teocaltiche"
+    }
+   ]
+  },
+  {
+   "code": 93,
+   "name": "Teocuitatlán de Corona",
+   "nombreAnterior": "Teocuitatlán de Corona",
+   "secciones": 10,
+   "muestras": [
+    {
+     "seccion": 2331,
+     "osm": "Teocuitatlán de Corona",
+     "oficial": "Teocuitatlán de Corona"
+    }
+   ]
+  },
+  {
+   "code": 94,
+   "name": "Tepatitlán de Morelos",
+   "nombreAnterior": "Tepatitlán de Morelos",
+   "secciones": 64,
+   "muestras": [
+    {
+     "seccion": 3671,
+     "osm": "Tepatitlán de Morelos",
+     "oficial": "Tepatitlán de Morelos"
+    }
+   ]
+  },
+  {
+   "code": 95,
+   "name": "Tequila",
+   "nombreAnterior": "Tequila",
+   "secciones": 26,
+   "muestras": [
+    {
+     "seccion": 2396,
+     "osm": "Tequila",
+     "oficial": "Tequila"
+    }
+   ]
+  },
+  {
+   "code": 96,
+   "name": "Teuchitlán",
+   "nombreAnterior": "Teuchitlán",
+   "secciones": 6,
+   "muestras": [
+    {
+     "seccion": 2419,
+     "osm": "Teuchitlán",
+     "oficial": "Teuchitlán"
+    }
+   ]
+  },
+  {
+   "code": 97,
+   "name": "Tizapán el Alto",
+   "nombreAnterior": "Tizapán el Alto",
+   "secciones": 14,
+   "muestras": [
+    {
+     "seccion": 2430,
+     "osm": "Tizapán el Alto",
+     "oficial": "Tizapán el Alto"
+    }
+   ]
+  },
+  {
+   "code": 98,
+   "name": "Tlajomulco de Zúñiga",
+   "nombreAnterior": "Tlajomulco de Zúñiga",
+   "secciones": 168,
+   "muestras": [
+    {
+     "seccion": 3403,
+     "osm": "Tlajomulco de Zúñiga",
+     "oficial": "Tlajomulco de Zúñiga"
+    }
+   ]
+  },
+  {
+   "code": 99,
+   "name": "San Pedro Tlaquepaque",
+   "nombreAnterior": "San Pedro Tlaquepaque",
+   "secciones": 225,
+   "muestras": [
+    {
+     "seccion": 2553,
+     "osm": "San Pedro Tlaquepaque",
+     "oficial": "San Pedro Tlaquepaque"
+    }
+   ]
+  },
+  {
+   "code": 100,
+   "name": "Tolimán",
+   "nombreAnterior": "Tolimán",
+   "secciones": 7,
+   "muestras": [
+    {
+     "seccion": 2626,
+     "osm": "Tolimán",
+     "oficial": "Tolimán"
+    }
+   ]
+  },
+  {
+   "code": 101,
+   "name": "Tomatlán",
+   "nombreAnterior": "Tomatlán",
+   "secciones": 17,
+   "muestras": [
+    {
+     "seccion": 2633,
+     "osm": "Tomatlán",
+     "oficial": "Tomatlán"
+    }
+   ]
+  },
+  {
+   "code": 102,
+   "name": "Tonalá",
+   "nombreAnterior": "Tonalá",
+   "secciones": 113,
+   "muestras": [
+    {
+     "seccion": 2707,
+     "osm": "Tonalá",
+     "oficial": "Tonalá"
+    }
+   ]
+  },
+  {
+   "code": 103,
+   "name": "Tonaya",
+   "nombreAnterior": "Tonaya",
+   "secciones": 5,
+   "muestras": [
+    {
+     "seccion": 2732,
+     "osm": "Tonaya",
+     "oficial": "Tonaya"
+    }
+   ]
+  },
+  {
+   "code": 104,
+   "name": "Tonila",
+   "nombreAnterior": "Tonila",
+   "secciones": 7,
+   "muestras": [
+    {
+     "seccion": 2736,
+     "osm": "Tonila",
+     "oficial": "Tonila"
+    }
+   ]
+  },
+  {
+   "code": 105,
+   "name": "Totatiche",
+   "nombreAnterior": "Totatiche",
+   "secciones": 6,
+   "muestras": [
+    {
+     "seccion": 2742,
+     "osm": "Totatiche",
+     "oficial": "Totatiche"
+    }
+   ]
+  },
+  {
+   "code": 106,
+   "name": "Tototlán",
+   "nombreAnterior": "Tototlán",
+   "secciones": 14,
+   "muestras": [
+    {
+     "seccion": 2749,
+     "osm": "Tototlán",
+     "oficial": "Tototlán"
+    }
+   ]
+  },
+  {
+   "code": 107,
+   "name": "Tuxcacuesco",
+   "nombreAnterior": "Tuxcacuesco",
+   "secciones": 5,
+   "muestras": [
+    {
+     "seccion": 2762,
+     "osm": "Tuxcacuesco",
+     "oficial": "Tuxcacuesco"
+    }
+   ]
+  },
+  {
+   "code": 108,
+   "name": "Tuxcueca",
+   "nombreAnterior": "Tuxcueca",
+   "secciones": 4,
+   "muestras": [
+    {
+     "seccion": 2770,
+     "osm": "Tuxcueca",
+     "oficial": "Tuxcueca"
+    }
+   ]
+  },
+  {
+   "code": 109,
+   "name": "Tuxpan",
+   "nombreAnterior": "Tuxpan",
+   "secciones": 23,
+   "muestras": [
+    {
+     "seccion": 2784,
+     "osm": "Tuxpan",
+     "oficial": "Tuxpan"
+    }
+   ]
+  },
+  {
+   "code": 110,
+   "name": "Unión de San Antonio",
+   "nombreAnterior": "Unión de San Antonio",
+   "secciones": 10,
+   "muestras": [
+    {
+     "seccion": 2795,
+     "osm": "Unión de San Antonio",
+     "oficial": "Unión de San Antonio"
+    }
+   ]
+  },
+  {
+   "code": 111,
+   "name": "Unión de Tula",
+   "nombreAnterior": "Unión de Tula",
+   "secciones": 14,
+   "muestras": [
+    {
+     "seccion": 2807,
+     "osm": "Unión de Tula",
+     "oficial": "Unión de Tula"
+    }
+   ]
+  },
+  {
+   "code": 112,
+   "name": "Valle de Guadalupe",
+   "nombreAnterior": "Valle de Guadalupe",
+   "secciones": 7,
+   "muestras": [
+    {
+     "seccion": 2817,
+     "osm": "Valle de Guadalupe",
+     "oficial": "Valle de Guadalupe"
+    }
+   ]
+  },
+  {
+   "code": 113,
+   "name": "Valle de Juárez",
+   "nombreAnterior": "Valle de Juárez",
+   "secciones": 6,
+   "muestras": [
+    {
+     "seccion": 2824,
+     "osm": "Valle de Juárez",
+     "oficial": "Valle de Juárez"
+    }
+   ]
+  },
+  {
+   "code": 114,
+   "name": "Villa Corona",
+   "nombreAnterior": "San Gabriel",
+   "secciones": 10,
+   "muestras": [
+    {
+     "seccion": 2838,
+     "osm": "Villa Corona",
+     "oficial": "Villa Corona"
+    }
+   ]
+  },
+  {
+   "code": 115,
+   "name": "Villa Guerrero",
+   "nombreAnterior": "Villa Corona",
+   "secciones": 7,
+   "muestras": [
+    {
+     "seccion": 2841,
+     "osm": "Villa Guerrero",
+     "oficial": "Villa Guerrero"
+    }
+   ]
+  },
+  {
+   "code": 116,
+   "name": "Villa Hidalgo",
+   "nombreAnterior": "Villa Guerrero",
+   "secciones": 8,
+   "muestras": [
+    {
+     "seccion": 2851,
+     "osm": "Villa Hidalgo",
+     "oficial": "Villa Hidalgo"
+    }
+   ]
+  },
+  {
+   "code": 117,
+   "name": "Cañadas de Obregón",
+   "nombreAnterior": "Villa Hidalgo",
+   "secciones": 7,
+   "muestras": [
+    {
+     "seccion": 2855,
+     "osm": "Cañadas de Obregón",
+     "oficial": "Cañadas de Obregón"
+    }
+   ]
+  },
+  {
+   "code": 118,
+   "name": "Yahualica de González Gallo",
+   "nombreAnterior": "Cañadas de Obregón",
+   "secciones": 20,
+   "muestras": [
+    {
+     "seccion": 2866,
+     "osm": "Yahualica de González Gallo",
+     "oficial": "Yahualica de González Gallo"
+    }
+   ]
+  },
+  {
+   "code": 119,
+   "name": "Zacoalco de Torres",
+   "nombreAnterior": "Yahualica de González Gallo",
+   "secciones": 16,
+   "muestras": [
+    {
+     "seccion": 2885,
+     "osm": "Zacoalco de Torres",
+     "oficial": "Zacoalco de Torres"
+    }
+   ]
+  },
+  {
+   "code": 120,
+   "name": "Zapopan",
+   "nombreAnterior": "Zapopan",
+   "secciones": 500,
+   "muestras": [
+    {
+     "seccion": 3063,
+     "osm": "Zapopan",
+     "oficial": "Zapopan"
+    }
+   ]
+  },
+  {
+   "code": 121,
+   "name": "Zapotiltic",
+   "nombreAnterior": "Zapotiltic",
+   "secciones": 21,
+   "muestras": [
+    {
+     "seccion": 3239,
+     "osm": null,
+     "oficial": "Zapotiltic"
+    }
+   ]
+  },
+  {
+   "code": 122,
+   "name": "Zapotitlán de Vadillo",
+   "nombreAnterior": "Zapotitlán de Vadillo",
+   "secciones": 6,
+   "muestras": [
+    {
+     "seccion": 3261,
+     "osm": "Zapotitlán de Vadillo",
+     "oficial": "Zapotitlán de Vadillo"
+    }
+   ]
+  },
+  {
+   "code": 123,
+   "name": "Zapotlán del Rey",
+   "nombreAnterior": "Zapotlán del Rey",
+   "secciones": 13,
+   "muestras": [
+    {
+     "seccion": 3265,
+     "osm": "Zapotlán del Rey",
+     "oficial": "Zapotlán del Rey"
+    }
+   ]
+  },
+  {
+   "code": 124,
+   "name": "Zapotlanejo",
+   "nombreAnterior": "Zapotlanejo",
+   "secciones": 32,
+   "muestras": [
+    {
+     "seccion": 3281,
+     "osm": "Zapotlanejo",
+     "oficial": "Zapotlanejo"
+    }
+   ]
+  },
+  {
+   "code": 125,
+   "name": "San Ignacio Cerro Gordo",
+   "nombreAnterior": "San Ignacio Cerro Gordo",
+   "secciones": 8,
+   "muestras": [
+    {
+     "seccion": 121,
+     "osm": "San Ignacio Cerro Gordo",
+     "oficial": "San Ignacio Cerro Gordo"
+    }
+   ]
+  }
+ ]
+}

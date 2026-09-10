@@ -6,19 +6,30 @@
  * geográfico, distinto agente, distinto tiempo de espera y distinta forma de
  * situar la consulta. El del mapa cubría medio occidente de México con
  * `bounded=0` —es decir, sin restricción real— y el otro no acotaba en absoluto.
- * De ahí salían direcciones de Guanajuato o de Chapala en un sistema que opera
- * en el Área Metropolitana de Guadalajara.
+ *
+ * Después se acotaron al AMG, que resolvía los homónimos de Chapala pero dejaba
+ * fuera al resto del estado: una búsqueda en Tepatitlán o en Puerto Vallarta se
+ * buscaba primero en Guadalajara. Ahora el recuadro es el del municipio en que se
+ * captura, sacado de su cartografía real, y solo si ahí no hay nada se amplía a
+ * Jalisco.
  */
+
+import {
+  RECUADRO_JALISCO as RECUADRO_JALISCO_GEO,
+  buscarMunicipio,
+  recuadroNominatim,
+  sinAcentos
+} from "./municipios-jalisco";
 
 /**
  * Recuadro del AMG: Zapopan al poniente, Zapotlanejo al oriente, Tlajomulco e
- * Ixtlahuacán al sur. Cubre los nueve municipios del selector y deja fuera la
- * ribera de Chapala, que colaba homónimos.
+ * Ixtlahuacán al sur. Ya no es el valor por omisión; se conserva exportado para
+ * quien necesite acotar explícitamente a la zona metropolitana.
  */
 export const RECUADRO_AMG = "-103.70,20.95,-102.95,20.35";
 
-/** Jalisco entero, para cuando dentro del AMG no hay ninguna coincidencia. */
-export const RECUADRO_JALISCO = "-105.70,22.75,-101.50,18.90";
+/** Jalisco entero, desde el catálogo de municipios. */
+export const RECUADRO_JALISCO = recuadroNominatim(RECUADRO_JALISCO_GEO, 0.05);
 
 type Opciones = {
   /** Aplica el recuadro como restricción dura (`bounded=1`). */
@@ -36,10 +47,22 @@ type Opciones = {
  * Dorada" a secas no encuentra la Avenida Loma Dorada de Tonalá —gana un paraje
  * homónimo de Chapala—, mientras que "Loma Dorada, Tonalá, Jalisco" devuelve sus
  * tres tramos. El recuadro acota, el sufijo orienta; hacen falta los dos.
+ *
+ * El texto "ya dice dónde está" si menciona Jalisco o si alguno de sus tramos
+ * separados por coma es el nombre de un municipio. Antes bastaba con que apareciera
+ * una de cinco palabras del AMG en cualquier parte, así que el resto del estado
+ * nunca contaba como situado. Solo se aceptan nombres exactos tras una coma para
+ * no confundir una calle "Tequila" o "Colotlán" con el municipio.
  */
-export function situarConsulta(texto: string, municipio: string): string {
-  const yaSituada = /jalisco|guadalajara|zapopan|tlaquepaque|tonal[aá]/i.test(texto);
-  return yaSituada ? texto : `${texto}, ${municipio}, Jalisco`;
+export function situarConsulta(texto: string, municipio?: string | null): string {
+  const limpio = texto.trim();
+  const mencionaJalisco = /(^|[^a-z])jalisco([^a-z]|$)/.test(sinAcentos(limpio));
+  const tramoConMunicipio = limpio
+    .split(",")
+    .slice(1)
+    .some((tramo) => buscarMunicipio(tramo) !== null);
+  if (mencionaJalisco || tramoConMunicipio) return limpio;
+  return municipio ? `${limpio}, ${municipio}, Jalisco` : `${limpio}, Jalisco`;
 }
 
 export type ResultadoBusqueda = Readonly<{
@@ -83,10 +106,11 @@ export function invalidarCacheOSM(): void {
 }
 
 export async function buscarEnOSM(consulta: string, opciones: Opciones): Promise<ResultadoBusqueda> {
+  const recuadro = opciones.recuadro ?? RECUADRO_JALISCO;
   const clave = [
     consulta.toLowerCase().trim(),
     opciones.acotado ? "1" : "0",
-    opciones.recuadro ?? RECUADRO_AMG,
+    recuadro,
     String(opciones.limite ?? 8)
   ].join("|");
 
@@ -104,7 +128,7 @@ export async function buscarEnOSM(consulta: string, opciones: Opciones): Promise
     "accept-language": "es-MX,es"
   });
   if (opciones.acotado) {
-    params.set("viewbox", opciones.recuadro ?? RECUADRO_AMG);
+    params.set("viewbox", recuadro);
     params.set("bounded", "1");
   }
 
@@ -150,9 +174,10 @@ export async function buscarEnOSM(consulta: string, opciones: Opciones): Promise
 }
 
 /**
- * Primero dentro del AMG; si ahí no hay nada, se amplía a Jalisco antes de
- * darse por vencido. Ampliar solo cuando el resultado sería vacío evita que una
- * coincidencia lejana desplace a una cercana.
+ * Primero dentro del municipio de captura; si ahí no hay nada, se amplía a
+ * Jalisco antes de darse por vencido. Ampliar solo cuando el resultado sería vacío
+ * evita que una coincidencia lejana desplace a una cercana. Sin municipio conocido
+ * se busca directamente en todo el estado.
  *
  * La segunda consulta solo se lanza si la primera respondió de verdad. Antes se
  * disparaba también cuando la primera había fallado, de modo que cada rechazo
@@ -161,11 +186,21 @@ export async function buscarEnOSM(consulta: string, opciones: Opciones): Promise
  */
 export async function buscarDireccion(
   texto: string,
-  municipio: string,
+  municipio?: string | null,
   opciones?: { limite?: number; msEspera?: number }
 ): Promise<ResultadoBusqueda> {
-  const consulta = situarConsulta(texto, municipio);
-  const cercanas = await buscarEnOSM(consulta, { acotado: true, ...opciones });
+  const delCatalogo = buscarMunicipio(municipio);
+  const consulta = situarConsulta(texto, delCatalogo?.name ?? null);
+
+  if (!delCatalogo) {
+    return buscarEnOSM(consulta, { acotado: true, recuadro: RECUADRO_JALISCO, ...opciones });
+  }
+
+  const cercanas = await buscarEnOSM(consulta, {
+    acotado: true,
+    recuadro: recuadroNominatim(delCatalogo.bbox),
+    ...opciones
+  });
   if (cercanas.saturado || cercanas.filas.length > 0) return cercanas;
   return buscarEnOSM(consulta, { acotado: true, recuadro: RECUADRO_JALISCO, ...opciones });
 }

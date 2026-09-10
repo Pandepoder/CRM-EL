@@ -141,7 +141,7 @@ export default function AgendaClient({
     scheduledAt: new Date(Date.now() + 3600000).toISOString().slice(0, 16),
     category: "platica",
     roleAssignment: "",
-    municipality: "Tonalá",
+    municipality: "",
     sectionId: "",
     contactId: "",
     locationText: "",
@@ -246,7 +246,7 @@ export default function AgendaClient({
             scheduledAt: new Date(Date.now() + 3600000).toISOString().slice(0, 16),
             category: "platica",
             roleAssignment: "",
-            municipality: "Tonalá",
+            municipality: "",
             sectionId: "",
             contactId: "",
             locationText: "",
@@ -1286,7 +1286,7 @@ export default function AgendaClient({
                     <LocationPicker
                       label="Fijar Punto en el Mapa"
                       helperText="Escribe el domicilio o marca el punto exacto en el mapa"
-                      defaultMunicipality={taskForm.municipality || "Tonalá"}
+                      defaultMunicipality={taskForm.municipality || undefined}
                       value={{
                         latitude: taskForm.latitude,
                         longitude: taskForm.longitude,
@@ -1303,8 +1303,8 @@ export default function AgendaClient({
                         }
                         setTaskForm({
                           ...taskForm,
-                          latitude: (loc.latitude ?? taskForm.latitude) || 20.6248,
-                          longitude: (loc.longitude ?? taskForm.longitude) || -103.2422,
+                          latitude: loc.latitude ?? taskForm.latitude ?? null,
+                          longitude: loc.longitude ?? taskForm.longitude ?? null,
                           locationText: loc.address || loc.locationText || taskForm.locationText,
                           municipality: loc.municipality || taskForm.municipality,
                           sectionId: loc.sectionId || matchedSec || taskForm.sectionId
@@ -1339,7 +1339,7 @@ export default function AgendaClient({
                       options={contacts.map((c) => ({
                         value: c.id,
                         label: c.displayName,
-                        sublabel: `${c.colony || "Tonalá"} ${c.phone ? `· Tel: ${c.phone}` : ""}`,
+                        sublabel: `${c.colony || "Sin colonia"} ${c.phone ? `· Tel: ${c.phone}` : ""}`,
                         badge: "Ciudadano"
                       }))}
                       icon={<Home size={13} className="text-emerald-600" />}

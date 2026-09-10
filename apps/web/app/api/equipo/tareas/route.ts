@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
+import { ubicarEnSeccion } from "@/lib/sections-geo-cache";
 export const dynamic = "force-dynamic";
 
 import { getDatabaseClient } from "@/lib/db-client";
@@ -28,7 +30,7 @@ export async function POST(req: Request) {
       locationText = "",
       latitude,
       longitude,
-      municipality = "Tonalá"
+      municipality
     } = body;
 
     const assignedUser = assignedToUserId || (actor.actorId as string);
@@ -44,7 +46,9 @@ export async function POST(req: Request) {
     // las coordenadas, asi que toda actividad enviada sin ubicacion quedaba ahi
     // como si fuera su sede, sin que nadie pudiera notarlo despues. Mas vale
     // rechazarla y que se marque el punto.
-    if (typeof latitude !== "number" || typeof longitude !== "number") {
+    // Number.isFinite y no typeof: typeof NaN es "number" y un NaN atravesaba la guarda para
+    // caer en la plaza de Tonalá que traían los valores por omisión del insert.
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       return NextResponse.json(
         { error: "Falta la ubicación. Márcala en el mapa o usa el GPS antes de guardar." },
         { status: 400 }
@@ -53,6 +57,14 @@ export async function POST(req: Request) {
 
     const db = getDatabaseClient();
     const scheduledDate = new Date(scheduledAt);
+
+    // Municipio explícito si es del catálogo; si no, el de la sección donde cae el punto.
+    // Antes cliente y servidor partían de "Tonalá": toda actividad creada sin pasar por el
+    // mapa quedaba archivada en Tonalá.
+    const municipioFinal =
+      buscarMunicipio(municipality)?.name ??
+      (await ubicarEnSeccion(Number(latitude), Number(longitude)))?.seccion.municipality ??
+      null;
 
     // 1. If roleAssignment is provided and actor has permissions, update the user's operational role
     if (roleAssignment && (actor.roles.includes("admin") || actor.roles.includes("direction") || actor.roles.includes("territorial_coordinator"))) {
@@ -123,10 +135,10 @@ export async function POST(req: Request) {
         .values({
           title: fullTitle,
           description: enrichedDescription || `Actividad registrada: ${fullTitle}`,
-          latitude: Number(latitude) || 20.6248,
-          longitude: Number(longitude) || -103.2422,
+          latitude: Number(latitude),
+          longitude: Number(longitude),
           category: safeCategory,
-          municipality: municipality || "Tonalá",
+          municipality: municipioFinal,
           sectionId: sectionId || undefined,
           assignedToUserId: assignedUser,
           eventDate: scheduledDate,

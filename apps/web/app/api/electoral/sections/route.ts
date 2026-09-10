@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
+import { invalidarSeccionesGeo } from "@/lib/sections-geo-cache";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -11,7 +13,7 @@ import { z } from "zod";
 
 const createSectionSchema = z.object({
   sectionNum: z.coerce.number().int().positive(),
-  municipality: z.string().min(1).default("Tonalá"),
+  municipality: z.string().trim().min(1, "Indica el municipio de la sección."),
   colony: z.string().optional(),
   colonies: z.array(z.string()).optional(),
   geom: z.any().optional(),
@@ -51,7 +53,7 @@ export async function GET() {
       SELECT
         es.id::text,
         es.section_num,
-        COALESCE(es.municipality, 'Tonalá') AS municipality,
+        es.municipality AS municipality,
         COALESCE(ARRAY_AGG(DISTINCT col.name) FILTER (WHERE col.name IS NOT NULL), '{}') AS colonies,
         COUNT(DISTINCT cont.id)::text AS contacts_count
       FROM electoral_sections es
@@ -95,6 +97,10 @@ export async function POST(request: Request) {
     }
 
     const { sectionNum, municipality, colony, colonies, geom } = parsed.data;
+    const municipio = buscarMunicipio(municipality)?.name;
+    if (!municipio) {
+      return NextResponse.json({ error: `"${municipality}" no es un municipio de Jalisco.` }, { status: 400 });
+    }
     const db = getDatabaseClient();
 
     // Sin contorno real la sección se registra sin geometría. Fabricar un
@@ -104,19 +110,28 @@ export async function POST(request: Request) {
     // no se sabe dónde está.
     const geomJson = geom ? JSON.stringify(geom) : null;
 
-    // 1. Insert or update section in electoral_sections
-    const secRes = await db.execute<{ id: string; section_num: number }>(sql`
-      INSERT INTO electoral_sections (section_num, geom_json, municipality)
-      VALUES (${sectionNum}, ${sql`${geomJson}::jsonb`}, ${municipality})
-      ON CONFLICT (section_num) DO UPDATE
-      SET geom_json = COALESCE(electoral_sections.geom_json, EXCLUDED.geom_json)
-      RETURNING id::text, section_num
+    // 1. La sección tiene que existir en la cartografía del INE, que ya cubre los 125
+    // municipios: un número desconocido es un error de captura, como en la ruta de
+    // territorio. El municipio que ya tenía la sección se conserva —viene del INE y una
+    // captura no lo sobrescribe— y es el que se devuelve. Antes se devolvía el que mandó el
+    // cliente mientras la base guardaba otro, y el error quedaba invisible.
+    const secRes = await db.execute<{ id: string; section_num: number; municipality: string | null }>(sql`
+      UPDATE electoral_sections
+      SET municipality = COALESCE(municipality, ${municipio}),
+          geom_json = COALESCE(geom_json, ${sql`${geomJson}::jsonb`})
+      WHERE section_num = ${sectionNum}
+      RETURNING id::text, section_num, municipality
     `);
 
     const section = secRes.rows[0];
     if (!section) {
-      return NextResponse.json({ error: "Error al registrar la sección" }, { status: 500 });
+      return NextResponse.json(
+        { error: `La sección ${sectionNum} no existe en la cartografía electoral de Jalisco. Verifica el número.` },
+        { status: 400 }
+      );
     }
+    const municipioSeccion = section.municipality ?? municipio;
+    invalidarSeccionesGeo();
 
     // 2. Link colonies if provided
     const coloniesToAdd: string[] = [];
@@ -149,7 +164,7 @@ export async function POST(request: Request) {
         for (const colName of coloniesToAdd) {
           const colRes = await db.execute<{ id: string }>(sql`
             INSERT INTO colonies (catalog_version_id, name, postal_code, municipality, status)
-            VALUES (${catalogVersionId}::uuid, ${colName}, '45400', ${municipality}, 'active')
+            VALUES (${catalogVersionId}::uuid, ${colName}, NULL, ${municipioSeccion}, 'active')
             ON CONFLICT (catalog_version_id, name, municipality) DO UPDATE SET status = 'active'
             RETURNING id::text
           `);
@@ -171,7 +186,7 @@ export async function POST(request: Request) {
       section: {
         id: section.id,
         sectionNum: section.section_num,
-        municipality,
+        municipality: municipioSeccion,
         colonies: coloniesToAdd
       }
     });

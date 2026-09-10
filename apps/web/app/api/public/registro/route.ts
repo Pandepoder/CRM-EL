@@ -6,6 +6,7 @@ import crypto from "crypto";
 import { z } from "zod";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { safeErrorMessage } from "@/lib/safe-error";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
 
 const surveySchema = z.object({
   colonyPriorityNeed: z.string().trim().max(200).optional(),
@@ -33,7 +34,7 @@ const publicRegistrationSchema = z.object({
   birthYear: z.coerce.number().int().min(1900).max(new Date().getFullYear()).optional(),
   address: z.string().trim().max(300).optional(),
   colony: z.string().trim().max(150).optional(),
-  municipality: z.string().trim().max(100).default("Tonalá"),
+  municipality: z.string().trim().max(100).optional(),
   sectionNum: z.coerce.number().int().positive().optional(),
   profession: z.string().trim().max(150).optional(),
   preferredContactMethod: z.string().trim().max(40).default("whatsapp"),
@@ -157,7 +158,9 @@ export async function POST(req: NextRequest) {
       email: email ? email.trim() : null,
       address: address ? address.trim() : null,
       colony: colony ? colony.trim() : "Por identificar",
-      municipality: municipality.trim(),
+      // El nombre canónico si es un municipio de Jalisco; si no, lo que escribió la persona,
+      // tal cual. Antes, sin dato, se guardaba "Tonalá".
+      municipality: buscarMunicipio(municipality)?.name ?? (municipality?.trim() || null),
       profession: profession ? profession.trim() : null,
       interests: participatingArea ? participatingArea.trim() : null,
       origin: "enlace_personal",

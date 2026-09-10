@@ -3,14 +3,11 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { getDatabaseClient } from "@/lib/db-client";
-import { getSeccionesGeo } from "@/lib/sections-geo-cache";
+import { ubicarEnSeccion } from "@/lib/sections-geo-cache";
+import { buscarMunicipio, resolverMunicipio } from "@/lib/municipios-jalisco";
 import { buscarDireccion } from "@/lib/osm-search";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
-// @ts-ignore
-import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
-// @ts-ignore
-import { point } from "@turf/helpers";
 
 
 export interface AutocompleteResult {
@@ -29,7 +26,7 @@ export interface AutocompleteResult {
 }
 
 /**
- * GET /api/map/autocomplete?q=...&municipality=Tonalá
+ * GET /api/map/autocomplete?q=...&municipality=<municipio del catálogo>
  * Provides real-time instant autocomplete for streets, real colonies, and sections.
  */
 export async function GET(req: Request) {
@@ -38,7 +35,9 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") || "").trim();
-  const municipality = (url.searchParams.get("municipality") || "Tonalá").trim();
+  // Sin municipio (o con "all") se busca en todo Jalisco. Antes el valor por omisión era
+  // "Tonalá": el autocompletado de cualquier otro municipio proponía calles de Tonalá.
+  const municipality = buscarMunicipio(url.searchParams.get("municipality"))?.name ?? null;
 
   if (!q || q.length < 2) {
     return NextResponse.json({ results: [] });
@@ -64,7 +63,7 @@ export async function GET(req: Request) {
           es.id::text AS id,
           es.section_num,
           es.geom_json,
-          COALESCE(es.municipality, 'Tonalá') AS municipality,
+          es.municipality AS municipality,
           COALESCE(ARRAY_AGG(DISTINCT col.name) FILTER (WHERE col.name IS NOT NULL), '{}') AS colonies
         FROM electoral_sections es
         LEFT JOIN section_colonies sc ON sc.section_id = es.id
@@ -76,7 +75,7 @@ export async function GET(req: Request) {
 
       if (secRows.rows.length > 0) {
         const row = secRows.rows[0]!;
-        const muni = row.municipality || municipality || "Tonalá";
+        const muni = row.municipality || municipality || "";
         
         let centerLat: number | undefined;
         let centerLng: number | undefined;
@@ -139,7 +138,7 @@ export async function GET(req: Request) {
       WHERE col.name ILIKE ${`%${q}%`}
         AND col.name NOT LIKE 'Cabecera %'
         AND col.name NOT LIKE 'Municipio %'
-        ${municipality ? sql`AND (col.municipality ILIKE ${municipality} OR col.municipality IS NULL)` : sql``}
+        ${municipality ? sql`AND (col.municipality = ${municipality} OR (col.municipality IS NULL AND es.municipality = ${municipality}))` : sql``}
       ORDER BY 
         CASE WHEN col.name ILIKE ${`${q}%`} THEN 1 ELSE 2 END,
         col.name ASC
@@ -147,17 +146,18 @@ export async function GET(req: Request) {
     `);
 
     for (const r of colRows.rows) {
-      const key = `col-${r.name.toLowerCase()}-${r.municipality.toLowerCase()}`;
+      const muniCol = r.municipality || municipality || "";
+        const key = `col-${r.name.toLowerCase()}-${muniCol.toLowerCase()}`;
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
         results.push({
           id: `col-${r.id}`,
           type: "colony",
           title: `Colonia ${r.name}`,
-          subtitle: `${r.municipality || municipality}, Jal.${r.section_num ? ` · Secc. #${r.section_num}` : ""}`,
-          address: `Col. ${r.name}, ${r.municipality || municipality}`,
+          subtitle: `${muniCol ? `${muniCol}, Jal.` : "Jalisco"}${r.section_num ? ` · Secc. #${r.section_num}` : ""}`,
+          address: `Col. ${r.name}${muniCol ? `, ${muniCol}` : ""}`,
           colony: r.name,
-          municipality: r.municipality || municipality,
+          municipality: muniCol,
           sectionNum: r.section_num || undefined,
           sectionId: r.section_id || undefined
         });
@@ -169,25 +169,9 @@ export async function GET(req: Request) {
 
   // 3. OPENSTREETMAP NOMINATIM SEARCH: Live Street / Place Geocoding Bounded to Jalisco
   try {
-    // El recuadro anterior —de Nayarit a Guanajuato— iba con `bounded=0`, o sea
-    // que no restringía nada: era solo una preferencia. Ahora la búsqueda se
-    // acota de verdad al AMG y solo se amplía a Jalisco si no encuentra nada.
+    // Se acota al recuadro del municipio de captura y solo se amplía a Jalisco si ahí no
+    // encuentra nada (ver lib/osm-search).
     const { filas: osmData } = await buscarDireccion(q, municipality, { limite: 6, msEspera: 2500 });
-
-    // Pre-fetch sections for Point-In-Polygon matching
-    let cachedSections: any[] = [];
-    try {
-      // Desde el caché compartido. Antes releía las 3789 secciones con su
-      // geometría en cada pulsación de tecla del autocompletado.
-      cachedSections = (await getSeccionesGeo()).map((sec) => ({
-        id: sec.id,
-        section_num: sec.sectionNum,
-        geom_json: sec.geomJson,
-        bounds: sec.bounds
-      }));
-    } catch (_dbErr) {
-      // Ignore cache error
-    }
 
     for (const item of osmData) {
       const lat = parseFloat(item.lat);
@@ -199,7 +183,14 @@ export async function GET(req: Request) {
       const houseNum = addr.house_number ? ` #${addr.house_number}` : "";
       const rawSuburb = addr.suburb || addr.neighbourhood || addr.quarter || addr.residential || addr.village || addr.hamlet || "";
       const suburb = rawSuburb.startsWith("Cabecera ") ? "" : rawSuburb;
-      const city = addr.city || addr.town || addr.county || addr.municipality || municipality;
+      // Sección y municipio desde el polígono del INE que contiene el punto. El de la
+      // sección manda si el punto cae dentro; si no, el de OpenStreetMap normalizado.
+      const ubicacion = await ubicarEnSeccion(lat, lng);
+      const city =
+        (ubicacion?.precision === "exacta" ? ubicacion.seccion.municipality : null) ??
+        resolverMunicipio(addr.city || addr.town || addr.county || addr.municipality) ??
+        ubicacion?.seccion.municipality ??
+        "";
       const postcode = addr.postcode || "";
 
       const fullStreet = `${road}${houseNum}`.trim() || item.display_name.split(",")[0];
@@ -207,27 +198,8 @@ export async function GET(req: Request) {
       if (seenKeys.has(dedupeKey)) continue;
       seenKeys.add(dedupeKey);
 
-      // Point in Polygon matching to detect exact Section Electoral
-      let matchedSecNum: number | undefined;
-      let matchedSecId: string | undefined;
-
-      if (cachedSections.length > 0) {
-        const pt = point([lng, lat]);
-        for (const sec of cachedSections) {
-          if (!sec.geom_json) continue;
-          try {
-            const geom = typeof sec.geom_json === "string" ? JSON.parse(sec.geom_json) : sec.geom_json;
-            const poly = geom.type === "Feature" ? geom : { type: "Feature", geometry: geom, properties: {} };
-            if (booleanPointInPolygon(pt, poly)) {
-              matchedSecNum = sec.section_num;
-              matchedSecId = sec.id;
-              break;
-            }
-          } catch (_polyErr) {
-            // Ignore polygon parsing issue
-          }
-        }
-      }
+      const matchedSecNum = ubicacion?.seccion.sectionNum;
+      const matchedSecId = ubicacion?.seccion.id;
 
       const parts: string[] = [];
       if (fullStreet) parts.push(fullStreet);
@@ -237,7 +209,7 @@ export async function GET(req: Request) {
 
       const subParts: string[] = [];
       if (suburb) subParts.push(`Col. ${suburb}`);
-      subParts.push(city);
+      if (city) subParts.push(city);
       if (matchedSecNum) subParts.push(`Secc. #${matchedSecNum}`);
 
       results.push({

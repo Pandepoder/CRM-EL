@@ -259,7 +259,7 @@ export default function NuevoContactoForm({
           <div className="space-y-4">
             {/* AUTOPREDICTOR DE COLONIA, SECCIÓN Y MUNICIPIO */}
             <ColonySelector
-              defaultMunicipality="Tonalá"
+              
               defaultValue={colony}
               defaultSectionNum={sectionNum}
               onSelect={(_secId, col, _mun, secNum, coords, detectedAddress) => {
@@ -370,7 +370,7 @@ export default function NuevoContactoForm({
               <span className="w-7 h-7 rounded-lg bg-blue-500/30 border border-blue-400/30 flex items-center justify-center text-sm font-black">M</span>
               <div>
                 <h2 className="text-sm font-black uppercase tracking-wider text-white">5. Militancia PAN</h2>
-                <p className="text-[11px] text-blue-200 font-medium">Control de estatus partidista en Tonalá</p>
+                <p className="text-[11px] text-blue-200 font-medium">Control de estatus partidista</p>
               </div>
             </div>
             <span className="text-xs font-black bg-blue-500/30 text-blue-200 px-3 py-1 rounded-full border border-blue-400/30">
@@ -491,7 +491,7 @@ export default function NuevoContactoForm({
 
               {/* P2 */}
               <div className="space-y-1.5">
-                <label htmlFor="citizen-survey_tonalaValues" className="block text-xs font-bold text-gray-900">2. ¿Qué es lo que más valoras de Tonalá?</label>
+                <label htmlFor="citizen-survey_tonalaValues" className="block text-xs font-bold text-gray-900">2. ¿Qué es lo que más valoras de tu municipio?</label>
                 <select id="citizen-survey_tonalaValues"
                   name="survey_tonalaValues"
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none"
@@ -531,7 +531,7 @@ export default function NuevoContactoForm({
 
               {/* P4 */}
               <div className="space-y-1.5">
-                <label htmlFor="citizen-survey_projectExpectations" className="block text-xs font-bold text-gray-900">4. ¿Qué esperarías de un nuevo proyecto para Tonalá?</label>
+                <label htmlFor="citizen-survey_projectExpectations" className="block text-xs font-bold text-gray-900">4. ¿Qué esperarías de un nuevo proyecto para tu municipio?</label>
                 <select id="citizen-survey_projectExpectations"
                   name="survey_projectExpectations"
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none"
@@ -566,7 +566,7 @@ export default function NuevoContactoForm({
               {/* P6 */}
               <div className="space-y-1.5">
                 <label htmlFor="citizen-survey_openProposal" className="block text-xs font-bold text-gray-900">
-                  6. Propuesta o mensaje libre para Tonalá
+                  6. Propuesta o mensaje libre para tu municipio
                 </label>
                 <textarea id="citizen-survey_openProposal"
                   name="survey_openProposal"

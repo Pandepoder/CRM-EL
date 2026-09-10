@@ -4,12 +4,13 @@ export const revalidate = 0;
 import { getDatabaseClient } from "@/lib/db-client";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
 
 /**
  * GET /api/catalog/colonies/search
  * Searches verified colonies and section mappings in the database.
  * Query parameters:
- *  - mun: Municipality name (default: "Tonalá")
+ *  - mun: municipio del catálogo, o "all" (por omisión) para todo Jalisco
  *  - section: Specific electoral section number (optional)
  *  - q: Search string query (optional)
  */
@@ -18,7 +19,11 @@ export async function GET(req: Request) {
   if (!actor) return unauthorized();
 
   const url = new URL(req.url);
-  const municipality = url.searchParams.get("mun") || "Tonalá";
+  const munParam = url.searchParams.get("mun");
+  const todoJalisco = !munParam || munParam.toLowerCase() === "all";
+  const municipality = todoJalisco ? null : (buscarMunicipio(munParam)?.name ?? null);
+  // Un municipio que no está en el catálogo no devuelve el catálogo entero de Jalisco.
+  if (!todoJalisco && !municipality) return NextResponse.json([]);
   const sectionStr = url.searchParams.get("section");
   const q = (url.searchParams.get("q") || "").trim();
 
@@ -31,14 +36,14 @@ export async function GET(req: Request) {
       id: string;
       name: string;
       postal_code: string | null;
-      municipality: string;
+      municipality: string | null;
       section_num: number | null;
     }>(sql`
       SELECT
         col.id::text AS id,
         col.name,
         col.postal_code,
-        COALESCE(col.municipality, es.municipality, ${municipality}) AS municipality,
+        COALESCE(col.municipality, es.municipality) AS municipality,
         MIN(es.section_num) AS section_num
       FROM colonies col
       LEFT JOIN section_colonies sc ON sc.colony_id = col.id
@@ -46,7 +51,9 @@ export async function GET(req: Request) {
       WHERE col.status = 'active'
         AND col.name NOT LIKE 'Cabecera %'
         AND col.name NOT LIKE 'Municipio %'
-        ${municipality && municipality.toLowerCase() !== "all" ? sql`AND (col.municipality ILIKE ${`%${municipality.slice(0, 4)}%`} OR col.municipality IS NULL)` : sql``}
+        -- Nombre completo, no las cuatro primeras letras con comodines: "%Tona%" también
+        -- traía colonias de Tonaya, y "%San %" de una docena de municipios.
+        ${municipality ? sql`AND (col.municipality = ${municipality} OR (col.municipality IS NULL AND es.municipality = ${municipality}))` : sql``}
         ${sectionNum ? sql`AND es.section_num = ${sectionNum}` : sql``}
         ${q ? sql`AND col.name ILIKE ${`%${q}%`}` : sql``}
       GROUP BY col.id, col.name, col.postal_code, col.municipality, es.municipality
@@ -59,8 +66,9 @@ export async function GET(req: Request) {
     const formatted = result.rows.map((row) => ({
       id: row.id,
       name: row.name,
-      postalCode: row.postal_code || "45400",
-      municipality: row.municipality,
+      // Sin CP conocido se deja vacío; antes se rellenaba con el de Tonalá.
+      postalCode: row.postal_code || "",
+      municipality: row.municipality ?? "",
       sectionNum: row.section_num || undefined,
     }));
 
