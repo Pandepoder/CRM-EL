@@ -112,6 +112,25 @@ export const electoralSections = pgTable("electoral_sections", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
+/**
+ * Resultados electorales y prioridad operativa por sección, tomados del atlas que la
+ * campaña trabaja en papel. Tabla aparte y con llave por número de sección: el atlas cubre
+ * secciones que pueden no tener cartografía cargada todavía, y son datos de una fuente
+ * externa citable, no agregados que calcule la aplicación.
+ */
+export const sectionElectoralResults = pgTable("section_electoral_results", {
+  sectionNum: integer("section_num").primaryKey(),
+  priority: text("priority").notNull(),
+  mainColony: text("main_colony"),
+  pollingPlaceReference: text("polling_place_reference"),
+  votesPan: integer("votes_pan").notNull().default(0),
+  votesMorena: integer("votes_morena").notNull().default(0),
+  votesMc: integer("votes_mc").notNull().default(0),
+  source: text("source").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+
 export const contacts = pgTable(
   "contacts",
   {

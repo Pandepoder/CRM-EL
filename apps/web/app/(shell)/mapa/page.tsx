@@ -158,7 +158,73 @@ type SectionProperties = {
   incidentsActive: number;
   incidentsResolved: number;
   representatives: Array<{ name: string; role: string }>;
+  /** Datos del atlas de campaña. Null en las secciones que el documento no cubre. */
+  atlas: AtlasSeccion | null;
 };
+
+type AtlasSeccion = {
+  priority: "A" | "B" | "C" | "D";
+  mainColony: string | null;
+  pollingPlace: string | null;
+  votes: { pan: number; morena: number; mc: number };
+  source: string | null;
+};
+
+type BloqueElectoral = "pan" | "morena" | "mc";
+
+/**
+ * Bloques del atlas. Son los del documento impreso, no partidos sueltos: "PAN y socios" y
+ * "Morena y socios" agrupan coaliciones. Los colores son los de identidad de cada fuerza,
+ * que es como la campaña los lee de un vistazo.
+ */
+const BLOQUES: Record<BloqueElectoral, { etiqueta: string; corto: string; color: string; borde: string }> = {
+  pan: { etiqueta: "PAN y socios", corto: "PAN", color: "#2563eb", borde: "#1d4ed8" },
+  morena: { etiqueta: "Morena y socios", corto: "Morena", color: "#9f1239", borde: "#881337" },
+  mc: { etiqueta: "MC", corto: "MC", color: "#ea580c", borde: "#c2410c" }
+};
+
+/** Gris para las secciones sin ficha: "no hay dato" no es lo mismo que "empate". */
+const SIN_ATLAS = { color: "#94a3b8", borde: "#64748b" };
+
+type Resultado = {
+  ganador: BloqueElectoral;
+  votosGanador: number;
+  total: number;
+  /** Puntos porcentuales sobre el segundo lugar. Es lo que separa un bastión de una plaza en disputa. */
+  margen: number;
+  empate: boolean;
+};
+
+function calcularResultado(atlas: AtlasSeccion): Resultado {
+  const orden = (Object.keys(BLOQUES) as BloqueElectoral[])
+    .map((clave) => ({ clave, votos: atlas.votes[clave] }))
+    .sort((a, b) => b.votos - a.votos);
+
+  const primero = orden[0]!;
+  const segundo = orden[1]!;
+  const total = orden.reduce((suma, x) => suma + x.votos, 0);
+
+  return {
+    ganador: primero.clave,
+    votosGanador: primero.votos,
+    total,
+    margen: total > 0 ? ((primero.votos - segundo.votos) / total) * 100 : 0,
+    empate: primero.votos === segundo.votos
+  };
+}
+
+/**
+ * Opacidad según el margen: cuanto más holgada la ventaja, más sólido el color.
+ *
+ * Sin esto, un bastión con 40 puntos de ventaja y una sección ganada por 20 votos se veían
+ * idénticos, que es justo la distinción que la campaña necesita para decidir dónde empujar.
+ */
+function opacidadPorMargen(margen: number): number {
+  if (margen >= 30) return 0.62;
+  if (margen >= 15) return 0.48;
+  if (margen >= 5) return 0.34;
+  return 0.22;
+}
 
 type UserOption = {
   id: string;
@@ -959,6 +1025,38 @@ export default function MapaPage() {
         // Density 1: Subtle line, low fill. Density 2: Full contrast
         const isLevel1 = infoDensity === 1;
 
+        // Nivel "Detallado": el color deja de decir a qué municipio pertenece la sección y
+        // pasa a decir quién ganó ahí, que es la pregunta que se hace en campaña. El
+        // municipio ya se sabe por dónde está uno mirando; el resultado no se sabe sin esto.
+        const atlas: AtlasSeccion | null = feature?.properties?.atlas ?? null;
+        if (infoDensity === 2 && atlas) {
+          const resultado = calcularResultado(atlas);
+          const bloque = BLOQUES[resultado.ganador];
+          return {
+            color: isSelected ? "#0f172a" : bloque.borde,
+            weight: isSelected ? 3.5 : 1.4,
+            opacity: isSelected ? 1 : 0.9,
+            fillColor: bloque.color,
+            fillOpacity: isSelected ? 0.75 : opacidadPorMargen(resultado.margen),
+            lineJoin: "round",
+            lineCap: "round"
+          };
+        }
+
+        // Sección sin ficha en el atlas, con el nivel al máximo: gris explícito en vez de
+        // heredar el color del municipio, para que se vea que ahí no hay dato electoral.
+        if (infoDensity === 2) {
+          return {
+            color: isSelected ? "#0f172a" : SIN_ATLAS.borde,
+            weight: isSelected ? 3.5 : 1,
+            opacity: isSelected ? 1 : 0.55,
+            fillColor: SIN_ATLAS.color,
+            fillOpacity: isSelected ? 0.5 : 0.12,
+            lineJoin: "round",
+            lineCap: "round"
+          };
+        }
+
         return {
           color: isSelected ? "#1e1b4b" : theme.stroke,
           weight: isSelected ? 3.5 : isLevel1 ? 1.2 : 1.8,
@@ -973,15 +1071,34 @@ export default function MapaPage() {
         const p = feature.properties as SectionProperties;
         const mun = p.municipality || "Tonalá";
         
+        // Resumen electoral en el tooltip, solo con el nivel al máximo: en los niveles
+        // bajos estorbaría, y ahí las secciones ni siquiera están coloreadas por resultado.
+        const resumenAtlas = (() => {
+          if (infoDensity !== 2 || !p.atlas) return "";
+          const r = calcularResultado(p.atlas);
+          const b = BLOQUES[r.ganador];
+          const pct = r.total > 0 ? Math.round((r.votosGanador / r.total) * 100) : 0;
+          const veredicto = r.empate
+            ? "Empate técnico"
+            : `Gana ${b.corto} · ${pct}% · +${r.margen.toFixed(1)} pts`;
+          return `
+              <div style="margin-top:5px; padding-top:5px; border-top:1px solid #e2e8f0; display:flex; align-items:center; gap:5px;">
+                <span style="width:9px; height:9px; border-radius:50%; background:${b.color}; flex-shrink:0;"></span>
+                <span style="font-size:10px; font-weight:800; color:#0f172a;">${veredicto}</span>
+              </div>
+              <div style="font-size:9px; color:#64748b; margin-top:2px;">Prioridad ${p.atlas.priority} · ${r.total.toLocaleString("es-MX")} votos</div>`;
+        })();
+
         layerItem.bindTooltip(
           `
             <div style="font-family:system-ui,sans-serif; padding:4px;">
               <div style="font-size:12px; font-weight:800; color:#0f172a;">Sección ${p.section_num} <span style="font-weight:600; color:#6366f1;">(${mun})</span></div>
-              <div style="font-size:10px; color:#475569; margin-top:2px;">${p.colonies.slice(0, 3).join(", ") || mun}</div>
+              <div style="font-size:10px; color:#475569; margin-top:2px;">${p.atlas?.mainColony || p.colonies.slice(0, 3).join(", ") || mun}</div>
               <div style="display:flex; gap:8px; margin-top:4px; font-size:10px; font-weight:700; color:#1e293b;">
                 <span>${p.contactsCount} simpatizantes</span>
                 <span>${p.visitsCompleted} visitas</span>
               </div>
+              ${resumenAtlas}
             </div>
           `,
           { sticky: true, className: "section-map-tooltip" }
@@ -1610,15 +1727,15 @@ export default function MapaPage() {
                   } else {
                     setShowSections(true);
                     setShowSectionLabels(true);
-                    showToast("Modo Detallado: Mapa completo con métricas");
+                    showToast("Modo Electoral: secciones coloreadas por quién ganó la última elección");
                   }
                 }}
                 style={{ width: "75px", accentColor: "#2563eb", cursor: "pointer" }}
-                title="Desliza para ver más o menos capas e información"
+                title="Desliza a la derecha para colorear las secciones por resultado electoral"
               />
 
               <span style={{ fontSize: "11px", fontWeight: "800", color: infoDensity === 0 ? "#dc2626" : infoDensity === 1 ? "#0284c7" : "#4f46e5", minWidth: "95px" }}>
-                {infoDensity === 0 ? "Limpio" : infoDensity === 1 ? "Territorial" : "Detallado"}
+                {infoDensity === 0 ? "Limpio" : infoDensity === 1 ? "Territorial" : "Electoral"}
               </span>
             </div>
           </div>
@@ -1841,6 +1958,37 @@ export default function MapaPage() {
           </div>
         )}
 
+        {/* Leyenda del coloreado por resultado. Solo con el nivel al máximo, que es cuando
+            las secciones dejan de pintarse por municipio: un color sin leyenda obliga a
+            adivinar, y adivinar sobre un mapa electoral es peor que no colorear. */}
+        {activeTab === "map" && infoDensity === 2 && showSections && (
+          <div style={{ position: "absolute", bottom: "62px", left: "16px", zIndex: 20, padding: "9px 12px", borderRadius: "12px", background: "rgba(255,255,255,0.97)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid #cbd5e1", boxShadow: "0 10px 25px -8px rgba(0,0,0,0.25)", pointerEvents: "auto", maxWidth: "calc(100vw - 32px)" }}>
+            <div style={{ fontSize: "9px", fontWeight: "800", color: "#475569", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "6px" }}>
+              Quién ganó la última elección
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              {(Object.keys(BLOQUES) as BloqueElectoral[]).map((clave) => (
+                <div key={clave} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <span style={{ width: "11px", height: "11px", borderRadius: "3px", background: BLOQUES[clave].color, border: `1px solid ${BLOQUES[clave].borde}`, display: "inline-block" }} />
+                  <span style={{ fontSize: "11px", fontWeight: "700", color: "#0f172a" }}>{BLOQUES[clave].etiqueta}</span>
+                </div>
+              ))}
+              <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                <span style={{ width: "11px", height: "11px", borderRadius: "3px", background: SIN_ATLAS.color, border: `1px solid ${SIN_ATLAS.borde}`, opacity: 0.5, display: "inline-block" }} />
+                <span style={{ fontSize: "11px", fontWeight: "600", color: "#64748b" }}>Sin ficha</span>
+              </div>
+            </div>
+            <div style={{ fontSize: "9px", color: "#64748b", marginTop: "6px", display: "flex", alignItems: "center", gap: "5px" }}>
+              <span style={{ display: "inline-flex", gap: "2px" }}>
+                {[0.22, 0.34, 0.48, 0.62].map((o) => (
+                  <span key={o} style={{ width: "10px", height: "8px", background: "#0f172a", opacity: o, borderRadius: "2px", display: "inline-block" }} />
+                ))}
+              </span>
+              <span>A más intenso, más holgada la ventaja. Clic en una sección para el detalle.</span>
+            </div>
+          </div>
+        )}
+
         {/* Floating Toast Notification */}
         {toastMessage && (
           <div style={{ position: "absolute", top: "72px", left: "50%", transform: "translateX(-50%)", zIndex: 1200, background: "rgba(15, 23, 42, 0.92)", color: "white", padding: "8px 18px", borderRadius: "30px", boxShadow: "0 10px 25px rgba(0,0,0,0.3)", fontSize: "12px", fontWeight: "700", border: "1px solid rgba(255,255,255,0.2)", backdropFilter: "blur(8px)", width: "max-content", maxWidth: "90vw", textAlign: "center" }}>
@@ -1955,7 +2103,104 @@ export default function MapaPage() {
                       <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "900", color: "#0f172a" }}>
                         Sección Electoral #{selectedSection.section_num}
                       </h2>
+                      {selectedSection.atlas?.mainColony ? (
+                        <div style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>
+                          {selectedSection.atlas.mainColony}
+                        </div>
+                      ) : null}
                     </div>
+
+                    {/* Resultado de la última elección, del atlas de campaña.
+                        Se muestra siempre que la sección tenga ficha, sin depender del nivel
+                        de detalle: quien abrió el panel ya pidió ver esta sección a fondo. */}
+                    {selectedSection.atlas ? (() => {
+                      const atlas = selectedSection.atlas;
+                      const r = calcularResultado(atlas);
+                      const ganador = BLOQUES[r.ganador];
+                      const barras = (Object.keys(BLOQUES) as BloqueElectoral[])
+                        .map((clave) => ({
+                          clave,
+                          votos: atlas.votes[clave],
+                          pct: r.total > 0 ? (atlas.votes[clave] / r.total) * 100 : 0
+                        }))
+                        .sort((a, b) => b.votos - a.votos);
+
+                      const PRIORIDADES: Record<string, { fondo: string; texto: string; leyenda: string }> = {
+                        A: { fondo: "#fee2e2", texto: "#991b1b", leyenda: "máxima" },
+                        B: { fondo: "#ffedd5", texto: "#9a3412", leyenda: "alta" },
+                        C: { fondo: "#fef9c3", texto: "#854d0e", leyenda: "media" },
+                        D: { fondo: "#f1f5f9", texto: "#475569", leyenda: "baja" }
+                      };
+                      const prio = PRIORIDADES[atlas.priority] ?? PRIORIDADES.D!;
+
+                      return (
+                        <div style={{ border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
+                          <div style={{ background: ganador.color, padding: "10px 12px", color: "#ffffff" }}>
+                            <div style={{ fontSize: "9px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.6px", opacity: 0.85 }}>
+                              Última elección
+                            </div>
+                            <div style={{ fontSize: "15px", fontWeight: "900", marginTop: "1px" }}>
+                              {r.empate ? "Empate técnico" : `Ganó ${ganador.etiqueta}`}
+                            </div>
+                            <div style={{ fontSize: "11px", fontWeight: "600", opacity: 0.9, marginTop: "1px" }}>
+                              {r.empate
+                                ? `${r.votosGanador.toLocaleString("es-MX")} votos cada uno`
+                                : `Ventaja de ${r.margen.toFixed(1)} puntos sobre el segundo`}
+                            </div>
+                          </div>
+
+                          <div style={{ padding: "10px 12px", background: "#ffffff" }}>
+                            {barras.map((b) => {
+                              const bloque = BLOQUES[b.clave];
+                              return (
+                                <div key={b.clave} style={{ marginBottom: "7px" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "3px" }}>
+                                    <span style={{ fontWeight: "700", color: "#0f172a" }}>{bloque.etiqueta}</span>
+                                    <span style={{ fontWeight: "800", color: bloque.color }}>
+                                      {b.votos.toLocaleString("es-MX")} · {b.pct.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                  <div style={{ height: "7px", background: "#f1f5f9", borderRadius: "4px", overflow: "hidden" }}>
+                                    <div style={{ width: `${b.pct}%`, height: "100%", background: bloque.color, borderRadius: "4px" }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px", paddingTop: "9px", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
+                              <span style={{ background: prio.fondo, color: prio.texto, fontSize: "10px", fontWeight: "800", padding: "3px 8px", borderRadius: "6px" }}>
+                                Prioridad {atlas.priority} ({prio.leyenda})
+                              </span>
+                              <span style={{ fontSize: "11px", color: "#475569", fontWeight: "600" }}>
+                                {r.total.toLocaleString("es-MX")} votos totales
+                              </span>
+                            </div>
+
+                            {atlas.pollingPlace ? (
+                              <div style={{ marginTop: "9px", paddingTop: "9px", borderTop: "1px solid #f1f5f9" }}>
+                                <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                  Casilla de referencia
+                                </div>
+                                <div style={{ fontSize: "11px", color: "#334155", marginTop: "3px", lineHeight: 1.45 }}>
+                                  {atlas.pollingPlace}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {atlas.source ? (
+                              <div style={{ fontSize: "9px", color: "#94a3b8", marginTop: "8px", fontStyle: "italic" }}>
+                                Fuente: {atlas.source}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })() : (
+                      <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "10px", padding: "10px 12px", fontSize: "11px", color: "#64748b" }}>
+                        Esta sección no tiene ficha en el atlas de campaña, así que no hay resultado
+                        electoral que mostrar. Las métricas de abajo sí son de esta sección.
+                      </div>
+                    )}
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px" }}>
                       <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>

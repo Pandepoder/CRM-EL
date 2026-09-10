@@ -6,7 +6,7 @@ export default tseslint.config(
   {
     // docs/ no es codigo del proyecto: guarda informes y los scripts sueltos que
     // los acompanan, que no siguen (ni deben seguir) las reglas del monorepo.
-    ignores: ["node_modules/**", "outputs/**", "work/**", "coverage/**", "dist/**", "docs/**", "apps/**/public/**", "apps/**/.next/**", "apps/**/next-env.d.ts"]
+    ignores: ["node_modules/**", "outputs/**", "output/**", "work/**", "coverage/**", "dist/**", "docs/**", "apps/**/public/**", "apps/**/.next/**", "apps/**/next-env.d.ts"]
   },
   js.configs.recommended,
   {

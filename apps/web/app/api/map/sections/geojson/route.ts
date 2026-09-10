@@ -83,6 +83,13 @@ export async function GET(req: Request) {
       incidents_active: string;
       incidents_resolved: string;
       representatives: Array<{ name: string; role: string }>;
+      atlas_priority: string | null;
+      atlas_main_colony: string | null;
+      atlas_polling_place: string | null;
+      atlas_votes_pan: number | null;
+      atlas_votes_morena: number | null;
+      atlas_votes_mc: number | null;
+      atlas_source: string | null;
     }>(sql`
       SELECT
         es.id::text AS id,
@@ -96,11 +103,21 @@ export async function GET(req: Request) {
         COUNT(DISTINCT rep.id) FILTER (WHERE rep.status = 'active')::text AS incidents_active,
         COUNT(DISTINCT rep.id) FILTER (WHERE rep.status = 'resolved')::text AS incidents_resolved,
         COALESCE(
-          JSON_AGG(DISTINCT JSONB_BUILD_OBJECT('name', u.display_name, 'role', erep.role)) 
-          FILTER (WHERE erep.id IS NOT NULL), 
+          JSON_AGG(DISTINCT JSONB_BUILD_OBJECT('name', u.display_name, 'role', erep.role))
+          FILTER (WHERE erep.id IS NOT NULL),
           '[]'::json
-        ) AS representatives
+        ) AS representatives,
+        -- Atlas de la campaña. Va por LEFT JOIN porque solo cubre un distrito: el resto de
+        -- las secciones seguirá llegando sin estos campos, y el mapa las pinta como antes.
+        ser.priority AS atlas_priority,
+        ser.main_colony AS atlas_main_colony,
+        ser.polling_place_reference AS atlas_polling_place,
+        ser.votes_pan AS atlas_votes_pan,
+        ser.votes_morena AS atlas_votes_morena,
+        ser.votes_mc AS atlas_votes_mc,
+        ser.source AS atlas_source
       FROM electoral_sections es
+      LEFT JOIN section_electoral_results ser ON ser.section_num = es.section_num
       LEFT JOIN section_colonies sc ON sc.section_id = es.id
       LEFT JOIN colonies col ON col.id = sc.colony_id
       LEFT JOIN contacts cont ON cont.section_id = es.id AND cont.status = 'active' ${filtroContactos}
@@ -110,7 +127,9 @@ export async function GET(req: Request) {
       LEFT JOIN user_profiles u ON u.id = erep.user_id
       WHERE es.geom_json IS NOT NULL
         ${isFilterAll ? sql`` : sql`AND LOWER(COALESCE(es.municipality, 'Tonalá')) = LOWER(${targetMunicipality})`}
-      GROUP BY es.id, es.section_num, es.municipality, es.geom_json
+      GROUP BY es.id, es.section_num, es.municipality, es.geom_json,
+               ser.priority, ser.main_colony, ser.polling_place_reference,
+               ser.votes_pan, ser.votes_morena, ser.votes_mc, ser.source
       ORDER BY es.section_num ASC
     `);
 
@@ -139,7 +158,23 @@ export async function GET(req: Request) {
             visitsCompleted: Number(row.visits_completed || 0),
             incidentsActive: Number(row.incidents_active || 0),
             incidentsResolved: Number(row.incidents_resolved || 0),
-            representatives: typeof row.representatives === "string" ? JSON.parse(row.representatives) : (row.representatives || [])
+            representatives: typeof row.representatives === "string" ? JSON.parse(row.representatives) : (row.representatives || []),
+            // `atlas` es null en las secciones que el documento no cubre. El mapa distingue
+            // "sin datos" de "cero votos": pintar de gris una sección sin información no es
+            // lo mismo que pintarla como empate.
+            atlas: row.atlas_priority
+              ? {
+                  priority: row.atlas_priority,
+                  mainColony: row.atlas_main_colony,
+                  pollingPlace: row.atlas_polling_place,
+                  votes: {
+                    pan: Number(row.atlas_votes_pan || 0),
+                    morena: Number(row.atlas_votes_morena || 0),
+                    mc: Number(row.atlas_votes_mc || 0)
+                  },
+                  source: row.atlas_source
+                }
+              : null
           },
           geometry,
         };
