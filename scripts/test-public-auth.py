@@ -2,14 +2,20 @@ import urllib.request
 import json
 import os
 
+import entorno
+
+BASE = entorno.app_base_url()
+# La cuenta administradora tampoco va escrita: es la real del servidor.
+ADMIN_EMAIL = entorno.admin_email()
+
 data = json.dumps({
-    "email": "admin@elapp.com.mx",
+    "email": ADMIN_EMAIL,
     "password": os.environ["APP_ADMIN_PASSWORD"]
 }).encode("utf-8")
 
 try:
     req = urllib.request.Request(
-        "http://45.80.153.22/api/auth/login",
+        f"{BASE}/api/auth/login",
         data=data,
         headers={
             "Content-Type": "application/json",

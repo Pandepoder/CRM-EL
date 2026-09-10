@@ -70,15 +70,20 @@ describe("local database foundation", () => {
     const second = await seedDatabase(testDatabaseUrl);
 
     expect(first.roles).toBe(5);
-    // Un piso, no un numero exacto: el seed fue creciendo (hoy siembra las
-    // cuentas demo y las de @tonala.gob.mx del README) y este 5 se quedo
+    // Un piso, no un numero exacto: el seed fue creciendo y este 5 se quedo
     // congelado en el conjunto original, dejando el test en rojo. Lo que este
-    // caso comprueba de verdad es la idempotencia, y de eso responde la ultima
-    // linea; el conteo exacto solo obliga a editar el test cada vez que se
-    // suma una cuenta.
+    // caso comprueba de verdad es la idempotencia, y de eso responden las
+    // ultimas lineas; el conteo exacto solo obliga a editar el test cada vez
+    // que se suma una cuenta.
     expect(first.users).toBeGreaterThanOrEqual(5);
     expect(first.colonies).toBeGreaterThanOrEqual(32);
-    expect(second).toEqual(first);
+
+    // La idempotencia es sobre las filas. userPassword queda fuera a proposito:
+    // la semilla genera una contrasena aleatoria por ejecucion, asi que dos
+    // corridas dan valores distintos y eso es justamente lo que se busca.
+    expect({ roles: second.roles, users: second.users, colonies: second.colonies })
+      .toEqual({ roles: first.roles, users: first.users, colonies: first.colonies });
+    expect(second.userPassword).not.toBe(first.userPassword);
   });
 });
 

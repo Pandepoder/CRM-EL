@@ -1,4 +1,7 @@
-import paramiko
+import vps_ssh
+
+# Destino publico configurado, no escrito: este script verifica un servidor en vivo.
+BASE = vps_ssh.app_base_url()
 import sys
 import os
 
@@ -10,14 +13,10 @@ if sys.stdout.encoding != 'utf-8':
         pass
 
 def sync_voronoi_to_vps():
-    host = "45.80.153.22"
-    user = "root"
-    password=os.environ["VPS_SSH_PASSWORD"]
+    host, user, _ = vps_ssh.target_or_exit()
     
     print(f"Conectando por SSH a {user}@{host}...")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(host, port=22, username=user, password=password, timeout=15)
+    client = vps_ssh.connect_or_exit(timeout=15)
     print("[OK] Conectado.")
 
     sql_path = os.path.join(os.path.dirname(__file__), "voronoi_updates.sql")
@@ -47,16 +46,17 @@ def sync_voronoi_to_vps():
     print("Última línea:", lines[-1] if lines else "None")
 
     # Test GeoJSON endpoint on live server
-    print("\nVerificando API pública https://elapp.com.mx/api/map/sections/geojson ...")
+    print(f"\nVerificando API pública {BASE}/api/map/sections/geojson ...")
     cmd_test = """
-    curl -s https://elapp.com.mx/api/map/sections/geojson | head -c 250
+    curl -s __BASE__/api/map/sections/geojson | head -c 250
     """
-    stdin, stdout, stderr = client.exec_command(cmd_test)
+    stdin, stdout, stderr = cmd_test = cmd_test.replace("__BASE__", BASE)
+    client.exec_command(cmd_test)
     out_test = stdout.read().decode('utf-8')
     print("Respuesta GeoJSON en vivo:\n", out_test)
     
     client.close()
-    print("\n✅ ¡86 Secciones Voronoi continuas sin sobreposiciones aplicadas en vivo en https://elapp.com.mx/mapa!")
+    print(f"\n✅ ¡86 Secciones Voronoi continuas sin sobreposiciones aplicadas en vivo en {BASE}/mapa!")
 
 if __name__ == "__main__":
     sync_voronoi_to_vps()

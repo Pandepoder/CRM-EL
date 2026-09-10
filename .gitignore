@@ -18,3 +18,10 @@ scripts/*.png
 __pycache__/
 *.pyc
 .claude/
+
+# Informes de auditoria: describen debilidades aun sin corregir y este repositorio
+# es publico. Se mantienen fuera del control de versiones a proposito.
+docs/auditoria/
+
+# Salidas de trabajo local
+output/

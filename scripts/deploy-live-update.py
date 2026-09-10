@@ -1,7 +1,9 @@
-import paramiko
+import vps_ssh
+
+# Destino publico configurado, no escrito: este script verifica un servidor en vivo.
+BASE = vps_ssh.app_base_url()
 import sys
 import time
-import os
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -35,19 +37,14 @@ def run_remote_command(client, command, step_name):
     return True, "".join(output_lines)
 
 def update_live():
-    host = "45.80.153.22"
-    user = "root"
-    password = os.environ.get("VPS_SSH_PASSWORD") or (sys.argv[1] if len(sys.argv) > 1 else None)
-    if not password:
-        print("ERROR: Debe definir VPS_SSH_PASSWORD o pasar la contraseña como argumento.", file=sys.stderr)
-        sys.exit(1)
-    
+    # Antes esta funcion aceptaba la contrasena como sys.argv[1]; eso la dejaba
+    # en el historial del shell y visible en `ps`. vps_ssh la toma del entorno.
+    host, user, _ = vps_ssh.target_or_exit()
+
     print(f"Conectando a {user}@{host}...")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     
     try:
-        client.connect(host, port=22, username=user, password=password, timeout=15)
+        client = vps_ssh.connect_or_exit(timeout=15)
         print("[OK] Conexión SSH establecida con el servidor VPS.")
     except Exception as e:
         print(f"Error al conectar por SSH: {e}", file=sys.stderr)
@@ -118,15 +115,16 @@ def update_live():
         sleep 3
     done
 
-    echo "Verificando respuesta pública en https://elapp.com.mx/api/health ..."
-    curl -s https://elapp.com.mx/api/health
+    echo "Verificando respuesta pública en __BASE__/api/health ..."
+    curl -s __BASE__/api/health
     echo ""
     """
-    ok, _ = run_remote_command(client, cmd_test, "5. Verificación de Salud en Vivo")
+    ok, _ = cmd_test = cmd_test.replace("__BASE__", BASE)
+    run_remote_command(client, cmd_test, "5. Verificación de Salud en Vivo")
     if not ok:
         sys.exit(1)
 
-    print("\n✅ ¡Actualización en vivo desplegada con éxito en https://elapp.com.mx!")
+    print(f"\n✅ ¡Actualización en vivo desplegada con éxito en {BASE}!")
     client.close()
 
 if __name__ == "__main__":

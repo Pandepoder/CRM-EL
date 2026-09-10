@@ -62,7 +62,7 @@ async function runExhaustiveAudit() {
 
   // Get Admin user for seeding and auditing
   const adminUser = await db.query.userProfiles.findFirst({
-    where: (u, { eq }) => eq(u.email, "admin.demo@tonala-os.local")
+    where: (u, { eq }) => eq(u.email, "admin@pruebas.local")
   });
 
   if (!adminUser) {

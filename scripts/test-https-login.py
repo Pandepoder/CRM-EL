@@ -3,16 +3,24 @@ import json
 import ssl
 import os
 
+import entorno
+
+# Destino obligatorio: este script consulta un servidor en vivo, asi que no puede
+# traer la direccion escrita. Antes apuntaba a produccion sin pedir configuracion.
+BASE = entorno.app_base_url()
+# La cuenta administradora tampoco va escrita: es la real del servidor.
+ADMIN_EMAIL = entorno.admin_email()
+
 ctx = ssl.create_default_context()
 
 data = json.dumps({
-    "email": "admin@elapp.com.mx",
+    "email": ADMIN_EMAIL,
     "password": os.environ["APP_ADMIN_PASSWORD"]
 }).encode("utf-8")
 
 try:
     req = urllib.request.Request(
-        "https://elapp.com.mx/api/auth/login",
+        f"{BASE}/api/auth/login",
         data=data,
         headers={
             "Content-Type": "application/json",

@@ -1,15 +1,23 @@
 import requests
 import os
 
+import entorno
+
+# Destino obligatorio: este script consulta un servidor en vivo, asi que no puede
+# traer la direccion escrita. Antes apuntaba a produccion sin pedir configuracion.
+BASE = entorno.app_base_url()
+# La cuenta administradora tampoco va escrita: es la real del servidor.
+ADMIN_EMAIL = entorno.admin_email()
+
 session = requests.Session()
 login_res = session.post(
-    "https://elapp.com.mx/api/auth/login",
-    json={"email": "admin@elapp.com.mx", "password": os.environ["APP_ADMIN_PASSWORD"]}
+    f"{BASE}/api/auth/login",
+    json={"email": ADMIN_EMAIL, "password": os.environ["APP_ADMIN_PASSWORD"]}
 )
 print("Login status:", login_res.status_code)
 
 # 1. Test GeoJSON for Tonalá
-geo_res = session.get("https://elapp.com.mx/api/map/sections/geojson?municipality=Tonal%C3%A1")
+geo_res = session.get(f"{BASE}/api/map/sections/geojson?municipality=Tonal%C3%A1")
 print("GeoJSON Tonalá status:", geo_res.status_code)
 if geo_res.ok:
     data = geo_res.json()
@@ -20,7 +28,7 @@ if geo_res.ok:
         print(f"  Sec #{p.get('section_num')}: Muni={p.get('municipality')}, Colonies={p.get('colonies')}")
 
 # 2. Test Colony search in Tonalá
-col_res = session.get("https://elapp.com.mx/api/catalog/colonies/search?mun=Tonal%C3%A1&q=Loma")
+col_res = session.get(f"{BASE}/api/catalog/colonies/search?mun=Tonal%C3%A1&q=Loma")
 print("\nColonies Search 'Loma' status:", col_res.status_code)
 if col_res.ok:
     cols = col_res.json()
@@ -29,7 +37,7 @@ if col_res.ok:
         print(f"  - {c.get('name')} (CP: {c.get('postalCode')}, Muni: {c.get('municipality')}, Sec: {c.get('sectionNum')})")
 
 # 3. Test Section 2704 colonies in Tonalá
-sec_res = session.get("https://elapp.com.mx/api/catalog/colonies/search?mun=Tonal%C3%A1&section=2704")
+sec_res = session.get(f"{BASE}/api/catalog/colonies/search?mun=Tonal%C3%A1&section=2704")
 print("\nSection 2704 Colonies status:", sec_res.status_code)
 if sec_res.ok:
     s_cols = sec_res.json()

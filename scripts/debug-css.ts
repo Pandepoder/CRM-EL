@@ -1,12 +1,13 @@
 import puppeteer from "puppeteer";
+import { seedUserPassword } from "./seed-credentials.js";
 
 async function run() {
   const loginRes = await fetch("http://localhost:3001/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      email: "admin.demo@tonala-os.local",
-      password: "TonalaDemo2026"
+      email: "admin@pruebas.local",
+      password: seedUserPassword()
     })
   });
 

@@ -1,4 +1,4 @@
-import paramiko
+import vps_ssh
 import sys
 import time
 import os
@@ -34,15 +34,19 @@ def run_remote_command(client, command, step_name):
     print(f"[OK] {step_name} completado con éxito.")
     return True, "".join(output_lines)
 
+# VPS_SSH_PASSWORD no se lista aqui: vps_ssh acepta llave (VPS_SSH_KEY_FILE) o
+# contrasena, y valida esa eleccion al conectar.
+# PROD_DOMAIN y PROD_ADMIN_EMAIL son obligatorias: antes el dominio y la cuenta
+# administradora estaban escritos aqui, asi que apuntar VPS_HOST a otro servidor
+# igualmente le configuraba el dominio y el admin del sitio de produccion actual.
 REQUIRED_ENV_VARS = [
-    "VPS_SSH_PASSWORD",
+    "PROD_DOMAIN",
+    "PROD_ADMIN_EMAIL",
     "PROD_POSTGRES_PASSWORD",
     "PROD_SESSION_SECRET",
     "PROD_DATABASE_ENCRYPTION_KEY",
     "PROD_ADMIN_PASSWORD",
-    "PROD_DEMO_PASSWORD",
 ]
-
 
 def deploy():
     missing = [name for name in REQUIRED_ENV_VARS if not os.environ.get(name)]
@@ -50,16 +54,12 @@ def deploy():
         print(f"[ERROR] Missing required environment variables: {', '.join(missing)}", file=sys.stderr)
         sys.exit(1)
 
-    host = "45.80.153.22"
-    user = "root"
-    password = os.environ["VPS_SSH_PASSWORD"]
+    host, user, _ = vps_ssh.target_or_exit()
 
     print(f"Conectando a {user}@{host}...")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     
     try:
-        client.connect(host, port=22, username=user, password=password, timeout=15)
+        client = vps_ssh.connect_or_exit(timeout=15)
         print("[OK] Conexión SSH establecida con el servidor VPS.")
     except Exception as e:
         print(f"Error al conectar por SSH: {e}", file=sys.stderr)
@@ -144,7 +144,8 @@ def deploy():
     session_secret = os.environ["PROD_SESSION_SECRET"]
     encryption_key = os.environ["PROD_DATABASE_ENCRYPTION_KEY"]
     admin_password = os.environ["PROD_ADMIN_PASSWORD"]
-    demo_password = os.environ["PROD_DEMO_PASSWORD"]
+    dominio = os.environ["PROD_DOMAIN"]
+    admin_email = os.environ["PROD_ADMIN_EMAIL"]
 
     cmd_env = f"""
     cat << 'EOF' > /opt/crm-el/.env
@@ -159,12 +160,10 @@ SESSION_SECRET={session_secret}
 DATABASE_ENCRYPTION_KEY={encryption_key}
 ALLOW_PUBLIC_REGISTRATION=false
 
-ADMIN_EMAIL=admin@elapp.com.mx
+ADMIN_EMAIL={admin_email}
 ADMIN_PASSWORD={admin_password}
-DEMO_PASSWORD={demo_password}
-NEXT_PUBLIC_ENABLE_DEMO_LOGIN=false
 
-DOMAIN=elapp.com.mx
+DOMAIN={dominio}
 NEXT_PUBLIC_APP_NAME="Tonala OS - CRM Territorial"
 NEXT_PUBLIC_APP_ENV=production
 NODE_ENV=production
@@ -177,9 +176,11 @@ EOF
         sys.exit(1)
 
     # 5. Configurar Caddyfile para soportar dominio + IP directa
+    # String plano y sustitucion explicita: el Caddyfile usa {remote_host}, {scheme}
+    # y llaves de bloque, asi que una f-string obligaria a duplicar todas.
     cmd_caddy = """
     cat << 'EOF' > /opt/crm-el/Caddyfile
-elapp.com.mx, www.elapp.com.mx {
+__DOMINIO__, www.__DOMINIO__ {
     encode zstd gzip
     reverse_proxy web:3000 {
         header_up X-Real-IP {remote_host}
@@ -197,8 +198,9 @@ elapp.com.mx, www.elapp.com.mx {
     }
 }
 EOF
-    echo "Caddyfile configurado para elapp.com.mx e IP directa."
+    echo "Caddyfile configurado para __DOMINIO__ e IP directa."
     """
+    cmd_caddy = cmd_caddy.replace("__DOMINIO__", dominio)
     ok, _ = run_remote_command(client, cmd_caddy, "5. Configuración de Proxy Inverso y SSL Automático")
     if not ok:
         sys.exit(1)
@@ -246,9 +248,9 @@ EOF
     print("\n=======================================================")
     print("🎉 ¡DESPLIEGUE EN PRODUCCIÓN FINALIZADO CON ÉXITO! 🎉")
     print("=======================================================")
-    print(f"🌐 URL por Dominio: https://elapp.com.mx (apunta el registro DNS A a 45.80.153.22)")
-    print(f"🌐 URL por IP Directa: http://45.80.153.22")
-    print(f"👤 Usuario Administrador: admin@elapp.com.mx")
+    print(f"🌐 URL por Dominio: https://{dominio} (apunta el registro DNS A a {host})")
+    print(f"🌐 URL por IP Directa: http://{host}")
+    print(f"👤 Usuario Administrador: {admin_email}")
     print(f"🔑 Contraseña Administrador: (configurada via PROD_ADMIN_PASSWORD)")
     print("=======================================================")
 

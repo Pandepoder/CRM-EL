@@ -1,12 +1,16 @@
 import argon2 from "argon2";
+import { randomBytes } from "node:crypto";
 import pg from "pg";
 
-import { catalogSeed, colonySeeds, demoUserSeeds, roleSeeds, electoralSectionSeeds } from "./seed-data.js";
+import { confirmDestructiveOperation } from "./confirm-destructive.js";
+import { catalogSeed, colonySeeds, userSeeds, roleSeeds, electoralSectionSeeds } from "./seed-data.js";
 
 export type SeedResult = {
   readonly roles: number;
   readonly users: number;
   readonly colonies: number;
+  /** Contrasena con la que quedaron los usuarios sembrados, para poder entrar en local. */
+  readonly userPassword: string;
 };
 
 type CountRow = {
@@ -18,7 +22,39 @@ async function countTable(pool: pg.Pool, table: string): Promise<number> {
   return Number(result.rows[0]?.count ?? 0);
 }
 
+/**
+ * Contrasena de los usuarios que crea la semilla.
+ *
+ * Aleatoria por omision, distinta en cada ejecucion, y devuelta en el resultado para que
+ * quien siembre en local pueda entrar. No hay valor compartido en el repositorio ni en la
+ * configuracion: antes existia DEMO_PASSWORD, presente en .env, CI, Dockerfile,
+ * docker-compose y el despliegue, y eso era exactamente lo que habia que blindar, rotar y
+ * vigilar. Un secreto que no existe no se filtra.
+ *
+ * SEED_USER_PASSWORD permite fijarla cuando hace falta repetibilidad, por ejemplo para
+ * los scripts sueltos de scripts/ que entran por HTTP.
+ */
+function resolveSeedPassword(): string {
+  const fijada = process.env.SEED_USER_PASSWORD?.trim();
+  if (fijada) return fijada;
+  return randomBytes(18).toString("base64url");
+}
+
 export async function seedDatabase(connectionString: string): Promise<SeedResult> {
+  const userPassword = resolveSeedPassword();
+
+  // El upsert de mas abajo reescribe password_hash, asi que sembrar sobre una base que ya
+  // tenga usuarios con esos correos les cambia la contrasena. confirmDestructiveOperation
+  // decide segun el host de DATABASE_URL, no segun una etiqueta de entorno: localhost pasa
+  // sin ruido y cualquier host remoto exige confirmar el nombre exacto de la base. Es el
+  // mismo control que ya usaban db:clean y db:reset.
+  await confirmDestructiveOperation({
+    databaseUrl: connectionString,
+    actionLabel:
+      "SEMBRAR usuarios de prueba, reescribiendo la contrasena de cualquier usuario que ya " +
+      "exista con esos correos"
+  });
+
   const pool = new pg.Pool({ connectionString });
 
   try {
@@ -98,13 +134,12 @@ export async function seedDatabase(connectionString: string): Promise<SeedResult
       }
     }
 
-    // Hashear la contraseña demo una vez antes de la transacción.
+    // Hashear la contraseña una sola vez antes de la transacción.
     // argon2id es intencionalmente lento: hacerlo dentro del transaction
     // mantendría el lock de BD durante ~200ms por usuario.
-    const demoPassword = process.env.DEMO_PASSWORD ?? "TonalaDemo2026";
-    const passwordHash = await argon2.hash(demoPassword, { type: argon2.argon2id });
+    const passwordHash = await argon2.hash(userPassword, { type: argon2.argon2id });
 
-    for (const user of demoUserSeeds) {
+    for (const user of userSeeds) {
       await pool.query(
         `
           INSERT INTO user_profiles (email, display_name, role_id, password_hash)
@@ -127,7 +162,8 @@ export async function seedDatabase(connectionString: string): Promise<SeedResult
     return {
       roles: await countTable(pool, "roles"),
       users: await countTable(pool, "user_profiles"),
-      colonies: await countTable(pool, "colonies")
+      colonies: await countTable(pool, "colonies"),
+      userPassword
     };
   } catch (error) {
     await pool.query("ROLLBACK");

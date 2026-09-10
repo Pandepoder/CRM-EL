@@ -3,9 +3,7 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ShieldCheck, Mail, Lock, ArrowRight, Loader2, Shield, MapPin, Footprints, ClipboardList } from "lucide-react";
-
-const demoButtonIconStyle = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" } as const;
+import { ShieldCheck, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -109,113 +107,6 @@ function LoginForm() {
           </>
         )}
       </button>
-
-      {/* QUICK DEMO ACCESS BUTTONS — gated: never render unless explicitly enabled */}
-      {process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === "true" ? (
-      <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #e2e8f0" }}>
-        <p style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "10px", textAlign: "center" }}>
-          Acceso Rápido de Demostración (1 Clic)
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={async () => {
-              setEmail("admin@tonala.gob.mx");
-              setPassword("TonalaDemo2026");
-              setLoading(true);
-              try {
-                const res = await fetch("/api/auth/login", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ email: "admin@tonala.gob.mx", password: "TonalaDemo2026" })
-                });
-                const data = await res.json() as { redirectTo?: string };
-                window.location.href = data.redirectTo || "/crm/contacts";
-              } catch {
-                setError("Error de conexión");
-                setLoading(false);
-              }
-            }}
-            style={{ padding: "8px 10px", fontSize: "12px", fontWeight: 600, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", borderRadius: "8px", cursor: "pointer", textAlign: "center" }}
-          >
-            <span style={demoButtonIconStyle}><Shield size={14} /> Administrador</span>
-          </button>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={async () => {
-              setEmail("coordinador.demo@tonala-os.local");
-              setPassword("TonalaDemo2026");
-              setLoading(true);
-              try {
-                const res = await fetch("/api/auth/login", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ email: "coordinador.demo@tonala-os.local", password: "TonalaDemo2026" })
-                });
-                const data = await res.json() as { redirectTo?: string };
-                window.location.href = data.redirectTo || "/crm/contacts";
-              } catch {
-                setError("Error de conexión");
-                setLoading(false);
-              }
-            }}
-            style={{ padding: "8px 10px", fontSize: "12px", fontWeight: 600, background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e40af", borderRadius: "8px", cursor: "pointer", textAlign: "center" }}
-          >
-            <span style={demoButtonIconStyle}><MapPin size={14} /> Coordinador</span>
-          </button>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={async () => {
-              setEmail("responsable.demo@tonala-os.local");
-              setPassword("TonalaDemo2026");
-              setLoading(true);
-              try {
-                const res = await fetch("/api/auth/login", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ email: "responsable.demo@tonala-os.local", password: "TonalaDemo2026" })
-                });
-                const data = await res.json() as { redirectTo?: string };
-                window.location.href = data.redirectTo || "/equipo";
-              } catch {
-                setError("Error de conexión");
-                setLoading(false);
-              }
-            }}
-            style={{ padding: "8px 10px", fontSize: "12px", fontWeight: 600, background: "#fefce8", border: "1px solid #fef08a", color: "#854d0e", borderRadius: "8px", cursor: "pointer", textAlign: "center" }}
-          >
-            <span style={demoButtonIconStyle}><Footprints size={14} /> Brigadista</span>
-          </button>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={async () => {
-              setEmail("capturista.demo@tonala-os.local");
-              setPassword("TonalaDemo2026");
-              setLoading(true);
-              try {
-                const res = await fetch("/api/auth/login", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ email: "capturista.demo@tonala-os.local", password: "TonalaDemo2026" })
-                });
-                const data = await res.json() as { redirectTo?: string };
-                window.location.href = data.redirectTo || "/crm/contacts";
-              } catch {
-                setError("Error de conexión");
-                setLoading(false);
-              }
-            }}
-            style={{ padding: "8px 10px", fontSize: "12px", fontWeight: 600, background: "#faf5ff", border: "1px solid #e9d5ff", color: "#6b21a8", borderRadius: "8px", cursor: "pointer", textAlign: "center" }}
-          >
-            <span style={demoButtonIconStyle}><ClipboardList size={14} /> Capturista</span>
-          </button>
-        </div>
-      </div>
-      ) : null}
 
       <div style={{ textAlign: "center", marginTop: "20px", paddingTop: "14px", borderTop: "1px solid #f1f5f9" }}>
         <p style={{ fontSize: "14px", color: "#64748b", margin: 0 }}>

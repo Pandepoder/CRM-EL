@@ -6,50 +6,41 @@ export const roleSeeds = [
   { key: "visit_responsible", name: "Brigadista" }
 ] as const;
 
-export const demoUserSeeds = [
+/**
+ * Usuarios que crea la semilla: fixtures para las pruebas de integracion y para tener
+ * con que entrar en desarrollo local. No son un "modo demo" ni una funcion del producto.
+ *
+ * Todos usan el dominio .local, reservado por RFC 6762 y por tanto incapaz de coincidir
+ * con un correo de trabajo. Antes esta lista incluia admin@tonala.gob.mx y
+ * admin@elapp.com.mx, que son valores por omision de ADMIN_EMAIL: como el upsert reescribe
+ * password_hash, sembrar sobre una base real le cambiaba la contrasena al administrador.
+ *
+ * Si agregas uno, usa .local. tests/unit/seed-user-isolation.test.ts falla si no lo haces.
+ */
+export const userSeeds = [
   {
-    email: "admin.demo@tonala-os.local",
-    displayName: "Admin Demo",
+    email: "admin@pruebas.local",
+    displayName: "Admin de Pruebas",
     roleKey: "admin"
   },
   {
-    email: "admin@tonala.gob.mx",
-    displayName: "Administrador Tonalá",
-    roleKey: "admin"
-  },
-  {
-    email: "admin@elapp.com.mx",
-    displayName: "Administrador ElApp",
-    roleKey: "admin"
-  },
-  {
-    email: "coordinador.demo@tonala-os.local",
-    displayName: "Coordinador Demo",
+    email: "coordinador@pruebas.local",
+    displayName: "Coordinador de Pruebas",
     roleKey: "territorial_coordinator"
   },
   {
-    email: "coord.centro@tonala.gob.mx",
-    displayName: "Coordinador Centro",
-    roleKey: "territorial_coordinator"
-  },
-  {
-    email: "capturista.demo@tonala-os.local",
-    displayName: "Capturista Demo",
+    email: "capturista@pruebas.local",
+    displayName: "Capturista de Pruebas",
     roleKey: "capturist"
   },
   {
-    email: "responsable.demo@tonala-os.local",
-    displayName: "Responsable Demo",
+    email: "responsable@pruebas.local",
+    displayName: "Responsable de Pruebas",
     roleKey: "visit_responsible"
   },
   {
-    email: "brigada.norte@tonala.gob.mx",
-    displayName: "Brigadista Norte",
-    roleKey: "visit_responsible"
-  },
-  {
-    email: "direccion.demo@tonala-os.local",
-    displayName: "Direccion Demo",
+    email: "direccion@pruebas.local",
+    displayName: "Direccion de Pruebas",
     roleKey: "direction"
   }
 ] as const;

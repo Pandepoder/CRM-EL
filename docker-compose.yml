@@ -102,10 +102,13 @@ services:
       - ALLOW_PUBLIC_REGISTRATION=${ALLOW_PUBLIC_REGISTRATION:-false}
       - SESSION_SECRET=${SESSION_SECRET}
       - DATABASE_ENCRYPTION_KEY=${DATABASE_ENCRYPTION_KEY}
-      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@elapp.com.mx}
+      # Sin valor por omisión: la identidad del Administrador Maestro debe venir del .env
+      # y de un solo sitio. Con el `:-admin@elapp.com.mx` que había aquí, esa cuenta
+      # cambiaba según cómo se ejecutara `pnpm db:clean` (este archivo traía un correo,
+      # .env.example otro y .env.production.example un tercero). Si falta, `db:clean`
+      # aborta con un mensaje claro en vez de crear un administrador que nadie esperaba.
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - DEMO_PASSWORD=${DEMO_PASSWORD}
-      - NEXT_PUBLIC_ENABLE_DEMO_LOGIN=${NEXT_PUBLIC_ENABLE_DEMO_LOGIN:-false}
       - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-Tonala OS}
       - NEXT_PUBLIC_APP_ENV=production
       - PORT=3000

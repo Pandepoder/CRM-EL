@@ -3,6 +3,14 @@ import json
 import sys
 import os
 
+import entorno
+
+# Destino obligatorio: este script consulta un servidor en vivo, asi que no puede
+# traer la direccion escrita. Antes apuntaba a produccion sin pedir configuracion.
+BASE = entorno.app_base_url()
+# La cuenta administradora tampoco va escrita: es la real del servidor.
+ADMIN_EMAIL = entorno.admin_email()
+
 if sys.stdout.encoding != 'utf-8':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -10,15 +18,18 @@ if sys.stdout.encoding != 'utf-8':
     except Exception:
         pass
 
-BASE_URL = "https://elapp.com.mx"
+BASE_URL = BASE
 
 def test_user_flow():
     print(f"--- Probando Flujo Completo de Usuarios en {BASE_URL} ---")
     session = requests.Session()
     
     # 1. Registrar un nuevo usuario (solicitud de acceso)
-    test_email = "brigadista.test@elapp.com.mx"
-    test_pass = "Brigadista2026!"
+    # Dominio reservado y contrasena desde el entorno: este script da de alta un
+    # usuario de verdad contra un servidor en vivo, asi que ni la identidad ni la
+    # credencial deben quedar escritas aqui. Se me paso en la limpieza anterior.
+    test_email = "brigadista.test@tonala-os.local"
+    test_pass = os.environ["TEST_BRIGADISTA_PASSWORD"]
     test_name = "Carlos Brigadista de Prueba"
     
     print(f"\n1. Enviando solicitud de registro público para {test_email}...")
@@ -45,9 +56,9 @@ def test_user_flow():
         print("⚠️ Advertencia: Respuesta inesperada al intentar login con cuenta pendiente.")
 
     # 3. Iniciar sesión como Admin
-    print(f"\n3. Iniciando sesión como Administrador (admin@elapp.com.mx)...")
+    print(f"\n3. Iniciando sesión como Administrador ({ADMIN_EMAIL})...")
     admin_login = session.post(f"{BASE_URL}/api/auth/login", json={
-        "email": "admin@elapp.com.mx",
+        "email": ADMIN_EMAIL,
         "password": os.environ["APP_ADMIN_PASSWORD"]
     })
     print(f"Admin Status: {admin_login.status_code}")

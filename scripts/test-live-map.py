@@ -3,6 +3,14 @@ import json
 import sys
 import os
 
+import entorno
+
+# Destino obligatorio: este script consulta un servidor en vivo, asi que no puede
+# traer la direccion escrita. Antes apuntaba a produccion sin pedir configuracion.
+BASE = entorno.app_base_url()
+# La cuenta administradora tampoco va escrita: es la real del servidor.
+ADMIN_EMAIL = entorno.admin_email()
+
 if sys.stdout.encoding != 'utf-8':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -12,21 +20,21 @@ if sys.stdout.encoding != 'utf-8':
 
 def test_live_map():
     session = requests.Session()
-    login_url = "https://elapp.com.mx/api/auth/login"
+    login_url = f"{BASE}/api/auth/login"
     login_payload = {
-        "email": "admin@elapp.com.mx",
+        "email": ADMIN_EMAIL,
         "password": os.environ["APP_ADMIN_PASSWORD"]
     }
     
-    print("1. Autenticando en https://elapp.com.mx/api/auth/login...")
+    print(f"1. Autenticando en {BASE}/api/auth/login...")
     r = session.post(login_url, json=login_payload, timeout=10)
     print(f"Login Status: {r.status_code}")
     if r.status_code != 200:
         print("Login falló:", r.text)
         return False
         
-    print("2. Consultando GeoJSON de Secciones en https://elapp.com.mx/api/map/sections/geojson...")
-    r_geo = session.get("https://elapp.com.mx/api/map/sections/geojson", timeout=10)
+    print(f"2. Consultando GeoJSON de Secciones en {BASE}/api/map/sections/geojson...")
+    r_geo = session.get(f"{BASE}/api/map/sections/geojson", timeout=10)
     print(f"GeoJSON Status: {r_geo.status_code}")
     if r_geo.status_code != 200:
         print("GeoJSON falló:", r_geo.text)
@@ -44,8 +52,8 @@ def test_live_map():
         print(f"Muestra: Sección {sec_num} ({muni}) - {len(coords)} vértices poligonales limpios")
         print(f"Vértices muestra: {coords[:3]}")
         
-    print("3. Consultando Incidencias en https://elapp.com.mx/api/map/reports...")
-    r_rep = session.get("https://elapp.com.mx/api/map/reports", timeout=10)
+    print(f"3. Consultando Incidencias en {BASE}/api/map/reports...")
+    r_rep = session.get(f"{BASE}/api/map/reports", timeout=10)
     print(f"Reports Status: {r_rep.status_code}")
     reps = r_rep.json().get("features", [])
     print(f"[OK] Total de incidencias activas en mapa: {len(reps)}")

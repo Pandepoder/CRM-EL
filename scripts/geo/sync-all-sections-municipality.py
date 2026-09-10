@@ -3,9 +3,11 @@ Syncs official INE municipality and district metadata for all 3,787 electoral se
 """
 
 import xml.etree.ElementTree as ET
-import paramiko
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+import vps_ssh
 import sys
-import os
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -202,14 +204,10 @@ def main():
     print(f"[OK] Archivo SQL generado: {local_sql_path} ({len(sql_script)} bytes)")
 
     # Execute on VPS
-    host = "45.80.153.22"
-    user = "root"
-    password=os.environ["VPS_SSH_PASSWORD"]
+    host, user, _ = vps_ssh.target_or_exit()
     
     print(f"2. Conectando a {user}@{host}...")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(host, port=22, username=user, password=password, timeout=15)
+    client = vps_ssh.connect_or_exit(timeout=15)
     print("[OK] Conectado por SSH.")
 
     sftp = client.open_sftp()

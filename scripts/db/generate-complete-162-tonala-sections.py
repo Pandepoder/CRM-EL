@@ -5,7 +5,13 @@ INE & IEPC Jalisco - Distrito 7 y Distrito 20.
 
 import json
 import math
-import paramiko
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+import vps_ssh
+
+# Destino publico configurado, no escrito: este script verifica un servidor en vivo.
+BASE = vps_ssh.app_base_url()
 import sys
 import os
 
@@ -486,9 +492,7 @@ def generate_sql():
     return "\n".join(sql_lines)
 
 def sync_complete_cartography():
-    host = "45.80.153.22"
-    user = "root"
-    password=os.environ["VPS_SSH_PASSWORD"]
+    host, user, _ = vps_ssh.target_or_exit()
     
     print(f"1. Generando catálogo completo para las {len(ALL_162_SECTIONS)} secciones oficiales (2683 - 2844)...")
     sql_content = generate_sql()
@@ -499,9 +503,7 @@ def sync_complete_cartography():
     print(f"[OK] Archivo SQL generado ({len(sql_content)} bytes)")
 
     print(f"2. Conectando por SSH a {user}@{host}...")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(host, port=22, username=user, password=password, timeout=15)
+    client = vps_ssh.connect_or_exit(timeout=15)
     print("[OK] Conectado.")
 
     print("3. Subiendo SQL al VPS...")
@@ -534,7 +536,7 @@ def sync_complete_cartography():
     print(stdout.read().decode("utf-8"))
 
     client.close()
-    print(f"\n🎉 ¡Las 162 secciones electorales oficiales completas (2683 a 2844) quedaron 100% sincronizadas en https://elapp.com.mx/mapa!")
+    print(f"\n🎉 ¡Las 162 secciones electorales oficiales completas (2683 a 2844) quedaron 100% sincronizadas en {BASE}/mapa!")
 
 if __name__ == "__main__":
     sync_complete_cartography()

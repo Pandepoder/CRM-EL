@@ -1,6 +1,12 @@
 import requests
 import sys
 
+import entorno
+
+# Destino obligatorio: este script consulta un servidor en vivo, asi que no puede
+# traer la direccion escrita. Antes apuntaba a produccion sin pedir configuracion.
+BASE = entorno.app_base_url()
+
 if sys.stdout.encoding != 'utf-8':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -9,7 +15,7 @@ if sys.stdout.encoding != 'utf-8':
         pass
 
 def test_jalisco_geocoding():
-    base_url = "https://elapp.com.mx"
+    base_url = BASE
     
     test_points = [
         ("Tonalá - Centro / Presidencia", 20.6248, -103.2422),
