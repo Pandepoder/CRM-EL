@@ -6,6 +6,7 @@ import { roleSeeds, catalogSeed, colonySeeds } from "./seed-data.js";
 import { METROPOLITAN_SECTIONS } from "./generate-metropolitan-sections.js";
 import { boundsToRealisticPolygon } from "./generate-official-sections.js";
 import { confirmDestructiveOperation } from "./confirm-destructive.js";
+import { resolveMasterAdminCredentials } from "./master-admin-credentials.js";
 
 /**
  * Clean Production Database Seeder
@@ -18,6 +19,10 @@ import { confirmDestructiveOperation } from "./confirm-destructive.js";
 async function cleanProductionDatabase() {
   console.log("🧹 Iniciando limpieza y preparación para PRODUCCIÓN...");
   const env = loadAppEnv();
+
+  // Antes de tocar la base: si las credenciales del administrador no son validas, no
+  // tiene sentido truncar nada. El ROLLBACK las revertiria, pero fallar aqui es mas claro.
+  const adminMaestro = resolveMasterAdminCredentials();
 
   await confirmDestructiveOperation({
     databaseUrl: env.private.DATABASE_URL,
@@ -127,13 +132,7 @@ async function cleanProductionDatabase() {
     }
 
     console.log("5. Creando cuenta de Administrador Maestro...");
-    const adminEmail = process.env.ADMIN_EMAIL || "admin@tonala.gob.mx";
-    const adminPassword = process.env.ADMIN_PASSWORD || process.env.DEMO_PASSWORD;
-    if (!adminPassword) {
-      throw new Error(
-        "ADMIN_PASSWORD (or DEMO_PASSWORD) must be set — refusing to seed the master admin account with a default password."
-      );
-    }
+    const { email: adminEmail, password: adminPassword } = adminMaestro;
     const passwordHash = await argon2.hash(adminPassword, { type: argon2.argon2id });
 
     // Delete existing non-admin profiles to ensure clean slate

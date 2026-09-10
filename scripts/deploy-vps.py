@@ -41,7 +41,6 @@ REQUIRED_ENV_VARS = [
     "PROD_SESSION_SECRET",
     "PROD_DATABASE_ENCRYPTION_KEY",
     "PROD_ADMIN_PASSWORD",
-    "PROD_DEMO_PASSWORD",
 ]
 
 
@@ -141,7 +140,6 @@ def deploy():
     session_secret = os.environ["PROD_SESSION_SECRET"]
     encryption_key = os.environ["PROD_DATABASE_ENCRYPTION_KEY"]
     admin_password = os.environ["PROD_ADMIN_PASSWORD"]
-    demo_password = os.environ["PROD_DEMO_PASSWORD"]
 
     cmd_env = f"""
     cat << 'EOF' > /opt/crm-el/.env
@@ -158,7 +156,10 @@ ALLOW_PUBLIC_REGISTRATION=false
 
 ADMIN_EMAIL=admin@elapp.com.mx
 ADMIN_PASSWORD={admin_password}
-DEMO_PASSWORD={demo_password}
+# DEMO_PASSWORD no se escribe aqui a proposito. El login demo esta apagado en
+# produccion, asi que no hace falta, y su presencia era lo que permitia que
+# clean-production.ts creara al administrador real con la contrasena de
+# demostracion cuando ADMIN_PASSWORD venia vacia.
 NEXT_PUBLIC_ENABLE_DEMO_LOGIN=false
 
 DOMAIN=elapp.com.mx

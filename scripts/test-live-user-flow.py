@@ -17,8 +17,11 @@ def test_user_flow():
     session = requests.Session()
     
     # 1. Registrar un nuevo usuario (solicitud de acceso)
-    test_email = "brigadista.test@elapp.com.mx"
-    test_pass = "Brigadista2026!"
+    # Dominio reservado y contrasena desde el entorno: este script da de alta un
+    # usuario de verdad contra un servidor en vivo, asi que ni la identidad ni la
+    # credencial deben quedar escritas aqui. Se me paso en la limpieza anterior.
+    test_email = "brigadista.test@tonala-os.local"
+    test_pass = os.environ["TEST_BRIGADISTA_PASSWORD"]
     test_name = "Carlos Brigadista de Prueba"
     
     print(f"\n1. Enviando solicitud de registro público para {test_email}...")
