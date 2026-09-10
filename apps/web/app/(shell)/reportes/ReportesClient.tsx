@@ -4,12 +4,14 @@ import { OPCIONES_CATEGORIA } from "@/lib/categorias-incidencia";
 
 import { useState } from "react";
 // @ts-ignore
-import { AlertTriangle, CheckCircle, ChevronRight, FileText, X, Landmark, Check, Loader2, Sparkles, Building2, Tag, Hash, UserCheck, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle, ChevronRight, FileText, X, Landmark, Check, Loader2, Sparkles, Building2, Hash, UserCheck, Users } from "lucide-react";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import type { LocationValue } from "@/components/LocationPicker";
 import { LocationPicker } from "@/components/LocationPicker";
 
 export default function ReportesClient({ sections, users, teams = [] }: { sections: any[], users: any[], teams?: any[] }) {
+  const [error, setError] = useState("");
+  const [locationKey, setLocationKey] = useState(0);
   const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sectionsList, setSectionsList] = useState<any[]>(sections || []);
@@ -47,8 +49,8 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
       }
       return {
         ...prev,
-        latitude: (loc.latitude ?? prev.latitude) || 20.6248,
-        longitude: (loc.longitude ?? prev.longitude) || -103.2422,
+        latitude: loc.latitude ?? prev.latitude,
+        longitude: loc.longitude ?? prev.longitude,
         locationText: loc.address || loc.locationText || prev.locationText,
         municipality: loc.municipality || prev.municipality,
         sectionId: loc.sectionId || matchedSectionId || prev.sectionId
@@ -97,8 +99,15 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.latitude || !form.longitude) {
-      alert("Debes proporcionar una ubicación (usa el botón GPS o el mapa).");
+    if (saving) return;
+    setError("");
+    setSuccess(false);
+    if (!categoryOptions.some(option => option.value === form.category)) {
+      setError("Selecciona una categoría de la lista.");
+      return;
+    }
+    if (form.latitude === null || form.longitude === null) {
+      setError("Falta la ubicación. Usa tu GPS, busca una dirección o toca el mapa.");
       return;
     }
 
@@ -124,6 +133,7 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
 
       if (res.ok) {
         setSuccess(true);
+        setLocationKey(key => key + 1);
         setForm({
           title: "",
           category: "",
@@ -138,16 +148,16 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
           assignedTeamId: "",
           eventDate: ""
         });
-        setTimeout(() => setSuccess(false), 4000);
+
       } else {
         // Se muestra el motivo que da el servidor —por ejemplo, que levantar
         // incidencias corresponde al líder de la brigada— en vez de un mensaje
         // genérico que deja a quien reporta sin saber qué hacer.
         const errData = await res.json().catch(() => ({}));
-        alert(errData.message || errData.error || "Error al enviar el reporte.");
+        setError(errData.message || errData.error || "No se pudo guardar. Tus datos siguen aquí; intenta de nuevo.");
       }
     } catch {
-      alert("Error de conexión");
+      setError("No hay conexión. Tus datos siguen aquí; vuelve a intentar cuando tengas señal.");
     } finally {
       setSaving(false);
     }
@@ -190,25 +200,25 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
   }));
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-8">
+    <div className="workspace-page incident-page p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
       {/* HEADER */}
-      <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
+      <div className="workspace-hero flex items-center gap-4">
         <div className="w-12 h-12 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center shadow-sm">
           <AlertTriangle size={24} />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-950 flex items-center gap-2">
-            Nuevo Reporte Territorial
+          <h1 className="text-2xl font-bold text-gray-950 flex flex-wrap items-center gap-2">
+            Nueva incidencia
             <span className="text-xs bg-red-100 text-red-800 font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-              <Sparkles size={12} /> Autopredicción Activa
+              <Sparkles size={12} /> Registro rápido
             </span>
           </h1>
-          <p className="text-sm text-gray-500">Registra una incidencia con búsqueda predictiva y asignación instantánea.</p>
+          <p className="text-sm text-gray-500">Describe el problema, ubícalo y envíalo. Así de simple.</p>
         </div>
       </div>
 
       {success && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center gap-3 animate-in fade-in">
+        <div role="status" className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center gap-3 animate-in fade-in">
           <CheckCircle className="text-emerald-600 shrink-0" size={20} />
           <div>
             <p className="font-bold">¡Reporte registrado exitosamente!</p>
@@ -217,37 +227,34 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
         </div>
       )}
 
+      <div className="form-guide"><FileText size={22} /><div><strong>Lo esencial primero</strong><p>La asignación de equipo y los datos de seguimiento son opcionales.</p></div></div>
       {/* FORM */}
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 md:p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
-          
+
           <section>
             <div className="flex items-center gap-2 mb-4 border-b border-gray-50 pb-2">
               <FileText className="text-red-500" size={18} />
-              <h2 className="text-lg font-bold text-gray-800">Detalles de la Incidencia</h2>
+              <h2 className="text-lg font-bold text-gray-800">1. ¿Qué ocurre?</h2>
             </div>
-            
+
+            <fieldset className="mb-5"><legend className="text-sm font-semibold text-slate-600 mb-3">Elige una categoría frecuente</legend><div className="category-shortcuts">{categoryOptions.filter(c => ["bache", "alumbrado", "fuga_agua", "basura"].includes(c.value)).map(c => <button type="button" key={c.value} aria-pressed={form.category === c.value} onClick={() => setForm(prev => ({ ...prev, category: c.value }))}>{c.label}</button>)}</div></fieldset>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Título de la Incidencia *</label>
-                <input 
-                  type="text" required placeholder="Ej. Bache profundo en Av. Río Nilo cruce con Calle Juárez" 
+                <label htmlFor="incident-title" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Título de la Incidencia *</label>
+                <input
+                  id="incident-title" type="text" required placeholder="Ej. Bache profundo en Av. Río Nilo cruce con Calle Juárez"
                   value={form.title} onChange={e => setForm({...form, title: e.target.value})}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all text-gray-900 text-sm font-semibold" 
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all text-gray-900 text-sm font-semibold"
                 />
               </div>
 
               <div>
-                <PredictiveCombobox
-                  label="Categoría de Incidencia"
-                  required
-                  allowCustom={true}
-                  placeholder="Escribe o busca categoría..."
-                  value={form.category}
-                  onChange={(val) => setForm({ ...form, category: val })}
-                  options={categoryOptions}
-                  icon={<Tag size={13} className="text-red-500" />}
-                />
+                <label htmlFor="incident-category" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Categoría de incidencia *</label>
+                <select id="incident-category" required value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-900">
+                  <option value="">Selecciona una categoría</option>
+                  {categoryOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
               </div>
 
               <div>
@@ -262,12 +269,41 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
                 />
               </div>
 
-              <div>
+              <div className="md:col-span-2">
+                <label htmlFor="incident-description" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Descripción Completa *</label>
+                <textarea id="incident-description"
+                  required rows={3} placeholder="Describe qué ocurrió, quién está involucrado y qué apoyo necesitas."
+                  value={form.description} onChange={e => setForm({...form, description: e.target.value})}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all text-gray-900 text-sm resize-none font-medium"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="pt-2">
+            <LocationPicker
+              key={locationKey}
+              label="2. ¿Dónde ocurre? *"
+              helperText="Escribe el domicilio (ej. Comité Directivo Municipal del PAN, Calle Juárez #123, Tonalá Centro), marca el punto en el mapa interactivo o usa tu GPS."
+              defaultMunicipality={form.municipality || "Tonalá"}
+              value={{
+                latitude: form.latitude,
+                longitude: form.longitude,
+                address: form.locationText,
+                locationText: form.locationText,
+                municipality: form.municipality,
+                sectionId: form.sectionId
+              }}
+              onChange={handleLocationChange}
+            />
+          </section>
+
+          <details className="optional-fields"><summary>Asignación y seguimiento <span>Opcional</span></summary><div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-5">              <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Fecha del Evento</label>
-                <input 
+                <input
                   type="date"
                   value={form.eventDate} onChange={e => setForm({...form, eventDate: e.target.value})}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all text-gray-900 text-sm font-medium" 
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all text-gray-900 text-sm font-medium"
                 />
               </div>
 
@@ -319,42 +355,16 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
                 />
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Descripción Completa *</label>
-                <textarea 
-                  required rows={3} placeholder="Describe qué ocurrió, quién está involucrado y qué apoyo necesitas." 
-                  value={form.description} onChange={e => setForm({...form, description: e.target.value})}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all text-gray-900 text-sm resize-none font-medium" 
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="pt-2">
-            <LocationPicker
-              label="Sede o Domicilio de la Incidencia / Evento *"
-              helperText="Escribe el domicilio (ej. Comité Directivo Municipal del PAN, Calle Juárez #123, Tonalá Centro), marca el punto en el mapa interactivo o usa tu GPS."
-              defaultMunicipality={form.municipality || "Tonalá"}
-              value={{
-                latitude: form.latitude,
-                longitude: form.longitude,
-                address: form.locationText,
-                locationText: form.locationText,
-                municipality: form.municipality,
-                sectionId: form.sectionId
-              }}
-              onChange={handleLocationChange}
-            />
-          </section>
-
+</div></details>
+          {error && <div role="alert" className="form-error">{error}</div>}
           {/* SUBMIT BUTTON */}
-          <div className="flex justify-end pt-8 border-t border-gray-100 mt-4">
-            <button 
-              type="submit" 
+          <div className="form-savebar">
+            <button
+              type="submit"
               disabled={saving}
               className="flex items-center justify-center gap-3 w-full md:w-auto bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 disabled:opacity-50 text-white font-bold py-4 px-10 rounded-2xl transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 text-lg"
             >
-              {saving ? "Enviando..." : "Enviar Reporte"} <ChevronRight size={24} />
+              {saving ? "Enviando..." : "Crear incidencia"} <ChevronRight size={24} />
             </button>
           </div>
         </form>
@@ -368,16 +378,16 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
               <h2 className="text-lg font-bold text-blue-950 flex items-center gap-2">
                 <Landmark size={20} className="text-indigo-600" /> Registrar Sección Electoral
               </h2>
-              <button 
+              <button
                 type="button"
-                onClick={() => setShowNewSectionModal(false)} 
+                onClick={() => setShowNewSectionModal(false)}
                 className="text-gray-500 hover:text-gray-800 w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/60 transition-colors cursor-pointer"
                 title="Cerrar ventana"
               >
                 <X size={20} />
               </button>
             </div>
-            
+
             <form onSubmit={handleCreateNewSection} className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">

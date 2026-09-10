@@ -182,7 +182,7 @@ export default function ResumenClient({
   const maxContacts = Math.max(...members.map(m => m.contactsCount), 1);
 
   return (
-    <div className="max-w-7xl mx-auto p-3 sm:p-6 lg:p-8 space-y-5">
+    <div className="workspace-page summary-page max-w-7xl mx-auto p-3 sm:p-6 lg:p-8 space-y-5">
       {/* FLOATING TOAST */}
       {toast && (
         <div
@@ -203,7 +203,7 @@ export default function ResumenClient({
 
       {/* ─── 1. HEADER ─── */}
       <header
-        className="rounded-2xl p-5 sm:p-7 relative overflow-hidden"
+        className="workspace-hero rounded-2xl p-5 sm:p-7 relative overflow-hidden"
         style={{
           background: "linear-gradient(135deg, #0b1f3a 0%, #122b50 50%, #183d6e 100%)",
         }}
@@ -217,11 +217,12 @@ export default function ResumenClient({
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="space-y-1.5">
             <p className="text-[11px] font-bold uppercase tracking-widest text-blue-300/70">
-              Centro de Mando · Tonalá
+              TU TERRITORIO, EN UN SOLO LUGAR
             </p>
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-tight">
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
               Bienvenido, {currentUser.displayName}
             </h1>
+            <p className="text-sm text-blue-100/90 pt-2 pb-3">Cada contacto cuenta. Cada acción acerca a tu equipo.</p>
             <div className="flex items-center gap-2 mt-1">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/10 border border-white/15 rounded-lg text-[11px] font-bold text-blue-200 uppercase tracking-wide">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -269,7 +270,7 @@ export default function ResumenClient({
       </header>
 
       {/* ─── 2. QUICK ACTIONS ─── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="summary-actions grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Link
           href="/crm/nuevo"
           className="group flex items-center gap-3 px-4 py-3.5 rounded-xl border border-blue-100 bg-blue-50/60 hover:bg-blue-100/70 transition-all active:scale-[.97]"
@@ -325,7 +326,7 @@ export default function ResumenClient({
       </div>
 
       {/* ─── 3. KPI METRICS ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="summary-metrics grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Registros */}
         <div className="bg-white rounded-xl border border-gray-200/80 p-4 space-y-3">
           <div className="flex items-center justify-between">

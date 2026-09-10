@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 
 import "./globals.css";
+import "./workspace-design.css";
+import { InterfaceMotion } from "@/components/InterfaceMotion";
 
 export const metadata: Metadata = {
   title: "Tonala OS",
@@ -29,7 +31,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body>{children}</body>
+      <body><InterfaceMotion />{children}</body>
     </html>
   );
 }

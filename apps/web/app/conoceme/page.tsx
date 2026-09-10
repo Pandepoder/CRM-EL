@@ -70,7 +70,7 @@ function IconoRed({ path, size = 20 }: { path: string; size?: number }) {
 
 export default function ConocemePage() {
   return (
-    <div className="min-h-screen flex flex-col font-sans" style={{ background: "#f7f8fb" }}>
+    <div className="welcome-page min-h-screen flex flex-col font-sans" style={{ background: "#f7f8fb" }}>
       <style>{`
         @keyframes cm-entrada { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes cm-foto { from { opacity: 0; transform: scale(1.05); } to { opacity: 1; transform: scale(1); } }
@@ -113,7 +113,7 @@ export default function ConocemePage() {
 
       <main className="flex-1">
         {/* Retrato y eslogan */}
-        <section
+        <section className="welcome-hero"
           style={{
             background: "linear-gradient(155deg, #0b1f3a 0%, #12305c 58%, #16407a 100%)",
             color: "#fff",
@@ -121,6 +121,7 @@ export default function ConocemePage() {
             overflow: "hidden"
           }}
         >
+          <div className="welcome-orbits" aria-hidden="true"><i /><i /><i /><span>TONALÁ</span></div>
           <div
             aria-hidden="true"
             style={{
@@ -129,9 +130,9 @@ export default function ConocemePage() {
               background: "radial-gradient(820px 360px at 22% 8%, rgba(96,165,250,.20), transparent 62%)"
             }}
           />
-          <div className="max-w-5xl mx-auto px-6 sm:px-8 py-14 sm:py-20 relative flex flex-col items-center text-center">
+          <div className="welcome-composition max-w-5xl mx-auto px-6 sm:px-8 py-14 sm:py-20 relative flex flex-col items-center text-center">
             <div
-              className="cm-foto"
+              className="cm-foto welcome-portrait"
               style={{
                 width: "clamp(132px, 26vw, 184px)",
                 height: "clamp(132px, 26vw, 184px)",
@@ -170,11 +171,11 @@ export default function ConocemePage() {
                 animationDelay: ".24s"
               }}
             >
-              Si pasa por tu vida pasa por tu mente
+              Si pasa por tu vida<br /><span className="welcome-title-soft">pasa por</span> <span className="welcome-title-accent">tu mente.</span>
             </h1>
 
             <div
-              className="cm-anim flex items-center gap-3 mt-9"
+              className="cm-anim welcome-social flex items-center gap-3 mt-9"
               style={{ animationDelay: ".34s" }}
             >
               {REDES.map(({ nombre, href, path }) => (
@@ -197,16 +198,18 @@ export default function ConocemePage() {
                 </a>
               ))}
             </div>
+            <a href="#videos" className="welcome-cta">Conoce mi trabajo <span aria-hidden="true">↗︎</span></a>
+            <div className="welcome-signature"><span className="signature-line" /><span>TONALÁ, JALISCO</span><span className="signature-line" /></div>
           </div>
         </section>
 
         {/* Videos */}
-        <section className="max-w-5xl mx-auto px-6 sm:px-8 py-14 sm:py-16">
+        <section id="videos" className="max-w-5xl mx-auto px-6 sm:px-8 py-14 sm:py-16">
           <h2
             className="cm-anim font-bold tracking-tight mb-2"
             style={{ fontSize: "1.5rem", color: "#0b1f3a", animationDelay: ".4s" }}
           >
-            Videos
+            Historias desde<br /><span className="stories-accent">el territorio.</span>
           </h2>
           <p
             className="cm-anim mb-7"
@@ -217,8 +220,8 @@ export default function ConocemePage() {
 
           {VIDEOS.length > 0 ? (
             <div className="grid gap-4 sm:gap-5 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {VIDEOS.map((v, i) => (
-                <div key={v.id} className="cm-anim" style={{ animationDelay: `${0.5 + i * 0.05}s` }}>
+              {VIDEOS.map((v) => (
+                <div key={v.id} className="welcome-video-card">
                   <VideoYoutube
                     id={v.id}
                     titulo={v.titulo}

@@ -120,6 +120,7 @@ export default function AgendaClient({
   const [convertingId, setConvertingId] = useState<string | null>(null);
 
   // Filter states
+  const [statusFilter, setStatusFilter] = useState("todas");
   const [categoryFilter, setCategoryFilter] = useState<string>("todas");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [leaderSearch, setLeaderSearch] = useState<string>("");
@@ -319,6 +320,9 @@ export default function AgendaClient({
   // Filtered agenda items based on category and search query
   const filteredItems = useMemo(() => {
     return items.filter(item => {
+      const completed = ["completed", "resolved", "successful"].includes(item.status);
+      if (statusFilter === "pendientes" && completed) return false;
+      if (statusFilter === "completadas" && !completed) return false;
       // Category filter
       if (categoryFilter !== "todas") {
         if (categoryFilter === "platica" && item.category !== "platica") return false;
@@ -339,7 +343,7 @@ export default function AgendaClient({
 
       return true;
     });
-  }, [items, categoryFilter, searchQuery]);
+  }, [items, categoryFilter, searchQuery, statusFilter]);
 
   // Global KPIs summary from leaderStats
   const totalActividadesGlobal = useMemo(() => {
@@ -403,16 +407,16 @@ export default function AgendaClient({
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-7">
+    <div className="workspace-page agenda-page p-4 md:p-8 max-w-6xl mx-auto space-y-7">
       {/* 1. HEADER PRINCIPAL */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-gray-100 pb-6">
+      <div className="workspace-hero flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-black uppercase tracking-wider bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-md flex items-center gap-1.5">
-              <Activity size={13} /> Agenda Operativa y Monitoreo de Líderes
+              <Activity size={13} /> ORGANIZA · REGISTRA · DA SEGUIMIENTO
             </span>
           </div>
-          <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight">Actividades y Desempeño Territorial</h1>
+          <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight">Tu bitácora de campo</h1>
           <p className="text-gray-500 mt-1">Registra visitas, pláticas y eventos, y monitorea el avance operativo de cada líder en campo.</p>
         </div>
 
@@ -426,14 +430,14 @@ export default function AgendaClient({
             }}
             className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 text-sm active:scale-95 cursor-pointer"
           >
-            <Plus size={16} /> + Registrar Mi Actividad / Tarea
+            <Plus size={16} /> Nueva actividad
           </button>
         </div>
       </div>
 
       {/* 2. PESTAÑAS DE NAVEGACIÓN (AGENDA vs REPORTE POR LÍDER) */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 pb-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveTab("agenda")}
             className={`px-5 py-2.5 rounded-xl font-extrabold text-sm flex items-center gap-2 transition-all cursor-pointer ${
@@ -443,7 +447,7 @@ export default function AgendaClient({
             }`}
           >
             <Calendar size={16} />
-            <span>Bitácora y Agenda Operativa</span>
+            <span>Bitácora</span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === "agenda" ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"}`}>
               {filteredItems.length}
             </span>
@@ -473,7 +477,7 @@ export default function AgendaClient({
             }`}
           >
             <Sparkles size={16} />
-            <span>Registros Rápidos (Prospectos)</span>
+            <span>Prospectos</span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === "prospectos" ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"}`}>
               {prospectsList.length}
             </span>
@@ -492,10 +496,15 @@ export default function AgendaClient({
       {/* 3. VISTA 1: BITÁCORA Y AGENDA OPERATIVA */}
       {activeTab === "agenda" && (
         <div className="space-y-6">
+          <div className="agenda-pulse" aria-label="Filtrar actividades por estado">
+            {[{ key: "todas", label: "En este periodo", count: items.length }, { key: "pendientes", label: "Por completar", count: items.filter(i => !["completed", "resolved", "successful"].includes(i.status)).length }, { key: "completadas", label: "Completadas", count: items.filter(i => ["completed", "resolved", "successful"].includes(i.status)).length }].map(state => (
+              <button type="button" key={state.key} aria-pressed={statusFilter === state.key} onClick={() => setStatusFilter(state.key)}><span>{state.label}</span><strong>{state.count}</strong><span>{statusFilter === state.key ? "Viendo ahora" : "Ver actividades"} →</span></button>
+            ))}
+          </div>
           {/* BARRA DE FILTROS Y BÚSQUEDA */}
           <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
             {/* Buscador de texto */}
-            <div className="relative flex-1 min-w-[280px]">
+            <div className="relative flex-1 min-w-0 w-full">
               <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
@@ -562,13 +571,14 @@ export default function AgendaClient({
             </div>
           </div>
 
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500" aria-live="polite"><span>{filteredItems.length} actividades encontradas</span>{(searchQuery || categoryFilter !== "todas" || statusFilter !== "todas") && <button type="button" className="text-blue-700 font-semibold" onClick={() => { setSearchQuery(""); setCategoryFilter("todas"); setStatusFilter("todas"); }}>Limpiar búsqueda y filtros</button>}</div>
           {/* LISTADO DE ACTIVIDADES */}
           {filteredItems.length === 0 ? (
             <div className="bg-white border border-gray-200 rounded-3xl p-12 text-center shadow-sm flex flex-col items-center">
               <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4">
                 <CheckCircle size={32} />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">No hay actividades en este periodo</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">No hay actividades con estos filtros</h2>
               <p className="text-gray-500 max-w-md mx-auto mb-5 text-xs font-medium">
                 {scope === "equipo"
                   ? "No se encontraron visitas, pláticas o eventos programados con estos filtros."
@@ -588,7 +598,7 @@ export default function AgendaClient({
           ) : (
             <div className="grid gap-3.5">
               <div className="flex items-center justify-between text-xs text-gray-500 font-bold px-1">
-                <span>Mostrando {filteredItems.length} {filteredItems.length === 1 ? "actividad" : "actividades"}</span>
+                <span>Agenda del periodo seleccionado</span>
                 <span>Periodo: {filter.toUpperCase()}</span>
               </div>
 
@@ -599,7 +609,7 @@ export default function AgendaClient({
                 return (
                   <div
                     key={item.id}
-                    className={`bg-white p-5 rounded-2xl border transition-all hover:shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                    className={`agenda-entry bg-white p-5 rounded-2xl border transition-all hover:shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4 ${
                       isCompleted ? "border-emerald-200 bg-emerald-50/20" : "border-gray-200 shadow-sm"
                     }`}
                   >
@@ -669,7 +679,7 @@ export default function AgendaClient({
                           onClick={() => setModalVisit(item)}
                           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
                         >
-                          <Check size={14} /> Reportar Resultado / Completar
+                          <Check size={14} /> Completar actividad
                         </button>
                       )}
                     </div>

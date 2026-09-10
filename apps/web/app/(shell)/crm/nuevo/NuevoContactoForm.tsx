@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { 
   ArrowLeft, Save, User, MapPin, Briefcase, Sparkles, HeartHandshake, Calendar, MessageSquare, ChevronDown, ChevronUp,
@@ -9,6 +10,11 @@ import {
 import { ColonySelector } from "@/components/ColonySelector";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import { createContactAction } from "../actions";
+
+function SaveContactButton() {
+  const { pending } = useFormStatus();
+  return <button type="submit" disabled={pending} className="contact-save"><Save size={18} />{pending ? "Guardando ciudadano…" : "Guardar ciudadano"}</button>;
+}
 
 export default function NuevoContactoForm({
   userOptions,
@@ -41,40 +47,171 @@ export default function NuevoContactoForm({
   ];
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
+    <div className="workspace-page citizen-page p-4 md:p-6 max-w-5xl mx-auto space-y-6">
       {/* HEADER */}
-      <div className="flex items-center justify-between">
+      <div className="workspace-hero flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link
             href="/crm/contacts"
+            aria-label="Volver a ciudadanos"
             className="p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-600 shadow-sm transition-colors cursor-pointer"
           >
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-xl md:text-2xl font-black text-gray-950 tracking-tight flex items-center gap-2">
-              Registro Social
+            <h1 className="text-xl md:text-2xl font-black text-gray-950 tracking-tight flex flex-wrap items-center gap-2">
+              Registrar ciudadano
               <span className="text-[11px] bg-blue-100 text-blue-800 font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                 <Sparkles size={11} /> Unificado
               </span>
             </h1>
-            <p className="text-xs text-gray-500 font-medium">Alta y vinculación social a la red de Tonalá</p>
+            <p className="text-xs text-gray-500 font-medium">Empieza con sus datos. Construye una conexión cercana.</p>
           </div>
         </div>
       </div>
 
       <form action={createContactAction} className="space-y-6">
+        <div className="form-guide"><User size={20} /><div><strong>Un registro claro, de principio a fin</strong><p>Completa los campos con *. Los datos adicionales y la encuesta son opcionales.</p></div></div>
+        {/* SECCIÓN B: DATOS DE CONTACTO */}
+        <section className="bg-white p-5 md:p-6 rounded-3xl border border-gray-200 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+            <User className="text-blue-600" size={18} />
+            <h2 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">1. Datos del ciudadano</h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label htmlFor="citizen-firstName" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Nombre(s) *</label>
+              <input id="citizen-firstName"
+                type="text"
+                name="firstName" autoComplete="given-name"
+                required
+                placeholder="Ej. Juan Carlos"
+                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="citizen-lastName" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Primer Apellido *</label>
+              <input id="citizen-lastName"
+                type="text"
+                name="lastName" autoComplete="family-name"
+                required
+                placeholder="Ej. Hernández"
+                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="citizen-maternalLastName" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Segundo Apellido</label>
+              <input id="citizen-maternalLastName"
+                type="text"
+                name="maternalLastName"
+                placeholder="Ej. López"
+                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="citizen-phone" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Teléfono Principal *</label>
+              <input id="citizen-phone"
+                type="tel"
+                name="phone" autoComplete="tel" inputMode="tel"
+                required
+                placeholder="10 dígitos"
+                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="citizen-preferredContactMethod" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Medio Preferido</label>
+              <select id="citizen-preferredContactMethod"
+                name="preferredContactMethod"
+                defaultValue="whatsapp"
+                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white"
+              >
+                <option value="whatsapp">WhatsApp</option>
+                <option value="llamada">Llamada telefónica</option>
+                <option value="visita">Visita domiciliaria</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="citizen-preferredContactTime" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Horario Preferido</label>
+              <select id="citizen-preferredContactTime"
+                name="preferredContactTime"
+                defaultValue="indiferente"
+                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white"
+              >
+                <option value="indiferente">Indiferente / Cualquier hora</option>
+                <option value="manana">Mañana (9:00 - 13:00)</option>
+                <option value="tarde">Tarde (13:00 - 18:00)</option>
+                <option value="noche">Noche (18:00 - 21:00)</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-3">
+              <label htmlFor="citizen-email" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Correo Electrónico (Opcional)</label>
+              <input id="citizen-email"
+                type="email"
+                name="email" autoComplete="email"
+                placeholder="correo@ejemplo.com"
+                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* CUMPLEAÑOS OBLIGATORIO DÍA Y MES */}
+          <div className="bg-blue-50/70 p-4 rounded-2xl border border-blue-100 space-y-2">
+            <label className="block text-[11px] font-extrabold text-blue-950 uppercase flex items-center gap-1.5">
+              <Calendar size={13} className="text-blue-600" />
+              <span>Fecha de Cumpleaños * (Día y Mes obligatorios)</span>
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <select
+                name="birthDay" aria-label="Día de nacimiento"
+                required
+                className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
+              >
+                <option value="">Día *</option>
+                {days.map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+
+              <select
+                name="birthMonth" aria-label="Mes de nacimiento"
+                required
+                className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
+              >
+                <option value="">Mes *</option>
+                {months.map(m => (
+                  <option key={m.num} value={m.num}>{m.name}</option>
+                ))}
+              </select>
+
+              <input
+                type="number"
+                name="birthYear"
+                placeholder="Año (Opcional)"
+                className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
+              />
+            </div>
+          </div>
+        </section>
+
         {/* SECCIÓN A: ORIGEN Y RESPONSABLE */}
         <section className="bg-white p-5 md:p-6 rounded-3xl border border-gray-200 shadow-sm space-y-4">
           <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
             <HeartHandshake className="text-blue-600" size={18} />
-            <h2 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">A. Origen y Responsable</h2>
+            <h2 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">2. Origen y responsable</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Origen del Registro</label>
-              <select
+              <label htmlFor="citizen-origin" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Origen del Registro</label>
+              <select id="citizen-origin"
                 name="origin"
                 defaultValue="toca_toca"
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
@@ -89,8 +226,8 @@ export default function NuevoContactoForm({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Fecha de Primer Contacto</label>
-              <input
+              <label htmlFor="citizen-firstContactDate" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Fecha de Primer Contacto</label>
+              <input id="citizen-firstContactDate"
                 type="date"
                 name="firstContactDate"
                 defaultValue={new Date().toISOString().split("T")[0]}
@@ -112,140 +249,11 @@ export default function NuevoContactoForm({
           </div>
         </section>
 
-        {/* SECCIÓN B: DATOS DE CONTACTO */}
-        <section className="bg-white p-5 md:p-6 rounded-3xl border border-gray-200 shadow-sm space-y-4">
-          <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
-            <User className="text-blue-600" size={18} />
-            <h2 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">B. Datos de Contacto</h2>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Nombre(s) *</label>
-              <input
-                type="text"
-                name="firstName"
-                required
-                placeholder="Ej. Juan Carlos"
-                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Primer Apellido *</label>
-              <input
-                type="text"
-                name="lastName"
-                required
-                placeholder="Ej. Hernández"
-                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Segundo Apellido</label>
-              <input
-                type="text"
-                name="maternalLastName"
-                placeholder="Ej. López"
-                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Teléfono Principal *</label>
-              <input
-                type="tel"
-                name="phone"
-                required
-                placeholder="10 dígitos"
-                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Medio Preferido</label>
-              <select
-                name="preferredContactMethod"
-                defaultValue="whatsapp"
-                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white"
-              >
-                <option value="whatsapp">WhatsApp</option>
-                <option value="llamada">Llamada telefónica</option>
-                <option value="visita">Visita domiciliaria</option>
-                <option value="otro">Otro</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Horario Preferido</label>
-              <select
-                name="preferredContactTime"
-                defaultValue="indiferente"
-                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white"
-              >
-                <option value="indiferente">Indiferente / Cualquier hora</option>
-                <option value="manana">Mañana (9:00 - 13:00)</option>
-                <option value="tarde">Tarde (13:00 - 18:00)</option>
-                <option value="noche">Noche (18:00 - 21:00)</option>
-              </select>
-            </div>
-
-            <div className="sm:col-span-3">
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Correo Electrónico (Opcional)</label>
-              <input
-                type="email"
-                name="email"
-                placeholder="correo@ejemplo.com"
-                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* CUMPLEAÑOS OBLIGATORIO DÍA Y MES */}
-          <div className="bg-blue-50/70 p-4 rounded-2xl border border-blue-100 space-y-2">
-            <label className="block text-[11px] font-extrabold text-blue-950 uppercase flex items-center gap-1.5">
-              <Calendar size={13} className="text-blue-600" />
-              <span>Fecha de Cumpleaños * (Día y Mes obligatorios)</span>
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              <select
-                name="birthDay"
-                required
-                className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
-              >
-                <option value="">Día *</option>
-                {days.map(d => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-
-              <select
-                name="birthMonth"
-                required
-                className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
-              >
-                <option value="">Mes *</option>
-                {months.map(m => (
-                  <option key={m.num} value={m.num}>{m.name}</option>
-                ))}
-              </select>
-
-              <input
-                type="number"
-                name="birthYear"
-                placeholder="Año (Opcional)"
-                className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
-              />
-            </div>
-          </div>
-        </section>
-
         {/* SECCIÓN C: INFORMACIÓN TERRITORIAL */}
         <section className="bg-white p-5 md:p-6 rounded-3xl border border-gray-200 shadow-sm space-y-4">
           <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
             <MapPin className="text-blue-600" size={18} />
-            <h2 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">C. Información Territorial y Domicilio</h2>
+            <h2 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">3. Información Territorial y Domicilio</h2>
           </div>
 
           <div className="space-y-4">
@@ -273,10 +281,10 @@ export default function NuevoContactoForm({
 
             {/* CALLE Y NÚMERO DOMICILIAR */}
             <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+              <label htmlFor="citizen-address" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
                 Calle y Número Domiciliar
               </label>
-              <input
+              <input id="citizen-address"
                 type="text"
                 name="address"
                 placeholder="Ej. Calle Juárez #145 interior B (entre López Cotilla y Reforma)"
@@ -293,16 +301,17 @@ export default function NuevoContactoForm({
         </section>
 
         {/* SECCIÓN D: PARTICIPACIÓN & OCUPACIÓN */}
+        <details className="optional-fields"><summary>Participación y ocupación <span>Opcional</span></summary>
         <section className="bg-white p-5 md:p-6 rounded-3xl border border-gray-200 shadow-sm space-y-4">
           <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
             <Briefcase className="text-blue-600" size={18} />
-            <h2 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">D. Participación y Ocupación</h2>
+            <h2 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">4. Participación y Ocupación</h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Ocupación / Actividad</label>
-              <input
+              <label htmlFor="citizen-profession" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Ocupación / Actividad</label>
+              <input id="citizen-profession"
                 type="text"
                 name="profession"
                 placeholder="Ej. Artesano, Maestro, Comerciante..."
@@ -311,8 +320,8 @@ export default function NuevoContactoForm({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Área de Interés / Participación</label>
-              <select
+              <label htmlFor="citizen-participatingArea" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Área de Interés / Participación</label>
+              <select id="citizen-participatingArea"
                 name="participatingArea"
                 defaultValue="General"
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white"
@@ -327,8 +336,8 @@ export default function NuevoContactoForm({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Disponibilidad</label>
-              <select
+              <label htmlFor="citizen-availability" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Disponibilidad</label>
+              <select id="citizen-availability"
                 name="availability"
                 defaultValue="Simpatizante"
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white"
@@ -341,8 +350,8 @@ export default function NuevoContactoForm({
             </div>
 
             <div className="sm:col-span-2 md:col-span-3">
-              <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">URL Foto de Barda / Espacio Ofrecido (Opcional)</label>
-              <input
+              <label htmlFor="citizen-bardaPhotoUrl" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">URL Foto de Barda / Espacio Ofrecido (Opcional)</label>
+              <input id="citizen-bardaPhotoUrl"
                 type="text"
                 name="bardaPhotoUrl"
                 placeholder="https://... (enlace o fotografía)"
@@ -351,14 +360,16 @@ export default function NuevoContactoForm({
             </div>
           </div>
         </section>
+        </details>
 
         {/* SECCIÓN E: MILITANCIA PAN */}
+        <details className="optional-fields"><summary>Militancia PAN <span>Opcional</span></summary>
         <section className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 md:p-6 rounded-3xl shadow-md space-y-4">
           <div className="flex items-center justify-between border-b border-white/15 pb-3">
             <div className="flex items-center gap-2">
               <span className="w-7 h-7 rounded-lg bg-blue-500/30 border border-blue-400/30 flex items-center justify-center text-sm font-black">M</span>
               <div>
-                <h2 className="text-sm font-black uppercase tracking-wider text-white">E. Militancia PAN</h2>
+                <h2 className="text-sm font-black uppercase tracking-wider text-white">5. Militancia PAN</h2>
                 <p className="text-[11px] text-blue-200 font-medium">Control de estatus partidista en Tonalá</p>
               </div>
             </div>
@@ -369,8 +380,8 @@ export default function NuevoContactoForm({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-gray-800">
             <div>
-              <label className="block text-[11px] font-extrabold text-blue-200 uppercase mb-1">Estatus de Militancia</label>
-              <select
+              <label htmlFor="citizen-panMilitancy" className="block text-[11px] font-extrabold text-blue-200 uppercase mb-1">Estatus de Militancia</label>
+              <select id="citizen-panMilitancy"
                 name="panMilitancy"
                 defaultValue="no_registrada"
                 className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none"
@@ -383,8 +394,8 @@ export default function NuevoContactoForm({
             </div>
 
             <div>
-              <label className="block text-[11px] font-extrabold text-blue-200 uppercase mb-1">Fecha de Verificación</label>
-              <input
+              <label htmlFor="citizen-panMilitancyVerifiedAt" className="block text-[11px] font-extrabold text-blue-200 uppercase mb-1">Fecha de Verificación</label>
+              <input id="citizen-panMilitancyVerifiedAt"
                 type="date"
                 name="panMilitancyVerifiedAt"
                 className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none"
@@ -392,12 +403,14 @@ export default function NuevoContactoForm({
             </div>
           </div>
         </section>
+        </details>
 
         {/* SECCIÓN F: CONÓCEME MEJOR & NOTAS FECHADAS */}
+        <details className="optional-fields"><summary>Intereses y notas <span>Opcional</span></summary>
         <section className="bg-white p-5 md:p-6 rounded-3xl border border-gray-200 shadow-sm space-y-4">
           <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
             <MessageSquare className="text-blue-600" size={18} />
-            <h2 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">F. Conóceme Mejor y Notas Fechadas</h2>
+            <h2 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">6. Conóceme Mejor y Notas Fechadas</h2>
           </div>
 
           <div className="space-y-4">
@@ -415,8 +428,8 @@ export default function NuevoContactoForm({
             </div>
 
             <div>
-              <label className="block text-[11px] font-extrabold text-gray-700 uppercase mb-1">Nota Inicial Inmutable</label>
-              <textarea
+              <label htmlFor="citizen-initialNote" className="block text-[11px] font-extrabold text-gray-700 uppercase mb-1">Nota Inicial Inmutable</label>
+              <textarea id="citizen-initialNote"
                 name="initialNote"
                 rows={2}
                 placeholder="Escribe la primera nota de conversación con fecha y autor..."
@@ -425,6 +438,7 @@ export default function NuevoContactoForm({
             </div>
           </div>
         </section>
+        </details>
 
         {/* SECCIÓN G: ENCUESTA CIUDADANA OPCIONAL (6 PREGUNTAS) */}
         <section className="border border-indigo-100 bg-indigo-50/40 rounded-3xl overflow-hidden shadow-sm">
@@ -438,7 +452,7 @@ export default function NuevoContactoForm({
                 <ClipboardList size={16} />
               </span>
               <div>
-                <h3 className="font-extrabold text-sm text-indigo-950">G. Encuesta Ciudadana Opcional (6 Preguntas)</h3>
+                <h3 className="font-extrabold text-sm text-indigo-950">Encuesta ciudadana · Opcional</h3>
                 <p className="text-xs text-indigo-700 font-medium">Diagnóstico comunitario y prioridades de colonia</p>
               </div>
             </div>
@@ -449,8 +463,8 @@ export default function NuevoContactoForm({
             <div className="p-6 pt-2 space-y-5 border-t border-indigo-100 bg-white">
               {/* P1 */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-gray-900">1. ¿Qué necesita mejorar primero en tu colonia?</label>
-                <select
+                <label htmlFor="citizen-survey_colonyPriorityNeed" className="block text-xs font-bold text-gray-900">1. ¿Qué necesita mejorar primero en tu colonia?</label>
+                <select id="citizen-survey_colonyPriorityNeed"
                   name="survey_colonyPriorityNeed"
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none"
                 >
@@ -477,8 +491,8 @@ export default function NuevoContactoForm({
 
               {/* P2 */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-gray-900">2. ¿Qué es lo que más valoras de Tonalá?</label>
-                <select
+                <label htmlFor="citizen-survey_tonalaValues" className="block text-xs font-bold text-gray-900">2. ¿Qué es lo que más valoras de Tonalá?</label>
+                <select id="citizen-survey_tonalaValues"
                   name="survey_tonalaValues"
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none"
                 >
@@ -495,8 +509,8 @@ export default function NuevoContactoForm({
 
               {/* P3 */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-gray-900">3. Calificación de servicios públicos (1 al 5)</label>
-                <select
+                <label htmlFor="citizen-survey_servicesRating" className="block text-xs font-bold text-gray-900">3. Calificación de servicios públicos (1 al 5)</label>
+                <select id="citizen-survey_servicesRating"
                   name="survey_servicesRating"
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none"
                 >
@@ -517,8 +531,8 @@ export default function NuevoContactoForm({
 
               {/* P4 */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-gray-900">4. ¿Qué esperarías de un nuevo proyecto para Tonalá?</label>
-                <select
+                <label htmlFor="citizen-survey_projectExpectations" className="block text-xs font-bold text-gray-900">4. ¿Qué esperarías de un nuevo proyecto para Tonalá?</label>
+                <select id="citizen-survey_projectExpectations"
                   name="survey_projectExpectations"
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none"
                 >
@@ -534,8 +548,8 @@ export default function NuevoContactoForm({
 
               {/* P5 */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-gray-900">5. ¿Cómo te gustaría participar?</label>
-                <select
+                <label htmlFor="citizen-survey_participationForm" className="block text-xs font-bold text-gray-900">5. ¿Cómo te gustaría participar?</label>
+                <select id="citizen-survey_participationForm"
                   name="survey_participationForm"
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none"
                 >
@@ -551,10 +565,10 @@ export default function NuevoContactoForm({
 
               {/* P6 */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-gray-900">
+                <label htmlFor="citizen-survey_openProposal" className="block text-xs font-bold text-gray-900">
                   6. Propuesta o mensaje libre para Tonalá
                 </label>
-                <textarea
+                <textarea id="citizen-survey_openProposal"
                   name="survey_openProposal"
                   rows={2}
                   placeholder="Propuesta abierta o comentario..."
@@ -566,7 +580,7 @@ export default function NuevoContactoForm({
         </section>
 
         {/* SUBMIT BUTTON */}
-        <div className="flex justify-end gap-3 pt-4 pb-28 md:pb-8">
+        <div className="form-savebar">
           <Link
             href="/crm/contacts"
             className="px-5 py-3 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs shadow-sm transition-colors cursor-pointer"
@@ -574,13 +588,7 @@ export default function NuevoContactoForm({
             Cancelar
           </Link>
 
-          <button
-            type="submit"
-            className="px-7 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-lg shadow-blue-600/25 flex items-center gap-2 transition-all cursor-pointer"
-          >
-            <Save size={16} />
-            <span>Guardar Registro Social</span>
-          </button>
+          <SaveContactButton />
         </div>
       </form>
     </div>
