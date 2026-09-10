@@ -9,6 +9,9 @@ import sys as _sys
 from pathlib import Path as _Path
 _sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
 import vps_ssh
+
+# Destino publico configurado, no escrito: este script verifica un servidor en vivo.
+BASE = vps_ssh.app_base_url()
 import sys
 import os
 
@@ -616,7 +619,7 @@ def sync_to_vps():
         ("Puente Grande", 20.6050, -103.1850)
     ]
     for label, lat, lng in test_coords:
-        cmd_geo = f"curl -s 'https://elapp.com.mx/api/map/reverse-geocode?lat={lat}&lng={lng}'"
+        cmd_geo = f"curl -s '{BASE}/api/map/reverse-geocode?lat={lat}&lng={lng}'"
         stdin, stdout, stderr = client.exec_command(cmd_geo)
         res_json = stdout.read().decode("utf-8")
         try:
@@ -626,7 +629,7 @@ def sync_to_vps():
             print(f"  ✗ {label}: {res_json[:100]}")
 
     client.close()
-    print(f"\n🎉 ¡Cartografía real y oficial de Tonalá ({len(TONALA_SECTIONS)} secciones) sincronizada con éxito en https://elapp.com.mx/mapa!")
+    print(f"\n🎉 ¡Cartografía real y oficial de Tonalá ({len(TONALA_SECTIONS)} secciones) sincronizada con éxito en {BASE}/mapa!")
 
 if __name__ == "__main__":
     sync_to_vps()

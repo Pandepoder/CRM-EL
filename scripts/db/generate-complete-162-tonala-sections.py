@@ -9,6 +9,9 @@ import sys as _sys
 from pathlib import Path as _Path
 _sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
 import vps_ssh
+
+# Destino publico configurado, no escrito: este script verifica un servidor en vivo.
+BASE = vps_ssh.app_base_url()
 import sys
 import os
 
@@ -533,7 +536,7 @@ def sync_complete_cartography():
     print(stdout.read().decode("utf-8"))
 
     client.close()
-    print(f"\n🎉 ¡Las 162 secciones electorales oficiales completas (2683 a 2844) quedaron 100% sincronizadas en https://elapp.com.mx/mapa!")
+    print(f"\n🎉 ¡Las 162 secciones electorales oficiales completas (2683 a 2844) quedaron 100% sincronizadas en {BASE}/mapa!")
 
 if __name__ == "__main__":
     sync_complete_cartography()

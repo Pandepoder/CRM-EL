@@ -2,12 +2,14 @@ import urllib.request
 import json
 import os
 
-import vps_ssh
+import entorno
 
-BASE = vps_ssh.app_base_url()
+BASE = entorno.app_base_url()
+# La cuenta administradora tampoco va escrita: es la real del servidor.
+ADMIN_EMAIL = entorno.admin_email()
 
 data = json.dumps({
-    "email": "admin@elapp.com.mx",
+    "email": ADMIN_EMAIL,
     "password": os.environ["APP_ADMIN_PASSWORD"]
 }).encode("utf-8")
 

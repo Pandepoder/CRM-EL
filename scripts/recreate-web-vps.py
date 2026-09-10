@@ -1,4 +1,7 @@
 import vps_ssh
+
+# Destino publico configurado, no escrito: este script verifica un servidor en vivo.
+BASE = vps_ssh.app_base_url()
 import sys
 
 if sys.stdout.encoding != 'utf-8':
@@ -30,7 +33,7 @@ def recreate_web():
 
     # Health check
     print("Verificando /api/health...")
-    stdin, stdout, stderr = client.exec_command("curl -s https://elapp.com.mx/api/health")
+    stdin, stdout, stderr = client.exec_command(f"curl -s {BASE}/api/health")
     print("Health response:", stdout.read().decode('utf-8'))
     
     client.close()

@@ -1,9 +1,9 @@
 import urllib.request
 import json
 
-import vps_ssh
+import entorno
 
-BASE = vps_ssh.app_base_url()
+BASE = entorno.app_base_url()
 
 try:
     req = urllib.request.Request(f"{BASE}/login", headers={"User-Agent": "Mozilla/5.0"})

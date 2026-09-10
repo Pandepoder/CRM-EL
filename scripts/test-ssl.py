@@ -1,4 +1,7 @@
 import vps_ssh
+
+# Destino publico configurado, no escrito: este script verifica un servidor en vivo.
+BASE = vps_ssh.app_base_url()
 import sys
 import time
 
@@ -24,8 +27,8 @@ def trigger_caddy_ssl():
     stdin, stdout, stderr = client.exec_command("docker compose -f /opt/crm-el/docker-compose.yml logs --tail=25 caddy")
     print(stdout.read().decode('utf-8', errors='replace'))
     
-    print("--- 3. Testing HTTPS request to https://elapp.com.mx ---")
-    stdin, stdout, stderr = client.exec_command("curl -s -i https://elapp.com.mx/api/health")
+    print(f"--- 3. Testing HTTPS request to {BASE} ---")
+    stdin, stdout, stderr = client.exec_command(f"curl -s -i {BASE}/api/health")
     print(stdout.read().decode('utf-8', errors='replace'))
 
     client.close()

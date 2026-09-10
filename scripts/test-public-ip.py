@@ -2,9 +2,9 @@ import urllib.request
 import json
 import ssl
 
-import vps_ssh
+import entorno
 
-BASE = vps_ssh.app_base_url()
+BASE = entorno.app_base_url()
 
 ctx = ssl.create_default_context()
 ctx.check_hostname = False

@@ -26,19 +26,15 @@ import sys
 
 import paramiko
 
+from entorno import ConfigError, app_base_url, require_env  # noqa: F401
+
 DEFAULT_TIMEOUT = 15
 
 
-class VpsConfigError(RuntimeError):
-    """Falta configuracion o no se puede verificar la identidad del servidor."""
+# Se conserva el nombre por compatibilidad con los scripts que lo capturan.
+VpsConfigError = ConfigError
 
 
-def require_env(name: str, ayuda: str) -> str:
-    """Lee una variable obligatoria; falla con una instruccion concreta si falta."""
-    valor = os.environ.get(name, "").strip()
-    if not valor:
-        raise VpsConfigError(f"Falta la variable de entorno {name}. {ayuda}")
-    return valor
 
 
 def known_hosts_path() -> str:
@@ -158,13 +154,3 @@ def connect_or_exit(*, timeout: int = DEFAULT_TIMEOUT) -> paramiko.SSHClient:
         sys.exit(1)
 
 
-def app_base_url() -> str:
-    """URL publica de la aplicacion a probar.
-
-    Obligatoria y sin valor por defecto: un script de verificacion que apunta
-    solo al entorno equivocado es peor que uno que no corre.
-    """
-    return require_env(
-        "APP_BASE_URL",
-        "Ejemplo: export APP_BASE_URL=https://mi-servidor.example",
-    ).rstrip("/")

@@ -36,7 +36,12 @@ def run_remote_command(client, command, step_name):
 
 # VPS_SSH_PASSWORD no se lista aqui: vps_ssh acepta llave (VPS_SSH_KEY_FILE) o
 # contrasena, y valida esa eleccion al conectar.
+# PROD_DOMAIN y PROD_ADMIN_EMAIL son obligatorias: antes el dominio y la cuenta
+# administradora estaban escritos aqui, asi que apuntar VPS_HOST a otro servidor
+# igualmente le configuraba el dominio y el admin del sitio de produccion actual.
 REQUIRED_ENV_VARS = [
+    "PROD_DOMAIN",
+    "PROD_ADMIN_EMAIL",
     "PROD_POSTGRES_PASSWORD",
     "PROD_SESSION_SECRET",
     "PROD_DATABASE_ENCRYPTION_KEY",
@@ -139,6 +144,8 @@ def deploy():
     session_secret = os.environ["PROD_SESSION_SECRET"]
     encryption_key = os.environ["PROD_DATABASE_ENCRYPTION_KEY"]
     admin_password = os.environ["PROD_ADMIN_PASSWORD"]
+    dominio = os.environ["PROD_DOMAIN"]
+    admin_email = os.environ["PROD_ADMIN_EMAIL"]
 
     cmd_env = f"""
     cat << 'EOF' > /opt/crm-el/.env
@@ -153,10 +160,10 @@ SESSION_SECRET={session_secret}
 DATABASE_ENCRYPTION_KEY={encryption_key}
 ALLOW_PUBLIC_REGISTRATION=false
 
-ADMIN_EMAIL=admin@elapp.com.mx
+ADMIN_EMAIL={admin_email}
 ADMIN_PASSWORD={admin_password}
 
-DOMAIN=elapp.com.mx
+DOMAIN={dominio}
 NEXT_PUBLIC_APP_NAME="Tonala OS - CRM Territorial"
 NEXT_PUBLIC_APP_ENV=production
 NODE_ENV=production
@@ -169,9 +176,11 @@ EOF
         sys.exit(1)
 
     # 5. Configurar Caddyfile para soportar dominio + IP directa
+    # String plano y sustitucion explicita: el Caddyfile usa {remote_host}, {scheme}
+    # y llaves de bloque, asi que una f-string obligaria a duplicar todas.
     cmd_caddy = """
     cat << 'EOF' > /opt/crm-el/Caddyfile
-elapp.com.mx, www.elapp.com.mx {
+__DOMINIO__, www.__DOMINIO__ {
     encode zstd gzip
     reverse_proxy web:3000 {
         header_up X-Real-IP {remote_host}
@@ -189,8 +198,9 @@ elapp.com.mx, www.elapp.com.mx {
     }
 }
 EOF
-    echo "Caddyfile configurado para elapp.com.mx e IP directa."
+    echo "Caddyfile configurado para __DOMINIO__ e IP directa."
     """
+    cmd_caddy = cmd_caddy.replace("__DOMINIO__", dominio)
     ok, _ = run_remote_command(client, cmd_caddy, "5. Configuración de Proxy Inverso y SSL Automático")
     if not ok:
         sys.exit(1)
@@ -238,9 +248,9 @@ EOF
     print("\n=======================================================")
     print("🎉 ¡DESPLIEGUE EN PRODUCCIÓN FINALIZADO CON ÉXITO! 🎉")
     print("=======================================================")
-    print(f"🌐 URL por Dominio: https://elapp.com.mx (apunta el registro DNS A a {host})")
+    print(f"🌐 URL por Dominio: https://{dominio} (apunta el registro DNS A a {host})")
     print(f"🌐 URL por IP Directa: http://{host}")
-    print(f"👤 Usuario Administrador: admin@elapp.com.mx")
+    print(f"👤 Usuario Administrador: {admin_email}")
     print(f"🔑 Contraseña Administrador: (configurada via PROD_ADMIN_PASSWORD)")
     print("=======================================================")
 

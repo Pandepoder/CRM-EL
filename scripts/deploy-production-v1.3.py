@@ -1,4 +1,7 @@
 import vps_ssh
+
+# Destino publico configurado, no escrito: este script verifica un servidor en vivo.
+BASE = vps_ssh.app_base_url()
 import sys
 import time
 
@@ -93,17 +96,18 @@ def deploy():
     echo "1. Healthcheck local:"
     curl -s http://localhost:3000/api/health
     echo ""
-    echo "2. Healthcheck publico HTTPS (https://elapp.com.mx/api/health):"
-    curl -s https://elapp.com.mx/api/health
+    echo "2. Healthcheck publico HTTPS (__BASE__/api/health):"
+    curl -s __BASE__/api/health
     echo ""
     """
-    ok, _ = run_remote_command(client, cmd_health, "5. Verificación de Salud en Vivo")
+    ok, _ = cmd_health = cmd_health.replace("__BASE__", BASE)
+    run_remote_command(client, cmd_health, "5. Verificación de Salud en Vivo")
 
     client.close()
     print("\n=======================================================")
     print("🚀 ¡DESPLIEGUE FINALIZADO Y ACTIVO EN LA WEB REAL!")
     print("=======================================================")
-    print("🌐 URL Pública: https://elapp.com.mx")
+    print(f"🌐 URL Pública: {BASE}")
     print(f"🌐 URL Alternativa (IP): http://{host}")
     print("=======================================================")
 

@@ -1,4 +1,7 @@
 import vps_ssh
+
+# Destino publico configurado, no escrito: este script verifica un servidor en vivo.
+BASE = vps_ssh.app_base_url()
 import sys
 import time
 
@@ -112,15 +115,16 @@ def update_live():
         sleep 3
     done
 
-    echo "Verificando respuesta pública en https://elapp.com.mx/api/health ..."
-    curl -s https://elapp.com.mx/api/health
+    echo "Verificando respuesta pública en __BASE__/api/health ..."
+    curl -s __BASE__/api/health
     echo ""
     """
-    ok, _ = run_remote_command(client, cmd_test, "5. Verificación de Salud en Vivo")
+    ok, _ = cmd_test = cmd_test.replace("__BASE__", BASE)
+    run_remote_command(client, cmd_test, "5. Verificación de Salud en Vivo")
     if not ok:
         sys.exit(1)
 
-    print("\n✅ ¡Actualización en vivo desplegada con éxito en https://elapp.com.mx!")
+    print(f"\n✅ ¡Actualización en vivo desplegada con éxito en {BASE}!")
     client.close()
 
 if __name__ == "__main__":
