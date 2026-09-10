@@ -3,19 +3,21 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ShieldCheck, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
+import { ShieldCheck, Mail, Lock, ArrowRight, ArrowLeft, Loader2, Eye, EyeOff, AlertCircle } from "lucide-react";
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const from = searchParams.get("from") || "/crm";
+  const from = searchParams.get("from");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (loading) return;
     setError("");
     setLoading(true);
 
@@ -35,7 +37,13 @@ function LoginForm() {
         setError(data.message ?? "Credenciales inválidas.");
         return;
       }
-      const target = from && from !== "/login" && from !== "/" ? from : (data.redirectTo || "/crm");
+      const localPath = (value: string | null | undefined) => {
+        if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\")) return null;
+        const url = new URL(value, window.location.origin);
+        if (url.origin !== window.location.origin || url.pathname === "/login" || url.pathname === "/") return null;
+        return url.pathname + url.search + url.hash;
+      };
+      const target = localPath(from) || localPath(data.redirectTo) || "/crm";
       window.location.href = target;
     } catch {
       setError("Error de conexión. Intenta de nuevo.");
@@ -45,16 +53,16 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={(e) => { void onSubmit(e); }}>
+    <form aria-busy={loading} onSubmit={(e) => { void onSubmit(e); }}>
       {error ? (
-        <div className="login-error" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <ShieldCheck size={18} />
+        <div id="login-error-message" role="alert" className="login-error" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <AlertCircle size={18} aria-hidden="true" />
           {error}
         </div>
       ) : null}
 
       <div className="modern-input-wrapper">
-        <label htmlFor="email">Correo Institucional</label>
+        <label htmlFor="email">Correo electrónico</label>
         <Mail size={18} className="modern-input-icon" />
         <input
           id="email"
@@ -64,25 +72,29 @@ function LoginForm() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="nombre@tonala.gob.mx"
+          placeholder="tu@correo.com"
           className="modern-input"
         />
       </div>
 
       <div className="modern-input-wrapper">
-        <label htmlFor="password">Contraseña de Acceso</label>
+        <label htmlFor="password">Contraseña</label>
         <Lock size={18} className="modern-input-icon" />
         <input
+          aria-describedby={error ? "login-error-message" : undefined}
           id="password"
           name="password"
-          type="password"
+          type={showPassword ? "text" : "password"}
           autoComplete="current-password"
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
-          className="modern-input"
+          className="modern-input login-password"
         />
+        <button type="button" className="password-toggle" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"} aria-pressed={showPassword}>
+          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
       </div>
 
       <div className="modern-checkbox-group">
@@ -102,7 +114,7 @@ function LoginForm() {
           </>
         ) : (
           <>
-            Entrar al Sistema
+            Entrar a mi panel
             <ArrowRight size={20} />
           </>
         )}
@@ -166,85 +178,31 @@ function Redes({ tono }: { tono: "claro" | "oscuro" }) {
 
 export default function LoginPage() {
   return (
-    // Panel de marca a la izquierda y formulario a la derecha. En móvil la foto
-    // se reduce a una banda: quien entra desde el campo necesita el formulario
-    // a la vista sin desplazarse, no una portada a pantalla completa.
-    <main className="min-h-screen bg-white lg:grid lg:grid-cols-[1.05fr_1fr]">
-      <section className="relative flex h-44 flex-col justify-end overflow-hidden bg-[#0b1f3a] p-6 sm:h-56 lg:h-auto lg:p-12">
-        {/* Dos recortes de la misma foto: uno vertical para el panel y una banda
-            horizontal encuadrada en el rostro para móvil. Un solo archivo
-            recortado por CSS dejaba la cara fuera de cuadro en una de las dos. */}
-        <picture>
-          <source media="(min-width: 1024px)" srcSet="/media/edgar-retrato.jpg" />
-          <img
-            src="/media/edgar-banner.jpg"
-            alt="Edgar López en el Comité Directivo del PAN Jalisco"
-            className="absolute inset-0 h-full w-full object-cover object-[35%_28%] lg:object-top"
-          />
-        </picture>
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0b1f3a] via-[#0b1f3a]/75 to-[#0b1f3a]/20 lg:bg-gradient-to-tr lg:from-[#0b1f3a] lg:via-[#0b1f3a]/80 lg:to-transparent" />
-
-        {/* En la banda de móvil el rostro cae a la izquierda del encuadre, así que
-            el texto se alinea a la derecha para no taparlo. En el panel vertical
-            de escritorio hay aire de sobra abajo y vuelve a la izquierda. */}
-        <div className="relative flex flex-col items-end gap-3 text-right lg:items-start lg:gap-6 lg:text-left">
-          <img
-            src="/brand/el-monograma-blanco.png"
-            alt="EL"
-            width={52}
-            height={52}
-            className="hidden h-11 w-11 object-contain lg:block"
-          />
-          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/70">
-            Edgar López
-          </p>
-          <h2 className="max-w-[62%] text-2xl font-black leading-tight text-white text-balance sm:text-3xl lg:max-w-md lg:text-5xl">
-            Un Tonalá Posible
-          </h2>
-          <p className="hidden max-w-sm text-sm leading-relaxed text-white/80 lg:block">
-            Plataforma territorial de la estructura: registro ciudadano, brigadas,
-            incidencias y cartografía electoral en un solo lugar.
-          </p>
-          <div className="hidden pt-2 lg:block">
-            <Redes tono="claro" />
+    <main className="login-premium">
+      <header className="login-topbar">
+        <Link href="/conoceme" className="login-back"><ArrowLeft size={17} /><span>Volver a la bienvenida</span></Link>
+        <span className="login-wordmark"><img src="/brand/el-monograma-blanco.png" alt="" width={28} height={28} /> Edgar López</span>
+      </header>
+      <div className="login-composition">
+        <section className="login-brand" aria-label="Edgar López, Tonalá">
+          <div className="login-halo" aria-hidden="true"><i /><i /></div>
+          <p className="login-eyeline">TONALÁ, JALISCO</p>
+          <h2>&ldquo;Si pasa por tu vida<br /><span>pasa por tu mente.&rdquo;</span></h2>
+          <div className="login-portrait"><img src="/media/edgar-retrato.jpg" alt="Edgar López" width={300} height={330} /><span>EDGAR LÓPEZ</span></div>
+          <div className="login-brand-bottom"><span>Un Tonalá Posible</span><Redes tono="claro" /></div>
+        </section>
+        <section className="login-panel" aria-labelledby="login-title">
+          <div className="login-panel-heading">
+            <span className="login-access-icon"><ShieldCheck size={24} /></span>
+            <span className="login-panel-kicker">TU ESPACIO DE TRABAJO</span>
+            <h1 id="login-title">Qué gusto verte<br /><span>de nuevo.</span></h1>
+            <p>Inicia sesión para continuar con tu equipo.</p>
           </div>
-        </div>
-      </section>
-
-      <section className="flex items-center justify-center px-6 py-10 sm:px-10 lg:py-12">
-        <div className="w-full max-w-[420px]">
-          <div className="mb-8">
-            <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f0f7ff] text-[#2878c7]">
-              <ShieldCheck size={30} />
-            </div>
-            <h1 className="m-0 text-[27px] font-extrabold leading-tight text-[#0b1f3a]">
-              Iniciar sesión
-            </h1>
-            <p className="mt-2 text-[15px] text-slate-500">
-              Acceso operativo al panel de Tonalá OS.
-            </p>
-          </div>
-
-          <Suspense fallback={<div className="py-5 text-center text-slate-500">Cargando...</div>}>
-            <LoginForm />
-          </Suspense>
-
-          <div className="mt-10 flex flex-col items-center gap-4 border-t border-slate-100 pt-6 lg:hidden">
-            <p className="m-0 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-              Sigue a Edgar López
-            </p>
-            <Redes tono="oscuro" />
-          </div>
-        </div>
-      </section>
-
-      <style dangerouslySetInnerHTML={{
-        __html: `
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}} />
+          <Suspense fallback={<p role="status">Cargando formulario…</p>}><LoginForm /></Suspense>
+          <p className="login-footer-note"><Lock size={13} aria-hidden="true" /> Acceso para integrantes autorizados</p>
+        </section>
+      </div>
+      <footer className="login-bottom">EL · Tonalá OS <span>Conecta. Organiza. Da seguimiento.</span></footer>
     </main>
   );
 }
