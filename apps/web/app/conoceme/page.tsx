@@ -171,7 +171,7 @@ export default function ConocemePage() {
                 animationDelay: ".24s"
               }}
             >
-              Si pasa por tu vida<br /><span className="welcome-title-soft">pasa por</span> <span className="welcome-title-accent">tu mente.</span>
+              &ldquo;Si pasa por tu vida<br /><span className="welcome-title-soft">pasa por</span> <span className="welcome-title-accent">tu mente.&rdquo;</span>
             </h1>
 
             <div
