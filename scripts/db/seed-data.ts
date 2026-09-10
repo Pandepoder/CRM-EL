@@ -6,6 +6,25 @@ export const roleSeeds = [
   { key: "visit_responsible", name: "Brigadista" }
 ] as const;
 
+/**
+ * Cuentas de demostracion. TODAS usan el dominio .local a proposito.
+ *
+ * Antes esta lista incluia admin@tonala.gob.mx, admin@elapp.com.mx,
+ * coord.centro@tonala.gob.mx y brigada.norte@tonala.gob.mx. Esos correos no son
+ * ficticios: admin@elapp.com.mx es el valor por omision de ADMIN_EMAIL en
+ * docker-compose.yml y el que scripts/deploy-vps.py escribe en el .env del
+ * servidor, y admin@tonala.gob.mx es el del .env.example y del Administrador
+ * Maestro de clean-production.ts. Como el upsert de seeds.ts reescribe
+ * password_hash, sembrar sobre una base real le cambiaba la contrasena al
+ * administrador de produccion por la de demostracion.
+ *
+ * .local esta reservado y no puede resolver a un dominio real (RFC 6762), asi
+ * que ninguna cuenta de aqui puede colisionar con una cuenta de trabajo. Los
+ * cinco roles quedan cubiertos; los correos retirados solo duplicaban roles.
+ *
+ * Si agregas una cuenta, usa .local. La prueba en
+ * tests/unit/demo-seed-isolation.test.ts falla si no lo haces.
+ */
 export const demoUserSeeds = [
   {
     email: "admin.demo@tonala-os.local",
@@ -13,23 +32,8 @@ export const demoUserSeeds = [
     roleKey: "admin"
   },
   {
-    email: "admin@tonala.gob.mx",
-    displayName: "Administrador Tonalá",
-    roleKey: "admin"
-  },
-  {
-    email: "admin@elapp.com.mx",
-    displayName: "Administrador ElApp",
-    roleKey: "admin"
-  },
-  {
     email: "coordinador.demo@tonala-os.local",
     displayName: "Coordinador Demo",
-    roleKey: "territorial_coordinator"
-  },
-  {
-    email: "coord.centro@tonala.gob.mx",
-    displayName: "Coordinador Centro",
     roleKey: "territorial_coordinator"
   },
   {
@@ -40,11 +44,6 @@ export const demoUserSeeds = [
   {
     email: "responsable.demo@tonala-os.local",
     displayName: "Responsable Demo",
-    roleKey: "visit_responsible"
-  },
-  {
-    email: "brigada.norte@tonala.gob.mx",
-    displayName: "Brigadista Norte",
     roleKey: "visit_responsible"
   },
   {

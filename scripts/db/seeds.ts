@@ -1,6 +1,7 @@
 import argon2 from "argon2";
 import pg from "pg";
 
+import { confirmDestructiveOperation } from "./confirm-destructive.js";
 import { catalogSeed, colonySeeds, demoUserSeeds, roleSeeds, electoralSectionSeeds } from "./seed-data.js";
 
 export type SeedResult = {
@@ -37,28 +38,39 @@ function requireDemoPassword(): string {
 }
 
 /**
- * Impide sembrar cuentas demo sobre un entorno productivo.
+ * Primera barrera, por etiqueta de entorno.
  *
- * demoUserSeeds incluye correos de dominios reales (admin@tonala.gob.mx,
- * admin@elapp.com.mx) y el upsert de mas abajo reescribe password_hash. Correr
- * esta semilla contra la base de produccion le cambia la contrasena al
- * administrador real por la de demostracion.
+ * Es barata pero debil: NODE_ENV puede estar sin definir (es el caso en CI) o valer
+ * "development" mientras DATABASE_URL apunta a una base remota de produccion. Por eso
+ * no es la unica: la comprobacion que de verdad decide es la del destino, mas abajo.
  */
 function assertDemoSeedAllowed(): void {
   const esProduccion = process.env.NODE_ENV === "production";
   if (esProduccion && process.env.ALLOW_DEMO_SEED !== "true") {
     throw new Error(
-      "Semilla de demostracion bloqueada: NODE_ENV=production. Estas cuentas sobrescriben " +
-        "el password_hash de cualquier usuario que ya tenga el mismo correo. Si de verdad " +
-        "es un entorno de prueba mal etiquetado, exporta ALLOW_DEMO_SEED=true."
+      "Semilla de demostracion bloqueada: NODE_ENV=production. Si de verdad es un entorno " +
+        "de prueba mal etiquetado, exporta ALLOW_DEMO_SEED=true."
     );
   }
 }
 
 export async function seedDatabase(connectionString: string): Promise<SeedResult> {
-  // Se valida antes de abrir la conexion: si falta configuracion, nada se toca.
+  // Se valida todo antes de abrir la conexion: si falta configuracion, nada se toca.
   assertDemoSeedAllowed();
   const demoPassword = requireDemoPassword();
+
+  // Segunda barrera, por destino real. El upsert de mas abajo reescribe password_hash,
+  // asi que sembrar sobre una base que ya tenga usuarios les cambia la contrasena por la
+  // de demostracion. confirmDestructiveOperation decide segun el host de DATABASE_URL,
+  // no segun una etiqueta: localhost pasa sin ruido y cualquier host remoto exige
+  // confirmar el nombre exacto de la base. Es el mismo control que ya usaban db:clean y
+  // db:reset; esta semilla deberia haberlo usado desde el principio.
+  await confirmDestructiveOperation({
+    databaseUrl: connectionString,
+    actionLabel:
+      "SEMBRAR cuentas de demostracion, reescribiendo la contrasena de cualquier usuario " +
+      "que ya exista con esos correos"
+  });
 
   const pool = new pg.Pool({ connectionString });
 

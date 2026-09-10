@@ -17,7 +17,10 @@ const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? "";
 const DEMO_HABILITADO = process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === "true" && DEMO_PASSWORD !== "";
 
 const CUENTAS_DEMO = [
-  { etiqueta: "Administrador", email: "admin@tonala.gob.mx", destino: "/crm/contacts", Icono: Shield, estilo: { background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534" } },
+  // admin.demo@, no admin@tonala.gob.mx: ese ultimo es el correo del Administrador
+  // Maestro real (ADMIN_EMAIL), y apuntar el boton de demo a una cuenta de trabajo es
+  // lo que hacia que demo y produccion compartieran identidad.
+  { etiqueta: "Administrador", email: "admin.demo@tonala-os.local", destino: "/crm/contacts", Icono: Shield, estilo: { background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534" } },
   { etiqueta: "Coordinador", email: "coordinador.demo@tonala-os.local", destino: "/crm/contacts", Icono: MapPin, estilo: { background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e40af" } },
   { etiqueta: "Brigadista", email: "responsable.demo@tonala-os.local", destino: "/equipo", Icono: Footprints, estilo: { background: "#fefce8", border: "1px solid #fef08a", color: "#854d0e" } },
   { etiqueta: "Capturista", email: "capturista.demo@tonala-os.local", destino: "/crm/contacts", Icono: ClipboardList, estilo: { background: "#faf5ff", border: "1px solid #e9d5ff", color: "#6b21a8" } }

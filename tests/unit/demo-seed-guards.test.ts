@@ -35,6 +35,18 @@ describe("guardas de la semilla de demostración", () => {
     await expect(seedDatabase(URL_INALCANZABLE)).rejects.toThrow(/production/);
   });
 
+  it("bloquea un destino remoto aunque NODE_ENV no diga producción", async () => {
+    // Este es el caso que la guarda de NODE_ENV no cubría y que motivó añadir la segunda
+    // barrera: DATABASE_URL apuntando al servidor desde una máquina de desarrollo, donde
+    // NODE_ENV vale "development" o no está definida.
+    process.env.DEMO_PASSWORD = "una-contrasena-de-prueba";
+    process.env.NODE_ENV = "development";
+
+    await expect(
+      seedDatabase("postgres://usuario:clave@db.ejemplo.invalid:5432/tonala_os")
+    ).rejects.toThrow(/no es local|CONFIRM_DB/);
+  });
+
   it("permite el override explícito para un entorno mal etiquetado", async () => {
     process.env.DEMO_PASSWORD = "una-contrasena-de-prueba";
     process.env.NODE_ENV = "production";

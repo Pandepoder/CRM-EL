@@ -133,14 +133,22 @@ Abre tu navegador en [http://localhost:3000](http://localhost:3000).
 > `DEMO_PASSWORD`. No hay valor por defecto: si la variable está vacía, la semilla
 > falla en vez de sembrar una contraseña conocida.
 >
-> - **Administrador:** `admin@tonala.gob.mx`
-> - **Coordinador Territorial:** `coord.centro@tonala.gob.mx`
-> - **Brigadista:** `brigada.norte@tonala.gob.mx`
+> - **Administrador:** `admin.demo@tonala-os.local`
+> - **Coordinador Territorial:** `coordinador.demo@tonala-os.local`
+> - **Capturista:** `capturista.demo@tonala-os.local`
+> - **Brigadista:** `responsable.demo@tonala-os.local`
+> - **Dirección:** `direccion.demo@tonala-os.local`
 >
-> Genera la tuya con `openssl rand -base64 18` y déjala solo en tu `.env` local.
-> Estas cuentas usan dominios reales y la semilla reescribe el `password_hash` de
-> cualquier usuario que ya tenga ese correo: nunca la ejecutes contra la base de
-> producción (con `NODE_ENV=production` está bloqueada).
+> Genera la contraseña con `openssl rand -base64 18` y déjala solo en tu `.env` local.
+>
+> Todas usan el dominio `.local`, que está reservado y no puede resolver a un dominio
+> real: así ninguna cuenta de demostración comparte identidad con una cuenta de trabajo.
+> Antes esta lista incluía `admin@tonala.gob.mx` y `admin@elapp.com.mx`, que son los
+> valores por omisión de `ADMIN_EMAIL` — y como la semilla reescribe el `password_hash`,
+> sembrar sobre una base real le cambiaba la contraseña al administrador de producción.
+>
+> Aun así, `pnpm db:seed` pide confirmación explícita del nombre de la base si
+> `DATABASE_URL` no apunta a `localhost`.
 
 ---
 
