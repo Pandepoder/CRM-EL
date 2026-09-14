@@ -9,6 +9,8 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { safeErrorMessage } from "@/lib/safe-error";
+import { municipioDelUsuario } from "@/lib/municipio-usuario";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
 
 /**
  * Alta de brigadista desde el QR de una brigada.
@@ -58,7 +60,11 @@ export async function POST(request: Request) {
 
     // 1. Quién invita
     const anfitriones = await db
-      .select({ id: schema.userProfiles.id, displayName: schema.userProfiles.displayName })
+      .select({
+        id: schema.userProfiles.id,
+        displayName: schema.userProfiles.displayName,
+        municipality: schema.userProfiles.municipality
+      })
       .from(schema.userProfiles)
       .where(
         and(
@@ -109,7 +115,7 @@ export async function POST(request: Request) {
 
     // 4. La brigada del anfitrión: primero la que lidera, si no, en la que está.
     const lideradas = await db
-      .select({ id: schema.teams.id, name: schema.teams.name })
+      .select({ id: schema.teams.id, name: schema.teams.name, municipality: schema.teams.municipality })
       .from(schema.teams)
       .where(eq(schema.teams.leaderId, anfitrion.id))
       .limit(1);
@@ -117,13 +123,21 @@ export async function POST(request: Request) {
     let equipo = lideradas[0] ?? null;
     if (!equipo) {
       const pertenece = await db
-        .select({ id: schema.teams.id, name: schema.teams.name })
+        .select({ id: schema.teams.id, name: schema.teams.name, municipality: schema.teams.municipality })
         .from(schema.teamMembers)
         .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
         .where(eq(schema.teamMembers.userId, anfitrion.id))
         .limit(1);
       equipo = pertenece[0] ?? null;
     }
+
+    // El territorio se hereda de quien invita, o de la brigada a la que entra. Sin esto,
+    // quien se suma por el QR de un líder de Zapopan quedaba sin municipio y al entrar veía
+    // la aplicación sin territorio y el mapa abierto en todo Jalisco.
+    // Se usa la misma resolución con la que el anfitrión ve la aplicación, validada contra el
+    // catálogo: así quien entra por su enlace queda en el municipio que el anfitrión ve, y no en
+    // el de la primera brigada que aparezca en la consulta.
+    const municipio = (await municipioDelUsuario(anfitrion.id)) ?? buscarMunicipio(equipo?.municipality)?.name ?? null;
 
     const userId = randomUUID();
     await db.insert(schema.userProfiles).values({
@@ -137,6 +151,7 @@ export async function POST(request: Request) {
       // Lo que faltaba: de quién viene y bajo qué enlace queda.
       invitedByUserId: anfitrion.id,
       parentEnlaceId: anfitrion.id,
+      ...(municipio ? { municipality: municipio } : {}),
       status: "pending",
       version: 1
     });

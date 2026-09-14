@@ -1,0 +1,11 @@
+-- Municipio de cada integrante de la estructura.
+--
+-- La aplicación nació para Tonalá: la marca decía "Tonalá OS" y el mapa abría en Tonalá
+-- para todos. Con la cartografía de los 125 municipios de Jalisco ya cargada, el sistema
+-- puede trabajar en cualquiera, pero faltaba el dato más básico: a qué municipio pertenece
+-- cada persona. Los equipos lo tenían (teams.municipality) y las personas no.
+--
+-- Se queda sin valor por omisión a propósito. Poner "Tonalá" a todos es exactamente la
+-- suposición que se está quitando: quien no lo tenga hereda el municipio de su equipo, y si
+-- tampoco, la aplicación se muestra sin municipio en lugar de inventarle uno.
+ALTER TABLE "user_profiles" ADD COLUMN IF NOT EXISTS "municipality" text;

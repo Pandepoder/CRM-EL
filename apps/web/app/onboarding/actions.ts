@@ -6,6 +6,9 @@ import { actorFromSession } from "@/lib/api-helpers";
 import { randomUUID } from "crypto";
 import { withOutbox } from "@/lib/outbox-helper";
 import { getServerSession } from "@/lib/session-server";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
+import { getDatabaseClient } from "@/lib/db-client";
+import { and, eq, isNull } from "drizzle-orm";
 
 export async function completeOnboardingAction(formData: FormData) {
   const actor = await actorFromSession();
@@ -25,6 +28,9 @@ export async function completeOnboardingAction(formData: FormData) {
   const address = formData.get("address") as string || null;
   const addressNumber = formData.get("addressNumber") as string || null;
   const colony = formData.get("colony") as string || null;
+  // El selector de colonia ya manda el municipio; hasta ahora se tiraba. Es el único momento
+  // en que la propia persona dice dónde vive, así que de aquí sale su territorio.
+  const municipality = buscarMunicipio(formData.get("municipality") as string | null)?.name ?? null;
   
   const profession = formData.get("profession") as string || null;
   const companyOrWork = formData.get("companyOrWork") as string || null;
@@ -51,6 +57,7 @@ export async function completeOnboardingAction(formData: FormData) {
       address,
       addressNumber,
       colony,
+      municipality,
       profession,
       companyOrWork,
       skill,
@@ -62,6 +69,16 @@ export async function completeOnboardingAction(formData: FormData) {
       version: 1
     });
   });
+
+  // Se escribe en su perfil solo si no tenía municipio: si administración ya le asignó uno,
+  // manda ese. De aquí salen la marca que ve y el municipio con el que le abre el mapa.
+  if (municipality) {
+    const db = getDatabaseClient();
+    await db
+      .update(schema.userProfiles)
+      .set({ municipality, updatedAt: new Date() })
+      .where(and(eq(schema.userProfiles.id, actor.actorId), isNull(schema.userProfiles.municipality)));
+  }
 
   redirect("/equipo");
 }

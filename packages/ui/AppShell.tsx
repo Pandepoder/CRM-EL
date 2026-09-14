@@ -32,6 +32,13 @@ export type AppShellProps = Readonly<{
   userRoleLabel: string;
   userRoleKey: string;
   activeNavKey: string;
+  /**
+   * Municipio de quien está usando el sistema. La marca se arma con él —"Zapopan OS"— en vez
+   * de estar clavada a Tonalá: la aplicación es la misma, el territorio no.
+   */
+  municipality?: string | null | undefined;
+  /** Nombre de respaldo mientras la persona no tenga municipio asignado. */
+  appName?: string | undefined;
   logoutAction?: string;
 }>;
 
@@ -64,6 +71,8 @@ export function AppShell({
   userRoleLabel,
   userRoleKey,
   activeNavKey,
+  municipality,
+  appName,
   logoutAction = "/api/auth/logout"
 }: AppShellProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -83,7 +92,8 @@ export function AppShell({
   const configuracionItems = filterNavItems(getNavSection("configuracion"));
 
   const allItems = [...dashboardItems, ...estructuraItems, ...territorioItems, ...configuracionItems];
-  const activeTitle = allItems.find((n) => n.active)?.label ?? "Tonalá OS";
+  const marca = municipality ? `${municipality} OS` : (appName || "Jalisco OS");
+  const activeTitle = allItems.find((n) => n.active)?.label ?? marca;
 
   return (
     <div className="shell">
@@ -100,7 +110,7 @@ export function AppShell({
             />
           </div>
           <div>
-            <h1 className="brand-title" style={{ fontSize: "20px", letterSpacing: "-0.5px" }}>Tonalá OS</h1>
+            <h1 className="brand-title" style={{ fontSize: "20px", letterSpacing: "-0.5px" }}>{marca}</h1>
             <p className="brand-subtitle" style={{ color: "var(--primary-light)", fontWeight: 500 }}>Gestor de Campaña</p>
           </div>
         </div>
@@ -237,7 +247,7 @@ export function AppShell({
                   />
                 </div>
                 <div>
-                  <h1 className="brand-title" style={{ fontSize: "16px" }}>Tonalá OS</h1>
+                  <h1 className="brand-title" style={{ fontSize: "16px" }}>{marca}</h1>
                   <p className="brand-subtitle" style={{ margin: 0, fontSize: "10px" }}>Gestor de Campaña</p>
                 </div>
               </div>

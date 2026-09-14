@@ -15,10 +15,15 @@ export default async function AdminUsuariosPage() {
 
   const db = getDatabaseClient();
   const usersReader = createUsersReader(db);
-  const [users, allRoles] = await Promise.all([
+  const [users, allRoles, municipios] = await Promise.all([
     usersReader.listUsers(),
-    db.select().from(schema.roles)
+    db.select().from(schema.roles),
+    // El lector de usuarios no devuelve el municipio; se pide aparte para no cambiarle el
+    // contrato al módulo de gobernanza por una columna de pantalla.
+    db.select({ id: schema.userProfiles.id, municipality: schema.userProfiles.municipality }).from(schema.userProfiles)
   ]);
+
+  const municipioPorUsuario = new Map(municipios.map((m) => [m.id, m.municipality]));
 
   const roleOptions = allRoles.map(r => ({ id: r.id, name: r.name }));
 
@@ -36,7 +41,7 @@ export default async function AdminUsuariosPage() {
             <UserCog className="text-blue-600 h-8 w-8" /> Control de Usuarios y Privilegios
           </h1>
           <p className="text-gray-500 mt-1.5 text-sm">
-            Gestión de operadores territoriales, brigadistas, analistas y directivos de Tonalá OS.
+            Gestión de operadores territoriales, brigadistas, analistas y directivos de la estructura.
           </p>
         </div>
 
@@ -126,6 +131,9 @@ export default async function AdminUsuariosPage() {
                         <span>{u.displayName}</span>
                       </div>
                       <div className="text-xs text-gray-500 mt-0.5 whitespace-nowrap">{u.email}</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5 whitespace-nowrap">
+                        {municipioPorUsuario.get(u.userId) || "Sin municipio"}
+                      </div>
                     </Link>
                   </td>
                   <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
@@ -163,7 +171,14 @@ export default async function AdminUsuariosPage() {
                         currentRoleId={u.roleId} 
                         roles={roleOptions} 
                       />
-                      <UserActions user={{ userId: u.userId, displayName: u.displayName, status: u.status }} />
+                      <UserActions
+                        user={{
+                          userId: u.userId,
+                          displayName: u.displayName,
+                          status: u.status,
+                          municipality: municipioPorUsuario.get(u.userId) ?? null
+                        }}
+                      />
                     </div>
                   </td>
                 </tr>

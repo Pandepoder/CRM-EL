@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus, X, Loader2, KeyRound, Mail, User, ShieldCheck } from "lucide-react";
+import { UserPlus, X, Loader2, KeyRound, Mail, User, ShieldCheck, MapPin } from "lucide-react";
 import { createUserAction } from "./actions";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
+import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
+import { useMunicipioUsuario } from "@/lib/municipio-contexto";
 
 interface RoleOption {
   id: string;
@@ -11,6 +13,9 @@ interface RoleOption {
 }
 
 export function CreateUserModal({ roles }: { roles: RoleOption[] }) {
+  // Se propone el municipio de quien está dando de alta: casi siempre suma gente de su
+  // propio territorio, y así no hay que elegirlo cada vez.
+  const municipioUsuario = useMunicipioUsuario();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -135,6 +140,22 @@ export function CreateUserModal({ roles }: { roles: RoleOption[] }) {
                     badge: "Permisos"
                   }))}
                   icon={<ShieldCheck size={14} className="text-blue-600" />}
+                />
+              </div>
+
+              <div>
+                <PredictiveCombobox
+                  name="municipality"
+                  label="Municipio donde trabaja"
+                  allowCustom={false}
+                  placeholder="Escribe o busca municipio..."
+                  defaultValue={municipioUsuario ?? ""}
+                  options={MUNICIPIOS_JALISCO.map((m) => ({
+                    value: m.name,
+                    label: m.name,
+                    badge: `${m.count} secc.`
+                  }))}
+                  icon={<MapPin size={14} className="text-blue-600" />}
                 />
               </div>
 

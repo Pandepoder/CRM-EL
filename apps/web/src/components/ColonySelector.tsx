@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { Search, MapPin, Check, ChevronDown, Sparkles, Hash, Building2, Navigation, Loader2, Crosshair, X } from "lucide-react";
 import { LocationPicker } from "@/components/LocationPicker";
 import { MUNICIPIOS_JALISCO, TODO_JALISCO, guardarMunicipioPreferido, leerMunicipioPreferido } from "@/lib/municipios-jalisco";
+import { useMunicipioUsuario } from "@/lib/municipio-contexto";
 
 export function ColonySelector({ 
   defaultColony, 
@@ -27,14 +28,15 @@ export function ColonySelector({
   onSelect?: ((sectionId: string, colony: string, municipality: string, sectionNum?: number, coords?: { lat: number; lng: number }, address?: string) => void) | undefined;
   onChange?: ((colony: string, sectionNum?: number) => void) | undefined;
 }) {
-  const [municipality, setMunicipality] = useState(customMunicipality || defaultMunicipality || "");
+  const municipioUsuario = useMunicipioUsuario();
+  const [municipality, setMunicipality] = useState(customMunicipality || defaultMunicipality || municipioUsuario || "");
   // Sin municipio indicado arranca en el último que usó esta persona en este navegador, en
   // vez de en Tonalá. Se lee al montar porque en el servidor no hay localStorage.
   useEffect(() => {
-    if (customMunicipality || defaultMunicipality) return;
+    if (customMunicipality || defaultMunicipality || municipioUsuario) return;
     const preferido = leerMunicipioPreferido();
     if (preferido && preferido !== TODO_JALISCO) setMunicipality(preferido);
-  }, [customMunicipality, defaultMunicipality]);
+  }, [customMunicipality, defaultMunicipality, municipioUsuario]);
   const [sectionNum, setSectionNum] = useState<string>(defaultSectionNum ? String(defaultSectionNum) : "");
   const [selectedSectionId, setSelectedSectionId] = useState<string>(defaultSectionId || "");
   const [colony, setColony] = useState<string>(defaultValue || defaultColony || "");

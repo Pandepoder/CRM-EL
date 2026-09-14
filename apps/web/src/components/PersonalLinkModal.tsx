@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Copy, Check, X, MessageSquare, Lightbulb } from "lucide-react";
 
+import { useMunicipioUsuario } from "@/lib/municipio-contexto";
+
 export function PersonalLinkModal({
   isOpen,
   onClose,
@@ -14,6 +16,8 @@ export function PersonalLinkModal({
   userName: string;
   slug: string;
 }) {
+  // El municipio de quien comparte el enlace: un brigadista de Zapopan invitaba "por Tonalá".
+  const municipio = useMunicipioUsuario();
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -21,7 +25,7 @@ export function PersonalLinkModal({
   const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
   const fullUrl = `${origin}/registro/${slug}`;
   const whatsappMessage = encodeURIComponent(
-    `¡Hola! Te invito a sumarte a nuestro proyecto social por Tonalá. Puedes registrarte de manera muy sencilla aquí: ${fullUrl}`
+    `¡Hola! Te invito a sumarte a nuestro proyecto social${municipio ? ` por ${municipio}` : ""}. Puedes registrarte de manera muy sencilla aquí: ${fullUrl}`
   );
   const whatsappUrl = `https://wa.me/?text=${whatsappMessage}`;
 

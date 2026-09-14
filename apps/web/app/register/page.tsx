@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { UserPlus, CheckCircle2, ArrowLeft, Loader2, ShieldCheck, Mail, Lock, User } from "lucide-react";
+import { UserPlus, CheckCircle2, ArrowLeft, Loader2, ShieldCheck, Mail, Lock, User, MapPin } from "lucide-react";
+
+import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 
 export default function RegisterPage() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Municipio donde va a trabajar: con él se arma la marca que verá y el mapa con el que entra.
+  const [municipality, setMunicipality] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -21,7 +25,7 @@ export default function RegisterPage() {
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ displayName, email, password })
+        body: JSON.stringify({ displayName, email, password, municipality })
       });
       const data = (await response.json()) as { message?: string; pending?: boolean; ok?: boolean };
       if (!response.ok) {
@@ -95,7 +99,7 @@ export default function RegisterPage() {
           </div>
           <h1 className="modern-login-title">Solicitar Acceso</h1>
           <p className="modern-login-subtitle">
-            Regístrate como nuevo operador o brigadista de Tonalá OS.
+            Regístrate como nuevo operador o brigadista de la estructura.
           </p>
         </div>
 
@@ -153,6 +157,24 @@ export default function RegisterPage() {
               placeholder="Mínimo 6 caracteres"
               className="modern-input"
             />
+          </div>
+
+          <div className="modern-input-wrapper">
+            <label htmlFor="municipality">Municipio donde trabajarás</label>
+            <MapPin size={18} className="modern-input-icon" />
+            <select
+              id="municipality"
+              name="municipality"
+              required
+              value={municipality}
+              onChange={(e) => setMunicipality(e.target.value)}
+              className="modern-input"
+            >
+              <option value="" disabled>Selecciona tu municipio</option>
+              {MUNICIPIOS_JALISCO.map((m) => (
+                <option key={m.name} value={m.name}>{m.name}</option>
+              ))}
+            </select>
           </div>
 
           <button className="modern-button" type="submit" disabled={loading} style={{ marginTop: "12px" }}>

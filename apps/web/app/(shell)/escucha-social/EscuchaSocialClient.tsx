@@ -10,6 +10,7 @@ import type { ComponentType } from "react";
 type CategoryIcon = ComponentType<{ size?: number | string; className?: string }>;
 import type { LocationValue } from "@/components/LocationPicker";
 import { LocationPicker } from "@/components/LocationPicker";
+import { useMunicipioUsuario } from "@/lib/municipio-contexto";
 
 type SocialListeningItem = {
   id: string;
@@ -39,6 +40,8 @@ export default function EscuchaSocialClient({
   isCoordinacion: boolean;
   currentUserId: string;
 }) {
+  // El municipio de quien tiene la sesión: los textos de esta pantalla decían Tonalá.
+  const municipioUsuario = useMunicipioUsuario();
   const [items, setItems] = useState<SocialListeningItem[]>(initialItems);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -180,7 +183,7 @@ export default function EscuchaSocialClient({
             </span>
           </div>
           <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
-            Registro y seguimiento de propuestas, necesidades y compromisos ciudadanos en Tonalá
+            Registro y seguimiento de propuestas, necesidades y compromisos ciudadanos{municipioUsuario ? ` en ${municipioUsuario}` : ""}
           </p>
         </div>
 
@@ -387,7 +390,7 @@ export default function EscuchaSocialClient({
                 <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Ubicación / Colonia / Referencia</label>
                 <input
                   type="text"
-                  placeholder="Colonia, calle o referencia de Tonalá..."
+                  placeholder={municipioUsuario ? `Colonia, calle o referencia de ${municipioUsuario}...` : "Colonia, calle o referencia..."}
                   value={locationText}
                   onChange={e => setLocationText(e.target.value)}
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 outline-none focus:bg-white"
