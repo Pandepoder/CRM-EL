@@ -121,7 +121,7 @@ export default function ConocemePage() {
             overflow: "hidden"
           }}
         >
-          <div className="welcome-orbits" aria-hidden="true"><i /><i /><i /><span>TONALÁ</span></div>
+          <div className="welcome-orbits" aria-hidden="true"><i /><i /><i /><span>JALISCO</span></div>
           <div
             aria-hidden="true"
             style={{
@@ -199,7 +199,7 @@ export default function ConocemePage() {
               ))}
             </div>
             <a href="#videos" className="welcome-cta">Conoce mi trabajo <span aria-hidden="true">↗︎</span></a>
-            <div className="welcome-signature"><span className="signature-line" /><span>TONALÁ, JALISCO</span><span className="signature-line" /></div>
+            <div className="welcome-signature"><span className="signature-line" /><span>JALISCO</span><span className="signature-line" /></div>
           </div>
         </section>
 
@@ -266,10 +266,10 @@ export default function ConocemePage() {
             style={{ width: 22, height: 22, objectFit: "contain" }}
           />
           <span className="font-semibold text-sm" style={{ color: "#0b1f3a" }}>
-            Tonalá OS
+            Jalisco OS
           </span>
         </div>
-        <p style={{ color: "#8b95a9", fontSize: ".82rem" }}>© 2026 Edgar López · Un Tonalá Posible</p>
+        <p style={{ color: "#8b95a9", fontSize: ".82rem" }}>© 2026 Edgar López · Un Jalisco Posible</p>
       </footer>
     </div>
   );

@@ -109,7 +109,7 @@ services:
       # aborta con un mensaje claro en vez de crear un administrador que nadie esperaba.
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-Tonala OS}
+      - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-Jalisco OS}
       - NEXT_PUBLIC_APP_ENV=production
       - PORT=3000
     # /api/upload escribe en `process.cwd()/public/uploads` y cwd es /app.
