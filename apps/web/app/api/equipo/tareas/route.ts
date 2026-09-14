@@ -66,19 +66,17 @@ export async function POST(req: Request) {
       (await ubicarEnSeccion(Number(latitude), Number(longitude)))?.seccion.municipality ??
       null;
 
-    // 1. If roleAssignment is provided and actor has permissions, update the user's operational role
-    if (roleAssignment && (actor.roles.includes("admin") || actor.roles.includes("direction") || actor.roles.includes("territorial_coordinator"))) {
-      const [matchedRole] = await db
-        .select({ id: schema.roles.id })
-        .from(schema.roles)
-        .where(eq(schema.roles.key, roleAssignment))
-        .limit(1);
-      if (matchedRole) {
-        await db
-          .update(schema.userProfiles)
-          .set({ roleId: matchedRole.id })
-          .where(eq(schema.userProfiles.id, assignedUser));
-      }
+    // 1. Esta ruta ya NO cambia roles. Antes, si llegaba `roleAssignment`, dirección o un
+    // coordinador territorial podían reescribir el rol de cualquier persona —incluido el propio—
+    // a cualquier clave, "admin" incluida, sin validar destino ni alcance: una sola petición
+    // bastaba para quedarse con acceso global. La interfaz siempre lo mandaba vacío. Los roles
+    // se cambian únicamente desde Control de Usuarios (changeUserRoleAction), que es solo de
+    // administración.
+    if (roleAssignment) {
+      return NextResponse.json(
+        { error: "Los roles solo se cambian desde Control de Usuarios." },
+        { status: 400 }
+      );
     }
 
     // 2. Normalize category to match event_reports constraint
