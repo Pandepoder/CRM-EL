@@ -4,6 +4,7 @@ import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { createHash } from "crypto";
+import { visibleContactIds, sqlRestriccionContactos } from "@/lib/contact-visibility";
 
 /**
  * Caché en proceso del GeoJSON por municipio.
@@ -74,8 +75,12 @@ export async function GET(req: Request) {
   const enAlcance = alcance.isGlobal ? null : (alcance.allowedUserIds ?? [actor.actorId]);
   const misEquipos = alcance.teamIds ?? [];
 
-  const lista = (ids: readonly string[]) => sql.join(ids.map((i) => sql`${i}`), sql`, `);
-  const filtroContactos = enAlcance ? sql`AND cont.created_by_user_id IN (${lista(enAlcance)})` : sql``;
+  // Con una lista vacía, `IN (NULL)` es falso; `IN ()` sería un error de sintaxis.
+  const lista = (ids: readonly string[]) => (ids.length ? sql.join(ids.map((i) => sql`${i}`), sql`, `) : sql`NULL`);
+  // Los mismos contactos que el directorio (equipo y territorio). Antes solo por creador: el mapa
+  // contaba en cada sección contactos que el CRM ya no le enseña a esa persona.
+  const idsVisibles = await visibleContactIds(alcance);
+  const filtroContactos = sqlRestriccionContactos(sql.raw("cont.id"), idsVisibles);
   const filtroRepresentantes = enAlcance ? sql`AND erep.user_id IN (${lista(enAlcance)})` : sql``;
   const filtroIncidencias = enAlcance
     ? sql`AND (
@@ -90,8 +95,10 @@ export async function GET(req: Request) {
   // El caché se guardaba solo por municipio. Ahora la respuesta depende de quién
   // pregunta, así que la clave lleva también la huella del alcance: sin esto,
   // los números de una brigada se servirían a la siguiente que abriera el mapa.
+  // La huella incluye a la persona: con "lo propio siempre visible", dos integrantes del mismo
+  // equipo ya no ven exactamente los mismos contactos.
   const huellaAlcance = enAlcance
-    ? createHash("sha1").update([...enAlcance].sort().join(",") + "|" + [...misEquipos].sort().join(",")).digest("hex").slice(0, 12)
+    ? createHash("sha1").update(alcance.userId + "|" + [...enAlcance].sort().join(",") + "|" + [...misEquipos].sort().join(",") + "|" + (idsVisibles ?? []).length).digest("hex").slice(0, 12)
     : "global";
   const claveCache = `${targetMunicipality.toLowerCase()}::${huellaAlcance}`;
   const cache = (globalThis.__tonalaGeojsonSecciones ??= new Map());

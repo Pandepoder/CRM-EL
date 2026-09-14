@@ -1,9 +1,10 @@
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
-import { eq, or, desc } from "drizzle-orm";
+import { and, eq, or, desc } from "drizzle-orm";
 import { requirePageRole } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
 import { notFound } from "next/navigation";
 import LeaderProfileClient from "./LeaderProfileClient";
 
@@ -41,8 +42,8 @@ export default async function LeaderProfilePage({
   // brigade/network scope (leader <-> teammate) may view this profile —
   // otherwise contact PII and activity registered by the target user would
   // leak across unrelated brigades.
+  const viewerScope = await resolveUserNetworkScope(session.userId);
   if (session.userId !== targetUserId) {
-    const viewerScope = await resolveUserNetworkScope(session.userId);
     const canView = viewerScope.isGlobal || viewerScope.teammateUserIds.includes(targetUserId);
     if (!canView) {
       return notFound();
@@ -90,7 +91,12 @@ export default async function LeaderProfilePage({
     })
     .from(schema.contacts)
     .leftJoin(schema.electoralSections, eq(schema.contacts.sectionId, schema.electoralSections.id))
-    .where(or(eq(schema.contacts.createdByUserId, targetUserId), eq(schema.contacts.referredByUserId, targetUserId)))
+    // Los contactos del perfil se cruzan con lo que quien MIRA puede ver (equipo y territorio):
+    // antes un compañero veía todos los contactos de la otra persona, con teléfono y domicilio.
+    .where(and(
+      or(eq(schema.contacts.createdByUserId, targetUserId), eq(schema.contacts.referredByUserId, targetUserId)),
+      contactIdRestriction(await visibleContactIds(viewerScope))
+    ))
     .orderBy(desc(schema.contacts.createdAt));
 
   const contacts = rawContacts.map(c => ({

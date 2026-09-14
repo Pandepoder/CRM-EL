@@ -21,6 +21,12 @@ export async function createContactAction(formData: FormData) {
   const actor = await actorFromSession();
   if (!actor) throw new Error("Unauthorized");
   assertActorPermission(actor, Permission.ContactsCreate);
+  const creationScope = await resolveUserNetworkScope(actor.actorId);
+  for (const field of ["referredByUserId", "actualContactUserId"]) {
+    const value = formData.get(field);
+    const responsable = typeof value === "string" ? value : "";
+    if (responsable && !creationScope.isGlobal && !creationScope.teammateUserIds.includes(responsable)) throw new Error("El responsable debe pertenecer a tu equipo");
+  }
 
   const firstName = ((formData.get("firstName") as string) || "").trim();
   const lastName = ((formData.get("lastName") as string) || "").trim();
@@ -226,22 +232,13 @@ export async function deleteContactAction(contactId: string) {
     throw new Error("Ciudadano no encontrado");
   }
 
-  // 2. Only a global admin or a team leader may delete contacts, and only within their own brigade
+  // 2. Solo administración borra ciudadanos. Es un borrado definitivo en cascada —notas,
+  // encuestas, asignaciones, territorio y visitas—, y el DELETE de la API ya lo tenía así; esta
+  // acción seguía dejando hacerlo a cualquier líder, incluso sobre contactos fuera de su
+  // territorio que el directorio ya ni le muestra.
   const scope = await resolveUserNetworkScope(actor.actorId);
   if (!scope.isGlobal) {
-    if (!scope.isLeader) {
-      throw new Error("Solo el líder de tu equipo puede eliminar ciudadanos del padrón");
-    }
-
-    const allowed = scope.allowedUserIds || [actor.actorId];
-    const isOwnerOrTeammate =
-      allowed.includes(contact.createdByUserId) ||
-      (contact.actualContactUserId && allowed.includes(contact.actualContactUserId)) ||
-      (contact.referredByUserId && allowed.includes(contact.referredByUserId));
-
-    if (!isOwnerOrTeammate) {
-      throw new Error("No tienes permiso para eliminar ciudadanos fuera de tu brigada");
-    }
+    throw new Error("Solo administración puede eliminar ciudadanos del padrón");
   }
 
   // 3. Cascade deletion of related items

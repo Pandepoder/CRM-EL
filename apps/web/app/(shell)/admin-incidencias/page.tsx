@@ -2,7 +2,10 @@ import { requirePageRole } from "@/lib/authorization";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { AlertTriangle, MapPin, Calendar, CheckCircle2, Clock } from "lucide-react";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { getServerSession } from "@/lib/session-server";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { incidentScopeCondition } from "@/lib/incident-visibility";
 import Link from "next/link";
 import { ESTADOS_ABIERTOS } from "@/lib/estados-incidencia";
 import { StatusSelector } from "./StatusSelector";
@@ -13,6 +16,10 @@ export default async function AdminIncidenciasPage() {
   await requirePageRole("admin", "direction", "territorial_coordinator");
 
   const db = getDatabaseClient();
+  const session = await getServerSession();
+  // Dirección y coordinación ven las incidencias de su alcance; antes esta pantalla leía todas
+  // las del sistema sin filtro.
+  const alcance = await resolveUserNetworkScope(session.userId);
 
   // 1. Fetch reports with joined electoral section
   const reports = await db
@@ -35,7 +42,7 @@ export default async function AdminIncidenciasPage() {
     .leftJoin(schema.electoralSections, eq(schema.eventReports.sectionId, schema.electoralSections.id))
     // Solo lo que sigue requiriendo trabajo. Lo resuelto, archivado o rechazado
     // vive en el Historial: mezclarlo aquí enterraba lo que hay que atender.
-    .where(inArray(schema.eventReports.status, ESTADOS_ABIERTOS))
+    .where(and(inArray(schema.eventReports.status, ESTADOS_ABIERTOS), incidentScopeCondition(alcance)))
     .orderBy(desc(schema.eventReports.createdAt));
 
   // 2. Fetch all sections with their colonies and municipalities

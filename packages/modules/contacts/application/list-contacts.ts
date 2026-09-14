@@ -13,6 +13,7 @@ export type ListContactsInput = Readonly<{
    * es la que conoce la jerarquía de equipos; sin él se cae a "solo lo propio".
    */
   scopedUserIds?: readonly string[];
+  scopedContactIds?: readonly string[];
   q?: string;
   page?: number;
   pageSize?: number;
@@ -49,6 +50,7 @@ export async function listContacts(
             ).map((id) => createEntityId(id));
 
         const result = await dependencies.contactsReader.listContacts({
+          ...(input.scopedContactIds !== undefined ? { scopedContactIds: input.scopedContactIds.map(createEntityId) } : {}),
           ...(scopedUserIds !== undefined ? { scopedUserIds } : {}),
           ...(input.assignedUserId !== undefined ? { assignedUserId: createEntityId(input.assignedUserId) } : {}),
           ...(input.q !== undefined ? { q: input.q } : {}),

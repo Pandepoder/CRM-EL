@@ -264,7 +264,8 @@ export default function DirectorioClient({
                           >
                             Ver Ficha
                           </Link>
-                          {userAccessType !== "conexion" && (
+                          {/* Borrar es definitivo y solo de administración. */}
+                          {userAccessType === "coordinacion" && (
                             <button
                               type="button"
                               onClick={() => handleDelete(c.contactId || c.id, c.displayName)}

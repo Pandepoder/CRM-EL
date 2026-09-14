@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { DevelopmentLogger } from "@tonala/shared/observability";
 import { assignResponsible } from "@tonala/modules/assignments/application";
 
@@ -13,6 +14,7 @@ export async function POST(
 ) {
   const actor = await actorFromSession();
   if (!actor) return unauthorized();
+  if (!actor.roles.includes("admin")) return NextResponse.json({ error: "Solo administración puede modificar datos sensibles" }, { status: 403 });
 
   const { id } = await params;
 

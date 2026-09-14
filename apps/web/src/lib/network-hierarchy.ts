@@ -1,13 +1,15 @@
 import { getDatabaseClient } from "./db-client.js";
 import { schema } from "@tonala/shared/database";
-import { eq, or, inArray } from "drizzle-orm";
+import { eq, inArray, and, ne } from "drizzle-orm";
 
 export type AccessType = "coordinacion" | "enlace" | "conexion";
 
 export interface UserNetworkScope {
+  /** A quién pertenece este alcance: con él se reconoce lo que la persona registró o tiene asignado. */
+  userId: string;
   accessType: AccessType;
   roleKey: string;
-  allowedUserIds: string[] | null; // null means GLOBAL (coordinacion/admin/direction)
+  allowedUserIds: string[] | null; // null solo para administración activa; [] = sin acceso
   teammateUserIds: string[]; // List of user IDs in the same brigade/team
   teamIds: string[]; // Teams the user leads or belongs to
   isGlobal: boolean;
@@ -21,7 +23,7 @@ export interface UserNetworkScope {
  * - Dirección: solo los equipos que un administrador le haya asignado, y puede
  *   tener varios. Coordina dentro de ellos como un líder, pero no ve el resto
  *   de la estructura. Antes tenía vista global igual que administración.
- * - Líder (territorial_coordinator): sus equipos y la red que dependen de él.
+ * - Líder (territorial_coordinator): sus equipos. Las invitaciones ya no suman alcance.
  * - Capturista y brigadista: su propio equipo y sus registros.
  */
 export async function resolveUserNetworkScope(
@@ -34,6 +36,7 @@ export async function resolveUserNetworkScope(
     .select({
       id: schema.userProfiles.id,
       accessType: schema.userProfiles.accessType,
+      status: schema.userProfiles.status,
       roleKey: schema.roles.key
     })
     .from(schema.userProfiles)
@@ -44,9 +47,26 @@ export async function resolveUserNetworkScope(
   const roleKey = userRow[0]?.roleKey || "";
   const accessType: AccessType = (userAccessType as AccessType) || (userRow[0]?.accessType as AccessType) || "conexion";
 
+  // Una sesión de alguien dado de baja (o inexistente) no concede nada. Antes se lanzaba un
+  // error, y las páginas que leen la sesión directamente respondían 500 en vez de mostrar una
+  // vista vacía; las rutas de la API ya lo cortan antes con actorFromSession.
+  if (!userRow[0] || userRow[0].status !== "active") {
+    return {
+      userId,
+      accessType: "conexion",
+      roleKey,
+      allowedUserIds: [],
+      teammateUserIds: [],
+      teamIds: [],
+      isGlobal: false,
+      isLeader: false
+    };
+  }
+
   // 1. Solo administración tiene acceso global.
   if (roleKey === "admin") {
     return {
+      userId,
       accessType: "coordinacion",
       roleKey,
       allowedUserIds: null,
@@ -101,44 +121,12 @@ export async function resolveUserNetworkScope(
     teammateUserIds = Array.from(new Set([userId, ...memberIds, ...leaderIds]));
   }
 
-  // 5. Find invited/network conexiones (direct downline)
-  const conexiones = await db
-    .select({ id: schema.userProfiles.id })
+  // Membership must be explicit. Invitations and accessType do not grant access.
+  const activePeers = await db.select({ id: schema.userProfiles.id })
     .from(schema.userProfiles)
-    .where(
-      or(
-        eq(schema.userProfiles.parentEnlaceId, userId),
-        eq(schema.userProfiles.invitedByUserId, userId)
-      )
-    );
-  const conexionIds = conexiones.map((c) => c.id);
-
-  // Combine allowed user IDs for contact and activity visibility
-  const allNetworkUserIds = Array.from(
-    new Set([...teammateUserIds, ...conexionIds])
-  );
-
-  // If Líder (territorial_coordinator) or Enlace accessType
-  if (isLeader || accessType === "enlace" || accessType === "coordinacion") {
-    return {
-      accessType: isLeader ? "enlace" : accessType,
-      roleKey,
-      allowedUserIds: allNetworkUserIds.length > 0 ? allNetworkUserIds : [userId],
-      teammateUserIds: allNetworkUserIds.length > 0 ? allNetworkUserIds : [userId],
-      teamIds: allTeamIds,
-      isGlobal: false,
-      isLeader: true
-    };
-  }
-
-  // Conexión / Brigadista / Coordinador Territorial in a brigade
-  return {
-    accessType: "conexion",
-    roleKey,
-    allowedUserIds: allNetworkUserIds.length > 0 ? allNetworkUserIds : [userId],
-    teammateUserIds: allNetworkUserIds.length > 0 ? allNetworkUserIds : [userId],
-    teamIds: allTeamIds,
-    isGlobal: false,
-    isLeader: false
-  };
+    .leftJoin(schema.roles, eq(schema.userProfiles.roleId, schema.roles.id))
+    .where(and(inArray(schema.userProfiles.id, teammateUserIds), eq(schema.userProfiles.status, "active"), ne(schema.roles.key, "admin")));
+  const allowed = Array.from(new Set([userId, ...activePeers.map(u => u.id)]));
+  return { userId, accessType, roleKey, allowedUserIds: allowed, teammateUserIds: allowed,
+    teamIds: allTeamIds, isGlobal: false, isLeader };
 }

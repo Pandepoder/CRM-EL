@@ -1,3 +1,4 @@
+import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
 import { headers } from "next/headers";
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
@@ -74,6 +75,8 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
     redirect("/admin-equipos");
   }
 
+  const contactRestriction = contactIdRestriction(await visibleContactIds(networkScope));
+
   // 3. Fetch ALL contacts / citizens registered by this team (leader + members)
   const teamMemberIds = Array.from(new Set([team.leaderId, ...members.map(m => m.userId)].filter(Boolean)));
   
@@ -98,6 +101,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
       .where(
         and(
           eq(schema.contacts.status, "active"),
+          contactRestriction,
           or(
             inArray(schema.contacts.createdByUserId, teamMemberIds),
             inArray(schema.contacts.referredByUserId, teamMemberIds)
@@ -133,14 +137,27 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
       displayName: schema.userProfiles.displayName
     })
     .from(schema.userProfiles)
-    .where(eq(schema.userProfiles.status, "active"));
+    // Administración elige entre todas las personas activas. El líder, solo entre las que él
+    // invitó: no recorre el padrón completo ni suma gente de otra estructura.
+    .where(and(
+      eq(schema.userProfiles.status, "active"),
+      isGlobalAdmin
+        ? undefined
+        : or(eq(schema.userProfiles.invitedByUserId, session.userId), eq(schema.userProfiles.parentEnlaceId, session.userId))
+    ));
 
-  const availableUsers = await availableUsersQuery;
+  const esLiderDelEquipo = team.leaderId === session.userId;
+  const availableUsers = isGlobalAdmin || esLiderDelEquipo ? await availableUsersQuery : [];
   const filteredUsers = availableUsers.filter(u => !memberUserIds.includes(u.id));
 
   // Las solicitudes se muestran aparte y arriba: son las únicas que piden una
   // decisión, y mezcladas con los integrantes pasaban desapercibidas.
-  const nombresPorId = new Map(availableUsers.map(u => [u.id, u.displayName]));
+  // Nombres de quienes invitaron, pedidos aparte: la lista de disponibles de un líder no los trae.
+  const invitadores = Array.from(new Set(members.map(m => m.invitedByUserId).filter((x): x is string => Boolean(x))));
+  const filasInvitadores = invitadores.length
+    ? await db.select({ id: schema.userProfiles.id, displayName: schema.userProfiles.displayName }).from(schema.userProfiles).where(inArray(schema.userProfiles.id, invitadores))
+    : [];
+  const nombresPorId = new Map(filasInvitadores.map(u => [u.id, u.displayName]));
   const solicitudes = members
     .filter(m => m.status === "pending")
     .map(m => ({
@@ -150,7 +167,9 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
       joinedAt: m.joinedAt ? new Date(m.joinedAt).toISOString() : null
     }));
 
-  const puedeGestionar = isGlobalAdmin || team.leaderId === session.userId;
+  // Integrantes, solicitudes del QR y el enlace de la brigada: administración o el líder de este
+  // equipo. Borrar ciudadanos sigue siendo solo de administración.
+  const puedeGestionar = isGlobalAdmin || esLiderDelEquipo;
 
   // El enlace del QR es el de quien está mirando: así lo que se registre queda a
   // su nombre, no al de un tercero.
@@ -180,6 +199,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
       contacts={teamContacts}
       availableUsers={filteredUsers}
       canManage={puedeGestionar}
+      canDeleteContacts={isGlobalAdmin}
       currentUserId={session.userId}
     />
     </>

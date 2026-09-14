@@ -127,17 +127,26 @@ export class DrizzleContactsReader implements ContactsReader {
   public async listContacts(options?: {
     assignedUserId?: ReturnType<typeof createEntityId>;
     scopedUserIds?: readonly ReturnType<typeof createEntityId>[];
+    scopedContactIds?: readonly ReturnType<typeof createEntityId>[];
     q?: string;
     page?: number;
     pageSize?: number;
   }) {
     const conditions = [];
     conditions.push(sql`c.status = 'active'`);
+    if (options?.scopedContactIds !== undefined) {
+      if (!options.scopedContactIds.length) return { items: [], total: 0 };
+      conditions.push(sql`c.id IN (${sql.join(options.scopedContactIds.map(id => sql`${id}`), sql`, `)})`);
+    }
+    if (options?.scopedUserIds && options.scopedUserIds.length === 0) return { items: [], total: 0 };
     if (options?.scopedUserIds && options.scopedUserIds.length > 0) {
       const enAlcance = sql.join(options.scopedUserIds.map((id) => sql`${id}`), sql`, `);
       conditions.push(sql`(
         c.created_by_user_id IN (${enAlcance}) OR
         c.referred_by_user_id IN (${enAlcance}) OR
+        -- Mismo criterio que visibleContactIds (apps/web/src/lib/contact-visibility.ts): sin el
+        -- contacto real, el directorio listaba contactos cuya ficha respondía "no encontrado".
+        c.actual_contact_user_id IN (${enAlcance}) OR
         (ca.assigned_user_id IN (${enAlcance}) AND ca.assignment_status = 'active')
       )`);
     }
@@ -253,11 +262,15 @@ export class DrizzleContactsReader implements ContactsReader {
     };
 
     const conditions = [sql`c.id = ${contactId}`];
+    if (scopedUserIds && scopedUserIds.length === 0) return null;
     if (scopedUserIds && scopedUserIds.length > 0) {
       const enAlcance = sql.join(scopedUserIds.map((id) => sql`${id}`), sql`, `);
       conditions.push(sql`(
         c.created_by_user_id IN (${enAlcance}) OR
         c.referred_by_user_id IN (${enAlcance}) OR
+        -- Mismo criterio que visibleContactIds (apps/web/src/lib/contact-visibility.ts): sin el
+        -- contacto real, el directorio listaba contactos cuya ficha respondía "no encontrado".
+        c.actual_contact_user_id IN (${enAlcance}) OR
         (ca.assigned_user_id IN (${enAlcance}) AND ca.assignment_status = 'active')
       )`);
     }

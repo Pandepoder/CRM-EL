@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Archive, ArrowLeft, MapPin, Calendar } from "lucide-react";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { requirePageRole } from "@/lib/authorization";
 import { getDatabaseClient } from "@/lib/db-client";
@@ -8,6 +8,9 @@ import { schema } from "@tonala/shared/database";
 import { CATEGORIAS_INCIDENCIA, CATEGORIA_DESCONOCIDA } from "@/lib/categorias-incidencia";
 import { ESTADOS_CERRADOS, ESTADOS_INCIDENCIA, ESTADO_DESCONOCIDO } from "@/lib/estados-incidencia";
 import { StatusSelector } from "../admin-incidencias/StatusSelector";
+import { getServerSession } from "@/lib/session-server";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { incidentScopeCondition } from "@/lib/incident-visibility";
 
 /**
  * Historial de incidencias cerradas.
@@ -25,6 +28,9 @@ export default async function HistorialIncidenciasPage() {
   await requirePageRole("admin", "direction", "territorial_coordinator");
 
   const db = getDatabaseClient();
+  const session = await getServerSession();
+  // Solo lo del alcance de quien consulta; antes se leía el historial de todo el sistema.
+  const alcance = await resolveUserNetworkScope(session.userId);
 
   const reportes = await db
     .select({
@@ -39,7 +45,7 @@ export default async function HistorialIncidenciasPage() {
     })
     .from(schema.eventReports)
     .leftJoin(schema.electoralSections, eq(schema.eventReports.sectionId, schema.electoralSections.id))
-    .where(inArray(schema.eventReports.status, ESTADOS_CERRADOS))
+    .where(and(inArray(schema.eventReports.status, ESTADOS_CERRADOS), incidentScopeCondition(alcance)))
     .orderBy(desc(schema.eventReports.createdAt));
 
   const porEstado = ESTADOS_CERRADOS.map((clave) => ({

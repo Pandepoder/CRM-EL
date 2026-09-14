@@ -3,9 +3,10 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
-import { and, eq, inArray, type SQL } from "drizzle-orm";
+import { and, eq, type SQL } from "drizzle-orm";
 import { getServerSession } from "@/lib/session-server";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
 
 // Assigned color palette for teams/networks
 const NETWORK_COLORS = [
@@ -79,9 +80,10 @@ export async function GET(request: Request) {
     // devolvía también contactos archivados a todo el que no fuera administrador
     // —medido: 255 contactos frente a los 253 activos del administrador—.
     const condiciones: SQL[] = [eq(schema.contacts.status, "active")];
-    if (!networkScope.isGlobal && networkScope.allowedUserIds && networkScope.allowedUserIds.length > 0) {
-      condiciones.push(inArray(schema.contacts.createdByUserId, networkScope.allowedUserIds));
-    }
+    // Los mismos contactos que el directorio: antes el mapa filtraba solo por creador y sin
+    // territorio, así que pintaba puntos cuya ficha luego respondía "no encontrado".
+    const restriccion = contactIdRestriction(await visibleContactIds(networkScope));
+    if (restriccion) condiciones.push(restriccion);
 
     const query = db
       .select({

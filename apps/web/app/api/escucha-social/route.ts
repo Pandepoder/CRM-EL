@@ -44,8 +44,9 @@ export async function GET(req: NextRequest) {
       .leftJoin(schema.userProfiles, eq(schema.socialListening.createdByUserId, schema.userProfiles.id))
       .$dynamic();
 
-    if (!networkScope.isGlobal && networkScope.allowedUserIds && networkScope.allowedUserIds.length > 0) {
-      query = query.where(inArray(schema.socialListening.createdByUserId, networkScope.allowedUserIds));
+    if (!networkScope.isGlobal) {
+      // Con alcance vacío, inArray([]) es `false`: no se ve nada, en vez de todo.
+      query = query.where(inArray(schema.socialListening.createdByUserId, networkScope.allowedUserIds ?? []));
     }
 
     const records = await query.orderBy(desc(schema.socialListening.createdAt));

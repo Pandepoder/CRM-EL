@@ -4,7 +4,8 @@ import AnalyticsClient from "./AnalyticsClient";
 import { requirePageRole } from "@/lib/authorization";
 import { getServerSession } from "@/lib/session-server";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { and, eq, inArray } from "drizzle-orm";
+import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
+import { and, eq } from "drizzle-orm";
 
 export default async function AnalyticsPage() {
   await requirePageRole("admin", "direction");
@@ -17,16 +18,13 @@ export default async function AnalyticsPage() {
   // de equipo ni filtro de estado, así que Dirección obtenía la demografía
   // completa del padrón y los conteos incluían registros dados de baja.
   const alcance = await resolveUserNetworkScope(session.userId);
-  const enAlcance = alcance.isGlobal ? null : (alcance.allowedUserIds ?? [session.userId]);
+  // Los mismos contactos que el directorio (equipo y territorio), no solo los creados por el equipo.
+  const restriccion = contactIdRestriction(await visibleContactIds(alcance));
 
   const contacts = await db
     .select()
     .from(schema.contacts)
-    .where(
-      enAlcance
-        ? and(eq(schema.contacts.status, "active"), inArray(schema.contacts.createdByUserId, enAlcance))
-        : eq(schema.contacts.status, "active")
-    );
+    .where(and(eq(schema.contacts.status, "active"), restriccion));
   
   const totalCitizens = contacts.length;
   

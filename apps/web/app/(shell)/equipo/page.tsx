@@ -5,6 +5,7 @@ import { eq, and, gte, lte, or, inArray } from "drizzle-orm";
 import AgendaClient from "./AgendaClient";
 import { requirePageRole } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
 
 export interface LeaderStat {
   userId: string;
@@ -48,6 +49,9 @@ export default async function EquipoMiDiaPage({
   const canAssign = isGlobalAdmin || isLeader;
   const allowedTeammateIds = networkScope.teammateUserIds;
   const allowedContactUserIds = networkScope.allowedUserIds || [session.userId];
+  // Los contactos de la Agenda son los mismos que ve el directorio. Antes se filtraban solo por
+  // creador y sin territorio: la Agenda enseñaba contactos (con teléfono) que la ficha rechazaba.
+  const restriccionContactos = contactIdRestriction(await visibleContactIds(networkScope));
 
   // Date filters
   let dateFilter;
@@ -275,16 +279,7 @@ export default async function EquipoMiDiaPage({
     .from(schema.contacts)
     .$dynamic();
 
-  if (!isGlobalAdmin && allowedContactUserIds.length > 0) {
-    contactQuery = contactQuery.where(
-      and(
-        eq(schema.contacts.status, "active"),
-        inArray(schema.contacts.createdByUserId, allowedContactUserIds)
-      )
-    );
-  } else {
-    contactQuery = contactQuery.where(eq(schema.contacts.status, "active"));
-  }
+  contactQuery = contactQuery.where(and(eq(schema.contacts.status, "active"), restriccionContactos));
   const allContacts = await contactQuery;
 
   const allTeams = await db
@@ -388,16 +383,7 @@ export default async function EquipoMiDiaPage({
     .from(schema.contacts)
     .$dynamic();
 
-  if (!isGlobalAdmin && allowedContactUserIds.length > 0) {
-    rawContactsQuery = rawContactsQuery.where(
-      and(
-        eq(schema.contacts.status, "active"),
-        inArray(schema.contacts.createdByUserId, allowedContactUserIds)
-      )
-    );
-  } else {
-    rawContactsQuery = rawContactsQuery.where(eq(schema.contacts.status, "active"));
-  }
+  rawContactsQuery = rawContactsQuery.where(and(eq(schema.contacts.status, "active"), restriccionContactos));
 
   const rawContacts = await rawContactsQuery.orderBy(schema.contacts.displayName).limit(100);
 
@@ -430,7 +416,8 @@ export default async function EquipoMiDiaPage({
     .leftJoin(schema.userProfiles, eq(schema.rapidActivityProspects.createdByUserId, schema.userProfiles.id))
     .$dynamic();
 
-  if (!isGlobalAdmin && allowedContactUserIds.length > 0) {
+  // Con alcance vacío, inArray([]) es `false`: no se ve nada, en vez de todo.
+  if (!isGlobalAdmin) {
     rawProspectsQuery = rawProspectsQuery.where(inArray(schema.rapidActivityProspects.createdByUserId, allowedContactUserIds));
   }
 

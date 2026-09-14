@@ -36,11 +36,13 @@ type RecentContact = {
 };
 
 export default function ResumenClient({
+  canManageSensitive = false,
   currentUser,
   kpis,
   recentContacts = [],
   leaderboard
 }: {
+  canManageSensitive?: boolean;
   currentUser: { id: string; displayName: string; accessType: string; personalSlug?: string | null };
   kpis: {
     totalContacts: number;
@@ -77,7 +79,7 @@ export default function ResumenClient({
     setTimeout(() => setToast(null), 3500);
   };
 
-  const isCoordinacion = currentUser.accessType === "coordinacion";
+  const isCoordinacion = canManageSensitive;
 
   // Share or Copy Personal Registration Link
   const handleShareLink = async () => {
@@ -768,7 +770,7 @@ export default function ResumenClient({
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-blue-300 transition-colors"
                 >
                   <option value="enlace">Enlace (Líder con equipo propio)</option>
-                  <option value="coordinacion">Coordinación (Acceso global)</option>
+                  <option value="coordinacion">Coordinación (categoría; el acceso lo da el equipo)</option>
                 </select>
               </div>
 

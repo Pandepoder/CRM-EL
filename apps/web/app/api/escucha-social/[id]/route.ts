@@ -5,6 +5,7 @@ import { schema } from "@tonala/shared/database";
 import { eq } from "drizzle-orm";
 import { getServerSession } from "@/lib/session-server";
 import { safeErrorMessage } from "@/lib/safe-error";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export async function PATCH(
   req: NextRequest,
@@ -33,7 +34,23 @@ export async function PATCH(
       .where(eq(schema.userProfiles.id, session.userId))
       .limit(1);
 
-    const isCoordinacion = userRow[0] && (userRow[0].accessType === "coordinacion" || userRow[0].roleKey === "admin" || userRow[0].roleKey === "direction");
+    // Aprobar gestiones formales ante dependencias: solo administración.
+    const isCoordinacion = userRow[0]?.roleKey === "admin";
+
+    // Nadie modifica un registro fuera de su alcance. Antes cualquier sesión podía cambiar el
+    // estado o las notas de resolución de cualquier registro con solo conocer su id.
+    if (!isCoordinacion) {
+      const [registro] = await db
+        .select({ createdByUserId: schema.socialListening.createdByUserId })
+        .from(schema.socialListening)
+        .where(eq(schema.socialListening.id, id))
+        .limit(1);
+      if (!registro) return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
+      const alcance = await resolveUserNetworkScope(session.userId);
+      if (!(alcance.allowedUserIds ?? []).includes(registro.createdByUserId)) {
+        return NextResponse.json({ error: "Este registro no pertenece a tu equipo" }, { status: 403 });
+      }
+    }
 
     const updateData: any = {};
     if (status) updateData.status = status;

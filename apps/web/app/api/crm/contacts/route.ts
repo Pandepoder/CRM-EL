@@ -1,3 +1,4 @@
+import { visibleContactIds } from "@/lib/contact-visibility";
 import { listContacts } from "@tonala/modules/contacts/application";
 import { DevelopmentLogger } from "@tonala/shared/observability";
 
@@ -13,7 +14,9 @@ export async function GET() {
   const db = getDatabaseClient();
   const { contactsReader } = await createCrmDependencies(db);
   const alcance = await resolveUserNetworkScope(actor.actorId);
+  const visibleIds = await visibleContactIds(alcance);
   const result = await listContacts(actor, {
+    ...(visibleIds !== null ? { scopedContactIds: visibleIds } : {}),
     ...(alcance.allowedUserIds ? { scopedUserIds: alcance.allowedUserIds } : {})
   }, {
     contactsReader,

@@ -6,23 +6,38 @@ const { teams, teamMembers } = schema;
 import { actorFromSession } from "@/lib/api-helpers";
 import { getDatabaseClient } from "@/lib/db-client";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { withOutbox } from "@/lib/outbox-helper";
 import { randomUUID } from "crypto";
 
 type Actor = { actorId: string; roles: readonly string[] };
 
-async function assertCanManageTeam(actor: Actor | null | undefined, teamId: string) {
+/** Crear, editar o borrar un equipo: solo administración. */
+async function assertIsAdmin(actor: Actor | null | undefined) {
   if (!actor) throw new Error("No autenticado");
-
   const scope = await resolveUserNetworkScope(actor.actorId);
-  if (scope.isGlobal) return;
+  if (!scope.isGlobal) throw new Error("Solo administración puede crear, editar o borrar equipos");
+  return scope;
+}
+
+/**
+ * Integrantes y solicitudes del QR: administración o el líder de ESE equipo.
+ *
+ * Al pasar la gestión de equipos a "solo administración", las solicitudes de quien entra por el
+ * QR de una brigada quedaban esperando a un admin y el líder no podía admitir a su propia gente.
+ * El líder recupera eso para su equipo, y nada más: no toca equipos ajenos.
+ */
+async function assertCanManageMembers(actor: Actor | null | undefined, teamId: string) {
+  if (!actor) throw new Error("No autenticado");
+  const scope = await resolveUserNetworkScope(actor.actorId);
+  if (scope.isGlobal) return { scope, esAdmin: true };
 
   const db = getDatabaseClient();
-  const existing = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
-  if (!existing || existing.leaderId !== actor.actorId) {
-    throw new Error("No tienes permiso para administrar este equipo");
+  const equipo = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
+  if (!equipo || equipo.leaderId !== actor.actorId) {
+    throw new Error("Solo administración o el líder de este equipo pueden gestionar sus integrantes");
   }
+  return { scope, esAdmin: false };
 }
 
 export async function createTeamAction(formData: FormData) {
@@ -30,7 +45,7 @@ export async function createTeamAction(formData: FormData) {
   if (!actor) throw new Error("No autenticado");
 
   const scope = await resolveUserNetworkScope(actor.actorId);
-  if (!scope.isGlobal && !scope.isLeader) {
+  if (!scope.isGlobal) {
     throw new Error("No tienes permiso para crear equipos");
   }
 
@@ -51,7 +66,7 @@ export async function createTeamAction(formData: FormData) {
 
 export async function deleteTeamAction(teamId: string) {
   const actor = await actorFromSession();
-  await assertCanManageTeam(actor, teamId);
+  await assertIsAdmin(actor);
 
   await withOutbox("team", teamId, "TeamDeleted.v1", { teamId }, actor!.actorId, async (tx) => {
     await tx.delete(teamMembers).where(eq(teamMembers.teamId, teamId));
@@ -64,9 +79,25 @@ export async function deleteTeamAction(teamId: string) {
 export async function addMemberAction(formData: FormData) {
   const teamId = formData.get("teamId") as string;
   const actor = await actorFromSession();
-  await assertCanManageTeam(actor, teamId);
+  const { esAdmin } = await assertCanManageMembers(actor, teamId);
 
   const userId = formData.get("userId") as string;
+  if (!userId) throw new Error("Falta la persona a agregar");
+
+  // Un líder solo suma a gente que él mismo trajo (invitada o bajo su enlace) y que ya está
+  // activa. Así no puede recorrer el padrón de usuarios ni meter a su equipo a alguien de otra
+  // estructura, ni saltarse la aprobación de una cuenta pendiente.
+  if (!esAdmin) {
+    const db = getDatabaseClient();
+    const persona = await db.query.userProfiles.findFirst({
+      where: and(
+        eq(schema.userProfiles.id, userId),
+        eq(schema.userProfiles.status, "active"),
+        or(eq(schema.userProfiles.invitedByUserId, actor!.actorId), eq(schema.userProfiles.parentEnlaceId, actor!.actorId))
+      )
+    });
+    if (!persona) throw new Error("Solo puedes agregar a personas activas que tú invitaste");
+  }
 
   await withOutbox("team", teamId, "TeamMemberAdded.v1", { teamId, userId }, actor!.actorId, async (tx) => {
     await tx.insert(teamMembers).values({ teamId, userId }).onConflictDoNothing();
@@ -77,7 +108,7 @@ export async function addMemberAction(formData: FormData) {
 
 export async function removeMemberAction(teamId: string, userId: string) {
   const actor = await actorFromSession();
-  await assertCanManageTeam(actor, teamId);
+  await assertCanManageMembers(actor, teamId);
 
   await withOutbox("team", teamId, "TeamMemberRemoved.v1", { teamId, userId }, actor!.actorId, async (tx) => {
     await tx.delete(teamMembers).where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)));
@@ -101,7 +132,7 @@ export async function removeMemberAction(teamId: string, userId: string) {
 export async function aceptarSolicitudAction(teamId: string, userId: string) {
   const actor = await actorFromSession();
   try {
-    await assertCanManageTeam(actor, teamId);
+    await assertCanManageMembers(actor, teamId);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Sin permiso" };
   }
@@ -112,10 +143,14 @@ export async function aceptarSolicitudAction(teamId: string, userId: string) {
   });
   if (!pertenece) return { error: "Esa persona no está en este equipo." };
 
-  await db
+  // Solo se activa a quien está esperando. Sin esta condición, aceptar reactivaba a cualquier
+  // integrante, incluido alguien que administración había dado de baja.
+  const activadas = await db
     .update(schema.userProfiles)
     .set({ status: "active" })
-    .where(eq(schema.userProfiles.id, userId));
+    .where(and(eq(schema.userProfiles.id, userId), eq(schema.userProfiles.status, "pending")))
+    .returning({ id: schema.userProfiles.id });
+  if (activadas.length === 0) return { error: "Esa solicitud ya no está pendiente." };
 
   revalidatePath(`/admin-equipos/${teamId}`);
   revalidatePath("/admin-equipos");
@@ -125,7 +160,7 @@ export async function aceptarSolicitudAction(teamId: string, userId: string) {
 export async function rechazarSolicitudAction(teamId: string, userId: string) {
   const actor = await actorFromSession();
   try {
-    await assertCanManageTeam(actor, teamId);
+    await assertCanManageMembers(actor, teamId);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Sin permiso" };
   }

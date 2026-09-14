@@ -1,7 +1,8 @@
+import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, inArray } from "drizzle-orm";
 import TeamsClient from "./TeamsClient";
 import { requirePageRole } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
@@ -24,7 +25,7 @@ export default async function AdminEquiposPage() {
     })
     .from(schema.userProfiles)
     .leftJoin(schema.roles, eq(schema.userProfiles.roleId, schema.roles.id))
-    .where(eq(schema.userProfiles.status, "active"))
+    .where(and(eq(schema.userProfiles.status, "active"), isGlobalAdmin ? undefined : inArray(schema.userProfiles.id, allowedTeammateIds)))
     .orderBy(schema.userProfiles.displayName);
 
   const users = isGlobalAdmin
@@ -44,6 +45,7 @@ export default async function AdminEquiposPage() {
     })
     .from(schema.teams)
     .leftJoin(schema.userProfiles, eq(schema.teams.leaderId, schema.userProfiles.id))
+    .where(isGlobalAdmin ? undefined : inArray(schema.teams.id, networkScope.teamIds))
     .orderBy(schema.teams.name);
 
   // 3. Fetch all team members
@@ -52,7 +54,8 @@ export default async function AdminEquiposPage() {
       teamId: schema.teamMembers.teamId,
       userId: schema.teamMembers.userId
     })
-    .from(schema.teamMembers);
+    .from(schema.teamMembers)
+    .where(isGlobalAdmin ? undefined : inArray(schema.teamMembers.teamId, networkScope.teamIds));
 
   // Filter teams visible to user
   const visibleTeams = isGlobalAdmin
@@ -60,13 +63,14 @@ export default async function AdminEquiposPage() {
     : existingTeams.filter(t => t.leaderId === session.userId || allTeamMembers.some(m => m.teamId === t.id && m.userId === session.userId));
 
   // 4. Fetch count of registered contacts per user to aggregate by team
+  const contactRestriction = contactIdRestriction(await visibleContactIds(networkScope));
   const contactCounts = await db
     .select({
       userId: schema.contacts.createdByUserId,
       count: sql<number>`count(*)::int`
     })
     .from(schema.contacts)
-    .where(eq(schema.contacts.status, "active"))
+    .where(and(eq(schema.contacts.status, "active"), contactRestriction))
     .groupBy(schema.contacts.createdByUserId);
 
   const contactCountMap = new Map<string, number>();

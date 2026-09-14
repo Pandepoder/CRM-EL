@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { ColonySelector } from "@/components/ColonySelector";
 
 type ContactDetail = {
+  canManageSensitive?: boolean;
   contactId: string;
   displayName: string;
   phoneNumber: string | null;
@@ -360,7 +361,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         </div>
 
         <div className="flex items-center gap-2">
-          {detail.status !== "inactive" && (
+          {detail.canManageSensitive && detail.status !== "inactive" && (
             <button
               type="button"
               onClick={handleDeleteContact}
@@ -385,6 +386,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </div>
             <button
               type="button"
+              hidden={!detail.canManageSensitive}
               onClick={() => setModal("territory")}
               className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
             >
@@ -411,6 +413,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </div>
             <button
               type="button"
+              hidden={!detail.canManageSensitive}
               onClick={() => setModal("assignment")}
               className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
             >

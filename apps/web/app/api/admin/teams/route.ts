@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   }
 
   const scope = await resolveUserNetworkScope(session.userId);
-  if (!scope.isGlobal && !scope.isLeader) {
+  if (!scope.isGlobal) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
