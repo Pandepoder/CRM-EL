@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import pg from "pg";
 
 import { loadAppEnv } from "../../packages/config/index.js";
-import { atlasDistrito10 } from "./atlas-distrito-10.js";
 import { confirmDestructiveOperation } from "./confirm-destructive.js";
 
 /**
@@ -23,6 +22,64 @@ import { confirmDestructiveOperation } from "./confirm-destructive.js";
 
 const CARTOGRAFIA = "scripts/geo/jalisco_all_3787_sections.sql";
 const FUENTE = "Documento 3 — Fichero operativo por sección (Distrito 10 Federal)";
+
+/**
+ * El atlas ya no vive en el repositorio.
+ *
+ * Traía la prioridad operativa A-D de cada sección, el domicilio de su casilla y los votos por
+ * bloque: es el trabajo de campo de la campaña y el repositorio es público. El archivo se guarda
+ * fuera (por omisión en `scripts/local/`, que está excluido del control de versiones) y esta
+ * carga lo lee de ahí. La aplicación no lo necesita para funcionar: el mapa pinta prioridades y
+ * votos desde `section_electoral_results`, que esta misma carga llena.
+ *
+ * Con `ATLAS_ARCHIVO=/ruta/al/atlas.json` se puede apuntar a otro sitio, por ejemplo al montar
+ * el archivo dentro del contenedor durante un despliegue.
+ */
+const ATLAS_POR_OMISION = "scripts/local/atlas-distrito-10.json";
+
+export type FichaSeccion = {
+  readonly seccion: number;
+  /** Prioridad operativa asignada por la campaña, de A (máxima) a D. */
+  readonly prioridad: "A" | "B" | "C" | "D";
+  readonly colonia: string;
+  /** Escuela o domicilio donde se instala la casilla, con entrecalles. */
+  readonly casilla: string;
+  readonly pan: number;
+  readonly morena: number;
+  readonly mc: number;
+};
+
+function leerAtlas(): readonly FichaSeccion[] {
+  const ruta = process.env.ATLAS_ARCHIVO || ATLAS_POR_OMISION;
+  let crudo: string;
+  try {
+    crudo = readFileSync(ruta, "utf8");
+  } catch {
+    throw new Error(
+      `No encontré el atlas en "${ruta}". El archivo no viaja en el repositorio porque es público: ` +
+        `cópialo del respaldo de la campaña a esa ruta, o indica otra con ATLAS_ARCHIVO=/ruta/atlas.json.`
+    );
+  }
+
+  const fichas = JSON.parse(crudo) as FichaSeccion[];
+  if (!Array.isArray(fichas) || fichas.length === 0) {
+    throw new Error(`El atlas de "${ruta}" está vacío o no es una lista de fichas.`);
+  }
+  // Se valida antes de tocar la base: un archivo a medias dejaría secciones con prioridad nula
+  // y el mapa las pintaría como si no tuvieran datos, sin que nadie se entere.
+  const invalida = fichas.find(
+    (f) =>
+      typeof f?.seccion !== "number" ||
+      !["A", "B", "C", "D"].includes(f?.prioridad) ||
+      typeof f?.pan !== "number" ||
+      typeof f?.morena !== "number" ||
+      typeof f?.mc !== "number"
+  );
+  if (invalida) {
+    throw new Error(`El atlas de "${ruta}" tiene una ficha incompleta: ${JSON.stringify(invalida).slice(0, 160)}`);
+  }
+  return fichas;
+}
 
 type Poligono = { readonly seccion: number; readonly geom: string };
 
@@ -75,12 +132,13 @@ async function cargar(): Promise<void> {
   });
 
   const pool = new pg.Pool({ connectionString: env.private.DATABASE_URL });
-  const queridas = new Set(atlasDistrito10.map((f) => f.seccion));
+  const atlas = leerAtlas();
+  const queridas = new Set(atlas.map((f) => f.seccion));
 
   try {
     await pool.query("BEGIN");
 
-    for (const ficha of atlasDistrito10) {
+    for (const ficha of atlas) {
       await pool.query(
         `
           INSERT INTO section_electoral_results
@@ -167,7 +225,7 @@ async function cargar(): Promise<void> {
     await pool.query("COMMIT");
 
     const sinPoligono = queridas.size - poligonos.length;
-    console.log(`Atlas cargado: ${atlasDistrito10.length} secciones con resultados.`);
+    console.log(`Atlas cargado: ${atlas.length} secciones con resultados.`);
     console.log(`Cartografía: ${creadas} secciones nuevas, ${completadas} ya existentes.`);
     if (reemplazadas > 0) {
       console.log(`Se reemplazó la geometría fabricada de ${reemplazadas} secciones por la del INE.`);

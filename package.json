@@ -34,7 +34,8 @@
     "validate:unit": "tsc --noEmit && tsc --noEmit -p apps/web && eslint . && node scripts/check-module-boundaries.mjs && pnpm test:unit",
     "db:load-atlas": "tsx scripts/db/load-atlas-distrito-10.ts",
     "db:load-jalisco": "tsx scripts/db/load-jalisco-cartography.ts",
-    "db:export-municipios": "tsx scripts/db/export-municipality-catalog.ts"
+    "db:export-municipios": "tsx scripts/db/export-municipality-catalog.ts",
+    "db:bootstrap": "tsx scripts/db/bootstrap.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",

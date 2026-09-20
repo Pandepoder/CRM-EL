@@ -111,6 +111,9 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-Jalisco OS}
       - NEXT_PUBLIC_APP_ENV=production
+      # Canal del que la página "Conóceme" toma los videos. Vacío = el de la campaña.
+      - YOUTUBE_CANAL_ID=${YOUTUBE_CANAL_ID:-}
+      - YOUTUBE_VIDEOS_OCULTOS=${YOUTUBE_VIDEOS_OCULTOS:-}
       - PORT=3000
     # /api/upload escribe en `process.cwd()/public/uploads` y cwd es /app.
     # Sin este volumen las fotos y videos de incidencias viven solo dentro del
