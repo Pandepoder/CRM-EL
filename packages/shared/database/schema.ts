@@ -56,6 +56,11 @@ export const userProfiles = pgTable(
     // Cifrado en reposo, igual que el de los contactos. Un líder necesita poder
     // localizar a la gente de su brigada sin salirse del sistema.
     phone: encryptedText("phone"),
+    // Municipio al que pertenece la persona. De aquí salen la marca de la aplicación y el
+    // municipio con el que abre el mapa: el sistema deja de ser "de Tonalá" y pasa a ser el
+    // del municipio de quien lo usa. Sin dato propio se hereda el del equipo; ver
+    // municipioDelUsuario en apps/web/src/lib/municipio-usuario.ts.
+    municipality: text("municipality"),
     status: text("status").notNull().default("active"),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

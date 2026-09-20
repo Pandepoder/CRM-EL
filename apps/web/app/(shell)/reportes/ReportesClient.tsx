@@ -9,8 +9,11 @@ import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import type { LocationValue } from "@/components/LocationPicker";
 import { LocationPicker } from "@/components/LocationPicker";
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
+import { useMunicipioUsuario } from "@/lib/municipio-contexto";
 
 export default function ReportesClient({ sections, users, teams = [] }: { sections: any[], users: any[], teams?: any[] }) {
+  // El selector de punto abre en el municipio de quien reporta, no en todo Jalisco.
+  const municipioUsuario = useMunicipioUsuario();
   const [error, setError] = useState("");
   const [locationKey, setLocationKey] = useState(0);
   const [success, setSuccess] = useState(false);
@@ -278,7 +281,7 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
               key={locationKey}
               label="2. ¿Dónde ocurre? *"
               helperText="Escribe el domicilio (ej. Comité Directivo Municipal del PAN, Calle Juárez #123, Tonalá Centro), marca el punto en el mapa interactivo o usa tu GPS."
-              defaultMunicipality={form.municipality || undefined}
+              defaultMunicipality={form.municipality || municipioUsuario || undefined}
               value={{
                 latitude: form.latitude,
                 longitude: form.longitude,

@@ -5,6 +5,7 @@ import { eq, and, gte, lte, or, inArray } from "drizzle-orm";
 import AgendaClient from "./AgendaClient";
 import { requirePageRole } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
 
 export interface LeaderStat {
   userId: string;
@@ -48,6 +49,9 @@ export default async function EquipoMiDiaPage({
   const canAssign = isGlobalAdmin || isLeader;
   const allowedTeammateIds = networkScope.teammateUserIds;
   const allowedContactUserIds = networkScope.allowedUserIds || [session.userId];
+  // Los contactos de la Agenda son los mismos que ve el directorio. Antes se filtraban solo por
+  // creador y sin territorio: la Agenda enseñaba contactos (con teléfono) que la ficha rechazaba.
+  const restriccionContactos = contactIdRestriction(await visibleContactIds(networkScope));
 
   // Date filters
   let dateFilter;
@@ -131,7 +135,10 @@ export default async function EquipoMiDiaPage({
     .from(schema.visits)
     .innerJoin(schema.contacts, eq(schema.visits.contactId, schema.contacts.id))
     .leftJoin(schema.userProfiles, eq(schema.visits.assignedUserId, schema.userProfiles.id))
-    .where(and(visitUserCondition, dateFilter));
+    // La visita muestra el nombre del ciudadano y enlaza a su ficha: si el directorio lo oculta
+    // por territorio, aquí tampoco debe asomar. Antes bastaba con que la visita fuera de alguien
+    // del alcance para enseñar al ciudadano.
+    .where(and(visitUserCondition, dateFilter, restriccionContactos));
 
   // 2. Fetch Event Reports / Tasks
   const userEvents = await db
@@ -215,16 +222,15 @@ export default async function EquipoMiDiaPage({
   // `.where()` sobre una consulta `$dynamic()` no los suma: el segundo sustituye
   // al primero, así que el `status = 'active'` se perdía y la bitácora incluía
   // registros dados de baja.
-  if (!isGlobalAdmin && allowedTeammateIds.length > 0) {
-    userQuery = userQuery.where(
-      and(
-        eq(schema.userProfiles.status, "active"),
-        inArray(schema.userProfiles.id, allowedTeammateIds)
-      )
-    );
-  } else {
-    userQuery = userQuery.where(eq(schema.userProfiles.status, "active"));
-  }
+  // Con alcance vacío (una cuenta dada de baja) `inArray([])` resuelve a falso y no se ve a
+  // nadie. Antes se pedía además `length > 0` y la consulta caía sin filtro de red: la bitácora
+  // enseñaba a todo el sistema justo a quien ya no debía ver nada.
+  userQuery = userQuery.where(
+    and(
+      eq(schema.userProfiles.status, "active"),
+      isGlobalAdmin ? undefined : inArray(schema.userProfiles.id, allowedTeammateIds)
+    )
+  );
 
   const systemUsers = await userQuery.orderBy(schema.userProfiles.displayName);
 
@@ -242,7 +248,7 @@ export default async function EquipoMiDiaPage({
     .from(schema.eventReports)
     .$dynamic();
 
-  if (!isGlobalAdmin && allowedTeammateIds.length > 0) {
+  if (!isGlobalAdmin) {
     eventReportQuery = eventReportQuery.where(
       or(
         inArray(schema.eventReports.assignedToUserId, allowedTeammateIds),
@@ -262,7 +268,7 @@ export default async function EquipoMiDiaPage({
     .from(schema.visits)
     .$dynamic();
 
-  if (!isGlobalAdmin && allowedTeammateIds.length > 0) {
+  if (!isGlobalAdmin) {
     visitQuery = visitQuery.where(inArray(schema.visits.assignedUserId, allowedTeammateIds));
   }
   const allVisits = await visitQuery;
@@ -275,25 +281,20 @@ export default async function EquipoMiDiaPage({
     .from(schema.contacts)
     .$dynamic();
 
-  if (!isGlobalAdmin && allowedContactUserIds.length > 0) {
-    contactQuery = contactQuery.where(
-      and(
-        eq(schema.contacts.status, "active"),
-        inArray(schema.contacts.createdByUserId, allowedContactUserIds)
-      )
-    );
-  } else {
-    contactQuery = contactQuery.where(eq(schema.contacts.status, "active"));
-  }
+  contactQuery = contactQuery.where(and(eq(schema.contacts.status, "active"), restriccionContactos));
   const allContacts = await contactQuery;
 
+  // Los equipos solo sirven aquí para poner el nombre de la brigada de cada persona de la
+  // bitácora, así que basta con los del alcance: leer la tabla entera dejaba ver cómo se llama
+  // la estructura de otra dirección.
   const allTeams = await db
     .select({
       id: schema.teams.id,
       name: schema.teams.name,
       leaderId: schema.teams.leaderId
     })
-    .from(schema.teams);
+    .from(schema.teams)
+    .where(isGlobalAdmin ? undefined : inArray(schema.teams.id, misEquipos));
 
   // Compute LeaderStats for scoped users
   const leaderStats: LeaderStat[] = systemUsers.map(user => {
@@ -388,16 +389,7 @@ export default async function EquipoMiDiaPage({
     .from(schema.contacts)
     .$dynamic();
 
-  if (!isGlobalAdmin && allowedContactUserIds.length > 0) {
-    rawContactsQuery = rawContactsQuery.where(
-      and(
-        eq(schema.contacts.status, "active"),
-        inArray(schema.contacts.createdByUserId, allowedContactUserIds)
-      )
-    );
-  } else {
-    rawContactsQuery = rawContactsQuery.where(eq(schema.contacts.status, "active"));
-  }
+  rawContactsQuery = rawContactsQuery.where(and(eq(schema.contacts.status, "active"), restriccionContactos));
 
   const rawContacts = await rawContactsQuery.orderBy(schema.contacts.displayName).limit(100);
 
@@ -430,7 +422,8 @@ export default async function EquipoMiDiaPage({
     .leftJoin(schema.userProfiles, eq(schema.rapidActivityProspects.createdByUserId, schema.userProfiles.id))
     .$dynamic();
 
-  if (!isGlobalAdmin && allowedContactUserIds.length > 0) {
+  // Con alcance vacío, inArray([]) es `false`: no se ve nada, en vez de todo.
+  if (!isGlobalAdmin) {
     rawProspectsQuery = rawProspectsQuery.where(inArray(schema.rapidActivityProspects.createdByUserId, allowedContactUserIds));
   }
 

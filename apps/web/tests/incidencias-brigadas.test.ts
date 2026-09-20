@@ -227,15 +227,31 @@ describe("Reparto entre equipos y brigadas", () => {
     expect(await idsVisiblesPara(actor(ids.liderB))).not.toContain(idAsignada);
   });
 
-  it("una incidencia sin asignar es informacion general y la ve toda la estructura", async () => {
-    const { cuerpo } = await crearIncidencia(actor(adminId, ["admin"]), {
+  it("una incidencia sin asignar la ve la cadena de mando de quien la levanto, no la brigada de al lado", async () => {
+    // Antes toda incidencia sin asignar se consideraba informacion general y la veia cualquiera.
+    // Con eso, lo que levantaba una brigada aparecia en el mapa de otra direccion mientras
+    // esperaba admision, que es casi todo lo recien llegado.
+    const { cuerpo } = await crearIncidencia(actor(ids.liderA), {
       title: `Sin asignar ${sufijo}`
     });
     const idLibre = cuerpo.id as string;
 
     expect(await idsVisiblesPara(actor(ids.liderA))).toContain(idLibre);
-    expect(await idsVisiblesPara(actor(ids.liderB))).toContain(idLibre);
     expect(await idsVisiblesPara(actor(ids.brigadistaA))).toContain(idLibre);
+
+    expect(await idsVisiblesPara(actor(ids.liderB))).not.toContain(idLibre);
+  });
+
+  it("no se puede empujar una incidencia a un equipo ajeno", async () => {
+    // La reasignacion se comprobaba por quien asigna, nunca por el destino: un lider podia
+    // endosarle su incidencia a la brigada de otra direccion, o sacarla de su propio mando.
+    const { estado, cuerpo } = await crearIncidencia(actor(ids.liderA), {
+      assignedTeamId: ids.brigadaB,
+      title: `Empujada a B ${sufijo}`
+    });
+
+    expect(estado).toBe(403);
+    expect(cuerpo.id).toBeUndefined();
   });
 
   it("administracion ve todo, asignado o no", async () => {
@@ -247,13 +263,19 @@ describe("Reparto entre equipos y brigadas", () => {
     expect(await idsVisiblesPara(actor(adminId, ["admin"]))).toContain(cuerpo.id);
   });
 
-  it("quien la levanta la sigue viendo aunque se asigne a otra brigada", async () => {
+  it("quien la levanta la sigue viendo aunque administracion la pase a otra brigada", async () => {
     const { cuerpo } = await crearIncidencia(actor(ids.liderA), {
-      assignedTeamId: ids.brigadaB,
-      title: `Levantada por A, asignada a B ${sufijo}`
+      assignedTeamId: ids.brigadaA,
+      title: `Levantada por A, movida a B ${sufijo}`
     });
+    // El traspaso entre brigadas de distinta cadena de mando solo lo hace administracion.
+    await db
+      .update(schema.eventReports)
+      .set({ assignedTeamId: ids.brigadaB })
+      .where(eq(schema.eventReports.id, cuerpo.id as string));
 
     expect(await idsVisiblesPara(actor(ids.liderA))).toContain(cuerpo.id);
+    expect(await idsVisiblesPara(actor(ids.liderB))).toContain(cuerpo.id);
   });
 });
 

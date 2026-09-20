@@ -48,6 +48,8 @@ type Props = {
   contacts: ContactItem[];
   availableUsers: UserProfile[];
   canManage?: boolean;
+  /** Borrar ciudadanos: solo administración, aunque el líder gestione a sus integrantes. */
+  canDeleteContacts?: boolean;
   currentUserId?: string;
 };
 
@@ -56,7 +58,8 @@ export default function TeamDetailClient({
   members,
   contacts,
   availableUsers,
-  canManage = true,
+  canManage = false,
+  canDeleteContacts = false,
   currentUserId
 }: Props) {
   const router = useRouter();
@@ -352,7 +355,7 @@ export default function TeamDetailClient({
                             >
                               Ver <ArrowRight size={11} />
                             </Link>
-                            {canManage && (
+                            {canDeleteContacts && (
                               <button
                                 type="button"
                                 onClick={() => handleDeleteContact(c.id, c.displayName)}

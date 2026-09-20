@@ -99,7 +99,7 @@ export function BienvenidaConoceme({ accion, invitadoPor, clave }: BienvenidaCon
               style={{ width: 44, height: 44, objectFit: "contain" }}
             />
             <strong>Edgar López</strong>
-            <span>Un Tonalá Posible</span>
+            <span>Un Jalisco Posible</span>
           </div>
         </div>
 

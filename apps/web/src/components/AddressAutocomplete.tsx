@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useId, useCallback } from "react";
 import { MapPin, Search, X, Loader2, Home, Landmark, ChevronRight } from "lucide-react";
 
+import { useMunicipioUsuario } from "@/lib/municipio-contexto";
+
 export interface AutocompleteItem {
   id: string;
   type: "address" | "colony" | "section";
@@ -22,9 +24,10 @@ export function AddressAutocomplete({
   value = "",
   onChange,
   onSelect,
-  // Sin municipio se busca en todo Jalisco. Antes el valor por omisión era "Tonalá" y
-  // cualquier formulario que no lo pasara proponía calles de Tonalá.
-  municipality,
+  // Sin municipio explícito manda el de quien tiene la sesión, y si tampoco lo hay se busca
+  // en todo Jalisco. Antes el valor por omisión era "Tonalá" y cualquier formulario que no lo
+  // pasara proponía calles de Tonalá a quien trabaja en otro municipio.
+  municipality: municipioProp,
   label = "Dirección / Calle y Número *",
   placeholder = "Escribe calle, número, colonia o sección (ej. Av. Tonaltecas, Loma Dorada...)",
   required = false,
@@ -41,6 +44,9 @@ export function AddressAutocomplete({
   disabled?: boolean;
   className?: string;
 }) {
+  const municipioUsuario = useMunicipioUsuario();
+  const municipality = municipioProp ?? municipioUsuario ?? undefined;
+
   const inputId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);

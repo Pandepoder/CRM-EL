@@ -25,7 +25,8 @@ export default async function EscuchaSocialPage() {
 
   const currentUser = userRows[0];
   const accessType = currentUser?.accessType || "conexion";
-  const isCoordinacion = accessType === "coordinacion" || currentUser?.roleKey === "admin" || currentUser?.roleKey === "direction";
+  // Solo administración coordina de forma global; dirección y accessType ya no conceden eso.
+  const isCoordinacion = currentUser?.roleKey === "admin";
 
   const networkScope = await resolveUserNetworkScope(session.userId, accessType);
 
@@ -52,8 +53,9 @@ export default async function EscuchaSocialPage() {
     .leftJoin(schema.userProfiles, eq(schema.socialListening.createdByUserId, schema.userProfiles.id))
     .$dynamic();
 
-  if (!networkScope.isGlobal && networkScope.allowedUserIds && networkScope.allowedUserIds.length > 0) {
-    query = query.where(inArray(schema.socialListening.createdByUserId, networkScope.allowedUserIds));
+  // Sin alcance no se ve nada: la guarda vieja exigía una lista no vacía y, vacía, mostraba todo.
+  if (!networkScope.isGlobal) {
+    query = query.where(inArray(schema.socialListening.createdByUserId, networkScope.allowedUserIds ?? []));
   }
 
   const items = await query.orderBy(desc(schema.socialListening.createdAt));

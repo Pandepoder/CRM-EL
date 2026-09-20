@@ -1,8 +1,9 @@
+import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
 import { getDatabaseClient } from "@/lib/db-client";
 import { getServerSession } from "@/lib/session-server";
 import { redirect } from "next/navigation";
 import { schema } from "@tonala/shared/database";
-import { and, eq, or, inArray, desc, ilike, type SQL } from "drizzle-orm";
+import { and, eq, or, desc, ilike, type SQL } from "drizzle-orm";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import DirectorioClient from "./DirectorioClient";
 
@@ -50,15 +51,9 @@ export default async function ContactsPage({
   // nombre veía 25 registros ajenos con solo teclear una letra.
   const condiciones: SQL[] = [eq(schema.contacts.status, "active")];
 
-  if (!networkScope.isGlobal && networkScope.allowedUserIds && networkScope.allowedUserIds.length > 0) {
-    condiciones.push(
-      or(
-        inArray(schema.contacts.createdByUserId, networkScope.allowedUserIds),
-        inArray(schema.contacts.referredByUserId, networkScope.allowedUserIds),
-        inArray(schema.contacts.actualContactUserId, networkScope.allowedUserIds)
-      )!
-    );
-  }
+  const visibleIds = await visibleContactIds(networkScope);
+  const restriction = contactIdRestriction(visibleIds);
+  if (restriction) condiciones.push(restriction);
 
   if (q.trim()) {
     const term = `%${q.trim()}%`;

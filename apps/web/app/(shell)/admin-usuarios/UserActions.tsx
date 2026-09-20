@@ -3,12 +3,21 @@
 import { useState } from "react";
 import { MoreVertical, Ban, Edit2, Check, KeyRound, UserCheck, X, Loader2 } from "lucide-react";
 import { deactivateUserAction, activateUserAction, updateUserAction, resetUserPasswordAction } from "./actions";
+import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 
-export function UserActions({ user }: { user: { userId: string; displayName: string; status: string } }) {
+export function UserActions({
+  user
+}: {
+  user: { userId: string; displayName: string; status: string; municipality?: string | null };
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [newName, setNewName] = useState(user.displayName);
+  // El municipio decide qué marca ve la persona al entrar y en qué municipio le abre el mapa.
+  // Sin esto solo podía fijarse al crear la cuenta, así que quienes ya estaban dados de alta
+  // se quedaban sin territorio para siempre.
+  const [newMunicipality, setNewMunicipality] = useState(user.municipality ?? "");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -45,6 +54,11 @@ export function UserActions({ user }: { user: { userId: string; displayName: str
       const formData = new FormData();
       formData.append("userId", user.userId);
       formData.append("displayName", newName);
+      // Solo si cambió respecto a lo que muestra la fila: el estado local puede ser de antes de
+      // que la persona completara su onboarding, y mandarlo borraría su municipio.
+      if (newMunicipality !== (user.municipality ?? "")) {
+        formData.append("municipality", newMunicipality);
+      }
       await updateUserAction(formData);
       setIsEditing(false);
     } catch (e: any) {
@@ -90,6 +104,18 @@ export function UserActions({ user }: { user: { userId: string; displayName: str
           disabled={loading}
           autoFocus
         />
+        <select
+          value={newMunicipality}
+          onChange={(e) => setNewMunicipality(e.target.value)}
+          className="border border-gray-200 rounded-md px-2 py-1 text-xs w-40 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+          disabled={loading}
+          title="Municipio: define la marca que ve y el municipio con el que abre el mapa"
+        >
+          <option value="">Sin municipio</option>
+          {MUNICIPIOS_JALISCO.map((m) => (
+            <option key={m.name} value={m.name}>{m.name}</option>
+          ))}
+        </select>
         <button onClick={handleSaveName} disabled={loading} className="text-emerald-600 p-1 hover:bg-emerald-50 rounded">
           <Check size={16} />
         </button>
@@ -117,10 +143,16 @@ export function UserActions({ user }: { user: { userId: string; displayName: str
             <div className="origin-top-right absolute right-0 mt-1 w-52 rounded-xl shadow-lg bg-white ring-1 ring-black/5 focus:outline-none z-20 overflow-hidden border border-gray-100 divide-y divide-gray-50 animate-in fade-in zoom-in-95 duration-100">
               <div className="py-1">
                 <button
-                  onClick={() => { setIsEditing(true); setIsOpen(false); }}
+                  onClick={() => {
+                    // Se parte de lo que muestra la fila ahora, no de lo que había al montar.
+                    setNewName(user.displayName);
+                    setNewMunicipality(user.municipality ?? "");
+                    setIsEditing(true);
+                    setIsOpen(false);
+                  }}
                   className="w-full flex items-center px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors font-medium"
                 >
-                  <Edit2 size={14} className="mr-2.5 text-gray-400" /> Editar Nombre
+                  <Edit2 size={14} className="mr-2.5 text-gray-400" /> Editar Nombre y Municipio
                 </button>
                 <button
                   onClick={() => { setIsResettingPassword(true); setIsOpen(false); }}

@@ -1,8 +1,9 @@
+import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
 import { type NextRequest } from "next/server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
-import { like, or, eq, and, inArray } from "drizzle-orm";
+import { like, eq, and } from "drizzle-orm";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export async function GET(req: NextRequest) {
@@ -15,21 +16,14 @@ export async function GET(req: NextRequest) {
   // mismo alcance que el directorio. Antes Dirección exportaba la base entera;
   // ahora exporta lo de sus equipos, y quien no tiene equipo, lo suyo.
   const alcance = await resolveUserNetworkScope(actor.actorId);
-  const isGlobal = alcance.isGlobal || actor.isSystem;
-  const enAlcance = alcance.allowedUserIds ?? [actor.actorId];
-
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q");
 
   const db = getDatabaseClient();
   const conditions = [eq(schema.contacts.status, "active")];
 
-  if (!isGlobal) {
-    conditions.push(or(
-      inArray(schema.contacts.createdByUserId, enAlcance),
-      inArray(schema.contacts.referredByUserId, enAlcance)
-    )!);
-  }
+  const restriction = contactIdRestriction(await visibleContactIds(alcance));
+  if (restriction) conditions.push(restriction);
 
   if (q) {
     conditions.push(like(schema.contacts.displayName, `%${q}%`));

@@ -23,6 +23,11 @@ import { Play } from "lucide-react";
  * reproductor. Lo que sí cambia es la forma: son verticales, así que el marco va
  * en 9:16 y la miniatura se pide en su proporción original (`oardefault`). La
  * miniatura estándar de YouTube es apaisada y recortaría la cabeza.
+ *
+ * La forma ya no se declara a mano. Los videos ahora se leen del canal, y el canal no dice si
+ * cada uno es vertical u horizontal; la miniatura en proporción original sí, así que el marco se
+ * ajusta a lo que mida la imagen al cargar. Mientras llega se asume vertical, que es casi todo
+ * lo que se publica, y así el hueco no salta cuando aparece.
  */
 const PROPORCION = { corto: "9 / 16", horizontal: "16 / 9" } as const;
 
@@ -38,20 +43,17 @@ export default function VideoYoutube({
   formato?: "corto" | "horizontal";
 }) {
   const [reproduciendo, setReproduciendo] = useState(false);
+  const [forma, setForma] = useState<"corto" | "horizontal">(formato);
   // `oardefault` es la miniatura en proporción original, la buena para Shorts;
   // no todos los videos la tienen, así que si falla se cae a la estándar.
-  const [miniatura, setMiniatura] = useState(
-    formato === "corto"
-      ? `https://i.ytimg.com/vi/${id}/oardefault.jpg`
-      : `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
-  );
+  const [miniatura, setMiniatura] = useState(`https://i.ytimg.com/vi/${id}/oardefault.jpg`);
 
   return (
     <article
       className="rounded-2xl overflow-hidden h-full flex flex-col"
       style={{ background: "#fff", border: "1px solid #e6eaf2" }}
     >
-      <div style={{ position: "relative", aspectRatio: PROPORCION[formato], background: "#0b1f3a" }}>
+      <div style={{ position: "relative", aspectRatio: PROPORCION[forma], background: "#0b1f3a" }}>
         {reproduciendo ? (
           <iframe
             src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1`}
@@ -81,7 +83,17 @@ export default function VideoYoutube({
               src={miniatura}
               alt=""
               loading="lazy"
-              onError={() => setMiniatura(`https://i.ytimg.com/vi/${id}/hqdefault.jpg`)}
+              onError={() => {
+                // Sin miniatura en proporción original, la estándar es apaisada: el video lo es.
+                setMiniatura(`https://i.ytimg.com/vi/${id}/hqdefault.jpg`);
+                setForma("horizontal");
+              }}
+              onLoad={(e) => {
+                const img = e.currentTarget;
+                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                  setForma(img.naturalWidth > img.naturalHeight ? "horizontal" : "corto");
+                }
+              }}
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
             <span

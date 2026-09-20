@@ -10,6 +10,7 @@ import {
   MOTIVO_ACTUALIZAR,
   MOTIVO_BORRAR,
   cargarContextoIncidencia,
+  motivoAsignacionFueraDeAlcance,
   puedeSobreIncidencia
 } from "@/lib/permisos-incidencias";
 import { schema } from "@tonala/shared/database";
@@ -30,11 +31,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   try {
     const body = await request.json();
 
-    const { incidencia, esAdmin, equipos } = await cargarContextoIncidencia(id, actor.actorId, actor.roles);
+    const { incidencia, esAdmin, equipos, personas } = await cargarContextoIncidencia(id, actor.actorId, actor.roles);
     if (!incidencia) {
       return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
-    if (!puedeSobreIncidencia("actualizar", incidencia, actor.actorId, esAdmin, equipos)) {
+    if (!puedeSobreIncidencia("actualizar", incidencia, actor.actorId, esAdmin, equipos, personas)) {
       return NextResponse.json({ error: MOTIVO_ACTUALIZAR }, { status: 403 });
     }
 
@@ -49,6 +50,16 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
           { error: "Solo el líder de la brigada o la administración pueden reasignar una incidencia." },
           { status: 403 }
         );
+      }
+
+      // Ser líder decía que puede reasignar, pero no hacia dónde: la incidencia salía del
+      // alcance de quien la mandaba y ya no la volvía a ver.
+      const motivoDestino = motivoAsignacionFueraDeAlcance(alcance, {
+        assignedToUserId: body.assignedToUserId,
+        assignedTeamId: body.assignedTeamId
+      });
+      if (motivoDestino) {
+        return NextResponse.json({ error: motivoDestino }, { status: 403 });
       }
     }
     const { status, title, description, category, municipality, district, sectionId, assignedToUserId, assignedTeamId, eventDate } = body;
@@ -110,11 +121,11 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
   const id = params.id;
 
   try {
-    const { incidencia, esAdmin, equipos } = await cargarContextoIncidencia(id, actor.actorId, actor.roles);
+    const { incidencia, esAdmin, equipos, personas } = await cargarContextoIncidencia(id, actor.actorId, actor.roles);
     if (!incidencia) {
       return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
-    if (!puedeSobreIncidencia("borrar", incidencia, actor.actorId, esAdmin, equipos)) {
+    if (!puedeSobreIncidencia("borrar", incidencia, actor.actorId, esAdmin, equipos, personas)) {
       return NextResponse.json({ error: MOTIVO_BORRAR }, { status: 403 });
     }
 

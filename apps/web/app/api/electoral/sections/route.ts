@@ -5,9 +5,10 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { getDatabaseClient } from "@/lib/db-client";
-import { getServerSession } from "@/lib/session-server";
+import { requireActorRoles } from "@/lib/authorization";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { visibleContactIds, sqlRestriccionContactos } from "@/lib/contact-visibility";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -36,10 +37,8 @@ export async function GET() {
   // *su* brigada en cada sección, no cuántos tienen las demás. El número por
   // sección es el termómetro con el que se comparan los equipos entre sí.
   const alcance = await resolveUserNetworkScope(actor.actorId);
-  const enAlcance = alcance.isGlobal ? null : (alcance.allowedUserIds ?? [actor.actorId]);
-  const filtroContactos = enAlcance
-    ? sql`AND cont.created_by_user_id IN (${sql.join(enAlcance.map((id) => sql`${id}`), sql`, `)})`
-    : sql``;
+  // Mismos contactos que el directorio (equipo y territorio). Con alcance vacío, `AND false`.
+  const filtroContactos = sqlRestriccionContactos(sql.raw("cont.id"), await visibleContactIds(alcance));
 
   const db = getDatabaseClient();
   try {
@@ -84,10 +83,11 @@ export async function GET() {
  * Creates or updates an electoral section in the database
  */
 export async function POST(request: Request) {
-  const session = await getServerSession();
-  if (!session.isLoggedIn || !["admin", "direction", "territorial_coordinator"].includes(session.roleKey)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // Los mismos roles de antes, pero comprobados contra la base y no contra el rol que quedó
+  // escrito en la cookie: una cuenta degradada o dada de baja seguía dando de alta secciones
+  // mientras esa cookie siguiera viva.
+  const actor = await requireActorRoles("admin", "direction", "territorial_coordinator");
+  if (actor instanceof NextResponse) return actor;
 
   try {
     const body = await request.json();

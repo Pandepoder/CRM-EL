@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Archive, ArrowLeft, MapPin, Calendar } from "lucide-react";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 
 import { requirePageRole } from "@/lib/authorization";
 import { getDatabaseClient } from "@/lib/db-client";
@@ -8,6 +8,9 @@ import { schema } from "@tonala/shared/database";
 import { CATEGORIAS_INCIDENCIA, CATEGORIA_DESCONOCIDA } from "@/lib/categorias-incidencia";
 import { ESTADOS_CERRADOS, ESTADOS_INCIDENCIA, ESTADO_DESCONOCIDO } from "@/lib/estados-incidencia";
 import { StatusSelector } from "../admin-incidencias/StatusSelector";
+import { getServerSession } from "@/lib/session-server";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { incidentScopeCondition } from "@/lib/incident-visibility";
 
 /**
  * Historial de incidencias cerradas.
@@ -21,10 +24,34 @@ import { StatusSelector } from "../admin-incidencias/StatusSelector";
  * Desde aquí se puede reabrir una incidencia con el mismo selector de estado de
  * la pantalla de gestión.
  */
-export default async function HistorialIncidenciasPage() {
+/** Lo cerrado se consulta, no se trabaja: se leen de 50 en 50, como la bandeja de auditoría. */
+const POR_PAGINA = 50;
+
+export default async function HistorialIncidenciasPage({
+  searchParams
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   await requirePageRole("admin", "direction", "territorial_coordinator");
 
   const db = getDatabaseClient();
+  const session = await getServerSession();
+  // Solo lo del alcance de quien consulta; antes se leía el historial de todo el sistema.
+  const alcance = await resolveUserNetworkScope(session.userId);
+
+  const cerradasDelAlcance = and(inArray(schema.eventReports.status, ESTADOS_CERRADOS), incidentScopeCondition(alcance));
+
+  // Los totales por estado cuentan todo el historial del alcance, no solo la página visible.
+  const totalesPorEstado = await db
+    .select({ status: schema.eventReports.status, total: count() })
+    .from(schema.eventReports)
+    .where(cerradasDelAlcance)
+    .groupBy(schema.eventReports.status);
+  const totalCerradas = totalesPorEstado.reduce((suma, f) => suma + f.total, 0);
+
+  const { page } = await searchParams;
+  const totalPaginas = Math.max(1, Math.ceil(totalCerradas / POR_PAGINA));
+  const pagina = Math.min(Math.max(1, Number.parseInt(page ?? "1", 10) || 1), totalPaginas);
 
   const reportes = await db
     .select({
@@ -39,13 +66,15 @@ export default async function HistorialIncidenciasPage() {
     })
     .from(schema.eventReports)
     .leftJoin(schema.electoralSections, eq(schema.eventReports.sectionId, schema.electoralSections.id))
-    .where(inArray(schema.eventReports.status, ESTADOS_CERRADOS))
-    .orderBy(desc(schema.eventReports.createdAt));
+    .where(cerradasDelAlcance)
+    .orderBy(desc(schema.eventReports.createdAt))
+    .limit(POR_PAGINA)
+    .offset((pagina - 1) * POR_PAGINA);
 
   const porEstado = ESTADOS_CERRADOS.map((clave) => ({
     clave,
     info: ESTADOS_INCIDENCIA[clave]!,
-    total: reportes.filter((r) => r.status === clave).length
+    total: totalesPorEstado.find((f) => f.status === clave)?.total ?? 0
   }));
 
   const fecha = (d: Date | null) =>
@@ -171,6 +200,36 @@ export default async function HistorialIncidenciasPage() {
           </div>
         </div>
       )}
+
+      {totalPaginas > 1 ? (
+        <div className="flex items-center justify-between gap-3 mt-5">
+          {pagina > 1 ? (
+            <Link
+              href={`/historial-incidencias?page=${pagina - 1}`}
+              className="text-sm font-semibold px-4 py-2.5 rounded-xl whitespace-nowrap"
+              style={{ background: "#eef2f8", color: "#0b1f3a" }}
+            >
+              ← Anteriores
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span className="text-[13px] font-semibold" style={{ color: "#64748b" }}>
+            Página {pagina} de {totalPaginas} · {totalCerradas} cerradas
+          </span>
+          {pagina < totalPaginas ? (
+            <Link
+              href={`/historial-incidencias?page=${pagina + 1}`}
+              className="text-sm font-semibold px-4 py-2.5 rounded-xl whitespace-nowrap"
+              style={{ background: "#eef2f8", color: "#0b1f3a" }}
+            >
+              Ver más →
+            </Link>
+          ) : (
+            <span />
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

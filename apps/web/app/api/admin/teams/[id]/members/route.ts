@@ -2,8 +2,21 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+
+/**
+ * ¿Puede esta sesión tocar los integrantes del equipo? Administración, o el líder de ese mismo
+ * equipo (misma regla que las acciones de /admin-equipos).
+ */
+async function permisoSobreIntegrantes(userId: string, teamId: string) {
+  const scope = await resolveUserNetworkScope(userId);
+  if (scope.isGlobal) return { ok: true as const, esAdmin: true };
+  const db = getDatabaseClient();
+  const equipo = await db.query.teams.findFirst({ where: eq(schema.teams.id, teamId) });
+  if (equipo && equipo.leaderId === userId) return { ok: true as const, esAdmin: false };
+  return { ok: false as const, esAdmin: false };
+}
 
 export async function POST(
   request: Request,
@@ -24,15 +37,20 @@ export async function POST(
   try {
     const db = getDatabaseClient();
 
-    // Check authorization: global admin (admin/direction) or the leader of this specific team
-    const scope = await resolveUserNetworkScope(session.userId);
-    if (!scope.isGlobal) {
-      const team = await db.query.teams.findFirst({
-        where: eq(schema.teams.id, id)
+    const permiso = await permisoSobreIntegrantes(session.userId, id);
+    if (!permiso.ok) {
+      return NextResponse.json({ error: "Solo administración o el líder de este equipo pueden modificar integrantes" }, { status: 403 });
+    }
+    // El líder solo suma a personas activas que él invitó; ver addMemberAction.
+    if (!permiso.esAdmin) {
+      const persona = await db.query.userProfiles.findFirst({
+        where: and(
+          eq(schema.userProfiles.id, userId),
+          eq(schema.userProfiles.status, "active"),
+          or(eq(schema.userProfiles.invitedByUserId, session.userId), eq(schema.userProfiles.parentEnlaceId, session.userId))
+        )
       });
-      if (!team || team.leaderId !== session.userId) {
-        return NextResponse.json({ error: "Unauthorized to manage this team" }, { status: 403 });
-      }
+      if (!persona) return NextResponse.json({ error: "Solo puedes agregar a personas activas que tú invitaste" }, { status: 403 });
     }
 
     await db.insert(schema.teamMembers).values({
@@ -76,15 +94,9 @@ export async function DELETE(
   try {
     const db = getDatabaseClient();
 
-    // Check authorization: global admin (admin/direction) or the leader of this specific team
-    const scope = await resolveUserNetworkScope(session.userId);
-    if (!scope.isGlobal) {
-      const team = await db.query.teams.findFirst({
-        where: eq(schema.teams.id, id)
-      });
-      if (!team || team.leaderId !== session.userId) {
-        return NextResponse.json({ error: "Unauthorized to manage this team" }, { status: 403 });
-      }
+    const permiso = await permisoSobreIntegrantes(session.userId, id);
+    if (!permiso.ok) {
+      return NextResponse.json({ error: "Solo administración o el líder de este equipo pueden modificar integrantes" }, { status: 403 });
     }
 
     await db.delete(schema.teamMembers)

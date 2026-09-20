@@ -11,7 +11,7 @@ const privateEnvSchema = z.object({
 });
 
 const publicEnvSchema = z.object({
-  NEXT_PUBLIC_APP_NAME: z.string().min(1).default("Tonala OS"),
+  NEXT_PUBLIC_APP_NAME: z.string().min(1).default("Jalisco OS"),
   NEXT_PUBLIC_APP_ENV: z.enum(["local", "test", "staging", "production"]).default("local")
 });
 

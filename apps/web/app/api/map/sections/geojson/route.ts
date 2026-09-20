@@ -4,6 +4,10 @@ import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { createHash } from "crypto";
+import { visibleContactIds, sqlRestriccionContactos } from "@/lib/contact-visibility";
+import { sqlCondicionIncidencias } from "@/lib/incident-visibility";
+import { resolverMunicipio } from "@/lib/municipios-jalisco";
+import { municipioDelUsuario } from "@/lib/municipio-usuario";
 
 /**
  * Caché en proceso del GeoJSON por municipio.
@@ -61,10 +65,20 @@ export async function GET(req: Request) {
   if (!actor) return unauthorized();
 
   const url = new URL(req.url);
-  // Sin parámetro se devuelve todo Jalisco. Antes el valor por omisión era "Tonalá", que
-  // convertía cualquier llamada sin filtro en una respuesta de un solo municipio y hacía
-  // parecer que el resto no existía.
-  const targetMunicipality = url.searchParams.get("municipality") || "all";
+  // Sin parámetro manda el municipio de quien pregunta. El valor por omisión fue primero
+  // "Tonalá" —que escondía el resto del estado— y luego "all", que se pasó al otro extremo:
+  // abrir el mapa bajaba las 3,791 secciones de Jalisco (14 MB de geometría, 777 ms) para
+  // terminar enseñando el municipio donde esa persona trabaja. Todo Jalisco sigue disponible,
+  // pero solo si se pide con municipality=all, que es lo que hace el selector de estado.
+  const municipioPedido = url.searchParams.get("municipality");
+  // Una cuenta sin municipio —administración estatal, típicamente— no tiene a qué acotarse, así
+  // que para ella el valor por omisión sigue siendo todo Jalisco.
+  // El nombre se resuelve contra el catálogo antes de filtrar: la consulta compara letra por
+  // letra con el nombre del INE, así que "Tlaquepaque" (que es "San Pedro Tlaquepaque") o
+  // "Tonala" sin acento devolvían cero secciones y el mapa salía en blanco.
+  const municipioResuelto = municipioPedido && municipioPedido !== "all" ? resolverMunicipio(municipioPedido) : null;
+  const targetMunicipality =
+    municipioResuelto || municipioPedido || (await municipioDelUsuario(actor.actorId)) || "all";
 
   // Los agregados por sección —cuántos contactos, cuántas visitas, cuántas
   // incidencias, qué representantes— se acotan al alcance de quien pregunta.
@@ -74,25 +88,28 @@ export async function GET(req: Request) {
   const enAlcance = alcance.isGlobal ? null : (alcance.allowedUserIds ?? [actor.actorId]);
   const misEquipos = alcance.teamIds ?? [];
 
-  const lista = (ids: readonly string[]) => sql.join(ids.map((i) => sql`${i}`), sql`, `);
-  const filtroContactos = enAlcance ? sql`AND cont.created_by_user_id IN (${lista(enAlcance)})` : sql``;
+  // Con una lista vacía, `IN (NULL)` es falso; `IN ()` sería un error de sintaxis.
+  const lista = (ids: readonly string[]) => (ids.length ? sql.join(ids.map((i) => sql`${i}`), sql`, `) : sql`NULL`);
+  // Los mismos contactos que el directorio (equipo y territorio). Antes solo por creador: el mapa
+  // contaba en cada sección contactos que el CRM ya no le enseña a esa persona.
+  const idsVisibles = await visibleContactIds(alcance);
+  const filtroContactos = sqlRestriccionContactos(sql.raw("cont.id"), idsVisibles);
   const filtroRepresentantes = enAlcance ? sql`AND erep.user_id IN (${lista(enAlcance)})` : sql``;
-  const filtroIncidencias = enAlcance
-    ? sql`AND (
-        (rep.assigned_team_id IS NULL AND rep.assigned_to_user_id IS NULL)
-        OR rep.created_by_user_id = ${actor.actorId}
-        OR rep.assigned_to_user_id IN (${lista(alcance.teammateUserIds)})
-        ${misEquipos.length > 0 ? sql`OR rep.assigned_team_id IN (${lista(misEquipos)})` : sql``}
-      )`
-    : sql``;
+  // La misma regla que el resto de las pantallas de incidencias. Antes el mapa sumaba en cada
+  // sección todas las incidencias sin asignar del sistema, incluidas las de otra dirección.
+  const filtroIncidencias = enAlcance ? sql`AND ${sqlCondicionIncidencias(alcance, "rep")}` : sql``;
 
   const db = getDatabaseClient();
   // El caché se guardaba solo por municipio. Ahora la respuesta depende de quién
   // pregunta, así que la clave lleva también la huella del alcance: sin esto,
   // los números de una brigada se servirían a la siguiente que abriera el mapa.
+  // La huella incluye a la persona: con "lo propio siempre visible", dos integrantes del mismo
+  // equipo ya no ven exactamente los mismos contactos.
   const huellaAlcance = enAlcance
-    ? createHash("sha1").update([...enAlcance].sort().join(",") + "|" + [...misEquipos].sort().join(",")).digest("hex").slice(0, 12)
+    ? createHash("sha1").update(alcance.userId + "|" + [...enAlcance].sort().join(",") + "|" + [...misEquipos].sort().join(",") + "|" + (idsVisibles ?? []).length).digest("hex").slice(0, 12)
     : "global";
+  // Va el municipio efectivo, no el parámetro: dos peticiones sin parámetro hechas desde
+  // municipios distintos resuelven a respuestas distintas y no pueden compartir entrada.
   const claveCache = `${targetMunicipality.toLowerCase()}::${huellaAlcance}`;
   const cache = (globalThis.__tonalaGeojsonSecciones ??= new Map());
   const guardado = cache.get(claveCache);

@@ -30,8 +30,21 @@ export type AppShellProps = Readonly<{
   children: ReactNode;
   userDisplayName: string;
   userRoleLabel: string;
+  /**
+   * Rol con el que se filtra el menú. Quien monte este componente tiene que pasar el rol
+   * vigente en la base y no el que traiga la sesión: la cookie conserva el rol del momento
+   * en que se inició sesión, y con ella el menú acaba enseñando pantallas que las guardas
+   * del servidor —que sí consultan la base— le niegan a quien cambió de rol.
+   */
   userRoleKey: string;
   activeNavKey: string;
+  /**
+   * Municipio de quien está usando el sistema. La marca se arma con él —"Zapopan OS"— en vez
+   * de estar clavada a Tonalá: la aplicación es la misma, el territorio no.
+   */
+  municipality?: string | null | undefined;
+  /** Nombre de respaldo mientras la persona no tenga municipio asignado. */
+  appName?: string | undefined;
   logoutAction?: string;
 }>;
 
@@ -58,15 +71,71 @@ const getIconForNavKey = (key: string, size = 18) => {
   }
 };
 
+type ElementoNav = NavItemConfig & { active: boolean };
+
+/** Iniciales para el avatar de la sesión: dos letras bastan y no dependen de tener foto. */
+function iniciales(nombre: string): string {
+  const partes = nombre.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return "?";
+  return ((partes[0]?.[0] ?? "") + (partes[1]?.[0] ?? "")).toUpperCase();
+}
+
+function EnlaceNav({ item, alNavegar }: { item: ElementoNav; alNavegar?: () => void }) {
+  return (
+    <a
+      className={`nav-button ${item.active ? "is-active" : ""}`}
+      href={item.href}
+      // `aria-current` es lo que anuncia un lector de pantalla como "página actual": el color
+      // de fondo solo lo dice a quien lo ve.
+      {...(item.active ? { "aria-current": "page" as const } : {})}
+      title={item.label}
+      {...(alNavegar ? { onClick: alNavegar } : {})}
+    >
+      <span className="nav-icono">{getIconForNavKey(item.key)}</span>
+      <span className="nav-texto">{item.label}</span>
+    </a>
+  );
+}
+
+/**
+ * Un bloque del menú. Antes los cuatro grupos estaban escritos cuatro veces con los mismos
+ * estilos en línea copiados; cambiar el menú obligaba a corregir cuatro sitios y siempre se
+ * quedaba uno atrás.
+ */
+function SeccionNav({
+  titulo,
+  items,
+  alNavegar
+}: {
+  titulo: string;
+  items: ElementoNav[];
+  alNavegar?: () => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="nav-grupo">
+      <p className="side-section-title">{titulo}</p>
+      <nav className="nav-list" aria-label={titulo}>
+        {items.map((item) => (
+          <EnlaceNav key={item.key} item={item} {...(alNavegar ? { alNavegar } : {})} />
+        ))}
+      </nav>
+    </div>
+  );
+}
+
 export function AppShell({
   children,
   userDisplayName,
   userRoleLabel,
   userRoleKey,
   activeNavKey,
+  municipality,
+  appName,
   logoutAction = "/api/auth/logout"
 }: AppShellProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const cerrarCajon = () => setIsDrawerOpen(false);
 
   const filterNavItems = (items: NavItemConfig[]) => {
     return items
@@ -83,7 +152,8 @@ export function AppShell({
   const configuracionItems = filterNavItems(getNavSection("configuracion"));
 
   const allItems = [...dashboardItems, ...estructuraItems, ...territorioItems, ...configuracionItems];
-  const activeTitle = allItems.find((n) => n.active)?.label ?? "Tonalá OS";
+  const marca = municipality ? `${municipality} OS` : (appName || "Jalisco OS");
+  const activeTitle = allItems.find((n) => n.active)?.label ?? marca;
 
   return (
     <div className="shell">
@@ -100,80 +170,32 @@ export function AppShell({
             />
           </div>
           <div>
-            <h1 className="brand-title" style={{ fontSize: "20px", letterSpacing: "-0.5px" }}>Tonalá OS</h1>
+            <h1 className="brand-title" style={{ fontSize: "20px", letterSpacing: "-0.5px" }}>{marca}</h1>
             <p className="brand-subtitle" style={{ color: "var(--primary-light)", fontWeight: 500 }}>Gestor de Campaña</p>
           </div>
         </div>
 
-        <div style={{ padding: '0 20px', marginBottom: '24px' }}>
-          <div style={{ fontSize: '11px', textTransform: "uppercase", letterSpacing: "0.5px", color: 'var(--text-soft)', marginBottom: "4px" }}>Sesión Activa</div>
-          <div style={{ fontWeight: 700, fontSize: '14px', color: "white" }}>{userDisplayName}</div>
-          <div style={{ fontSize: '12px', color: 'var(--primary-light)' }}>{userRoleLabel}</div>
+        <div className="sesion-tarjeta">
+          <span className="sesion-avatar" aria-hidden="true">{iniciales(userDisplayName)}</span>
+          <span className="sesion-datos">
+            <span className="sesion-nombre" title={userDisplayName}>{userDisplayName}</span>
+            <span className="sesion-rol">{userRoleLabel}</span>
+          </span>
         </div>
-        
-        <div className="sidebar-scrollable" style={{ flex: 1, overflowY: "auto", paddingRight: "8px" }}>
-          {/* Dashboard Section */}
-          {dashboardItems.length > 0 && (
-            <div style={{ marginBottom: "20px" }}>
-              <p className="side-section-title" style={{ fontSize: "11px", letterSpacing: "1px", opacity: 0.6 }}>Panel de Control</p>
-              <nav className="nav-list">
-                {dashboardItems.map((item) => (
-                  <a key={item.key} className={`nav-button ${item.active ? "is-active" : ""}`} href={item.href} style={{ borderRadius: "8px", margin: "2px 0" }}>
-                    {getIconForNavKey(item.key)} {item.label}
-                  </a>
-                ))}
-              </nav>
-            </div>
-          )}
 
-          {/* Estructura Section */}
-          {estructuraItems.length > 0 && (
-            <div style={{ marginBottom: "20px" }}>
-              <p className="side-section-title" style={{ fontSize: "11px", letterSpacing: "1px", opacity: 0.6 }}>Estructura y CRM</p>
-              <nav className="nav-list">
-                {estructuraItems.map((item) => (
-                  <a key={item.key} className={`nav-button ${item.active ? "is-active" : ""}`} href={item.href} style={{ borderRadius: "8px", margin: "2px 0" }}>
-                    {getIconForNavKey(item.key)} {item.label}
-                  </a>
-                ))}
-              </nav>
-            </div>
-          )}
-
-          {/* Territory Section */}
-          {territorioItems.length > 0 && (
-            <div style={{ marginBottom: "20px" }}>
-              <p className="side-section-title" style={{ fontSize: "11px", letterSpacing: "1px", opacity: 0.6 }}>Territorio y Operación</p>
-              <nav className="nav-list">
-                {territorioItems.map((item) => (
-                  <a key={item.key} className={`nav-button ${item.active ? "is-active" : ""}`} href={item.href} style={{ borderRadius: "8px", margin: "2px 0" }}>
-                    {getIconForNavKey(item.key)} {item.label}
-                  </a>
-                ))}
-              </nav>
-            </div>
-          )}
-
-          {/* Settings Section */}
-          {configuracionItems.length > 0 && (
-            <div style={{ marginBottom: "20px" }}>
-              <p className="side-section-title" style={{ fontSize: "11px", letterSpacing: "1px", opacity: 0.6 }}>Configuración</p>
-              <nav className="nav-list">
-                {configuracionItems.map((item) => (
-                  <a key={item.key} className={`nav-button ${item.active ? "is-active" : ""}`} href={item.href} style={{ borderRadius: "8px", margin: "2px 0" }}>
-                    {getIconForNavKey(item.key)} {item.label}
-                  </a>
-                ))}
-              </nav>
-            </div>
-          )}
+        <div className="sidebar-scrollable">
+          <SeccionNav titulo="Panel de Control" items={dashboardItems} />
+          <SeccionNav titulo="Estructura y CRM" items={estructuraItems} />
+          <SeccionNav titulo="Territorio y Operación" items={territorioItems} />
+          <SeccionNav titulo="Configuración" items={configuracionItems} />
         </div>
 
         {/* Profile / Logout Section at bottom */}
-        <div style={{ padding: "16px 20px 0", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+        <div className="sidebar-salida">
           <form action={logoutAction} method="post">
-            <button className="nav-button" type="submit" style={{ color: '#fca5a5', width: '100%', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: "8px" }}>
-              <LogOut size={18} /> Cerrar Sesión
+            <button className="nav-button nav-salir" type="submit">
+              <span className="nav-icono"><LogOut size={18} /></span>
+              <span className="nav-texto">Cerrar sesión</span>
             </button>
           </form>
         </div>
@@ -237,7 +259,7 @@ export function AppShell({
                   />
                 </div>
                 <div>
-                  <h1 className="brand-title" style={{ fontSize: "16px" }}>Tonalá OS</h1>
+                  <h1 className="brand-title" style={{ fontSize: "16px" }}>{marca}</h1>
                   <p className="brand-subtitle" style={{ margin: 0, fontSize: "10px" }}>Gestor de Campaña</p>
                 </div>
               </div>
@@ -247,20 +269,19 @@ export function AppShell({
             </div>
             
             <div className="mobile-drawer-content sidebar-scrollable">
-              {/* All Items */}
-              <nav className="nav-list">
-                {allItems.map((item) => (
-                  <a key={item.key} className={`nav-button ${item.active ? "is-active" : ""}`} href={item.href} onClick={() => setIsDrawerOpen(false)}>
-                    {getIconForNavKey(item.key)} {item.label}
-                  </a>
-                ))}
-              </nav>
+              {/* Las mismas secciones que en el escritorio: una lista corrida de trece enlaces
+                  obligaba a leerlos todos para encontrar uno. */}
+              <SeccionNav titulo="Panel de Control" items={dashboardItems} alNavegar={cerrarCajon} />
+              <SeccionNav titulo="Estructura y CRM" items={estructuraItems} alNavegar={cerrarCajon} />
+              <SeccionNav titulo="Territorio y Operación" items={territorioItems} alNavegar={cerrarCajon} />
+              <SeccionNav titulo="Configuración" items={configuracionItems} alNavegar={cerrarCajon} />
             </div>
 
-            <div style={{ padding: "16px", borderTop: "1px solid var(--line)" }}>
+            <div className="mobile-drawer-salida">
               <form action={logoutAction} method="post">
-                <button className="nav-button" type="submit" style={{ color: 'var(--danger)', width: '100%', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <LogOut size={18} /> Cerrar Sesión
+                <button className="nav-button nav-salir" type="submit">
+                  <span className="nav-icono"><LogOut size={18} /></span>
+                  <span className="nav-texto">Cerrar sesión</span>
                 </button>
               </form>
             </div>
@@ -271,21 +292,30 @@ export function AppShell({
       {/* MOBILE BOTTOM NAV */}
       <nav className="mobile-bottom-nav" aria-label="Navegación movil">
         {/* We take up to 4 most important items that the user has access to */}
-        {allItems.filter(i => i.key !== "perfil" && i.key !== "settings").slice(0, 4).map((item) => (
-          <a key={item.key} className={`mobile-nav-button ${item.active ? "is-active" : ""}`} href={item.href}>
-            {getIconForNavKey(item.key, 22)}
-            <span style={{ fontSize: '10px', marginTop: '4px', fontWeight: item.active ? 700 : 500 }}>{item.label}</span>
+        {allItems.filter((i) => i.key !== "perfil" && i.key !== "settings").slice(0, 4).map((item) => (
+          <a
+            key={item.key}
+            className={`mobile-nav-button ${item.active ? "is-active" : ""}`}
+            href={item.href}
+            {...(item.active ? { "aria-current": "page" as const } : {})}
+          >
+            <span className="mobile-nav-marca" aria-hidden="true" />
+            {getIconForNavKey(item.key, 21)}
+            {/* Nombre corto: "Directorio Ciudadano" no cabe en un quinto de pantalla y se partía
+                en tres renglones ilegibles. */}
+            <span className="mobile-nav-texto">{item.corto ?? item.label}</span>
           </a>
         ))}
-        {/* 'Más' button to open the drawer */}
-        <button className="mobile-nav-button" onClick={() => setIsDrawerOpen(true)}>
-          <Menu size={22} />
-          <span style={{ fontSize: '10px', marginTop: '4px', fontWeight: 500 }}>Más</span>
+        {/* 'Más' abre el cajón con el menú completo */}
+        <button className="mobile-nav-button" onClick={() => setIsDrawerOpen(true)} aria-haspopup="dialog">
+          <span className="mobile-nav-marca" aria-hidden="true" />
+          <Menu size={21} />
+          <span className="mobile-nav-texto">Más</span>
         </button>
       </nav>
 
       {/* Crear incidencia o evento desde cualquier pantalla, sin ir al mapa. */}
-      <QuickCreateFab />
+      <QuickCreateFab userRoleKey={userRoleKey} />
     </div>
   );
 }

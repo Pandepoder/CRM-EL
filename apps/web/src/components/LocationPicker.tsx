@@ -177,7 +177,16 @@ export function LocationPicker({
           sectionNum: data.sectionNum || value.sectionNum
         });
 
-        setStatusMessage(`✓ Ubicación confirmada: ${detectedAddress}`);
+        // Se dice con qué se armó la dirección. Antes todo salía como "confirmada", aunque
+        // fuera solo la colonia o aunque OpenStreetMap no hubiera contestado: quien captura
+        // no tenía forma de saber cuándo convenía corregir el punto a mano.
+        if (manualAddress || data.addressPrecision === "domicilio") {
+          setStatusMessage(`✓ Ubicación confirmada: ${detectedAddress}`);
+        } else if (data.addressPrecision === "aproximada") {
+          setStatusMessage(`Aproximada (sin calle en el mapa): ${detectedAddress}. Mueve el punto si conoces la dirección.`);
+        } else {
+          setStatusMessage(`Sin referencia de calle en este momento: ${detectedAddress}. Puedes escribirla a mano.`);
+        }
       } else {
         onChange({
           ...value,

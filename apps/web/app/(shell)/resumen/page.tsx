@@ -1,7 +1,9 @@
+import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
+import { incidentScopeCondition } from "@/lib/incident-visibility";
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq, count, gte, desc, and, inArray } from "drizzle-orm";
+import { eq, count, gte, desc, and, or, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import ResumenClient from "./ResumenClient";
 import { requirePageRole } from "@/lib/authorization";
@@ -41,6 +43,23 @@ export default async function ResumenPage() {
   const networkScope = await resolveUserNetworkScope(session.userId);
   const scopedUserIds = networkScope.isGlobal ? null : networkScope.teammateUserIds;
 
+  const visibleIds = await visibleContactIds(networkScope);
+  const contactRestriction = contactIdRestriction(visibleIds);
+  const visitRestriction = visibleIds === null ? undefined : inArray(schema.visits.contactId, visibleIds);
+  // Misma regla de incidencias que el mapa y la gestión (ver incident-visibility.ts). Antes solo
+  // contaban las asignadas a un equipo: quedaban fuera las que la persona había levantado.
+  const eventRestriction = incidentScopeCondition(networkScope);
+  // La escucha social se cuenta como la enseña su propia pantalla: lo que registró la gente del
+  // alcance más lo que está ligado a un ciudadano visible. Contando solo lo segundo se perdía lo
+  // propio cuando el reporte se levantó sin ciudadano ligado, que es lo más común en campo.
+  const listeningRestriction =
+    visibleIds === null
+      ? undefined
+      : or(
+          inArray(schema.socialListening.contactId, visibleIds),
+          inArray(schema.socialListening.createdByUserId, networkScope.allowedUserIds ?? [])
+        );
+
   // Start of today for daily pulse
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -49,34 +68,34 @@ export default async function ResumenPage() {
   const [contactsCountRow] = await db
     .select({ count: count() })
     .from(schema.contacts)
-    .where(eq(schema.contacts.status, "active"));
+    .where(and(eq(schema.contacts.status, "active"), contactRestriction));
 
   const [todayContactsRow] = await db
     .select({ count: count() })
     .from(schema.contacts)
-    .where(gte(schema.contacts.createdAt, startOfDay));
+    .where(and(gte(schema.contacts.createdAt, startOfDay), contactRestriction));
 
   const [panContactsCountRow] = await db
     .select({ count: count() })
     .from(schema.contacts)
-    .where(eq(schema.contacts.panMilitancy, "confirmada"));
+    .where(and(eq(schema.contacts.panMilitancy, "confirmada"), contactRestriction));
 
   const [visitsCountRow] = await db
     .select({ count: count() })
-    .from(schema.visits);
+    .from(schema.visits).where(visitRestriction);
 
   const [todayVisitsRow] = await db
     .select({ count: count() })
     .from(schema.visits)
-    .where(gte(schema.visits.createdAt, startOfDay));
+    .where(and(gte(schema.visits.createdAt, startOfDay), visitRestriction));
 
   const [eventsCountRow] = await db
     .select({ count: count() })
-    .from(schema.eventReports);
+    .from(schema.eventReports).where(eventRestriction);
 
   const [socialListeningCountRow] = await db
     .select({ count: count() })
-    .from(schema.socialListening);
+    .from(schema.socialListening).where(listeningRestriction);
 
   const totalActivities = (visitsCountRow?.count || 0) + (eventsCountRow?.count || 0);
   const todayActivities = (todayVisitsRow?.count || 0);
@@ -96,11 +115,7 @@ export default async function ResumenPage() {
     })
     .from(schema.contacts)
     .leftJoin(schema.electoralSections, eq(schema.contacts.sectionId, schema.electoralSections.id))
-    .where(
-      scopedUserIds
-        ? and(eq(schema.contacts.status, "active"), inArray(schema.contacts.createdByUserId, scopedUserIds))
-        : eq(schema.contacts.status, "active")
-    )
+    .where(and(eq(schema.contacts.status, "active"), contactRestriction))
     .orderBy(desc(schema.contacts.createdAt))
     .limit(6);
 
@@ -129,9 +144,14 @@ export default async function ResumenPage() {
     .from(schema.userProfiles)
     .$dynamic();
 
-  if (scopedUserIds) {
-    allUsersQuery = allUsersQuery.where(inArray(schema.userProfiles.id, scopedUserIds));
-  }
+  // El resto de las pantallas solo lista cuentas activas; aquí faltaba, así que el tablero
+  // seguía nombrando a gente dada de baja.
+  allUsersQuery = allUsersQuery.where(
+    and(
+      eq(schema.userProfiles.status, "active"),
+      scopedUserIds ? inArray(schema.userProfiles.id, scopedUserIds) : undefined
+    )
+  );
 
   const allUsers = await allUsersQuery;
 
@@ -142,20 +162,20 @@ export default async function ResumenPage() {
       colony: schema.contacts.colony
     })
     .from(schema.contacts)
-    .where(eq(schema.contacts.status, "active"));
+    .where(and(eq(schema.contacts.status, "active"), contactRestriction));
 
   const userVisits = await db
     .select({
       assignedUserId: schema.visits.assignedUserId,
       status: schema.visits.status
     })
-    .from(schema.visits);
+    .from(schema.visits).where(visitRestriction);
 
   const userEvents = await db
     .select({
       assignedToUserId: schema.eventReports.assignedToUserId
     })
-    .from(schema.eventReports);
+    .from(schema.eventReports).where(eventRestriction);
 
   const leaderboard = allUsers.map(u => {
     const parent = allUsers.find(p => p.userId === u.parentEnlaceId);
@@ -186,6 +206,7 @@ export default async function ResumenPage() {
 
   return (
     <ResumenClient
+      canManageSensitive={networkScope.isGlobal}
       currentUser={{
         id: currentUser.id,
         displayName: currentUser.displayName,

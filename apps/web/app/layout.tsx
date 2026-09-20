@@ -5,7 +5,7 @@ import "./workspace-design.css";
 import { InterfaceMotion } from "@/components/InterfaceMotion";
 
 export const metadata: Metadata = {
-  title: "Tonala OS",
+  title: "Jalisco OS",
   description: "Sistema operativo territorial"
 };
 

@@ -41,14 +41,14 @@ describe("ElApp v1 Enhancements Integration Tests", () => {
     expect(scope.allowedUserIds).toBeNull();
   });
 
-  it("resolves restricted network scope for conexion users", async () => {
+  it("gives an empty scope to a user that does not exist or is not active", async () => {
+    // Una sesión de alguien inexistente o dado de baja no concede nada: ni global ni lo propio.
     const randomId = crypto.randomUUID();
     const scope = await resolveUserNetworkScope(randomId, "conexion");
 
     expect(scope.isGlobal).toBe(false);
-    expect(scope.accessType).toBe("conexion");
-    expect(scope.allowedUserIds).toContain(randomId);
-    expect(scope.allowedUserIds?.length).toBe(1);
+    expect(scope.allowedUserIds).toEqual([]);
+    expect(scope.teamIds).toEqual([]);
   });
 
   it("persists and queries social listening reports", async () => {

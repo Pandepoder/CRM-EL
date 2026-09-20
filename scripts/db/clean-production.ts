@@ -4,7 +4,6 @@ import argon2 from "argon2";
 import { loadAppEnv } from "../../packages/config/index.js";
 import { roleSeeds, catalogSeed, colonySeeds } from "./seed-data.js";
 import { METROPOLITAN_SECTIONS } from "./generate-metropolitan-sections.js";
-import { boundsToRealisticPolygon } from "./generate-official-sections.js";
 import { confirmDestructiveOperation } from "./confirm-destructive.js";
 import { resolveMasterAdminCredentials } from "./master-admin-credentials.js";
 
@@ -54,7 +53,12 @@ async function cleanProductionDatabase() {
         warehouses,
         transactional_outbox,
         processed_event_log,
-        walking_skeleton_projection_v1
+        walking_skeleton_projection_v1,
+        -- Estas dos cuelgan de user_profiles, no de las tablas de arriba, así que CASCADE no
+        -- las alcanza: sin vaciarlas, el DELETE FROM user_profiles del paso 5 choca con sus
+        -- llaves foráneas y el arranque de producción falla entero.
+        audit_logs,
+        user_promotions_history
       CASCADE;
     `);
 
@@ -100,18 +104,22 @@ async function cleanProductionDatabase() {
       }
     }
 
-    console.log("4. Sembrando secciones electorales oficiales del AMG...");
+    // Antes este paso calculaba un polígono aproximado para cada sección y lo escribía encima
+    // del contorno real. De ahí salían los cuadrados que se montaban sobre las secciones del
+    // INE en el mapa, y las cajas de kilómetros que se tragaban los puntos del GPS. Ahora solo
+    // se da de alta el número de sección y su liga con las colonias; la geometría la pone
+    // `pnpm db:load-jalisco`, que trae los 3,787 contornos oficiales.
+    console.log("4. Dando de alta las secciones del AMG y su liga con las colonias...");
     for (const sec of METROPOLITAN_SECTIONS) {
-      const poly = boundsToRealisticPolygon(sec.sectionNum, sec.bounds);
       const secRes = await pool.query<{ id: string }>(
         `
-          INSERT INTO electoral_sections (section_num, geom_json)
-          VALUES ($1, $2)
-          ON CONFLICT (section_num) DO UPDATE 
-          SET geom_json = EXCLUDED.geom_json
+          INSERT INTO electoral_sections (section_num)
+          VALUES ($1)
+          ON CONFLICT (section_num) DO UPDATE
+          SET section_num = EXCLUDED.section_num
           RETURNING id
         `,
-        [sec.sectionNum, JSON.stringify(poly)]
+        [sec.sectionNum]
       );
       const sectionId = secRes.rows[0]?.id;
       if (sectionId && sec.colonies) {

@@ -7,6 +7,7 @@ import { actorFromSession, permissionChecker } from "@/lib/api-helpers";
 import { hashPassword } from "@/lib/auth";
 import { generateUniquePersonalSlug } from "@/lib/personal-slug";
 import { schema } from "@tonala/shared/database";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -20,6 +21,10 @@ export async function createUserAction(formData: FormData) {
   const email = (formData.get("email") as string)?.trim().toLowerCase();
   const password = formData.get("password") as string;
   const roleId = formData.get("roleId") as string;
+  // Municipio donde trabaja la persona: de aquí salen la marca que verá al entrar y el
+  // municipio con el que le abre el mapa. Se valida contra el catálogo de los 125 para que no
+  // entre un nombre escrito a mano que luego no case con la cartografía.
+  const municipality = buscarMunicipio(formData.get("municipality") as string | null)?.name ?? null;
 
   if (!displayName || !email || !password || !roleId) {
     throw new Error("Todos los campos son obligatorios.");
@@ -53,6 +58,7 @@ export async function createUserAction(formData: FormData) {
     passwordHash,
     roleId,
     personalSlug,
+    ...(municipality ? { municipality } : {}),
     status: "active",
     version: 1
   });
@@ -205,11 +211,22 @@ export async function updateUserAction(formData: FormData) {
     throw new Error("Datos requeridos incompletos.");
   }
 
+  // El municipio solo se toca si el formulario lo mandó. Vacío significa "sin municipio" —la
+  // persona vuelve a ver la aplicación sin territorio— y cualquier otro valor tiene que ser
+  // uno de los 125 de Jalisco, porque con él se filtra la cartografía.
+  const campo = formData.get("municipality");
+  const cambiaMunicipio = campo !== null;
+  const textoMunicipio = typeof campo === "string" ? campo.trim() : "";
+  const municipality = buscarMunicipio(textoMunicipio)?.name ?? null;
+  if (textoMunicipio !== "" && !municipality) {
+    throw new Error(`"${textoMunicipio}" no es un municipio de Jalisco.`);
+  }
+
   const db = getDatabaseClient();
 
   await db
     .update(schema.userProfiles)
-    .set({ displayName, updatedAt: new Date() })
+    .set({ displayName, ...(cambiaMunicipio ? { municipality } : {}), updatedAt: new Date() })
     .where(eq(schema.userProfiles.id, userId));
 
   revalidatePath("/admin-usuarios");

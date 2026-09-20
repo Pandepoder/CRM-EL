@@ -6,6 +6,8 @@ export const dynamic = "force-dynamic";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { requireLiderParaIncidencias } from "@/lib/authorization";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { exigirAccesoAContacto } from "@/lib/permisos-contacto";
 import { CLAVES_CATEGORIA } from "@/lib/categorias-incidencia";
 import { eq } from "drizzle-orm";
 
@@ -55,6 +57,27 @@ export async function POST(req: Request) {
       );
     }
 
+    // El responsable salía del cuerpo sin comprobar nada: bastaba conocer el
+    // identificador de un brigadista de otra dirección para llenarle la agenda de
+    // trabajo que su propio líder no había puesto ahí.
+    if (assignedUser !== actor.actorId) {
+      const alcance = await resolveUserNetworkScope(actor.actorId);
+      if (!alcance.isGlobal && !(alcance.allowedUserIds ?? []).includes(assignedUser)) {
+        return NextResponse.json(
+          { error: "Solo puedes asignar actividades a personas de tu equipo." },
+          { status: 403 }
+        );
+      }
+    }
+
+    // La visita asociada entra en el historial del ciudadano, así que se pide el
+    // mismo acceso que para abrir su ficha. Responde 404 y no 403 para no
+    // confirmar que el identificador existe.
+    if (contactId) {
+      const vetado = await exigirAccesoAContacto(contactId, actor.actorId, actor.roles);
+      if (vetado) return vetado;
+    }
+
     const db = getDatabaseClient();
     const scheduledDate = new Date(scheduledAt);
 
@@ -66,19 +89,17 @@ export async function POST(req: Request) {
       (await ubicarEnSeccion(Number(latitude), Number(longitude)))?.seccion.municipality ??
       null;
 
-    // 1. If roleAssignment is provided and actor has permissions, update the user's operational role
-    if (roleAssignment && (actor.roles.includes("admin") || actor.roles.includes("direction") || actor.roles.includes("territorial_coordinator"))) {
-      const [matchedRole] = await db
-        .select({ id: schema.roles.id })
-        .from(schema.roles)
-        .where(eq(schema.roles.key, roleAssignment))
-        .limit(1);
-      if (matchedRole) {
-        await db
-          .update(schema.userProfiles)
-          .set({ roleId: matchedRole.id })
-          .where(eq(schema.userProfiles.id, assignedUser));
-      }
+    // 1. Esta ruta ya NO cambia roles. Antes, si llegaba `roleAssignment`, dirección o un
+    // coordinador territorial podían reescribir el rol de cualquier persona —incluido el propio—
+    // a cualquier clave, "admin" incluida, sin validar destino ni alcance: una sola petición
+    // bastaba para quedarse con acceso global. La interfaz siempre lo mandaba vacío. Los roles
+    // se cambian únicamente desde Control de Usuarios (changeUserRoleAction), que es solo de
+    // administración.
+    if (roleAssignment) {
+      return NextResponse.json(
+        { error: "Los roles solo se cambian desde Control de Usuarios." },
+        { status: 400 }
+      );
     }
 
     // 2. Normalize category to match event_reports constraint

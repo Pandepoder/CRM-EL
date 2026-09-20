@@ -10,7 +10,34 @@ const AUTH_TAG_LENGTH = 16;
 // loudly instead of silently "encrypting" citizen PII with a value visible in git history.
 const KNOWN_EXAMPLE_KEYS = new Set(["12345678901234567890123456789012"]);
 
+// Llave ya derivada, junto con el texto de la variable del que salió.
+//
+// Antes cada cifrado y cada descifrado volvía a llamar a loadAppEnv(), que valida TODO el
+// entorno con zod: al escribir o leer un padrón completo eso son decenas de miles de
+// validaciones idénticas (medido: ~220 ms extra por cada 20 mil valores) para obtener siempre
+// el mismo Buffer.
+//
+// No se guarda solo el Buffer: se recuerda también la cadena que lo originó y se compara con
+// process.env en cada uso. Leer una variable de entorno es gratis frente a validar el entorno
+// entero, y así una prueba que cambia DATABASE_ENCRYPTION_KEY no sigue cifrando con la llave
+// vieja —un caché silencioso aquí produciría datos que nadie puede volver a descifrar—.
+let llaveCacheada: Buffer | null = null;
+let llaveOrigen: string | undefined;
+
+/**
+ * Descarta la llave memoizada para que la siguiente operación la vuelva a derivar y a validar.
+ * La comparación contra process.env ya cubre el caso normal; esto existe para pruebas que
+ * cambian el entorno por otros medios (mocks de @tonala/config, por ejemplo).
+ */
+export function olvidarLlaveDeCifrado(): void {
+  llaveCacheada = null;
+  llaveOrigen = undefined;
+}
+
 function getEncryptionKey(): Buffer {
+  const actual = process.env.DATABASE_ENCRYPTION_KEY;
+  if (llaveCacheada && llaveOrigen === actual) return llaveCacheada;
+
   const env = loadAppEnv();
   const keyStr = env.private.DATABASE_ENCRYPTION_KEY;
   if (!keyStr || keyStr.length < 32) {
@@ -22,7 +49,12 @@ function getEncryptionKey(): Buffer {
         "Generate a real key with `openssl rand -hex 16` and set it before starting the app."
     );
   }
-  return Buffer.from(keyStr.slice(0, 32), "utf-8");
+
+  llaveCacheada = Buffer.from(keyStr.slice(0, 32), "utf-8");
+  // Se recuerda el valor crudo del entorno, no el ya validado: es contra ese que se compara
+  // en la siguiente llamada.
+  llaveOrigen = actual;
+  return llaveCacheada;
 }
 
 export function encryptData(plaintext: string | null | undefined): string | null {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 // @ts-ignore
 import { MapPin, Check, Plus, Loader2, Sparkles, X, Layers, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -59,15 +59,23 @@ export function IncidentSectionAssigner({
   });
   const [isSaving, setIsSaving] = useState(false);
 
-  // Filtered sections for fast search
-  const filteredSections = availableSections.filter((s) => {
+  // Búsqueda dentro del catálogo de secciones.
+  //
+  // Este componente se monta una vez por fila de la tabla de incidencias y la lista solo se
+  // muestra con la ventana abierta. Sin memo, cualquier render de la página volvía a recorrer el
+  // catálogo entero una vez por fila —y además normalizaba la búsqueda a minúsculas dentro del
+  // filtro, una vez por sección— para una ventana que casi siempre está cerrada.
+  const filteredSections = useMemo(() => {
+    if (!isOpen) return [];
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return true;
-    const numMatch = String(s.sectionNum).includes(q);
-    const muniMatch = (s.municipality || "").toLowerCase().includes(q);
-    const colMatch = s.colonies?.some((c) => c.toLowerCase().includes(q));
-    return numMatch || muniMatch || colMatch;
-  });
+    if (!q) return availableSections;
+    return availableSections.filter((s) => {
+      const numMatch = String(s.sectionNum).includes(q);
+      const muniMatch = (s.municipality || "").toLowerCase().includes(q);
+      const colMatch = s.colonies?.some((c) => c.toLowerCase().includes(q));
+      return numMatch || muniMatch || colMatch;
+    });
+  }, [isOpen, searchQuery, availableSections]);
 
   // 1. Auto-detect section using GPS coordinates
   const handleAutoDetect = async () => {

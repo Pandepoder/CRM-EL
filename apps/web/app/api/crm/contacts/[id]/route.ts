@@ -4,6 +4,7 @@ import { DevelopmentLogger } from "@tonala/shared/observability";
 import { getDatabaseClient } from "@/lib/db-client";
 import { createCrmDependencies } from "@/lib/crm-deps";
 import { actorFromSession, permissionChecker, unauthorized } from "@/lib/api-helpers";
+import { exigirAccesoAContacto } from "@/lib/permisos-contacto";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { schema } from "@tonala/shared/database";
 import { eq, sql, desc } from "drizzle-orm";
@@ -17,6 +18,8 @@ export async function GET(
   if (!actor) return unauthorized();
 
   const { id } = await params;
+  const denied = await exigirAccesoAContacto(id, actor.actorId, actor.roles);
+  if (denied) return denied;
   const db = getDatabaseClient();
   const { contactsReader } = await createCrmDependencies(db);
 
@@ -90,6 +93,7 @@ export async function GET(
 
   return NextResponse.json({
     ...baseDetail,
+    canManageSensitive: actor.roles.includes("admin"),
     origin: rawContact?.origin || "toca_toca",
     actualContactUserId: rawContact?.actualContactUserId,
     firstContactDate: rawContact?.firstContactDate,
@@ -115,9 +119,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const actor = await actorFromSession();
-  if (!actor || (!actor.roles.includes("admin") && !actor.roles.includes("direction"))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!actor) return unauthorized();
+  if (!actor.roles.includes("admin")) return NextResponse.json({ error: "Solo administración puede eliminar ciudadanos" }, { status: 403 });
 
   const { id } = await params;
   try {

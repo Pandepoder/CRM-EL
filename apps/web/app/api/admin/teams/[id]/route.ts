@@ -5,7 +5,7 @@ import { schema } from "@tonala/shared/database";
 import { count, eq } from "drizzle-orm";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
-async function assertCanManageTeam(session: { isLoggedIn: boolean; userId: string }, teamId: string) {
+async function assertCanManageTeam(session: { isLoggedIn: boolean; userId: string }, _teamId: string) {
   if (!session.isLoggedIn) {
     return { ok: false as const, status: 401 };
   }
@@ -15,13 +15,7 @@ async function assertCanManageTeam(session: { isLoggedIn: boolean; userId: strin
     return { ok: true as const, scope };
   }
 
-  const db = getDatabaseClient();
-  const existing = await db.query.teams.findFirst({ where: eq(schema.teams.id, teamId) });
-  if (!existing || existing.leaderId !== session.userId) {
-    return { ok: false as const, status: 403 };
-  }
-
-  return { ok: true as const, scope };
+  return { ok: false as const, status: 403 };
 }
 
 export async function PATCH(

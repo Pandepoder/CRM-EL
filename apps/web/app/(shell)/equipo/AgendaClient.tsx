@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import { LocationPicker } from "@/components/LocationPicker";
+import { useMunicipioUsuario } from "@/lib/municipio-contexto";
 import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
 import { MediaGallery } from "@/components/MediaGallery";
 import type { LeaderStat } from "./page";
@@ -103,6 +104,8 @@ export default function AgendaClient({
   const router = useRouter();
 
   // Active Main Tab
+  // Municipio de quien agenda: el selector de punto abre ahí en vez de en todo Jalisco.
+  const municipioUsuario = useMunicipioUsuario();
   const [activeTab, setActiveTab] = useState<"agenda" | "rendimiento" | "prospectos">("agenda");
   const [prospectsList, setProspectsList] = useState<any[]>(initialProspects);
   const [showProspectModal, setShowProspectModal] = useState(false);
@@ -1286,7 +1289,7 @@ export default function AgendaClient({
                     <LocationPicker
                       label="Fijar Punto en el Mapa"
                       helperText="Escribe el domicilio o marca el punto exacto en el mapa"
-                      defaultMunicipality={taskForm.municipality || undefined}
+                      defaultMunicipality={taskForm.municipality || municipioUsuario || undefined}
                       value={{
                         latitude: taskForm.latitude,
                         longitude: taskForm.longitude,

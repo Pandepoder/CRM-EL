@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { eq } from "drizzle-orm";
-import { getServerSession } from "@/lib/session-server";
+import { Permission, requireActorPermission } from "@/lib/authorization";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import crypto from "crypto";
 import { safeErrorMessage } from "@/lib/safe-error";
 
@@ -12,10 +13,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    if (!session || !session.userId) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    // Convertir un prospecto da de alta una ficha de ciudadano a mano, sin pasar
+    // por el caso de uso de alta: por aquí un brigadista registraba ciudadanos,
+    // que es justo lo que el mapa de permisos le niega a propósito.
+    const actor = await requireActorPermission(Permission.ContactsCreate);
+    if (actor instanceof NextResponse) return actor;
 
     const { id } = await params;
     const db = getDatabaseClient();
@@ -28,6 +30,15 @@ export async function POST(
 
     const prospect = prospectRows[0];
     if (!prospect) {
+      return NextResponse.json({ error: "Prospecto no encontrado." }, { status: 404 });
+    }
+
+    // El prospecto se leía por id sin filtro de alcance: con el identificador a la
+    // vista, cualquiera convertía el registro rápido de otra brigada y se quedaba
+    // con el ciudadano a su nombre. Se responde 404 y no 403 para no confirmar que
+    // el identificador existe.
+    const alcance = await resolveUserNetworkScope(actor.actorId);
+    if (!alcance.isGlobal && !(alcance.allowedUserIds ?? []).includes(prospect.createdByUserId)) {
       return NextResponse.json({ error: "Prospecto no encontrado." }, { status: 404 });
     }
 
@@ -45,9 +56,9 @@ export async function POST(
       id: contactId,
       displayName: prospect.prospectName,
       status: "active",
-      createdByUserId: session.userId,
-      referredByUserId: session.userId,
-      actualContactUserId: session.userId,
+      createdByUserId: actor.actorId,
+      referredByUserId: actor.actorId,
+      actualContactUserId: actor.actorId,
       firstName: prospect.prospectName.split(" ")[0] || prospect.prospectName,
       lastName: prospect.prospectName.split(" ").slice(1).join(" ") || "",
       profession: prospect.organizationOrReference || "Prospecto",
@@ -66,7 +77,7 @@ export async function POST(
     if (prospect.commitments || prospect.privateNotes) {
       await db.insert(schema.contactNotes).values({
         contactId,
-        authorUserId: session.userId,
+        authorUserId: actor.actorId,
         noteText: `Convertido desde Registro Rápido. Acuerdos: ${prospect.commitments || "N/A"}. Notas: ${prospect.privateNotes || "N/A"}`,
         createdAt: new Date()
       });

@@ -79,6 +79,7 @@ export interface ContactsReader {
      * hace falta el conjunto, que lo calcula la capa web y se pasa aquí.
      */
     scopedUserIds?: readonly EntityId[];
+    scopedContactIds?: readonly EntityId[];
     q?: string;
     page?: number;
     pageSize?: number;

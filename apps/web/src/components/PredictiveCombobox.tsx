@@ -96,6 +96,10 @@ export function PredictiveCombobox({
 
   // Sync external value changes
   useEffect(() => {
+    // Solo en modo controlado. Sin `value` el componente es no controlado y manda su
+    // defaultValue: sincronizar con undefined lo vaciaba al montar, así que un municipio o un
+    // rol precargados se veían un instante y el formulario se enviaba en blanco.
+    if (value === undefined) return;
     const matched = safeOptions.find((o) => o && (o.value === value || o.label === value));
     setSelectedValue(value || "");
     setSearchTerm(matched ? matched.label : (value || ""));

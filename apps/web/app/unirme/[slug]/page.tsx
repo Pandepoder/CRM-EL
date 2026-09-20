@@ -20,7 +20,11 @@ export default async function UnirmePage({ params }: { params: Promise<{ slug: s
   const db = getDatabaseClient();
 
   const anfitriones = await db
-    .select({ id: schema.userProfiles.id, displayName: schema.userProfiles.displayName })
+    .select({
+      id: schema.userProfiles.id,
+      displayName: schema.userProfiles.displayName,
+      municipality: schema.userProfiles.municipality
+    })
     .from(schema.userProfiles)
     .where(
       and(
@@ -87,7 +91,7 @@ export default async function UnirmePage({ params }: { params: Promise<{ slug: s
             {equipo ? `Súmate a ${equipo}` : "Súmate a la estructura"}
           </h1>
           <p className="mt-3" style={{ color: "#c8d6ec", fontSize: ".97rem", lineHeight: 1.55 }}>
-            Regístrate en un minuto y empieza a trabajar el territorio de Tonalá.
+            Regístrate en un minuto y empieza a trabajar {anfitrion.municipality ? `el territorio de ${anfitrion.municipality}` : "el territorio"}.
           </p>
         </div>
       </section>
@@ -111,7 +115,7 @@ export default async function UnirmePage({ params }: { params: Promise<{ slug: s
       </main>
 
       <footer className="py-6 px-6 text-center" style={{ background: "#fff", borderTop: "1px solid #e6eaf2" }}>
-        <p style={{ color: "#8b95a9", fontSize: ".8rem" }}>© 2026 Edgar López · Un Tonalá Posible</p>
+        <p style={{ color: "#8b95a9", fontSize: ".8rem" }}>© 2026 Edgar López · Un Jalisco Posible</p>
       </footer>
     </div>
   );

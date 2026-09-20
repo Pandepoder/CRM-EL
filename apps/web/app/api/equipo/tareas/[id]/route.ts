@@ -37,11 +37,11 @@ export async function PATCH(
     }
 
     const actorId = actor.actorId;
-    const { incidencia, esAdmin, equipos } = await cargarContextoIncidencia(id, actorId, actor.roles);
+    const { incidencia, esAdmin, equipos, personas } = await cargarContextoIncidencia(id, actorId, actor.roles);
     if (!incidencia) {
       return NextResponse.json({ error: "Incidencia no encontrada" }, { status: 404 });
     }
-    if (!puedeSobreIncidencia("actualizar", incidencia, actorId, esAdmin, equipos)) {
+    if (!puedeSobreIncidencia("actualizar", incidencia, actorId, esAdmin, equipos, personas)) {
       return NextResponse.json({ error: MOTIVO_ACTUALIZAR }, { status: 403 });
     }
 
@@ -80,11 +80,11 @@ export async function DELETE(
   const { id } = await params;
   try {
     const actorId = actor.actorId;
-    const { incidencia, esAdmin, equipos } = await cargarContextoIncidencia(id, actorId, actor.roles);
+    const { incidencia, esAdmin, equipos, personas } = await cargarContextoIncidencia(id, actorId, actor.roles);
     if (!incidencia) {
       return NextResponse.json({ error: "Incidencia no encontrada" }, { status: 404 });
     }
-    if (!puedeSobreIncidencia("borrar", incidencia, actorId, esAdmin, equipos)) {
+    if (!puedeSobreIncidencia("borrar", incidencia, actorId, esAdmin, equipos, personas)) {
       return NextResponse.json({ error: MOTIVO_BORRAR }, { status: 403 });
     }
 

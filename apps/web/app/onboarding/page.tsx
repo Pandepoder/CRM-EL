@@ -1,6 +1,7 @@
 import { completeOnboardingAction } from "./actions";
 import { User, MapPin, Briefcase, ChevronRight, Award, Shield, HeartHandshake, Sparkles } from "lucide-react";
 import { getServerSession } from "@/lib/session-server";
+import { municipioDelUsuario } from "@/lib/municipio-usuario";
 import { redirect } from "next/navigation";
 import { ColonySelector } from "@/components/ColonySelector";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
@@ -8,6 +9,11 @@ import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 export default async function OnboardingPage() {
   const session = await getServerSession();
   if (!session.isLoggedIn) redirect("/login");
+
+  // La misma marca que la barra lateral: esta pantalla decía "Tonalá OS" a alguien que
+  // acababa de ver "Zapopan OS" al entrar.
+  const municipio = session.userId ? await municipioDelUsuario(session.userId) : null;
+  const marca = municipio ? `${municipio} OS` : (process.env.NEXT_PUBLIC_APP_NAME || "Jalisco OS");
 
   const professionOptions = [
     { value: "Derecho electoral", label: "Derecho electoral", badge: "Legal" },
@@ -66,7 +72,7 @@ export default async function OnboardingPage() {
       <div className="w-full max-w-4xl mb-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-900 rounded-lg"></div>
-          <span className="font-bold text-xl tracking-tight text-blue-950">Tonalá OS</span>
+          <span className="font-bold text-xl tracking-tight text-blue-950">{marca}</span>
         </div>
       </div>
 
@@ -129,7 +135,7 @@ export default async function OnboardingPage() {
                 </div>
               </div>
 
-              <ColonySelector />
+              <ColonySelector {...(municipio ? { defaultMunicipality: municipio } : {})} />
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2">

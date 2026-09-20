@@ -27,10 +27,10 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     const actor = actorRow[0];
-    const isCoordinacion = actor && (actor.accessType === "coordinacion" || actor.roleKey === "admin" || actor.roleKey === "direction");
+    const isCoordinacion = actor && actor.roleKey === "admin";
 
     if (!isCoordinacion) {
-      return NextResponse.json({ error: "Solo la Coordinación puede cambiar la categoría de un integrante." }, { status: 403 });
+      return NextResponse.json({ error: "Solo administración puede cambiar la categoría de un integrante." }, { status: 403 });
     }
 
     const body = await req.json();

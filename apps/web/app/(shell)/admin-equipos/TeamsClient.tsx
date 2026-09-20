@@ -33,7 +33,7 @@ type Props = {
   currentUserId?: string;
 };
 
-export default function TeamsClient({ teams, users, isGlobalAdmin = true, currentUserId }: Props) {
+export default function TeamsClient({ teams, users, isGlobalAdmin = false, currentUserId }: Props) {
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);

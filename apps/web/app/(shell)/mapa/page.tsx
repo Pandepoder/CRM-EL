@@ -39,7 +39,8 @@ import {
   Vote
 } from "lucide-react";
 import type { ComponentType } from "react";
-import { CENTRO_JALISCO, MUNICIPIOS_JALISCO, RECUADRO_JALISCO, TODO_JALISCO, TOTAL_SECCIONES_JALISCO, buscarMunicipio, guardarMunicipioPreferido, leerMunicipioPreferido } from "@/lib/municipios-jalisco";
+import { CENTRO_JALISCO, MUNICIPIOS_JALISCO, RECUADRO_JALISCO, TODO_JALISCO, TOTAL_SECCIONES_JALISCO, buscarMunicipio, guardarMunicipioPreferido, leerMunicipioPreferido, resolverMunicipio } from "@/lib/municipios-jalisco";
+import { useMunicipioUsuario } from "@/lib/municipio-contexto";
 
 type MapIconType = ComponentType<{ size?: number | string; className?: string }>;
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
@@ -294,18 +295,29 @@ export default function MapaPage() {
   const [selectedMunicipality, setSelectedMunicipality] = useState<string>("");
   const availableMunicipalities = MUNICIPIOS_JALISCO;
 
-  // Municipio inicial: el de la dirección (?municipio=) o el último que eligió esta persona
-  // en este navegador; sin ninguno, todo Jalisco. Antes arrancaba siempre en Tonalá y cada
-  // recarga devolvía ahí a quien trabajaba en otro municipio. Se resuelve al montar porque
-  // en el servidor no hay URL del cliente ni localStorage; mientras, va vacío y no se
-  // descarga cartografía que no se va a mostrar.
+  // Municipio de quien abrió el mapa, según su alta o la de su equipo.
+  const municipioUsuario = useMunicipioUsuario();
+
+  // Municipio inicial, en orden: el de la dirección (?municipio=, para abrir un enlace
+  // compartido donde toca), el de la persona, el último que eligió en este navegador y, si
+  // nada de eso existe, todo Jalisco. Antes arrancaba siempre en Tonalá: quien trabaja en
+  // Zapopan tenía que cambiar el filtro en cada visita. Se resuelve al montar porque en el
+  // servidor no hay URL del cliente ni localStorage; mientras, va vacío y no se descarga
+  // cartografía que no se va a mostrar.
   useEffect(() => {
     const desdeUrl = new URLSearchParams(window.location.search).get("municipio");
     setSelectedMunicipality(
       desdeUrl === TODO_JALISCO
         ? TODO_JALISCO
-        : buscarMunicipio(desdeUrl)?.name ?? leerMunicipioPreferido() ?? TODO_JALISCO
+        : // `resolverMunicipio` acepta lo que no está escrito igual que en el catálogo del INE
+          // ("Tlaquepaque" por "San Pedro Tlaquepaque", "Tonala" sin acento): así escrito en el
+          // enlace o en el equipo de la persona, el mapa abría en todo Jalisco.
+          resolverMunicipio(desdeUrl)
+          ?? resolverMunicipio(municipioUsuario)
+          ?? leerMunicipioPreferido()
+          ?? TODO_JALISCO
     );
+    // Solo al montar: después manda lo que elija la persona en el selector.
   }, []);
   const [activeCategories] = useState<Set<string>>(new Set(Object.keys(CATEGORIES)));
 
@@ -325,6 +337,8 @@ export default function MapaPage() {
     municipality?: string | undefined;
     colony?: string | undefined;
     postcode?: string | undefined;
+    /** Radio de error que reporta el GPS, en metros. Sin GPS de por medio va vacío. */
+    gpsAccuracy?: number | undefined;
   } | null>(null);
   
   const [reportForm, setReportForm] = useState({ 
@@ -374,7 +388,7 @@ export default function MapaPage() {
   };
 
   // Perform Live Reverse Geocoding with instant 0ms client-side geometry match + Nominatim
-  const triggerIncidentCreation = useCallback(async (lat: number, lng: number, explicitMuni?: string, explicitSectionId?: string) => {
+  const triggerIncidentCreation = useCallback(async (lat: number, lng: number, explicitMuni?: string, explicitSectionId?: string, precisionGps?: number) => {
     setNewReportCoords({ lat, lng });
     setIsGeocodingLoading(true);
     setIsReportModalOpen(true);
@@ -382,7 +396,12 @@ export default function MapaPage() {
     // 1. Instant client-side match with loaded sectionsData (0ms instant feedback)
     let instantSectionNum: number | undefined;
     let instantSectionId = explicitSectionId;
-    let instantMuni = explicitMuni || (selectedMunicipality !== TODO_JALISCO ? selectedMunicipality : "");
+    // El municipio sale del punto, nunca del filtro del mapa. Antes arrancaba con el
+    // municipio filtrado: quien trabaja en Zapopan y levantaba una incidencia estando en
+    // Guadalajara la archivaba en Zapopan si la sección no estaba cargada o si
+    // OpenStreetMap no contestaba. Vacío es correcto: el servidor lo deduce del polígono
+    // del INE que contiene el punto.
+    let instantMuni = explicitMuni || "";
     let instantColony: string | undefined;
 
     if (sectionsData?.features) {
@@ -419,7 +438,8 @@ export default function MapaPage() {
       sectionId: instantSectionId,
       municipality: instantMuni,
       colony: instantColony,
-      postcode: ""
+      postcode: "",
+      gpsAccuracy: precisionGps
     });
 
     setReportForm({
@@ -450,7 +470,8 @@ export default function MapaPage() {
           sectionId: detectedSecId,
           municipality: detectedMuni,
           colony: detectedCol,
-          postcode: data.postalCode || data.postcode || ""
+          postcode: data.postalCode || data.postcode || "",
+          gpsAccuracy: precisionGps
         });
 
         setReportForm((prev) => ({
@@ -458,7 +479,7 @@ export default function MapaPage() {
           address: detectedAddress,
           municipality: detectedMuni,
           sectionId: detectedSecId || prev.sectionId,
-          title: prev.title || (detectedCol ? `Reporte en ${detectedCol}` : `Reporte en ${detectedMuni}`)
+          title: prev.title || (detectedCol ? `Reporte en ${detectedCol}` : detectedMuni ? `Reporte en ${detectedMuni}` : "Nuevo reporte")
         }));
       }
     } catch (err) {
@@ -496,9 +517,9 @@ export default function MapaPage() {
     }
     navigator.geolocation.getCurrentPosition(
       (posicion) => {
-        const { latitude, longitude } = posicion.coords;
+        const { latitude, longitude, accuracy } = posicion.coords;
         setNewReportCoords({ lat: latitude, lng: longitude });
-        void triggerIncidentCreation(latitude, longitude);
+        void triggerIncidentCreation(latitude, longitude, undefined, undefined, accuracy);
         if (mapRef) mapRef.flyTo([latitude, longitude], 16, { duration: 1.2 });
       },
       conCentroDelMapa,
@@ -523,7 +544,7 @@ export default function MapaPage() {
 
         // Auto-detect territory and section
         setNewReportCoords({ lat: latitude, lng: longitude });
-        triggerIncidentCreation(latitude, longitude);
+        triggerIncidentCreation(latitude, longitude, undefined, undefined, accuracy);
 
         if (mapRef && L) {
           mapRef.flyTo([latitude, longitude], 16, { duration: 1.2 });
@@ -917,7 +938,8 @@ export default function MapaPage() {
             address: "",
             description: "",
             category: "servicios",
-            municipality: selectedMunicipality !== TODO_JALISCO ? selectedMunicipality : "",
+            // Vacío: el municipio de la próxima incidencia sale de su punto, no del filtro.
+            municipality: "",
             sectionId: "",
             assignedToUserId: "",
             mediaUrls: []
@@ -2082,7 +2104,9 @@ export default function MapaPage() {
                           showToast(`Centrado en: ${item.title}`);
                         }
                       }}
-                      municipality={selectedMunicipality && selectedMunicipality !== TODO_JALISCO ? selectedMunicipality : undefined}
+                      // "all" viaja tal cual: dice "todo Jalisco" a propósito. Con undefined el
+                      // autocompletado cae al municipio de la sesión y anulaba la elección.
+                      municipality={selectedMunicipality || undefined}
                       placeholder="Escribe calle, colonia o sección..."
                     />
                   </div>
@@ -2811,8 +2835,15 @@ export default function MapaPage() {
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
                         <span style={{ background: "#dbeafe", color: "#1e40af", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                          <Landmark size={10} /> {reportForm.municipality}
+                          <Landmark size={10} /> {reportForm.municipality || "Municipio por confirmar"}
                         </span>
+                        {/* Un GPS con 300 m de error no ubica una banqueta: se dice, en vez de
+                            presentar la dirección como si estuviera medida al metro. */}
+                        {typeof detectedLocationInfo?.gpsAccuracy === "number" && detectedLocationInfo.gpsAccuracy > 50 ? (
+                          <span style={{ background: "#fef3c7", color: "#b45309", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                            <AlertTriangle size={10} /> GPS ±{Math.round(detectedLocationInfo.gpsAccuracy)} m: confirma el punto
+                          </span>
+                        ) : null}
                         {detectedLocationInfo?.sectionNum ? (
                           <span style={{ background: "#dcfce7", color: "#15803d", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px", border: "1px solid #86efac" }}>
                             Sección Electoral #{detectedLocationInfo.sectionNum} (Confirmada)
@@ -2844,7 +2875,9 @@ export default function MapaPage() {
                         key={pill.cat}
                         type="button"
                         onClick={() => {
-                          const colStr = detectedLocationInfo?.colony ? ` en Col. ${detectedLocationInfo.colony}` : ` en ${reportForm.municipality}`;
+                          const colStr = detectedLocationInfo?.colony
+                            ? ` en Col. ${detectedLocationInfo.colony}`
+                            : reportForm.municipality ? ` en ${reportForm.municipality}` : "";
                           setReportForm((prev) => ({
                             ...prev,
                             category: pill.cat,
@@ -2890,7 +2923,7 @@ export default function MapaPage() {
                           colony: newCol,
                           municipality: newMuni,
                           sectionId: newSecId || prev.sectionId,
-                          title: prev.title || (newCol ? `Reporte en ${newCol}` : `Reporte en ${newMuni}`)
+                          title: prev.title || (newCol ? `Reporte en ${newCol}` : newMuni ? `Reporte en ${newMuni}` : "Nuevo reporte")
                         }));
 
                         setDetectedLocationInfo({
@@ -2908,7 +2941,9 @@ export default function MapaPage() {
                           showToast(`Ubicación seleccionada: ${item.title}`);
                         }
                       }}
-                      municipality={reportForm.municipality || selectedMunicipality}
+                      // Se busca alrededor del municipio del punto; sin él, en todo Jalisco. No
+                      // se hereda el filtro del mapa ni el municipio de quien reporta.
+                      municipality={reportForm.municipality || TODO_JALISCO}
                       label="Dirección / Calle y Número *"
                       placeholder="Escribe calle o lugar..."
                       required
@@ -2927,7 +2962,22 @@ export default function MapaPage() {
                         setReportForm((prev) => ({
                           ...prev,
                           colony: val,
-                          address: prev.address ? prev.address.replace(/Col\.\s*[^,]+/i, `Col. ${val}`) : prev.address
+                          // La colonia corregida tiene que quedar en el domicilio, que es lo que se
+                          // guarda. Si el domicilio no traía "Col." —el servidor la omite cuando es
+                          // dudosa— se inserta antes del CP o del municipio en vez de perderse.
+                          address: (() => {
+                            const dir = prev.address || "";
+                            if (!dir) return dir;
+                            if (/Col\.\s*[^,]+/i.test(dir)) {
+                              return val ? dir.replace(/Col\.\s*[^,]+/i, `Col. ${val}`) : dir.replace(/,?\s*Col\.\s*[^,]+/i, "");
+                            }
+                            if (!val) return dir;
+                            const partes = dir.split(", ");
+                            const corte = partes.findIndex((p) => /^CP \d/.test(p));
+                            const posicion = corte >= 0 ? corte : Math.max(partes.length - 1, 1);
+                            partes.splice(posicion, 0, `Col. ${val}`);
+                            return partes.join(", ");
+                          })()
                         }));
                       }}
                       style={{ width: "100%", padding: "8px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "12px", fontWeight: "600", outline: "none" }}
@@ -2940,7 +2990,6 @@ export default function MapaPage() {
                   <div>
                     <PredictiveCombobox
                       label="Municipio"
-                      required
                       allowCustom={false}
                       value={reportForm.municipality}
                       onChange={(val) => setReportForm({ ...reportForm, municipality: val })}
@@ -2966,12 +3015,26 @@ export default function MapaPage() {
                           municipality: matchedFeat?.properties?.municipality || prev.municipality
                         }));
                       }}
-                      options={(sectionsData?.features || []).map((f: any) => ({
+                      options={[
+                        // La sección del punto va primero aunque no esté cargada en el mapa:
+                        // con GPS en otro municipio, sus secciones no se han descargado y el
+                        // selector mostraba el identificador crudo, sin manera de corregirlo.
+                        ...(detectedLocationInfo?.sectionId &&
+                        !(sectionsData?.features || []).some((f: any) => f.properties?.id === detectedLocationInfo.sectionId)
+                          ? [{
+                              value: detectedLocationInfo.sectionId,
+                              label: `Sección #${detectedLocationInfo.sectionNum ?? "?"}`,
+                              sublabel: `${detectedLocationInfo.municipality || "Sin municipio"} · detectada en el punto`,
+                              badge: "GPS"
+                            }]
+                          : []),
+                        ...(sectionsData?.features || []).map((f: any) => ({
                         value: f.properties.id,
                         label: `Sección #${f.properties.section_num}`,
                         sublabel: f.properties.municipality || "Sin municipio",
                         badge: `Sección ${f.properties.section_num}`
-                      }))}
+                        }))
+                      ]}
                     />
                   </div>
                 </div>

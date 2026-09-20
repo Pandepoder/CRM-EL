@@ -184,12 +184,12 @@ export default function LoginPage() {
         <span className="login-wordmark"><img src="/brand/el-monograma-blanco.png" alt="" width={28} height={28} /> Edgar López</span>
       </header>
       <div className="login-composition">
-        <section className="login-brand" aria-label="Edgar López, Tonalá">
+        <section className="login-brand" aria-label="Edgar López, Jalisco">
           <div className="login-halo" aria-hidden="true"><i /><i /></div>
-          <p className="login-eyeline">TONALÁ, JALISCO</p>
+          <p className="login-eyeline">JALISCO</p>
           <h2>&ldquo;Si pasa por tu vida<br /><span>pasa por tu mente.&rdquo;</span></h2>
           <div className="login-portrait"><img src="/media/edgar-retrato.jpg" alt="Edgar López" width={300} height={330} /><span>EDGAR LÓPEZ</span></div>
-          <div className="login-brand-bottom"><span>Un Tonalá Posible</span><Redes tono="claro" /></div>
+          <div className="login-brand-bottom"><span>Un Jalisco Posible</span><Redes tono="claro" /></div>
         </section>
         <section className="login-panel" aria-labelledby="login-title">
           <div className="login-panel-heading">
@@ -202,7 +202,7 @@ export default function LoginPage() {
           <p className="login-footer-note"><Lock size={13} aria-hidden="true" /> Acceso para integrantes autorizados</p>
         </section>
       </div>
-      <footer className="login-bottom">EL · Tonalá OS <span>Conecta. Organiza. Da seguimiento.</span></footer>
+      <footer className="login-bottom">EL · Jalisco OS <span>Conecta. Organiza. Da seguimiento.</span></footer>
     </main>
   );
 }

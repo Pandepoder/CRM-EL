@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { safeErrorMessage } from "@/lib/safe-error";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
 
 export async function POST(request: Request) {
   try {
@@ -19,10 +20,14 @@ export async function POST(request: Request) {
       email?: string; 
       password?: string;
       phone?: string;
+      municipality?: string;
     };
     const displayName = body.displayName?.trim() ?? "";
     const email = body.email?.trim().toLowerCase() ?? "";
     const password = body.password ?? "";
+    // Municipio donde va a trabajar. Sin él la persona nacía sin territorio: al aprobarla veía
+    // la aplicación sin municipio y el mapa en todo Jalisco. Solo se acepta uno de los 125.
+    const municipality = buscarMunicipio(body.municipality)?.name ?? null;
 
     if (!displayName || !email || !password) {
       return NextResponse.json(
@@ -95,6 +100,7 @@ export async function POST(request: Request) {
       passwordHash,
       roleId,
       personalSlug,
+      ...(municipality ? { municipality } : {}),
       status: "pending",
       version: 1
     });
