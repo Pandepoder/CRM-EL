@@ -3,7 +3,7 @@ import { incidentScopeCondition } from "@/lib/incident-visibility";
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq, count, gte, desc, and, inArray } from "drizzle-orm";
+import { eq, count, gte, desc, and, or, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import ResumenClient from "./ResumenClient";
 import { requirePageRole } from "@/lib/authorization";
@@ -49,7 +49,16 @@ export default async function ResumenPage() {
   // Misma regla de incidencias que el mapa y la gestión (ver incident-visibility.ts). Antes solo
   // contaban las asignadas a un equipo: quedaban fuera las que la persona había levantado.
   const eventRestriction = incidentScopeCondition(networkScope);
-  const listeningRestriction = visibleIds === null ? undefined : inArray(schema.socialListening.contactId, visibleIds);
+  // La escucha social se cuenta como la enseña su propia pantalla: lo que registró la gente del
+  // alcance más lo que está ligado a un ciudadano visible. Contando solo lo segundo se perdía lo
+  // propio cuando el reporte se levantó sin ciudadano ligado, que es lo más común en campo.
+  const listeningRestriction =
+    visibleIds === null
+      ? undefined
+      : or(
+          inArray(schema.socialListening.contactId, visibleIds),
+          inArray(schema.socialListening.createdByUserId, networkScope.allowedUserIds ?? [])
+        );
 
   // Start of today for daily pulse
   const now = new Date();
@@ -135,9 +144,14 @@ export default async function ResumenPage() {
     .from(schema.userProfiles)
     .$dynamic();
 
-  if (scopedUserIds) {
-    allUsersQuery = allUsersQuery.where(inArray(schema.userProfiles.id, scopedUserIds));
-  }
+  // El resto de las pantallas solo lista cuentas activas; aquí faltaba, así que el tablero
+  // seguía nombrando a gente dada de baja.
+  allUsersQuery = allUsersQuery.where(
+    and(
+      eq(schema.userProfiles.status, "active"),
+      scopedUserIds ? inArray(schema.userProfiles.id, scopedUserIds) : undefined
+    )
+  );
 
   const allUsers = await allUsersQuery;
 

@@ -37,6 +37,16 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
     redirect("/admin-equipos");
   }
 
+  // Quién puede abrir el equipo se resuelve antes de leer integrantes y ciudadanos: no tiene
+  // caso descifrar los datos de un equipo que no se va a mostrar. `teamIds` ya incluye la
+  // cascada de mando, así que una dirección entra a las brigadas que cuelgan de su coordinación;
+  // antes había que figurar como líder o integrante y esas brigadas quedaban cerradas.
+  const networkScope = await resolveUserNetworkScope(session.userId);
+  const isGlobalAdmin = networkScope.isGlobal;
+  if (!isGlobalAdmin && !networkScope.teamIds.includes(id)) {
+    redirect("/admin-equipos");
+  }
+
   // 2. Fetch members
   const members = await db
     .select({
@@ -65,14 +75,6 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
       status: "active",
       invitedByUserId: null
     });
-  }
-
-  // Check authorization for non-admins
-  const networkScope = await resolveUserNetworkScope(session.userId);
-  const isGlobalAdmin = networkScope.isGlobal;
-  const isLeaderOrMember = team.leaderId === session.userId || members.some(m => m.userId === session.userId);
-  if (!isGlobalAdmin && !isLeaderOrMember) {
-    redirect("/admin-equipos");
   }
 
   const contactRestriction = contactIdRestriction(await visibleContactIds(networkScope));

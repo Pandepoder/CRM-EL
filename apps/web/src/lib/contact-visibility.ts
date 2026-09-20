@@ -8,9 +8,12 @@ import type { UserNetworkScope } from "./network-hierarchy";
  *
  * Reglas (decididas por el dueño del sistema):
  *   1. Solo administración ve todo.
- *   2. Cada persona ve los contactos ligados a los integrantes activos de sus equipos —creados,
- *      referidos, como contacto real o con asignación activa— dentro del territorio que el
- *      equipo tiene asignado (teams.municipality y teams.section).
+ *   2. Cada persona ve los contactos ligados a las personas activas de su alcance —sus
+ *      compañeros de equipo y, en cascada, quienes están bajo su mando (ver network-hierarchy)—:
+ *      creados, referidos, como contacto real o con asignación activa. Cada uno se filtra con el
+ *      territorio (teams.municipality y teams.section) del equipo por el que esa persona está en
+ *      el alcance, o con el de los equipos que manda: una coordinación responde por todo su
+ *      municipio aunque sus brigadas tengan solo unas secciones.
  *   3. Lo propio nunca desaparece: lo que la persona registró o tiene ligado directamente se
  *      ve aunque quede fuera del territorio del equipo. Antes, un error de captura dejaba el
  *      registro invisible para quien lo hizo, sin forma de corregirlo.
@@ -96,13 +99,12 @@ export async function visibleContactIds(scope: UserNetworkScope, contactId?: str
   if (ids.length === 0) return [];
 
   const db = getDatabaseClient();
-  const asignadosA = (usuarios: string[]) =>
-    db
-      .select({ id: schema.contactAssignments.contactId })
-      .from(schema.contactAssignments)
-      .where(and(eq(schema.contactAssignments.assignmentStatus, "active"), inArray(schema.contactAssignments.assignedUserId, usuarios)));
+  const asignacionesActivas = and(
+    eq(schema.contactAssignments.assignmentStatus, "active"),
+    inArray(schema.contactAssignments.assignedUserId, ids)
+  );
 
-  const [candidatos, asignadosAMi] = await Promise.all([
+  const [candidatos, asignaciones] = await Promise.all([
     db
       .select({
         id: schema.contacts.id,
@@ -122,29 +124,93 @@ export async function visibleContactIds(scope: UserNetworkScope, contactId?: str
             inArray(schema.contacts.createdByUserId, ids),
             inArray(schema.contacts.referredByUserId, ids),
             inArray(schema.contacts.actualContactUserId, ids),
-            inArray(schema.contacts.id, asignadosA(ids))
+            inArray(
+              schema.contacts.id,
+              db.select({ id: schema.contactAssignments.contactId }).from(schema.contactAssignments).where(asignacionesActivas)
+            )
           )
         )
       ),
-    asignadosA([scope.userId])
+    db
+      .select({ contactId: schema.contactAssignments.contactId, userId: schema.contactAssignments.assignedUserId })
+      .from(schema.contactAssignments)
+      .where(and(asignacionesActivas, contactId ? eq(schema.contactAssignments.contactId, contactId) : undefined))
   ]);
 
   // Sin equipo: todo lo que llegó aquí es suyo.
   if (scope.teamIds.length === 0) return candidatos.map((c) => c.id);
 
-  const idsAsignadosAMi = new Set(asignadosAMi.map((a) => a.id));
-  const esPropio = (c: (typeof candidatos)[number]) =>
-    c.createdByUserId === scope.userId ||
-    c.referredByUserId === scope.userId ||
-    c.actualContactUserId === scope.userId ||
-    idsAsignadosAMi.has(c.id);
+  const asignadosPorContacto = new Map<string, string[]>();
+  for (const a of asignaciones) {
+    const lista = asignadosPorContacto.get(a.contactId) ?? [];
+    lista.push(a.userId);
+    asignadosPorContacto.set(a.contactId, lista);
+  }
 
-  const territorios = await db
-    .select({ municipality: schema.teams.municipality, section: schema.teams.section })
-    .from(schema.teams)
-    .where(inArray(schema.teams.id, scope.teamIds));
+  // Territorio de cada persona del alcance: el de los equipos por los que está en él. Antes se
+  // juntaban los territorios de todos los equipos de quien consulta, así que un contacto de una
+  // brigada pasaba el filtro con el territorio de otra, y un solo equipo sin territorio dejaba
+  // sin filtro a todos. Con la cascada de mando eso ya no era un detalle.
+  const { territorioPorPersona, territorioDeEquipo } = await territoriosPorPersona(scope.teamIds);
 
-  return candidatos.filter((c) => esPropio(c) || matchesAssignedTerritory(c, territorios)).map((c) => c.id);
+  // El territorio desde el que se manda cuenta además del de la brigada de cada persona: una
+  // coordinación cubre todo su municipio aunque sus brigadas solo tengan unas secciones. Sin
+  // esto, un ciudadano registrado a unas calles de la brigada desaparecía también para la
+  // dirección, que es justo quien responde por todo el municipio. Se usan las raíces del mando y
+  // no todas las brigadas: una sola brigada sin territorio abriría el filtro para las demás.
+  const territoriosDeMando = scope.commandRootTeamIds
+    .map((equipo) => territorioDeEquipo.get(equipo))
+    .filter((t): t is AssignedTerritory => t !== undefined);
+
+  const delAlcance = new Set(ids);
+
+  return candidatos
+    .filter((c) => {
+      const vinculados = [c.createdByUserId, c.referredByUserId, c.actualContactUserId, ...(asignadosPorContacto.get(c.id) ?? [])];
+      // Lo propio nunca desaparece.
+      if (vinculados.includes(scope.userId)) return true;
+      return vinculados.some((persona) => {
+        if (!persona || !delAlcance.has(persona)) return false;
+        const territorios = territorioPorPersona.get(persona);
+        if (territorios === undefined) return false;
+        if (matchesAssignedTerritory(c, territorios)) return true;
+        // Ojo con la lista vacía: matchesAssignedTerritory la toma como "sin territorio, no
+        // limita", así que sin equipos bajo mando esto abriría el filtro en vez de cerrarlo.
+        return territoriosDeMando.length > 0 && matchesAssignedTerritory(c, territoriosDeMando);
+      });
+    })
+    .map((c) => c.id);
+}
+
+/** Territorio de cada equipo dado y, por persona, el de los equipos donde lidera o es integrante. */
+async function territoriosPorPersona(teamIds: string[]): Promise<{
+  territorioPorPersona: Map<string, AssignedTerritory[]>;
+  territorioDeEquipo: Map<string, AssignedTerritory>;
+}> {
+  const db = getDatabaseClient();
+  const [equipos, integrantes] = await Promise.all([
+    db
+      .select({ id: schema.teams.id, leaderId: schema.teams.leaderId, municipality: schema.teams.municipality, section: schema.teams.section })
+      .from(schema.teams)
+      .where(inArray(schema.teams.id, teamIds)),
+    db
+      .select({ teamId: schema.teamMembers.teamId, userId: schema.teamMembers.userId })
+      .from(schema.teamMembers)
+      .where(inArray(schema.teamMembers.teamId, teamIds))
+  ]);
+
+  const territorioDe = new Map(equipos.map((e) => [e.id, { municipality: e.municipality, section: e.section }]));
+  const resultado = new Map<string, AssignedTerritory[]>();
+  const agregar = (persona: string, equipo: string) => {
+    const territorio = territorioDe.get(equipo);
+    if (!territorio) return;
+    const lista = resultado.get(persona) ?? [];
+    lista.push(territorio);
+    resultado.set(persona, lista);
+  };
+  for (const e of equipos) agregar(e.leaderId, e.id);
+  for (const i of integrantes) agregar(i.userId, i.teamId);
+  return { territorioPorPersona: resultado, territorioDeEquipo: territorioDe };
 }
 
 /**

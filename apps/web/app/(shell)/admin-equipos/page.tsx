@@ -33,6 +33,10 @@ export default async function AdminEquiposPage() {
     : allUsers.filter(u => allowedTeammateIds.includes(u.id));
 
   // 2. Fetch existing real teams
+  // `teamIds` son los equipos donde la persona es líder o integrante y, en cascada, las brigadas
+  // bajo su mando: así una dirección ve la estructura que cuelga de su coordinación. Antes la
+  // lista se recortaba después a los equipos donde ella misma figuraba y esas brigadas no
+  // aparecían por ningún lado.
   const existingTeams = await db
     .select({
       id: schema.teams.id,
@@ -57,11 +61,6 @@ export default async function AdminEquiposPage() {
     .from(schema.teamMembers)
     .where(isGlobalAdmin ? undefined : inArray(schema.teamMembers.teamId, networkScope.teamIds));
 
-  // Filter teams visible to user
-  const visibleTeams = isGlobalAdmin
-    ? existingTeams
-    : existingTeams.filter(t => t.leaderId === session.userId || allTeamMembers.some(m => m.teamId === t.id && m.userId === session.userId));
-
   // 4. Fetch count of registered contacts per user to aggregate by team
   const contactRestriction = contactIdRestriction(await visibleContactIds(networkScope));
   const contactCounts = await db
@@ -81,7 +80,7 @@ export default async function AdminEquiposPage() {
   });
 
   // Calculate stats for each team
-  const teamsData = visibleTeams.map(team => {
+  const teamsData = existingTeams.map(team => {
     const teamMembersList = allTeamMembers.filter(m => m.teamId === team.id);
     const memberIds = Array.from(new Set([team.leaderId, ...teamMembersList.map(m => m.userId)].filter(Boolean)));
     
@@ -90,6 +89,9 @@ export default async function AdminEquiposPage() {
       totalContacts += (contactCountMap.get(mId) || 0);
     });
 
+    // Solo distingue la tarjeta propia en la lista. Gestionar es otra cosa: crear, editar y
+    // borrar equipos sigue siendo de administración (`isGlobalAdmin`), y los integrantes los
+    // mueve administración o el líder del equipo, ya en la pantalla de detalle.
     const isMyTeam = team.leaderId === session.userId || teamMembersList.some(m => m.userId === session.userId);
 
     return {

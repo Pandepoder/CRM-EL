@@ -5,10 +5,12 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { requireLiderParaIncidencias } from "@/lib/authorization";
 import { schema } from "@tonala/shared/database";
 const { eventReports } = schema;
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
+import { incidentScopeCondition } from "@/lib/incident-visibility";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { esCategoriaValida } from "@/lib/categorias-incidencia";
+import { motivoAsignacionFueraDeAlcance } from "@/lib/permisos-incidencias";
 import { getSeccionesGeo, ubicarEnSeccion } from "@/lib/sections-geo-cache";
 import { resolverMunicipio } from "@/lib/municipios-jalisco";
 import { withOutbox } from "@/lib/outbox-helper";
@@ -17,14 +19,9 @@ import { randomUUID } from "crypto";
 export async function GET(_request: Request) {
   // El mapa de incidencias dejó de estar reservado a administración y dirección.
   //
-  // Una incidencia sin asignar a nadie es información general de la operación y
-  // la ve toda la estructura. En cuanto se asigna —a un equipo o a una persona—
-  // se convierte en trabajo de esa brigada: la ven sus integrantes, su líder,
-  // quien la creó y administración, y nadie más.
-  //
-  // La asignación a una persona restringe igual que la de equipo. Antes solo
-  // contaba el equipo, así que una tarea con nombre y apellido seguía siendo
-  // visible para toda la estructura.
+  // La regla de quién ve qué incidencia vive en lib/incident-visibility y es la misma en todas
+  // las pantallas. Aquí estaba escrita a mano y daba por general cualquier incidencia sin
+  // asignar, así que una dirección veía en el mapa lo que levantaban las brigadas de otra.
   const actor = await actorFromSession();
   if (!actor) return unauthorized();
 
@@ -34,20 +31,7 @@ export async function GET(_request: Request) {
     const actorId = actor.actorId as string;
     const alcance = await resolveUserNetworkScope(actorId);
 
-    const visibilidad = alcance.isGlobal
-      ? undefined
-      : or(
-          // General: sin equipo y sin persona asignada.
-          and(isNull(eventReports.assignedTeamId), isNull(eventReports.assignedToUserId)),
-          eq(eventReports.createdByUserId, actorId),
-          // Asignada a alguien de mi equipo. `teammateUserIds` incluye al líder
-          // y a mí mismo, así que con esta condición la tarea de un brigadista
-          // la ven él, sus compañeros y su líder.
-          inArray(eventReports.assignedToUserId, alcance.teammateUserIds),
-          ...(alcance.teamIds.length > 0
-            ? [inArray(eventReports.assignedTeamId, alcance.teamIds)]
-            : [])
-        );
+    const visibilidad = incidentScopeCondition(alcance);
 
     const reports = await db
       .select({
@@ -70,7 +54,7 @@ export async function GET(_request: Request) {
       })
       .from(eventReports)
       .leftJoin(schema.electoralSections, eq(eventReports.sectionId, schema.electoralSections.id))
-      .where(visibilidad ? and(visibilidad) : undefined)
+      .where(visibilidad)
       .orderBy(desc(eventReports.createdAt));
 
     const geoJson = {
@@ -129,6 +113,13 @@ export async function POST(request: Request) {
         { error: `La categoría "${category}" no existe. Elige una de la lista.` },
         { status: 400 }
       );
+    }
+
+    // Se comprobaba quién levanta la incidencia, pero no a quién se la asigna.
+    const alcance = await resolveUserNetworkScope(actor.actorId);
+    const motivoDestino = motivoAsignacionFueraDeAlcance(alcance, { assignedToUserId, assignedTeamId });
+    if (motivoDestino) {
+      return NextResponse.json({ error: motivoDestino }, { status: 403 });
     }
 
     const id = randomUUID();

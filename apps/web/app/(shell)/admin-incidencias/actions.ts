@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { actorFromSession } from "@/lib/api-helpers";
 import { esEstadoValido } from "@/lib/estados-incidencia";
+import { incidentScopeCondition } from "@/lib/incident-visibility";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export async function updateReportStatusAction(reportId: string, newStatus: string) {
   const actor = await actorFromSession();
@@ -21,12 +23,29 @@ export async function updateReportStatusAction(reportId: string, newStatus: stri
     return { error: `El estado "${newStatus}" no existe.` };
   }
 
+  // El estado se cambiaba solo por identificador: el rol bastaba y nadie miraba de quién es la
+  // incidencia, así que un coordinador que conociera el id cerraba la de otra dirección. El
+  // alcance va dentro del WHERE para que no haya hueco entre comprobar y escribir.
+  //
+  // Aquí manda el alcance y no puedeSobreIncidencia (lib/permisos-incidencias): esa regla dice
+  // quién *trabaja* una incidencia —su autor, quien la tiene asignada o su brigada— y dejaría a
+  // dirección sin poder aceptar lo que levanta su cadena de mando, que es para lo que existe
+  // esta pantalla.
+  const alcance = await resolveUserNetworkScope(actor.actorId);
+
   const db = getDatabaseClient();
   try {
-    await db
+    const [actualizada] = await db
       .update(schema.eventReports)
       .set({ status: newStatus })
-      .where(eq(schema.eventReports.id, reportId));
+      .where(and(eq(schema.eventReports.id, reportId), incidentScopeCondition(alcance)))
+      .returning({ id: schema.eventReports.id });
+
+    if (!actualizada) {
+      return {
+        error: "Esa incidencia no está bajo tu mando: solo puede cambiarla quien la tiene a su cargo."
+      };
+    }
 
     revalidatePath("/admin-incidencias");
     revalidatePath("/historial-incidencias");

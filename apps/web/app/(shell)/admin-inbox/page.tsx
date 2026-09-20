@@ -1,12 +1,62 @@
+import Link from "next/link";
+
+import { requirePageRole } from "@/lib/authorization";
 import { getDatabaseClient } from "@/lib/db-client";
+import { incidentScopeCondition } from "@/lib/incident-visibility";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { getServerSession } from "@/lib/session-server";
 import { schema } from "@tonala/shared/database";
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import { Megaphone, MapPin, Clock, AlertCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminInboxPage() {
+/**
+ * La pantalla pintaba de golpe una tarjeta por incidencia —más de seiscientas— y tardaba
+ * segundos en abrir. Se lee solo la página que se está viendo.
+ */
+const POR_PAGINA = 50;
+
+const enlacePagina: React.CSSProperties = {
+  background: "white",
+  border: "1px solid var(--line)",
+  borderRadius: "10px",
+  color: "var(--blue-950)",
+  fontSize: "13px",
+  fontWeight: 700,
+  padding: "8px 14px",
+  textDecoration: "none"
+};
+
+export default async function AdminInboxPage({
+  searchParams
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  // La auditoría leía todas las incidencias del sistema sin pedir rol ni mirar el alcance: era
+  // la puerta trasera por la que se veía lo que el mapa y el centro de gestión ya acotan.
+  await requirePageRole("admin", "direction", "territorial_coordinator");
+
+  const session = await getServerSession();
+  const alcance = await resolveUserNetworkScope(session.userId);
+  const visibilidad = incidentScopeCondition(alcance);
+
+  const { page } = await searchParams;
+  const paginaPedida = Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
+
   const db = getDatabaseClient();
+
+  const totalFilas = await db
+    .select({ total: count() })
+    .from(schema.eventReports)
+    .where(visibilidad);
+  const total = totalFilas[0]?.total ?? 0;
+  const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
+  // Pedir una página que ya no existe (se cerraron incidencias, se cambió el alcance) deja la
+  // pantalla vacía sin explicar nada: se cae a la última que sí tiene contenido.
+  const pagina = Math.min(paginaPedida, totalPaginas);
+  const desde = (pagina - 1) * POR_PAGINA;
+
   const reports = await db.select({
     id: schema.eventReports.id,
     title: schema.eventReports.title,
@@ -17,7 +67,10 @@ export default async function AdminInboxPage() {
   })
   .from(schema.eventReports)
   .leftJoin(schema.electoralSections, eq(schema.eventReports.sectionId, schema.electoralSections.id))
-  .orderBy(desc(schema.eventReports.createdAt));
+  .where(visibilidad)
+  .orderBy(desc(schema.eventReports.createdAt))
+  .limit(POR_PAGINA)
+  .offset(desde);
 
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "24px" }}>
@@ -28,7 +81,8 @@ export default async function AdminInboxPage() {
         Reportes e Incidencias
       </h2>
       <p style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "24px" }}>
-        Registro detallado de todos los eventos e incidencias reportadas en el mapa.
+        Registro detallado de los eventos e incidencias que están a tu cargo.
+        {total > 0 ? ` Mostrando ${desde + 1}–${desde + reports.length} de ${total}.` : null}
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -70,6 +124,28 @@ export default async function AdminInboxPage() {
           );
         })}
       </div>
+
+      {totalPaginas > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginTop: "20px" }}>
+          {pagina > 1 ? (
+            <Link href={`/admin-inbox?page=${pagina - 1}`} style={enlacePagina}>
+              ← Anteriores
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 600 }}>
+            Página {pagina} de {totalPaginas}
+          </span>
+          {pagina < totalPaginas ? (
+            <Link href={`/admin-inbox?page=${pagina + 1}`} style={enlacePagina}>
+              Ver más →
+            </Link>
+          ) : (
+            <span />
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -2,9 +2,10 @@ import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
 import { and, eq, or, desc } from "drizzle-orm";
-import { requirePageRole } from "@/lib/authorization";
+import { requirePageSession } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
+import { incidentScopeCondition } from "@/lib/incident-visibility";
 import { notFound } from "next/navigation";
 import LeaderProfileClient from "./LeaderProfileClient";
 
@@ -13,7 +14,9 @@ export default async function LeaderProfilePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requirePageRole();
+  // Ningún rol queda fuera de esta pantalla de entrada: quién puede ver el perfil
+  // de quién se decide más abajo por alcance, no por rol.
+  await requirePageSession();
   const session = await getServerSession();
   const { id: targetUserId } = await params;
 
@@ -49,6 +52,10 @@ export default async function LeaderProfilePage({
       return notFound();
     }
   }
+
+  // Entrar al perfil de alguien de tu alcance no amplía lo que ves: el mismo recorte del
+  // directorio se aplica a cada apartado que enseña ciudadanos.
+  const restriccionContactos = contactIdRestriction(await visibleContactIds(viewerScope));
 
   // 2. Fetch Team
   const teamRows = await db
@@ -95,7 +102,7 @@ export default async function LeaderProfilePage({
     // antes un compañero veía todos los contactos de la otra persona, con teléfono y domicilio.
     .where(and(
       or(eq(schema.contacts.createdByUserId, targetUserId), eq(schema.contacts.referredByUserId, targetUserId)),
-      contactIdRestriction(await visibleContactIds(viewerScope))
+      restriccionContactos
     ))
     .orderBy(desc(schema.contacts.createdAt));
 
@@ -133,7 +140,12 @@ export default async function LeaderProfilePage({
     })
     .from(schema.eventReports)
     .leftJoin(schema.electoralSections, eq(schema.eventReports.sectionId, schema.electoralSections.id))
-    .where(or(eq(schema.eventReports.assignedToUserId, targetUserId), eq(schema.eventReports.createdByUserId, targetUserId)))
+    // Las incidencias siguen la regla de siempre (incident-visibility.ts): lo que no aparece en
+    // gestión ni en el mapa tampoco debe aparecer por entrar al perfil de otra persona.
+    .where(and(
+      or(eq(schema.eventReports.assignedToUserId, targetUserId), eq(schema.eventReports.createdByUserId, targetUserId)),
+      incidentScopeCondition(viewerScope)
+    ))
     .orderBy(desc(schema.eventReports.eventDate));
 
   // 5. Fetch Visits
@@ -149,7 +161,12 @@ export default async function LeaderProfilePage({
     })
     .from(schema.visits)
     .innerJoin(schema.contacts, eq(schema.visits.contactId, schema.contacts.id))
-    .where(or(eq(schema.visits.assignedUserId, targetUserId), eq(schema.visits.createdByUserId, targetUserId)))
+    // Cada visita nombra al ciudadano y enlaza a su ficha, así que se recorta igual que el
+    // directorio: si no se puede ver al ciudadano, tampoco su visita.
+    .where(and(
+      or(eq(schema.visits.assignedUserId, targetUserId), eq(schema.visits.createdByUserId, targetUserId)),
+      restriccionContactos
+    ))
     .orderBy(desc(schema.visits.scheduledAt));
 
   const activities = [
