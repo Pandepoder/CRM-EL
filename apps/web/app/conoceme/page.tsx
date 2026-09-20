@@ -2,6 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 
 import VideoYoutube from "./VideoYoutube";
+import BotonCompartir from "./BotonCompartir";
+import Contador from "./Contador";
+import MapaJalisco from "./MapaJalisco";
+import ReelCampana from "./ReelCampana";
+import { CATEGORIAS_INCIDENCIA, CATEGORIA_DESCONOCIDA } from "@/lib/categorias-incidencia";
+import { cifrasPublicas } from "@/lib/pulso-publico";
+import { videosDelCanal } from "@/lib/videos-canal";
 
 /**
  * Conóceme: página pública de campaña.
@@ -15,17 +22,25 @@ import VideoYoutube from "./VideoYoutube";
  * página no consume datos de nadie que no quiera verlos.
  */
 
+/** Cuántos videos se enseñan: dos filas completas en un teléfono. */
+const CUANTOS_VIDEOS = 6;
+
 /**
- * Para añadir un video: pega aquí su identificador de YouTube.
- *
- * En un Short, el identificador es lo que va después de `/shorts/`:
- * `https://www.youtube.com/shorts/AbC123xyz` → `AbC123xyz`.
- * En un video normal, lo que va después de `v=`.
- *
- * `formato` es "corto" para los Shorts (verticales, es lo predeterminado) y
- * "horizontal" para un video apaisado de toda la vida.
+ * La página se arma en cada visita, pero lo que cuesta —los videos del canal y las cifras del
+ * sistema— viene guardado una hora. Se hace así y no con una página estática porque al compilar
+ * la imagen no hay base de datos a la que preguntar: con página estática, el sitio recién
+ * desplegado se quedaría hasta una hora sin cifras.
  */
-const VIDEOS: Array<{
+export const dynamic = "force-dynamic";
+
+/**
+ * Respaldo: solo se usa si el canal no responde (servidor sin salida a internet, YouTube caído).
+ * Lo normal es que estos videos ni se vean, porque la lista viene del canal.
+ *
+ * Si algún día hay que fijar uno a mano: el identificador de un Short es lo que va después de
+ * `/shorts/` en la dirección, y en un video normal lo que va después de `v=`.
+ */
+const VIDEOS_DE_RESPALDO: Array<{
   id: string;
   titulo: string;
   descripcion?: string;
@@ -60,6 +75,16 @@ const REDES = [
   { nombre: "YouTube", href: "https://youtube.com/@edgarlopezj", path: ICONO_YOUTUBE }
 ];
 
+/** "Hace 3 días" para el video más reciente: da señal de que la página está viva. */
+function haceCuanto(iso: string): string {
+  const dias = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (!Number.isFinite(dias) || dias < 0) return "Nuevo";
+  if (dias === 0) return "Nuevo · hoy";
+  if (dias === 1) return "Nuevo · ayer";
+  if (dias <= 21) return `Nuevo · hace ${dias} días`;
+  return "Lo más reciente";
+}
+
 function IconoRed({ path, size = 20 }: { path: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -68,7 +93,14 @@ function IconoRed({ path, size = 20 }: { path: string; size?: number }) {
   );
 }
 
-export default function ConocemePage() {
+export default async function ConocemePage() {
+  // Los últimos del canal, sin que nadie tenga que pegar enlaces ni volver a desplegar.
+  const { videos: VIDEOS } = await videosDelCanal(CUANTOS_VIDEOS, VIDEOS_DE_RESPALDO);
+  // Cifras del propio sistema. Si la base no responde, `cifras` es null y estas bandas
+  // simplemente no salen: la página nunca enseña un tablero en ceros.
+  const cifras = await cifrasPublicas();
+  const masPedido = cifras?.categorias[0]?.total ?? 0;
+
   return (
     <div className="welcome-page min-h-screen flex flex-col font-sans" style={{ background: "#f7f8fb" }}>
       <style>{`
@@ -203,6 +235,52 @@ export default function ConocemePage() {
           </div>
         </section>
 
+        {/* Lo que llevamos hecho: cifras del propio sistema */}
+        {cifras ? (
+          <section className="pulso-banda">
+            <div className="pulso-interior">
+              <p className="pulso-eyebrow">Lo que llevamos hecho</p>
+              <div className="pulso-rejilla">
+                <Contador valor={cifras.incidenciasResueltas} etiqueta="Reportes atendidos" />
+                <Contador valor={cifras.visitasRealizadas} etiqueta="Visitas en campo" />
+                <Contador valor={cifras.coloniasRecorridas} etiqueta="Colonias recorridas" />
+                <Contador valor={cifras.brigadasActivas} etiqueta="Brigadas trabajando" />
+              </div>
+              <p className="pulso-pie">
+                Cifras del sistema con el que trabajan las brigadas, no de un folleto. Se actualizan solas.
+              </p>
+            </div>
+          </section>
+        ) : null}
+
+        {/* Dónde estamos trabajando */}
+        {cifras && cifras.municipios.length > 0 ? (
+          <section className="mapa-seccion">
+            <div className="mapa-interior">
+              <div className="mapa-texto">
+                <h2 className="mapa-titulo">
+                  Jalisco,<br /><span className="welcome-title-accent">municipio por municipio.</span>
+                </h2>
+                <p className="mapa-lead">
+                  Cada punto es un municipio del estado. Los que brillan son en los que ya hay trabajo
+                  levantado por las brigadas.
+                </p>
+                <div className="mapa-fichas">
+                  {cifras.municipios.slice(0, 6).map((m) => (
+                    <span key={m.municipio} className="mapa-ficha">
+                      {m.municipio} <b>{m.total}</b>
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="mapa-lienzo">
+                <MapaJalisco activos={cifras.municipios} />
+                <p className="mapa-nota">Los 125 municipios de Jalisco, representados por su centro.</p>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         {/* Videos */}
         <section id="videos" className="max-w-5xl mx-auto px-6 sm:px-8 py-14 sm:py-16">
           <h2
@@ -220,14 +298,10 @@ export default function ConocemePage() {
 
           {VIDEOS.length > 0 ? (
             <div className="grid gap-4 sm:gap-5 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {VIDEOS.map((v) => (
+              {VIDEOS.map((v, i) => (
                 <div key={v.id} className="welcome-video-card">
-                  <VideoYoutube
-                    id={v.id}
-                    titulo={v.titulo}
-                    {...(v.descripcion ? { descripcion: v.descripcion } : {})}
-                    {...(v.formato ? { formato: v.formato } : {})}
-                  />
+                  {i === 0 && v.publicado ? <span className="video-nuevo">{haceCuanto(v.publicado)}</span> : null}
+                  <VideoYoutube id={v.id} titulo={v.titulo} />
                 </div>
               ))}
             </div>
@@ -253,6 +327,69 @@ export default function ConocemePage() {
               </a>
             </div>
           )}
+        </section>
+
+        {/* Lo que más nos piden */}
+        {cifras && cifras.categorias.length > 0 ? (
+          <section className="peticiones">
+            <div className="peticiones-interior">
+              <h2 className="peticiones-titulo">
+                Esto es lo que<br /><span className="peticiones-acento">nos pide la gente.</span>
+              </h2>
+              <p className="peticiones-lead">Lo que más se reporta en la calle, tal como entra al sistema.</p>
+              <ul className="peticiones-lista">
+                {cifras.categorias.map((c) => {
+                  const info = CATEGORIAS_INCIDENCIA[c.categoria] ?? CATEGORIA_DESCONOCIDA;
+                  const ancho = masPedido > 0 ? Math.max(8, Math.round((c.total / masPedido) * 100)) : 0;
+                  return (
+                    <li key={c.categoria} className="peticion-fila">
+                      <span
+                        className="peticion-icono"
+                        style={{ background: info.bg, border: `1px solid ${info.border}`, color: info.color }}
+                        dangerouslySetInnerHTML={{ __html: info.svg }}
+                      />
+                      <span className="peticion-nombre">{info.label}</span>
+                      <span className="peticion-barra">
+                        <span className="peticion-relleno" style={{ width: `${ancho}%`, background: info.color }} />
+                      </span>
+                      <span className="peticion-total">{c.total}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </section>
+        ) : null}
+
+        {/* Un minuto en territorio */}
+        <section className="reel-seccion">
+          <div className="reel-interior">
+            <div className="reel-texto">
+              <p className="reel-eyebrow">Un minuto en territorio</p>
+              <h2 className="reel-titulo-grande">
+                Así se ve<br /><span className="welcome-title-accent">el trabajo en calle.</span>
+              </h2>
+              <p className="reel-lead">Se descarga solo si lo tocas.</p>
+            </div>
+            <ReelCampana src="/media/edgar-reel-1.mp4" poster="/media/edgar-frame-3s.jpg" titulo="Recorrido de campaña" />
+          </div>
+        </section>
+
+        {/* Cierre: comparte y sigue */}
+        <section className="cierre">
+          <div className="cierre-interior">
+            <img src="/brand/el-monograma-blanco.png" alt="" width={44} height={44} className="cierre-monograma" />
+            <h2 className="cierre-titulo">Pásale esta página a tu gente.</h2>
+            <p className="cierre-lead">Se abre en cualquier teléfono y no gasta datos hasta que alguien toca un video.</p>
+            <BotonCompartir mensaje="Conoce el trabajo de Edgar López en Jalisco:" />
+            <div className="cierre-redes">
+              {REDES.map(({ nombre, href, path }) => (
+                <a key={nombre} href={href} target="_blank" rel="noopener noreferrer" aria-label={nombre} className="cm-red cierre-red">
+                  <IconoRed path={path} />
+                </a>
+              ))}
+            </div>
+          </div>
         </section>
       </main>
 
