@@ -2,7 +2,7 @@ import { cache } from "react";
 import { sql } from "drizzle-orm";
 
 import { getDatabaseClient } from "@/lib/db-client";
-import { buscarMunicipio } from "@/lib/municipios-jalisco";
+import { resolverMunicipio } from "@/lib/municipios-jalisco";
 
 /**
  * Municipio al que pertenece una persona de la estructura.
@@ -54,8 +54,11 @@ export const municipioDelUsuario = cache(async (userId: string): Promise<string 
   // Se valida cada candidato por separado y en orden, no el resultado de un COALESCE: un valor
   // viejo escrito a mano en el nivel de más prioridad no debe tapar uno válido del siguiente.
   const fila = rows[0];
+  // `resolverMunicipio` y no `buscarMunicipio`: el municipio del equipo lo escribe a mano quien
+  // lo crea, y "Tlaquepaque" o "Tonala, Jal." no coinciden letra por letra con el nombre del INE
+  // ("San Pedro Tlaquepaque", "Tonalá"). Sin esto, esas cuentas abrían el mapa en todo Jalisco.
   for (const candidato of [fila?.propio, fila?.lidera, fila?.pertenece]) {
-    const municipio = buscarMunicipio(candidato)?.name;
+    const municipio = resolverMunicipio(candidato);
     if (municipio) return municipio;
   }
   return null;

@@ -39,7 +39,7 @@ import {
   Vote
 } from "lucide-react";
 import type { ComponentType } from "react";
-import { CENTRO_JALISCO, MUNICIPIOS_JALISCO, RECUADRO_JALISCO, TODO_JALISCO, TOTAL_SECCIONES_JALISCO, buscarMunicipio, guardarMunicipioPreferido, leerMunicipioPreferido } from "@/lib/municipios-jalisco";
+import { CENTRO_JALISCO, MUNICIPIOS_JALISCO, RECUADRO_JALISCO, TODO_JALISCO, TOTAL_SECCIONES_JALISCO, buscarMunicipio, guardarMunicipioPreferido, leerMunicipioPreferido, resolverMunicipio } from "@/lib/municipios-jalisco";
 import { useMunicipioUsuario } from "@/lib/municipio-contexto";
 
 type MapIconType = ComponentType<{ size?: number | string; className?: string }>;
@@ -309,8 +309,11 @@ export default function MapaPage() {
     setSelectedMunicipality(
       desdeUrl === TODO_JALISCO
         ? TODO_JALISCO
-        : buscarMunicipio(desdeUrl)?.name
-          ?? buscarMunicipio(municipioUsuario)?.name
+        : // `resolverMunicipio` acepta lo que no está escrito igual que en el catálogo del INE
+          // ("Tlaquepaque" por "San Pedro Tlaquepaque", "Tonala" sin acento): así escrito en el
+          // enlace o en el equipo de la persona, el mapa abría en todo Jalisco.
+          resolverMunicipio(desdeUrl)
+          ?? resolverMunicipio(municipioUsuario)
           ?? leerMunicipioPreferido()
           ?? TODO_JALISCO
     );
