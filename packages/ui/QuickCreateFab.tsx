@@ -23,7 +23,12 @@ type Opcion = Readonly<{
   ayuda: string;
   icono: typeof AlertTriangle;
   color: string;
+  /** Roles a los que se les ofrece. Tiene que decir lo mismo que la guarda del destino. */
+  roles: readonly string[];
 }>;
+
+/** Levantar incidencias es cosa de quien coordina: la API rechaza el alta de un brigadista. */
+const ROLES_DE_MANDO = ["admin", "direction", "territorial_coordinator"] as const;
 
 const OPCIONES: readonly Opcion[] = [
   {
@@ -31,20 +36,26 @@ const OPCIONES: readonly Opcion[] = [
     etiqueta: "Incidencia",
     ayuda: "Bache, fuga, alumbrado, emergencia…",
     icono: AlertTriangle,
-    color: "#dc2626"
+    color: "#dc2626",
+    roles: ROLES_DE_MANDO
   },
   {
     href: "/equipo?crear=evento",
     etiqueta: "Evento o actividad",
     ayuda: "Mitin, plática, brigada, visita…",
     icono: CalendarPlus,
-    color: "#2563eb"
+    color: "#2563eb",
+    roles: ["admin", "direction", "territorial_coordinator", "capturist", "visit_responsible"]
   }
 ];
 
-export function QuickCreateFab() {
+export function QuickCreateFab({ userRoleKey }: Readonly<{ userRoleKey: string }>) {
   const [abierto, setAbierto] = useState(false);
   const contenedor = useRef<HTMLDivElement | null>(null);
+
+  // El botón ofrecía "Incidencia" a todo el mundo y el brigadista acababa en un formulario que
+  // la API le rechaza al guardar, igual que pasaba con "Alta de Reportes" en el menú.
+  const opciones = OPCIONES.filter((opcion) => opcion.roles.includes(userRoleKey));
 
   useEffect(() => {
     if (!abierto) return;
@@ -66,11 +77,14 @@ export function QuickCreateFab() {
     };
   }, [abierto]);
 
+  // Sin nada que ofrecer no se pinta el botón: vale más que no esté a que abra un menú vacío.
+  if (opciones.length === 0) return null;
+
   return (
     <div className="fab-creacion" ref={contenedor}>
       {abierto ? (
         <div className="fab-menu" role="menu" aria-label="Qué quieres crear">
-          {OPCIONES.map((opcion) => {
+          {opciones.map((opcion) => {
             const Icono = opcion.icono;
             return (
               <a

@@ -9,6 +9,10 @@ export type ShellWrapperProps = Readonly<{
   children: React.ReactNode;
   userDisplayName: string;
   userRoleLabel: string;
+  /**
+   * Rol vigente según la base, no el que guardó la cookie al iniciar sesión: con él se
+   * arma el menú, y así ofrece lo mismo que dejan pasar las guardas de cada pantalla.
+   */
   userRoleKey: string;
   /** Municipio de la persona: da la marca y el municipio con el que abre el mapa. */
   municipality?: string | null | undefined;
