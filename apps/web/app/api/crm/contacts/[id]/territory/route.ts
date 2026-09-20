@@ -8,16 +8,20 @@ import { createTerritoryMutationsDependencies } from "@/lib/crm-deps";
 import { getDatabaseClient } from "@/lib/db-client";
 import { processOutboxInline } from "@/lib/outbox";
 import { exigirAccesoAContacto } from "@/lib/permisos-contacto";
-import { actorFromSession, permissionChecker, resultToResponse, unauthorized } from "@/lib/api-helpers";
+import { permissionChecker, resultToResponse } from "@/lib/api-helpers";
+import { Permission, requireActorPermission } from "@/lib/authorization";
 import { buscarMunicipio } from "@/lib/municipios-jalisco";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const actor = await actorFromSession();
-  if (!actor) return unauthorized();
-  if (!actor.roles.includes("admin")) return NextResponse.json({ error: "Solo administración puede modificar datos sensibles" }, { status: 403 });
+  // Corregir el domicilio lo hace quien ya ve al ciudadano: el error de captura se descubre en
+  // la puerta, no en la oficina. Antes era solo de administración y un domicilio mal escrito se
+  // quedaba así, con el ciudadano contado en la sección equivocada. El acceso al ciudadano se
+  // comprueba enseguida, así que nadie toca una ficha que no le corresponde.
+  const actor = await requireActorPermission(Permission.TerritoryLink);
+  if (actor instanceof NextResponse) return actor;
 
   const { id } = await params;
 

@@ -4,7 +4,9 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { getDatabaseClient } from "@/lib/db-client";
-import { requireActorPermission, Permission } from "@/lib/authorization";
+import { requireActorPermission, requireActorRoles, Permission } from "@/lib/authorization";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { visibleContactIds, sqlRestriccionContactos } from "@/lib/contact-visibility";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -25,6 +27,15 @@ const importSectionsSchema = z.object({
 export async function GET() {
   const actor = await requireActorPermission(Permission.DashboardRead);
   if (actor instanceof NextResponse) return actor;
+
+  // Los dos conteos se sacaban de toda la base: el número de contactos y de representantes de
+  // cada sección delataba el trabajo de las demás direcciones, que es justo lo que el alcance
+  // protege en el resto del sistema. Se acotan igual que en /api/electoral/sections.
+  const alcance = await resolveUserNetworkScope(actor.actorId);
+  const filtroContactos = sqlRestriccionContactos(sql.raw("cont.id"), await visibleContactIds(alcance));
+  // allowedUserIds es null solo para administración; con la lista vacía el fragmento queda en
+  // `AND false` y no en una consulta sin filtro.
+  const filtroRepresentantes = sqlRestriccionContactos(sql.raw("erep.user_id"), alcance.allowedUserIds);
 
   const db = getDatabaseClient();
 
@@ -47,8 +58,8 @@ export async function GET() {
       FROM electoral_sections es
       LEFT JOIN section_colonies sc ON sc.section_id = es.id
       LEFT JOIN colonies col ON col.id = sc.colony_id
-      LEFT JOIN contacts cont ON cont.section_id = es.id
-      LEFT JOIN electoral_representatives erep ON erep.section_id = es.id
+      LEFT JOIN contacts cont ON cont.section_id = es.id ${filtroContactos}
+      LEFT JOIN electoral_representatives erep ON erep.section_id = es.id ${filtroRepresentantes}
       GROUP BY es.id, es.section_num
       ORDER BY es.section_num ASC
     `);
@@ -74,7 +85,10 @@ export async function GET() {
  * Bulk import or create official electoral sections with GeoJSON geometries and colony associations.
  */
 export async function POST(request: Request) {
-  const actor = await requireActorPermission(Permission.DashboardRead);
+  // Importar cartografía reescribe las secciones de todo Jalisco de una vez, sin comprobar de
+  // quién es cada una, así que queda reservado a administración —igual que /api/map/reports/bulk—.
+  // Antes bastaba el permiso de lectura del tablero, que dirección también tiene.
+  const actor = await requireActorRoles("admin");
   if (actor instanceof NextResponse) return actor;
 
   try {

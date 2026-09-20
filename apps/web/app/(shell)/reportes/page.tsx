@@ -7,8 +7,11 @@ import ReportesClient from "./ReportesClient";
 import { requirePageRole } from "@/lib/authorization";
 
 export default async function ReportesPage() {
-  await requirePageRole("admin", "territorial_coordinator", "visit_responsible");
-  
+  // Esta pantalla levanta incidencias, y POST /api/map/reports solo se lo permite a
+  // quien coordina. Al brigadista se le quitó de aquí y del menú: la pantalla le
+  // prometía un alta que la API le negaba al guardar.
+  await requirePageRole("admin", "direction", "territorial_coordinator");
+
   const db = getDatabaseClient();
   const session = await getServerSession();
   // Se asigna a gente y equipos del alcance. Antes cargaba a todas las personas activas, con su

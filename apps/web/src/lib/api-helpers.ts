@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { NextResponse } from "next/server";
 
 import {
@@ -17,8 +18,13 @@ import { permissionsForRole } from "@/lib/permissions";
  * Lee la sesión iron-session del request y construye un ActorContext.
  * Refresca el rol desde la BD para reflejar cambios de privilegios sin re-login.
  * Retorna null si la sesión no está activa o el usuario fue desactivado.
+ *
+ * Memoizada por petición: una pantalla con guarda en el layout y en la página la pedía dos
+ * veces, y cada vez iba a la base por el mismo usuario. Igual que resolveUserNetworkScope.
  */
-export async function actorFromSession(): Promise<ActorContext | null> {
+export const actorFromSession = cache(leerActorDeLaSesion);
+
+async function leerActorDeLaSesion(): Promise<ActorContext | null> {
   const session = await getServerSession();
   if (!session.isLoggedIn || !session.userId) return null;
 

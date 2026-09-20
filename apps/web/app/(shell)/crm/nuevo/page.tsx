@@ -2,13 +2,16 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { and, inArray, eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/session-server";
+import { requirePageRole } from "@/lib/authorization";
 import NuevoContactoForm from "./NuevoContactoForm";
 
 export default async function NuevoContactoPage() {
+  // El alta de ciudadanos se cierra aquí y no en el layout de /crm, porque el
+  // brigadista sí consulta el padrón pero no registra. Sin esta guarda entraba
+  // por URL a un formulario que no le toca.
+  await requirePageRole("admin", "direction", "territorial_coordinator", "capturist");
   const session = await getServerSession();
-  if (!session.isLoggedIn) redirect("/login");
 
   const db = getDatabaseClient();
   const scope = await resolveUserNetworkScope(session.userId);

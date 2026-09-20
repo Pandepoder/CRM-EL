@@ -4,6 +4,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { eq, desc, inArray } from "drizzle-orm";
 import { getServerSession } from "@/lib/session-server";
+import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { safeErrorMessage } from "@/lib/safe-error";
 
@@ -57,10 +58,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession();
-    if (!session || !session.userId) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    // `getServerSession` solo se fía de la cookie; `actorFromSession` vuelve a
+    // comprobar en la base que la cuenta siga activa. Alguien dado de baja seguía
+    // registrando prospectos con su sesión abierta.
+    const actor = await actorFromSession();
+    if (!actor) return unauthorized();
 
     const body = await req.json();
     const {
@@ -91,7 +93,7 @@ export async function POST(req: NextRequest) {
         locationText: locationText ? locationText.trim() : null,
         commitments: commitments ? commitments.trim() : null,
         privateNotes: privateNotes ? privateNotes.trim() : null,
-        createdByUserId: session.userId,
+        createdByUserId: actor.actorId,
         createdAt: new Date()
       })
       .returning();

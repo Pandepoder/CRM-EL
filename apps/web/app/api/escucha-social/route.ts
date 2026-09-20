@@ -4,6 +4,8 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { eq, desc, inArray } from "drizzle-orm";
 import { getServerSession } from "@/lib/session-server";
+import { actorFromSession, unauthorized } from "@/lib/api-helpers";
+import { exigirAccesoAContacto } from "@/lib/permisos-contacto";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { safeErrorMessage } from "@/lib/safe-error";
 
@@ -68,10 +70,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession();
-    if (!session || !session.userId) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    // `getServerSession` solo se fía de la cookie; `actorFromSession` vuelve a
+    // comprobar en la base que la cuenta siga activa. Alguien dado de baja seguía
+    // levantando reportes con su sesión abierta.
+    const actor = await actorFromSession();
+    if (!actor) return unauthorized();
 
     const body = await req.json();
     const {
@@ -82,12 +85,18 @@ export async function POST(req: NextRequest) {
       photoUrls = [],
       latitude,
       longitude,
-      locationText,
-      isFormalGestion = 0
+      locationText
     } = body;
 
     if (!title || !description) {
       return NextResponse.json({ error: "Título y descripción son requeridos." }, { status: 400 });
+    }
+
+    // Ligar el reporte a un ciudadano de otra brigada lo colaría en su historial
+    // y dejaría su ficha a la vista de quien levanta el reporte.
+    if (contactId) {
+      const vetado = await exigirAccesoAContacto(contactId, actor.actorId, actor.roles);
+      if (vetado) return vetado;
     }
 
     const db = getDatabaseClient();
@@ -104,8 +113,12 @@ export async function POST(req: NextRequest) {
         longitude: longitude ? parseFloat(longitude) : null,
         locationText: locationText ? locationText.trim() : null,
         status: "pendiente",
-        isFormalGestion: isFormalGestion ? 1 : 0,
-        createdByUserId: session.userId,
+        // La gestión formal ante dependencias nace siempre en cero. Se tomaba del
+        // cuerpo, así que quien creaba el reporte se saltaba la aprobación que el
+        // PATCH reserva a administración: subía marcado como gestión formal y sin
+        // `approvedByUserId`, es decir, sin nadie que respondiera por él.
+        isFormalGestion: 0,
+        createdByUserId: actor.actorId,
         createdAt: new Date()
       })
       .returning();

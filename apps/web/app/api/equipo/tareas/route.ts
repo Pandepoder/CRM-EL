@@ -6,6 +6,8 @@ export const dynamic = "force-dynamic";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { requireLiderParaIncidencias } from "@/lib/authorization";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { exigirAccesoAContacto } from "@/lib/permisos-contacto";
 import { CLAVES_CATEGORIA } from "@/lib/categorias-incidencia";
 import { eq } from "drizzle-orm";
 
@@ -53,6 +55,27 @@ export async function POST(req: Request) {
         { error: "Falta la ubicación. Márcala en el mapa o usa el GPS antes de guardar." },
         { status: 400 }
       );
+    }
+
+    // El responsable salía del cuerpo sin comprobar nada: bastaba conocer el
+    // identificador de un brigadista de otra dirección para llenarle la agenda de
+    // trabajo que su propio líder no había puesto ahí.
+    if (assignedUser !== actor.actorId) {
+      const alcance = await resolveUserNetworkScope(actor.actorId);
+      if (!alcance.isGlobal && !(alcance.allowedUserIds ?? []).includes(assignedUser)) {
+        return NextResponse.json(
+          { error: "Solo puedes asignar actividades a personas de tu equipo." },
+          { status: 403 }
+        );
+      }
+    }
+
+    // La visita asociada entra en el historial del ciudadano, así que se pide el
+    // mismo acceso que para abrir su ficha. Responde 404 y no 403 para no
+    // confirmar que el identificador existe.
+    if (contactId) {
+      const vetado = await exigirAccesoAContacto(contactId, actor.actorId, actor.roles);
+      if (vetado) return vetado;
     }
 
     const db = getDatabaseClient();

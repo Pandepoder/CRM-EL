@@ -12,6 +12,17 @@ export type CompleteVisitInput = Readonly<{
   visitId: string;
   structuredOutcome: string;
   summary: string;
+  /**
+   * Ciudadano desde cuya ficha se cierra la visita. Si llega, la visita tiene que ser suya:
+   * la ruta web comprueba el acceso al contacto de la dirección, no al de la visita, así que
+   * con un contacto propio y el identificador de una visita ajena se cerraba la de otra brigada.
+   */
+  contactId?: string | undefined;
+  /**
+   * Personas cuyas visitas puede cerrar quien actúa: su alcance, que la capa web resuelve.
+   * Sin ella solo puede cerrar las suyas, que es lo prudente cuando nadie dijo lo contrario.
+   */
+  scopedUserIds?: readonly string[] | undefined;
 }>;
 
 export async function completeVisit(
@@ -37,10 +48,19 @@ export async function completeVisit(
           if (!current) {
             throw notFoundError("visit_not_found", `Visit ${input.visitId} was not found.`, "Visit was not found.");
           }
+          // Se responde "no encontrada" y no "no autorizada": decir que la visita existe pero
+          // es de otro ciudadano ya es información del trabajo ajeno.
+          if (input.contactId !== undefined && current.contactId !== input.contactId) {
+            throw notFoundError(
+              "visit_not_found",
+              `Visit ${input.visitId} does not belong to contact ${input.contactId}.`,
+              "Esta visita no es de este ciudadano."
+            );
+          }
           if (current.status !== VisitStatus.Scheduled) {
             throw conflictError("visit_already_completed", `Visit ${input.visitId} is already completed.`, "Visit cannot be completed again.");
           }
-          if (!canComplete(actor, current.assignedUserId)) {
+          if (!canComplete(actor, current.assignedUserId, input.scopedUserIds)) {
             throw forbiddenError("visit_completion_not_authorized", "Actor is not allowed to complete this visit.", "You cannot complete this visit.");
           }
 
@@ -126,8 +146,17 @@ export async function completeVisit(
   });
 }
 
-function canComplete(actor: ActorContext, assignedUserId: string): boolean {
+/**
+ * Cierra la visita quien la tiene asignada o quien manda sobre esa persona. Antes bastaba con
+ * ser coordinador territorial, cualquiera de ellos: uno podía dar por visitado el domicilio de
+ * otra brigada, con su resultado y su acta, sin haber estado ahí. Administración se mantiene.
+ */
+function canComplete(
+  actor: ActorContext,
+  assignedUserId: string,
+  scopedUserIds: readonly string[] | undefined
+): boolean {
   return actor.actorId === assignedUserId
     || actor.roles.includes(Role.Admin)
-    || actor.roles.includes(Role.TerritorialCoordinator);
+    || (scopedUserIds !== undefined && scopedUserIds.includes(assignedUserId));
 }

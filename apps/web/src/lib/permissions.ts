@@ -47,6 +47,9 @@ export function permissionsForRole(roleKey: string): Permission[] {
       // contrario y se descartó.
       return [
         Permission.ContactsRead,
+        // Sí corrige el domicilio: es quien toca la puerta y descubre que la calle, la colonia o
+        // la sección están mal. Dar de alta al ciudadano sigue sin ser suyo.
+        Permission.TerritoryLink,
         Permission.VisitsRead,
         Permission.VisitsSchedule,
         Permission.VisitsComplete

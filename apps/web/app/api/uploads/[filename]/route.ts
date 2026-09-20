@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
+import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { readFile, stat } from "fs/promises";
 import path from "path";
 import { existsSync, createReadStream } from "fs";
@@ -28,6 +29,13 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ filename: string }> }
 ) {
+  // Aquí salen las fotos y los videos de incidencias, visitas y escucha social:
+  // domicilios, rostros y credenciales de vecinos. Se servían sin ninguna guarda,
+  // así que con el nombre del archivo cualquiera se los descargaba, incluso sin
+  // haber iniciado sesión. Sesión activa es el mínimo.
+  const actor = await actorFromSession();
+  if (!actor) return unauthorized();
+
   const { filename } = await params;
   if (!filename || filename.includes("..") || filename.includes("/")) {
     return new NextResponse("Invalid filename", { status: 400 });
@@ -73,7 +81,9 @@ export async function GET(
       headers: {
         "Content-Type": contentType,
         "Content-Length": fileStat.size.toString(),
-        "Cache-Control": "public, max-age=31536000, immutable"
+        // `private`: el archivo ya solo se entrega con sesión, y una caché
+        // compartida guardándolo devolvería la misma foto a quien no la tiene.
+        "Cache-Control": "private, max-age=31536000, immutable"
       }
     });
   } catch (error) {

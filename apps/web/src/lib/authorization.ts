@@ -56,8 +56,20 @@ export async function requireActorRoles(
 /**
  * Server Component / server action guard. Redirects unauthenticated users to login
  * and authenticated-but-forbidden users to their role home.
+ *
+ * Llamarla sin roles no abre la pantalla a todo el mundo: es un error de
+ * programación. Antes se comportaba como "basta con haber iniciado sesión" y
+ * varias pantallas quedaron así por descuido, pareciendo protegidas cuando no lo
+ * estaban. Si de verdad basta la sesión, la función que toca es
+ * requirePageSession().
  */
 export async function requirePageRole(...allowedRoles: string[]): Promise<void> {
+  if (allowedRoles.length === 0) {
+    throw new Error(
+      "requirePageRole necesita al menos un rol. Si la pantalla solo exige sesión iniciada, usa requirePageSession()."
+    );
+  }
+
   const session = await getServerSession();
   if (!session.isLoggedIn) {
     redirect("/login");
@@ -67,7 +79,7 @@ export async function requirePageRole(...allowedRoles: string[]): Promise<void> 
     redirect("/login");
   }
   const currentRole = actor.roles[0] ?? session.roleKey;
-  if (allowedRoles.length > 0 && !roleHasAny(currentRole, allowedRoles)) {
+  if (!roleHasAny(currentRole, allowedRoles)) {
     redirect(getHomePathForRole(currentRole));
   }
 }
