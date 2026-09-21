@@ -86,7 +86,7 @@ export function StatusSelector({ reportId, currentStatus }: { reportId: string; 
         className="text-[11px] font-bold uppercase tracking-wider rounded-md px-2 py-1.5 cursor-pointer disabled:opacity-50"
         style={{ background: info.bg, color: info.color, border: `1px solid ${info.border}` }}
       >
-        {Object.entries(ESTADOS_INCIDENCIA).map(([clave, e]) => (
+        {Object.entries(ESTADOS_INCIDENCIA).filter(([clave]) => clave !== "cancelada").map(([clave, e]) => (
           <option key={clave} value={clave}>
             {e.label}
           </option>

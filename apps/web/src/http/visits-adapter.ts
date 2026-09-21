@@ -20,7 +20,7 @@ const scheduleVisitSchema = z.object({
 });
 
 const completeVisitSchema = z.object({
-  structuredOutcome: z.enum(["successful", "no_contact", "follow_up_required", "rejected"]),
+  structuredOutcome: z.enum(["successful", "positive_commitment", "no_contact", "follow_up_required", "rejected"]),
   summary: z.string()
 });
 

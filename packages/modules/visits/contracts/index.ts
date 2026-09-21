@@ -2,7 +2,7 @@ import { type CorrelationId, type EntityId } from "@tonala/shared/kernel";
 
 export type VisitId = EntityId;
 export type VisitStatus = "scheduled" | "completed";
-export type VisitOutcome = "successful" | "no_contact" | "follow_up_required" | "rejected";
+export type VisitOutcome = "successful" | "positive_commitment" | "no_contact" | "follow_up_required" | "rejected";
 export type VisitSummary = string;
 
 export type VisitSummaryView = Readonly<{

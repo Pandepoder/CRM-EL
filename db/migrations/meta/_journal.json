@@ -120,6 +120,20 @@
       "when": 1789271772086,
       "tag": "0016_add_user_municipality",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789400000000,
+      "tag": "0017_bitacora_catalogo_y_seguimiento",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789500000000,
+      "tag": "0018_prospectos_seguimiento_y_perfiles",
+      "breakpoints": true
     }
   ]
 }

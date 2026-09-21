@@ -1,98 +1,58 @@
-import type { NextRequest} from "next/server";
 import { NextResponse } from "next/server";
-import { getDatabaseClient } from "@/lib/db-client";
-import { schema } from "@tonala/shared/database";
-import { eq } from "drizzle-orm";
+import { z } from "zod";
+
 import { Permission, requireActorPermission } from "@/lib/authorization";
-import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import crypto from "crypto";
+import { convertirProspecto, revisarConversion } from "@/lib/prospectos-servicio";
 import { safeErrorMessage } from "@/lib/safe-error";
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const dynamic = "force-dynamic";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const cuerpo = z.object({
+  /** "revisar" solo informa si ya está convertido y qué contactos se le parecen. */
+  accion: z.enum(["revisar", "convertir"]).default("convertir"),
+  contactoExistenteId: z.string().uuid().optional(),
+  confirmarNuevo: z.boolean().optional()
+});
+
+/**
+ * Convierte un prospecto en contacto, o lo enlaza con uno que ya existe. Es una sola operación:
+ * contacto, nota con lo acordado y marca en el prospecto se guardan juntos o no se guarda nada.
+ */
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    // Convertir un prospecto da de alta una ficha de ciudadano a mano, sin pasar
-    // por el caso de uso de alta: por aquí un brigadista registraba ciudadanos,
-    // que es justo lo que el mapa de permisos le niega a propósito.
+    // Convertir da de alta una ficha de ciudadano: exige el mismo permiso que el alta de contactos.
     const actor = await requireActorPermission(Permission.ContactsCreate);
     if (actor instanceof NextResponse) return actor;
-
     const { id } = await params;
-    const db = getDatabaseClient();
+    if (!UUID.test(id)) return NextResponse.json({ error: "Prospecto no encontrado." }, { status: 404 });
 
-    const prospectRows = await db
-      .select()
-      .from(schema.rapidActivityProspects)
-      .where(eq(schema.rapidActivityProspects.id, id))
-      .limit(1);
+    let crudo: unknown = {};
+    try { crudo = await req.json(); } catch { /* sin cuerpo: convertir por omisión */ }
+    const a = cuerpo.safeParse(crudo ?? {});
+    if (!a.success) return NextResponse.json({ error: a.error.issues[0]?.message ?? "Datos no válidos." }, { status: 400 });
 
-    const prospect = prospectRows[0];
-    if (!prospect) {
-      return NextResponse.json({ error: "Prospecto no encontrado." }, { status: 404 });
+    if (a.data.accion === "revisar") {
+      const r = await revisarConversion(actor, id);
+      if (!r.ok) return NextResponse.json({ error: r.message, code: r.code }, { status: r.status });
+      return NextResponse.json({ yaConvertido: r.yaConvertido, contactId: r.contactId, posibles: r.posibles });
     }
 
-    // El prospecto se leía por id sin filtro de alcance: con el identificador a la
-    // vista, cualquiera convertía el registro rápido de otra brigada y se quedaba
-    // con el ciudadano a su nombre. Se responde 404 y no 403 para no confirmar que
-    // el identificador existe.
-    const alcance = await resolveUserNetworkScope(actor.actorId);
-    if (!alcance.isGlobal && !(alcance.allowedUserIds ?? []).includes(prospect.createdByUserId)) {
-      return NextResponse.json({ error: "Prospecto no encontrado." }, { status: 404 });
+    const r = await convertirProspecto(actor, id, { contactoExistenteId: a.data.contactoExistenteId, confirmarNuevo: a.data.confirmarNuevo });
+    if (!r.ok) {
+      return NextResponse.json(
+        { error: r.message, code: r.code, ...("posibles" in r ? { posibles: r.posibles } : {}) },
+        { status: r.status }
+      );
     }
-
-    if (prospect.convertedToContactId) {
-      return NextResponse.json({
-        message: "Este prospecto ya fue convertido a Registro Social.",
-        contactId: prospect.convertedToContactId
-      });
-    }
-
-    const contactId = crypto.randomUUID();
-
-    // Create Contact
-    await db.insert(schema.contacts).values({
-      id: contactId,
-      displayName: prospect.prospectName,
-      status: "active",
-      createdByUserId: actor.actorId,
-      referredByUserId: actor.actorId,
-      actualContactUserId: actor.actorId,
-      firstName: prospect.prospectName.split(" ")[0] || prospect.prospectName,
-      lastName: prospect.prospectName.split(" ").slice(1).join(" ") || "",
-      profession: prospect.organizationOrReference || "Prospecto",
-      interests: `Perfil ${prospect.profileType}`,
-      origin: "toca_toca",
-      firstContactDate: prospect.activityDate || new Date(),
-      colony: prospect.locationText || "Por identificar",
-      // El registro rápido no captura municipio: se deja vacío en vez de suponer Tonalá.
-      municipality: null,
-      knowMeBetter: prospect.dispositionNotes || null,
-      createdAt: new Date(),
-      version: 1
-    });
-
-    // Insert Note with past commitments
-    if (prospect.commitments || prospect.privateNotes) {
-      await db.insert(schema.contactNotes).values({
-        contactId,
-        authorUserId: actor.actorId,
-        noteText: `Convertido desde Registro Rápido. Acuerdos: ${prospect.commitments || "N/A"}. Notas: ${prospect.privateNotes || "N/A"}`,
-        createdAt: new Date()
-      });
-    }
-
-    // Link prospect
-    await db
-      .update(schema.rapidActivityProspects)
-      .set({ convertedToContactId: contactId })
-      .where(eq(schema.rapidActivityProspects.id, id));
-
     return NextResponse.json({
       success: true,
-      contactId,
-      message: "¡Prospecto convertido a Registro Social con éxito!"
+      contactId: r.contactId,
+      yaConvertido: r.yaConvertido,
+      message: r.yaConvertido
+        ? "Este prospecto ya había sido convertido."
+        : r.creado ? "Prospecto convertido en contacto." : "Prospecto vinculado al contacto existente."
     });
   } catch (error: unknown) {
     console.error("Error converting prospect:", error);

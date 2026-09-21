@@ -75,6 +75,7 @@ function motivoVisita(err: { code?: string; message?: string } | null): string |
 
 const OUTCOME_LABELS: Record<string, string> = {
   successful: "Exitosa",
+  positive_commitment: "Acuerdo alcanzado",
   no_contact: "Sin Contacto",
   follow_up_required: "Requiere Seguimiento",
   rejected: "Rechazada",

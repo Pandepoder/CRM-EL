@@ -1,7 +1,7 @@
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
-import { and, eq, or, desc } from "drizzle-orm";
+import { and, eq, or, desc, sql } from "drizzle-orm";
 import { requirePageSession } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
@@ -165,7 +165,9 @@ export default async function LeaderProfilePage({
     // directorio: si no se puede ver al ciudadano, tampoco su visita.
     .where(and(
       or(eq(schema.visits.assignedUserId, targetUserId), eq(schema.visits.createdByUserId, targetUserId)),
-      restriccionContactos
+      restriccionContactos,
+      // La visita que agendó una actividad ya sale como parte de la actividad: no se lista dos veces.
+      sql`NOT EXISTS (SELECT 1 FROM event_reports x WHERE x.visit_id = ${schema.visits.id})`
     ))
     .orderBy(desc(schema.visits.scheduledAt));
 
