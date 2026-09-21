@@ -769,12 +769,29 @@ export default function MapaPage() {
   }, []);
 
   // 3. Fetch Sections GeoJSON on demand strictly for the selected municipality
-  const fetchSections = useCallback(async (muni?: string) => {
+  //
+  // Se guarda lo descargado por municipio: volver a uno ya visto (o a todo Jalisco, que pesa
+  // varios MB) lo muestra al instante y solo se refresca en segundo plano si tiene más de un
+  // minuto. Las llamadas sin `usarCache` —las que siguen a crear o editar una incidencia—
+  // siempre piden datos nuevos.
+  const seccionesCache = useRef<Record<string, { en: number; data: any }>>({});
+  const SECCIONES_FRESCAS_MS = 60_000;
+
+  const fetchSections = useCallback(async (muni?: string, usarCache = false) => {
     const targetMuni = muni || selectedMunicipality || TODO_JALISCO;
+    const clave = targetMuni.toLowerCase();
+    if (usarCache) {
+      const guardado = seccionesCache.current[clave];
+      if (guardado) {
+        setSectionsData(guardado.data);
+        if (Date.now() - guardado.en < SECCIONES_FRESCAS_MS) return;
+      }
+    }
     try {
       const res = await fetch(`/api/map/sections/geojson?municipality=${encodeURIComponent(targetMuni)}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
+        seccionesCache.current[clave] = { en: Date.now(), data };
         setSectionsData(data);
       }
     } catch (error) {
@@ -805,7 +822,7 @@ export default function MapaPage() {
   // Fetch sections strictly for the selected municipality
   useEffect(() => {
     if (selectedMunicipality) {
-      void fetchSections(selectedMunicipality);
+      void fetchSections(selectedMunicipality, true);
     }
   }, [selectedMunicipality, fetchSections]);
 
@@ -1010,100 +1027,108 @@ export default function MapaPage() {
     }
   };
 
-  // 10. Render Sections Layer based on Information Density (infoDensity)
+  // 10. Capa de secciones.
+  //
+  // Antes un solo efecto dibujaba y estilaba la capa, y dependía del nivel de información y de
+  // la sección elegida: mover el control a "Electoral" o hacer clic en una sección destruía y
+  // reconstruía todos los polígonos —cientos de rutas SVG, sus tooltips y sus etiquetas— y
+  // costaba cerca de un segundo por cambio con un solo municipio. Ahora se reparte en tres:
+  //   a) construir la capa: solo cuando llegan datos nuevos o se muestra/oculta;
+  //   b) estilarla: al cambiar de nivel o de selección solo se repinta, sin tocar la geometría;
+  //   c) rotular: aparte, y limitado a lo que cabe legible en pantalla.
+  // La capa se dibuja en un solo canvas en vez de una ruta SVG por sección.
+  const densidadRef = useRef(infoDensity);
+  const seleccionRef = useRef<number | null>(null);
+  densidadRef.current = infoDensity;
+  seleccionRef.current = selectedSection?.section_num ?? null;
+
+  const estiloSeccion = useCallback((feature: any) => {
+    const infoDensityActual = densidadRef.current;
+    const mun = feature?.properties?.municipality || "Sin municipio";
+    const theme = MUNICIPALITY_COLORS[mun] || { stroke: "#4f46e5", fill: "#6366f1" };
+    const isSelected = seleccionRef.current === feature?.properties?.section_num;
+    const isLevel1 = infoDensityActual === 1;
+
+    // Nivel "Electoral": el color deja de decir a qué municipio pertenece la sección y pasa a
+    // decir quién ganó ahí, que es la pregunta que se hace en campaña.
+    const atlas: AtlasSeccion | null = feature?.properties?.atlas ?? null;
+    if (infoDensityActual === 2 && atlas) {
+      const resultado = calcularResultado(atlas);
+      const bloque = BLOQUES[resultado.ganador];
+      return {
+        color: isSelected ? "#0f172a" : bloque.borde,
+        weight: isSelected ? 3.5 : 1.4,
+        opacity: isSelected ? 1 : 0.9,
+        fillColor: bloque.color,
+        fillOpacity: isSelected ? 0.75 : opacidadPorMargen(resultado.margen),
+        lineJoin: "round",
+        lineCap: "round"
+      };
+    }
+
+    // Sección sin ficha en el atlas: gris explícito, para que se vea que ahí no hay dato electoral.
+    if (infoDensityActual === 2) {
+      return {
+        color: isSelected ? "#0f172a" : SIN_ATLAS.borde,
+        weight: isSelected ? 3.5 : 1,
+        opacity: isSelected ? 1 : 0.55,
+        fillColor: SIN_ATLAS.color,
+        fillOpacity: isSelected ? 0.5 : 0.12,
+        lineJoin: "round",
+        lineCap: "round"
+      };
+    }
+
+    return {
+      color: isSelected ? "#1e1b4b" : theme.stroke,
+      weight: isSelected ? 3.5 : isLevel1 ? 1.2 : 1.8,
+      opacity: isSelected ? 1.0 : isLevel1 ? 0.6 : 0.85,
+      fillColor: isSelected ? "#312e81" : theme.fill,
+      fillOpacity: isSelected ? 0.40 : isLevel1 ? 0.08 : 0.22,
+      lineJoin: "round",
+      lineCap: "round"
+    };
+  }, []);
+
+  // a) Construcción
   useEffect(() => {
     if (!L || !mapRef || !sectionsData) return;
 
     if (geoJsonLayer) geoJsonLayer.remove();
-    if (labelsLayer) labelsLayer.clearLayers();
 
-    // If infoDensity is 0 (Solo Incidencias) or showSections is false, do not draw polygons
-    if (infoDensity === 0 || !showSections) {
+    if (!showSections) {
       setGeoJsonLayer(null);
       return;
     }
 
-    // El servidor ya filtró por municipio. Repetir aquí el filtro con igualdad exacta de
-    // cadena descartaba secciones en cuanto el nombre variaba en un acento.
-    const filteredFeatures = sectionsData.features;
-
-    const layerData = { ...sectionsData, features: filteredFeatures };
-
-    const layer = L.geoJSON(layerData, {
-      style: (feature: any) => {
-        const mun = feature?.properties?.municipality || "Sin municipio";
-        const theme = MUNICIPALITY_COLORS[mun] || { stroke: "#4f46e5", fill: "#6366f1" };
-        const isSelected = selectedSection?.section_num === feature?.properties?.section_num;
-
-        // Density 1: Subtle line, low fill. Density 2: Full contrast
-        const isLevel1 = infoDensity === 1;
-
-        // Nivel "Detallado": el color deja de decir a qué municipio pertenece la sección y
-        // pasa a decir quién ganó ahí, que es la pregunta que se hace en campaña. El
-        // municipio ya se sabe por dónde está uno mirando; el resultado no se sabe sin esto.
-        const atlas: AtlasSeccion | null = feature?.properties?.atlas ?? null;
-        if (infoDensity === 2 && atlas) {
-          const resultado = calcularResultado(atlas);
-          const bloque = BLOQUES[resultado.ganador];
-          return {
-            color: isSelected ? "#0f172a" : bloque.borde,
-            weight: isSelected ? 3.5 : 1.4,
-            opacity: isSelected ? 1 : 0.9,
-            fillColor: bloque.color,
-            fillOpacity: isSelected ? 0.75 : opacidadPorMargen(resultado.margen),
-            lineJoin: "round",
-            lineCap: "round"
-          };
-        }
-
-        // Sección sin ficha en el atlas, con el nivel al máximo: gris explícito en vez de
-        // heredar el color del municipio, para que se vea que ahí no hay dato electoral.
-        if (infoDensity === 2) {
-          return {
-            color: isSelected ? "#0f172a" : SIN_ATLAS.borde,
-            weight: isSelected ? 3.5 : 1,
-            opacity: isSelected ? 1 : 0.55,
-            fillColor: SIN_ATLAS.color,
-            fillOpacity: isSelected ? 0.5 : 0.12,
-            lineJoin: "round",
-            lineCap: "round"
-          };
-        }
-
-        return {
-          color: isSelected ? "#1e1b4b" : theme.stroke,
-          weight: isSelected ? 3.5 : isLevel1 ? 1.2 : 1.8,
-          opacity: isSelected ? 1.0 : isLevel1 ? 0.6 : 0.85,
-          fillColor: isSelected ? "#312e81" : theme.fill,
-          fillOpacity: isSelected ? 0.40 : isLevel1 ? 0.08 : 0.22,
-          lineJoin: "round",
-          lineCap: "round"
-        };
-      },
+    const layer = L.geoJSON(sectionsData, {
+      renderer: L.canvas({ padding: 0.3 }),
+      style: estiloSeccion,
       onEachFeature: (feature: any, layerItem: any) => {
         const p = feature.properties as SectionProperties;
-        const mun = p.municipality || "Sin municipio";
-        
-        // Resumen electoral en el tooltip, solo con el nivel al máximo: en los niveles
-        // bajos estorbaría, y ahí las secciones ni siquiera están coloreadas por resultado.
-        const resumenAtlas = (() => {
-          if (infoDensity !== 2 || !p.atlas) return "";
-          const r = calcularResultado(p.atlas);
-          const b = BLOQUES[r.ganador];
-          const pct = r.total > 0 ? Math.round((r.votosGanador / r.total) * 100) : 0;
-          const veredicto = r.empate
-            ? "Empate técnico"
-            : `Gana ${b.corto} · ${pct}% · +${r.margen.toFixed(1)} pts`;
-          return `
+
+        // El tooltip se arma al pasar el cursor, no al dibujar: con miles de secciones, armar
+        // el HTML de todas de antemano era la mayor parte del coste de construir la capa.
+        layerItem.bindTooltip(
+          () => {
+            const mun = p.municipality || "Sin municipio";
+            // Resumen electoral solo con el nivel al máximo: en los bajos estorbaría.
+            const resumenAtlas = (() => {
+              if (densidadRef.current !== 2 || !p.atlas) return "";
+              const r = calcularResultado(p.atlas);
+              const b = BLOQUES[r.ganador];
+              const pct = r.total > 0 ? Math.round((r.votosGanador / r.total) * 100) : 0;
+              const veredicto = r.empate
+                ? "Empate técnico"
+                : `Gana ${b.corto} · ${pct}% · +${r.margen.toFixed(1)} pts`;
+              return `
               <div style="margin-top:5px; padding-top:5px; border-top:1px solid #e2e8f0; display:flex; align-items:center; gap:5px;">
                 <span style="width:9px; height:9px; border-radius:50%; background:${b.color}; flex-shrink:0;"></span>
                 <span style="font-size:10px; font-weight:800; color:#0f172a;">${veredicto}</span>
               </div>
               <div style="font-size:9px; color:#64748b; margin-top:2px;">Prioridad ${p.atlas.priority} · ${r.total.toLocaleString("es-MX")} votos</div>`;
-        })();
-
-        layerItem.bindTooltip(
-          `
+            })();
+            return `
             <div style="font-family:system-ui,sans-serif; padding:4px;">
               <div style="font-size:12px; font-weight:800; color:#0f172a;">Sección ${p.section_num} <span style="font-weight:600; color:#6366f1;">(${mun})</span></div>
               <div style="font-size:10px; color:#475569; margin-top:2px;">${p.atlas?.mainColony || p.colonies.slice(0, 3).join(", ") || mun}</div>
@@ -1113,29 +1138,10 @@ export default function MapaPage() {
               </div>
               ${resumenAtlas}
             </div>
-          `,
+          `;
+          },
           { sticky: true, className: "section-map-tooltip" }
         );
-
-        // Etiquetas de sección. Se dibujaban a cualquier zoom, así que alejado
-        // se amontonaban por decenas y tapaban el mapa y los marcadores. Solo
-        // aparecen cuando hay zoom suficiente para que quepan legibles, y
-        // únicamente en las secciones visibles en pantalla.
-        // Ojo: esto vive dentro de onEachFeature, así que no puede cortarse con
-        // return sin saltarse también los manejadores de clic de más abajo.
-        const cabenEtiquetas = mapRef.getZoom() >= 13;
-        const boundsSeccion = layerItem.getBounds();
-        const visibleEnPantalla = mapRef.getBounds().intersects(boundsSeccion);
-        if (infoDensity >= 1 && showSectionLabels && labelsLayer && cabenEtiquetas && visibleEnPantalla) {
-          const center = boundsSeccion.getCenter();
-          const labelIcon = L.divIcon({
-            html: `<div style="background:rgba(15,23,42,0.85); color:#ffffff; font-size:10px; font-weight:800; padding:1.5px 5px; border-radius:5px; border:1px solid rgba(255,255,255,0.4); text-align:center; white-space:nowrap; pointer-events:none; box-shadow:0 2px 5px rgba(0,0,0,0.3); backdrop-filter:blur(4px);">${p.section_num}</div>`,
-            className: "section-centroid-label",
-            iconSize: [28, 16],
-            iconAnchor: [14, 8]
-          });
-          L.marker(center, { icon: labelIcon, interactive: false }).addTo(labelsLayer);
-        }
 
         layerItem.on({
           mouseover: (e: any) => {
@@ -1157,10 +1163,59 @@ export default function MapaPage() {
     layer.bringToBack();
     setGeoJsonLayer(layer);
     // Aquí había un auto-encuadre sobre la capa. Sobraba —el encuadre por municipio lo hace el
-    // efecto del recuadro del catálogo— y estorbaba: este efecto se rehace al elegir sección o
-    // mover el nivel, así que cada clic en una sección alejaba el mapa al municipio entero, y
-    // sin guarda de tamaño dejaba el zoom al máximo cuando el contenedor aún no tenía ancho.
-  }, [L, mapRef, labelsLayer, sectionsData, showSections, showSectionLabels, infoDensity, selectedSection, selectedMunicipality]);
+    // efecto del recuadro del catálogo— y estorbaba.
+  }, [L, mapRef, sectionsData, showSections, estiloSeccion]);
+
+  // b) Estilo: cambiar de nivel o de selección solo repinta.
+  useEffect(() => {
+    if (!geoJsonLayer) return;
+    geoJsonLayer.setStyle(estiloSeccion);
+  }, [geoJsonLayer, infoDensity, selectedSection, estiloSeccion]);
+
+  // c) Etiquetas de sección. Se dibujaban a cualquier zoom y sobre todas las secciones, así
+  // que alejado se amontonaban por decenas y tapaban el mapa. Ahora solo salen con zoom
+  // suficiente (más alto en "Electoral", donde ya hay color que leer) y, como máximo, un
+  // puñado de las visibles.
+  const [vistaMapa, setVistaMapa] = useState(0);
+  useEffect(() => {
+    if (!mapRef) return;
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const alMover = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => setVistaMapa((v) => v + 1), 150);
+    };
+    mapRef.on("moveend", alMover);
+    return () => {
+      mapRef.off("moveend", alMover);
+      if (t) clearTimeout(t);
+    };
+  }, [mapRef]);
+
+  const MAX_ETIQUETAS = 60;
+  useEffect(() => {
+    if (!L || !mapRef || !labelsLayer) return;
+    labelsLayer.clearLayers();
+    if (!geoJsonLayer || !showSections || !showSectionLabels || infoDensity === 0) return;
+    const zoomMinimo = infoDensity === 2 ? 14 : 13;
+    if (mapRef.getZoom() < zoomMinimo) return;
+
+    const visible = mapRef.getBounds();
+    let puestas = 0;
+    geoJsonLayer.eachLayer((capa: any) => {
+      if (puestas >= MAX_ETIQUETAS) return;
+      const limites = capa.getBounds();
+      if (!visible.intersects(limites)) return;
+      const p = capa.feature.properties as SectionProperties;
+      const icono = L.divIcon({
+        html: `<div style="background:rgba(15,23,42,0.85); color:#ffffff; font-size:10px; font-weight:800; padding:1.5px 5px; border-radius:5px; border:1px solid rgba(255,255,255,0.4); text-align:center; white-space:nowrap; pointer-events:none;">${p.section_num}</div>`,
+        className: "section-centroid-label",
+        iconSize: [28, 16],
+        iconAnchor: [14, 8]
+      });
+      L.marker(limites.getCenter(), { icon: icono, interactive: false }).addTo(labelsLayer);
+      puestas += 1;
+    });
+  }, [L, mapRef, labelsLayer, geoJsonLayer, showSections, showSectionLabels, infoDensity, mapZoom, vistaMapa]);
 
   const handleMunicipalityChange = (muni: string) => {
     setSelectedMunicipality(muni);
@@ -1230,6 +1285,11 @@ export default function MapaPage() {
     });
 
     const zoom = mapRef.getZoom();
+    // En el nivel "Electoral" el color de las secciones es lo que hay que leer: las incidencias
+    // pasan a burbujas más chicas y se agrupan sobre una rejilla el doble de gruesa, para que
+    // no tapen el mapa.
+    const compacto = infoDensity === 2;
+    const lado = compacto ? 28 : 38;
 
     // 1. Group individual reports by proximity (< 0.00018 deg, ~15m) to avoid stacking ("amontonamiento")
     const proximityGroups: Array<{
@@ -1249,7 +1309,7 @@ export default function MapaPage() {
     });
 
     if (enableClustering && zoom <= 14) {
-      const gridSize = zoom <= 11 ? 0.05 : zoom <= 13 ? 0.02 : 0.008;
+      const gridSize = (zoom <= 11 ? 0.05 : zoom <= 13 ? 0.02 : 0.008) * (compacto ? 2 : 1);
       const clusters: Record<string, { reports: ReportFeature[]; latSum: number; lngSum: number }> = {};
 
       filtered.forEach((report) => {
@@ -1272,14 +1332,14 @@ export default function MapaPage() {
           const hasEmergency = c.reports.some(r => r.properties.category === "emergencia" && r.properties.status === "active");
           const clusterIcon = L.divIcon({
             html: `
-              <div style="position:relative; width:38px; height:38px; border-radius:50%; background:${hasEmergency ? '#dc2626' : '#2563eb'}; color:white; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; border:3px solid white; box-shadow:0 4px 14px rgba(0,0,0,0.3); cursor:pointer;">
+              <div style="position:relative; width:${lado}px; height:${lado}px; border-radius:50%; background:${hasEmergency ? '#dc2626' : '#2563eb'}; color:white; display:flex; align-items:center; justify-content:center; font-size:${compacto ? 11 : 13}px; font-weight:800; border:${compacto ? 2 : 3}px solid white; box-shadow:0 4px 14px rgba(0,0,0,0.3); cursor:pointer; ${compacto ? 'opacity:0.88;' : ''}">
                 ${count}
                 ${hasEmergency ? `<div style="position:absolute; inset:-4px; border-radius:50%; border:2px solid #ef4444; animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>` : ''}
               </div>
             `,
             className: "incident-cluster-marker",
-            iconSize: [38, 38],
-            iconAnchor: [19, 19]
+            iconSize: [lado, lado],
+            iconAnchor: [lado / 2, lado / 2]
           });
 
           L.marker([avgLat, avgLng], { icon: clusterIcon, pane: "incidentsPane" })
@@ -1346,7 +1406,7 @@ export default function MapaPage() {
 
       const icon = L.divIcon({
         html: `
-          <div style="position:relative; width:36px; height:36px; border-radius:50%; background-color:${isResolved ? '#f0fdf4' : cat.bg}; display:flex; align-items:center; justify-content:center; color:${isResolved ? '#16a34a' : cat.color}; border: 2.5px solid ${isResolved ? '#16a34a' : isEmergency ? '#ef4444' : 'white'}; box-shadow: 0 4px 12px rgba(0,0,0,0.28); opacity: ${isResolved ? 0.85 : 1}; cursor: pointer; transform: scale(1.05);">
+          <div style="position:relative; width:36px; height:36px; border-radius:50%; background-color:${isResolved ? '#f0fdf4' : cat.bg}; display:flex; align-items:center; justify-content:center; color:${isResolved ? '#16a34a' : cat.color}; border: 2.5px solid ${isResolved ? '#16a34a' : isEmergency ? '#ef4444' : 'white'}; box-shadow: 0 4px 12px rgba(0,0,0,0.28); opacity: ${isResolved ? 0.85 : 1}; cursor: pointer; transform: scale(${compacto ? 0.8 : 1.05});">
             ${cat.svg}
             ${badgeHtml}
             ${isEmergency ? `<div style="position:absolute; inset:-3px; border-radius:50%; border:2px solid #ef4444; animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>` : ''}
@@ -1383,7 +1443,8 @@ export default function MapaPage() {
           </div>`
         : '';
 
-      const popupHtml = `
+      // Se arma al abrir el popup: al dibujar 200+ incidencias en cada zoom, armarlos todos era coste puro.
+      const popupHtml = () => `
         <div style="font-family:system-ui,-apple-system,sans-serif; min-width:260px; max-width:320px; padding:6px;">
           ${multiBadge}
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
@@ -1415,14 +1476,17 @@ export default function MapaPage() {
         .bindPopup(popupHtml, { closeButton: true, maxWidth: 320, offset: [0, -5] })
         .addTo(markersLayer);
     }
-  }, [L, markersLayer, mapRef, allReports, activeCategories, enableClustering, mapZoom]);
+  }, [L, markersLayer, mapRef, allReports, activeCategories, enableClustering, mapZoom, infoDensity]);
 
   // 11b. Render Contacts on Map (with Dynamic Spatial Clustering & PAN Militancy Badges)
   useEffect(() => {
     if (!L || !contactsLayer || !mapRef) return;
 
     contactsLayer.clearLayers();
-    if (!showContacts) return;
+    // En el nivel "Electoral" el mapa se lee por el color de las secciones: encima, cientos de
+    // marcadores de contactos lo tapaban y era lo que lo hacía sentir amontonado. Vuelven en
+    // cuanto se baja de nivel (la casilla de contactos conserva su valor).
+    if (!showContacts || infoDensity === 2) return;
 
     const zoom = mapRef.getZoom();
 
@@ -1526,7 +1590,7 @@ export default function MapaPage() {
         .bindPopup(popupHtml)
         .addTo(contactsLayer);
     }
-  }, [L, contactsLayer, mapRef, allContacts, showContacts, enableClustering, nivelAgrupacion]);
+  }, [L, contactsLayer, mapRef, allContacts, showContacts, enableClustering, nivelAgrupacion, infoDensity]);
 
   // Filtered sections for search
   const filteredSectionsList = useMemo(() => {
