@@ -187,7 +187,7 @@ export default function LoginPage() {
         <section className="login-brand" aria-label="Edgar López, Jalisco">
           <div className="login-halo" aria-hidden="true"><i /><i /></div>
           <p className="login-eyeline">JALISCO</p>
-          <h2>&ldquo;Si pasa por tu vida<br /><span>pasa por tu mente.&rdquo;</span></h2>
+          <h2>&ldquo;Si pasa por tu mente,<br /><span>pasa por tu vida.&rdquo;</span></h2>
           <div className="login-portrait"><img src="/media/edgar-retrato.jpg" alt="Edgar López" width={300} height={330} /><span>EDGAR LÓPEZ</span></div>
           <div className="login-brand-bottom"><span>Un Jalisco Posible</span><Redes tono="claro" /></div>
         </section>
