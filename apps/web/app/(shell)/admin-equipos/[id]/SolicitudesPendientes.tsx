@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, UserPlus, X } from "lucide-react";
 
+import { QrImagen } from "@/components/QrImagen";
 import { aceptarSolicitudAction, rechazarSolicitudAction } from "../actions";
 
 /**
@@ -127,7 +128,6 @@ export function EnlaceBrigada({
 }) {
   const [copiado, setCopiado] = useState(false);
   const enlace = `${origen}/unirme/${slug}`;
-  const qr = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(enlace)}&color=0b1f3a&bgcolor=ffffff`;
   const whatsapp = `https://wa.me/?text=${encodeURIComponent(
     `Te invito a sumarte a ${equipo}. Regístrate aquí: ${enlace}`
   )}`;
@@ -138,13 +138,7 @@ export function EnlaceBrigada({
       style={{ background: "#fff", border: "1px solid #e6eaf2" }}
     >
       {origen ? (
-        <img
-          src={qr}
-          alt={`Código QR para unirse a ${equipo}`}
-          width={132}
-          height={132}
-          style={{ width: 132, height: 132, borderRadius: 12, border: "1px solid #e6eaf2", flexShrink: 0 }}
-        />
+        <QrImagen valor={enlace} tamano={132} alt={`Código QR para unirse a ${equipo}`} style={{ width: 132, height: 132, borderRadius: 12, border: "1px solid #e6eaf2", flexShrink: 0 }} />
       ) : null}
 
       <div className="min-w-0 flex-1 text-center sm:text-left">

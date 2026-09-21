@@ -1,6 +1,6 @@
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { BienvenidaConoceme } from "@/components/BienvenidaConoceme";
 import PublicRegistrationClient from "./PublicRegistrationClient";
@@ -21,7 +21,12 @@ export default async function PublicRegistrationPage({
       personalSlug: schema.userProfiles.personalSlug
     })
     .from(schema.userProfiles)
-    .where(eq(schema.userProfiles.personalSlug, slug.toLowerCase()))
+    .where(
+      and(
+        eq(schema.userProfiles.personalSlug, slug.toLowerCase()),
+        eq(schema.userProfiles.status, "active")
+      )
+    )
     .limit(1);
 
   const hostUser = userRows[0];

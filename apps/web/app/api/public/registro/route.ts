@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, encryptData } from "@tonala/shared/database";
-import { eq, or } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import crypto from "crypto";
 import { z } from "zod";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { safeErrorMessage } from "@/lib/safe-error";
 import { buscarMunicipio } from "@/lib/municipios-jalisco";
 
+// Un formulario web manda "" para lo que se deja en blanco, y z.coerce.number()
+// convierte "" en 0: el año, la sección o la calificación vacíos tumbaban el alta entera.
+const numeroOpcional = <T extends z.ZodTypeAny>(esquema: T) =>
+  z.preprocess((v) => (v === "" || v === null ? undefined : v), esquema);
+
 const surveySchema = z.object({
   colonyPriorityNeed: z.string().trim().max(200).optional(),
   colonyPriorityOther: z.string().trim().max(300).optional(),
   tonalaValues: z.string().trim().max(200).optional(),
   tonalaValuesOther: z.string().trim().max(300).optional(),
-  servicesRating: z.coerce.number().int().min(1).max(5).optional(),
+  servicesRating: numeroOpcional(z.coerce.number().int().min(1).max(5).optional()),
   servicesRatingWhy: z.string().trim().max(500).optional(),
   projectExpectations: z.string().trim().max(500).optional(),
   projectExpectationsOther: z.string().trim().max(300).optional(),
@@ -31,26 +36,30 @@ const publicRegistrationSchema = z.object({
   email: z.string().trim().max(160).email().optional().or(z.literal("")),
   birthDay: z.coerce.number().int().min(1).max(31),
   birthMonth: z.coerce.number().int().min(1).max(12),
-  birthYear: z.coerce.number().int().min(1900).max(new Date().getFullYear()).optional(),
+  birthYear: numeroOpcional(z.coerce.number().int().min(1900).max(new Date().getFullYear()).optional()),
   address: z.string().trim().max(300).optional(),
   colony: z.string().trim().max(150).optional(),
   municipality: z.string().trim().max(100).optional(),
-  sectionNum: z.coerce.number().int().positive().optional(),
+  sectionNum: numeroOpcional(z.coerce.number().int().positive().optional()),
   profession: z.string().trim().max(150).optional(),
   preferredContactMethod: z.string().trim().max(40).default("whatsapp"),
   preferredContactTime: z.string().trim().max(40).default("indiferente"),
   participatingArea: z.string().trim().max(200).optional(),
   knowMeBetter: z.string().trim().max(500).optional(),
-  survey: surveySchema.optional()
+  survey: surveySchema.nullish()
 });
 
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
-    const rl = checkRateLimit(`public-reg:${ip}`, 8, 60 * 60 * 1000); // 8 intentos por hora
+    const rawBody = await req.json();
+    // En un evento decenas de personas comparten la misma IP (WiFi o datos móviles), y sin
+    // cabecera de proxy todas caían en "unknown": el noveno registro de la hora se rechazaba.
+    // Se limita por IP *y* enlace, con un margen que cubra un evento real.
+    const slugLimite = typeof rawBody?.slug === "string" ? rawBody.slug.toLowerCase().slice(0, 80) : "";
+    const rl = checkRateLimit(`public-reg:${ip}:${slugLimite}`, 60, 60 * 60 * 1000);
     if (!rl.allowed) return rateLimitResponse(rl);
 
-    const rawBody = await req.json();
     const parsed = publicRegistrationSchema.safeParse(rawBody);
     if (!parsed.success) {
       return NextResponse.json(
@@ -92,7 +101,12 @@ export async function POST(req: NextRequest) {
         parentEnlaceId: schema.userProfiles.parentEnlaceId
       })
       .from(schema.userProfiles)
-      .where(eq(schema.userProfiles.personalSlug, slug.toLowerCase()))
+      .where(
+        and(
+          eq(schema.userProfiles.personalSlug, slug.toLowerCase()),
+          eq(schema.userProfiles.status, "active")
+        )
+      )
       .limit(1);
 
     if (!hostUser[0]) {
@@ -102,19 +116,16 @@ export async function POST(req: NextRequest) {
     const owner = hostUser[0];
 
     // 2. Detección de duplicados por teléfono
+    // El teléfono se guarda cifrado con IV aleatorio: la base no puede compararlo, hay que
+    // descifrar y comparar aquí.
     const allContacts = await db
-      .select({
-        id: schema.contacts.id,
-        phone: schema.contacts.phone,
-        displayName: schema.contacts.displayName
-      })
+      .select({ id: schema.contacts.id, phone: schema.contacts.phone })
       .from(schema.contacts);
 
     const cleanInputPhone = phone.replace(/[^0-9]/g, "");
     const duplicate = allContacts.find(c => {
       if (!c.phone) return false;
-      const cleanDbPhone = c.phone.replace(/[^0-9]/g, "");
-      return cleanDbPhone === cleanInputPhone;
+      return c.phone.replace(/[^0-9]/g, "") === cleanInputPhone;
     });
 
     if (duplicate) {
