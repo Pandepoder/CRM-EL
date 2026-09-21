@@ -20,9 +20,9 @@ export const MARCA = {
   redes: {
     instagram: "https://www.instagram.com/omarborboaoficial/",
     facebook: "https://www.facebook.com/people/Omar-Borboa/100009421625988/",
-    youtube: null as string | null
+    youtube: "https://www.youtube.com/channel/UC4ACrnzVpjepmv3p-t1orMw" as string | null
   },
   /** Ruta bajo /public. Sin foto aprobada se deja `null` y no se muestra retrato. */
-  retrato: null as string | null,
+  retrato: "/media/omar-retrato.jpg" as string | null,
   reel: null as { src: string; poster: string } | null
 } as const;
