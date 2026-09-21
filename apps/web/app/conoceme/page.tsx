@@ -199,14 +199,14 @@ export default async function ConocemePage() {
             <h1
               className="cm-anim font-extrabold tracking-tight"
               style={{
-                fontSize: "clamp(1.95rem, 5.4vw, 3.35rem)",
+                fontSize: "clamp(3.2rem, 11vw, 6.6rem)",
                 lineHeight: 1.08,
                 textWrap: "balance",
                 maxWidth: "18ch",
                 animationDelay: ".24s"
               }}
             >
-              &ldquo;Si pasa por tu mente,<br /><span className="welcome-title-soft">pasa por</span> <span className="welcome-title-accent">tu vida.&rdquo;</span>
+              <span className="welcome-title-soft">¿Y si</span> <span className="welcome-title-accent">sí?</span>
             </h1>
 
             <div

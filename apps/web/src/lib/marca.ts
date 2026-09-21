@@ -9,6 +9,8 @@
 export const MARCA = {
   sistema: "Jalisco OS",
   descriptor: "Gestor de campaña",
+  /** El eslogan que encabeza las páginas públicas. */
+  eslogan: "¿Y si sí?",
   lema: "Territorio, gente y resultados",
   referente: {
     nombre: "Omar Borboa Becerra",
