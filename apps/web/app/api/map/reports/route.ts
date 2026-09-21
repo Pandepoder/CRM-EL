@@ -5,7 +5,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { requireLiderParaIncidencias } from "@/lib/authorization";
 import { schema } from "@tonala/shared/database";
 const { eventReports } = schema;
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { incidentScopeCondition } from "@/lib/incident-visibility";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
@@ -54,7 +54,8 @@ export async function GET(_request: Request) {
       })
       .from(eventReports)
       .leftJoin(schema.electoralSections, eq(eventReports.sectionId, schema.electoralSections.id))
-      .where(visibilidad)
+      // Una actividad cancelada no es un punto del mapa: dejó de ser algo por atender.
+      .where(and(visibilidad, ne(eventReports.status, "cancelada")))
       .orderBy(desc(eventReports.createdAt));
 
     const geoJson = {

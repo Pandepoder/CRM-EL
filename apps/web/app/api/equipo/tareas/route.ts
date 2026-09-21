@@ -1,234 +1,99 @@
 import { NextResponse } from "next/server";
-import { buscarMunicipio } from "@/lib/municipios-jalisco";
-import { ubicarEnSeccion } from "@/lib/sections-geo-cache";
+import { z } from "zod";
+
+import { requireLiderParaIncidencias } from "@/lib/authorization";
+import { crearActividad } from "@/lib/actividades-servicio";
+
 export const dynamic = "force-dynamic";
 
-import { getDatabaseClient } from "@/lib/db-client";
-import { schema } from "@tonala/shared/database";
-import { requireLiderParaIncidencias } from "@/lib/authorization";
-import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { exigirAccesoAContacto } from "@/lib/permisos-contacto";
-import { CLAVES_CATEGORIA } from "@/lib/categorias-incidencia";
-import { eq } from "drizzle-orm";
+const uuid = z.string().uuid();
+
+const cuerpoCrear = z.object({
+  title: z.string().min(1, "El título es obligatorio."),
+  description: z.string().optional(),
+  assignedToUserId: uuid.nullish().or(z.literal("").transform(() => null)),
+  scheduledAt: z.string().min(1, "La fecha es obligatoria."),
+  activityTypeId: uuid.nullish().or(z.literal("").transform(() => null)),
+  // Clientes anteriores mandaban la clave del tipo en `category` (platica, visita…).
+  category: z.string().optional(),
+  tagIds: z.array(uuid).max(12).optional(),
+  sectionId: uuid.nullish().or(z.literal("").transform(() => null)),
+  contactId: uuid.nullish().or(z.literal("").transform(() => null)),
+  locationText: z.string().max(240).optional(),
+  estimatedAttendees: z
+    .union([z.number(), z.string()])
+    .nullish()
+    .transform((v) => (v === null || v === undefined || v === "" ? null : Number(v))),
+  latitude: z.number(),
+  longitude: z.number(),
+  municipality: z.string().nullish(),
+  mediaUrls: z.array(z.unknown()).max(20).optional(),
+  clientRequestId: uuid.nullish(),
+  modo: z.enum(["programar", "registrar"]).default("programar"),
+  resultado: z.object({ outcome: z.string(), summary: z.string() }).optional(),
+  roleAssignment: z.unknown().optional()
+});
 
 export async function POST(req: Request) {
-  // Esta ruta también da de alta incidencias, y solo comprobaba que hubiera
-  // sesión abierta: cualquier integrante podía crearlas por aquí aunque el mapa
-  // se lo impidiera. Misma puerta que en /api/map/reports.
+  // Esta ruta también da de alta incidencias en el mapa, así que exige lo mismo que
+  // /api/map/reports: solo quien lidera puede levantarlas.
   const actor = await requireLiderParaIncidencias();
   if (actor instanceof NextResponse) return actor;
 
+  let cuerpo: unknown;
   try {
-    const body = await req.json();
-    const {
-      title,
-      description = "",
-      assignedToUserId,
-      scheduledAt,
-      category = "brigada",
-      roleAssignment,
-      sectionId,
-      contactId,
-      locationText = "",
-      latitude,
-      longitude,
-      municipality
-    } = body;
+    cuerpo = await req.json();
+  } catch {
+    return NextResponse.json({ error: "El cuerpo de la petición no es JSON válido." }, { status: 400 });
+  }
 
-    const assignedUser = assignedToUserId || (actor.actorId as string);
+  // Los roles solo se cambian desde Control de Usuarios. Antes esta ruta aceptaba
+  // `roleAssignment` y reescribía el rol de cualquiera; sigue rechazándose de forma explícita.
+  if (cuerpo && typeof cuerpo === "object" && (cuerpo as Record<string, unknown>).roleAssignment) {
+    return NextResponse.json({ error: "Los roles solo se cambian desde Control de Usuarios." }, { status: 400 });
+  }
 
-    if (!title || !scheduledAt) {
-      return NextResponse.json(
-        { error: "El título de la actividad y la fecha son obligatorios." },
-        { status: 400 }
-      );
-    }
+  const analizado = cuerpoCrear.safeParse(cuerpo);
+  if (!analizado.success) {
+    // El primer problema, con el campo al que pertenece, para que el formulario lo marque.
+    const problema = analizado.error.issues[0];
+    return NextResponse.json(
+      { error: problema?.message ?? "Datos no válidos.", campo: String(problema?.path[0] ?? "") },
+      { status: 400 }
+    );
+  }
+  const c = analizado.data;
 
-    // El servidor traia la plaza principal de Tonalá como valor por defecto de
-    // las coordenadas, asi que toda actividad enviada sin ubicacion quedaba ahi
-    // como si fuera su sede, sin que nadie pudiera notarlo despues. Mas vale
-    // rechazarla y que se marque el punto.
-    // Number.isFinite y no typeof: typeof NaN es "number" y un NaN atravesaba la guarda para
-    // caer en la plaza de Tonalá que traían los valores por omisión del insert.
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return NextResponse.json(
-        { error: "Falta la ubicación. Márcala en el mapa o usa el GPS antes de guardar." },
-        { status: 400 }
-      );
-    }
-
-    // El responsable salía del cuerpo sin comprobar nada: bastaba conocer el
-    // identificador de un brigadista de otra dirección para llenarle la agenda de
-    // trabajo que su propio líder no había puesto ahí.
-    if (assignedUser !== actor.actorId) {
-      const alcance = await resolveUserNetworkScope(actor.actorId);
-      if (!alcance.isGlobal && !(alcance.allowedUserIds ?? []).includes(assignedUser)) {
-        return NextResponse.json(
-          { error: "Solo puedes asignar actividades a personas de tu equipo." },
-          { status: 403 }
-        );
-      }
-    }
-
-    // La visita asociada entra en el historial del ciudadano, así que se pide el
-    // mismo acceso que para abrir su ficha. Responde 404 y no 403 para no
-    // confirmar que el identificador existe.
-    if (contactId) {
-      const vetado = await exigirAccesoAContacto(contactId, actor.actorId, actor.roles);
-      if (vetado) return vetado;
-    }
-
-    const db = getDatabaseClient();
-    const scheduledDate = new Date(scheduledAt);
-
-    // Municipio explícito si es del catálogo; si no, el de la sección donde cae el punto.
-    // Antes cliente y servidor partían de "Tonalá": toda actividad creada sin pasar por el
-    // mapa quedaba archivada en Tonalá.
-    const municipioFinal =
-      buscarMunicipio(municipality)?.name ??
-      (await ubicarEnSeccion(Number(latitude), Number(longitude)))?.seccion.municipality ??
-      null;
-
-    // 1. Esta ruta ya NO cambia roles. Antes, si llegaba `roleAssignment`, dirección o un
-    // coordinador territorial podían reescribir el rol de cualquier persona —incluido el propio—
-    // a cualquier clave, "admin" incluida, sin validar destino ni alcance: una sola petición
-    // bastaba para quedarse con acceso global. La interfaz siempre lo mandaba vacío. Los roles
-    // se cambian únicamente desde Control de Usuarios (changeUserRoleAction), que es solo de
-    // administración.
-    if (roleAssignment) {
-      return NextResponse.json(
-        { error: "Los roles solo se cambian desde Control de Usuarios." },
-        { status: 400 }
-      );
-    }
-
-    // 2. Normalize category to match event_reports constraint
-    // Del catálogo único. Antes esta lista estaba copiada aquí a mano, que es
-    // exactamente la duplicación por la que el mapa y los formularios acabaron
-    // con listas distintas y la mitad de los reportes se volvían invisibles.
-    const validCategories = CLAVES_CATEGORIA;
-    let safeCategory = category;
-    let activityPrefix = "";
-
-    if (category === "platica") {
-      safeCategory = "servicios";
-      activityPrefix = "[Plática Vecinal] ";
-    } else if (category === "visita") {
-      safeCategory = "servicios";
-      activityPrefix = "[Visita Domiciliaria] ";
-    } else if (category === "evento") {
-      safeCategory = "mitin";
-      activityPrefix = "[Evento / Asamblea] ";
-    } else if (category === "estructura") {
-      safeCategory = "mitin";
-      activityPrefix = "[Estructura Electoral] ";
-    } else if (category === "perifoneo") {
-      safeCategory = "propaganda";
-      activityPrefix = "[Perifoneo / Activación] ";
-    } else if (category === "apoyos") {
-      safeCategory = "emergencia";
-      activityPrefix = "[Logística / Apoyos] ";
-    } else if (category === "brigada") {
-      safeCategory = "brigada";
-      activityPrefix = "[Brigada de Campo] ";
-    } else if (!validCategories.includes(safeCategory)) {
-      safeCategory = "brigada";
-    }
-
-    const fullTitle = title.trim().startsWith("[") || title.trim().includes("]") 
-      ? title.trim() 
-      : `${activityPrefix}${title.trim()}`;
-
-    let enrichedDescription = description.trim();
-    if (body.estimatedAttendees && Number(body.estimatedAttendees) > 0) {
-      enrichedDescription = `Asistentes / Participantes Estimados: ${body.estimatedAttendees}\n${enrichedDescription}`;
-    }
-    if (locationText && locationText.trim()) {
-      enrichedDescription = `Sede / Domicilio: ${locationText.trim()}\n${enrichedDescription}`;
-    }
-
-    // Las tres escrituras van juntas. Antes eran secuenciales y sin transacción:
-    // si la visita o la auditoría fallaban, la actividad ya estaba guardada y el
-    // usuario veía "Error interno" sobre algo que en realidad sí se había creado.
-    const insertedTask = await db.transaction(async (tx) => {
-      const [task] = await tx
-        .insert(schema.eventReports)
-        .values({
-          title: fullTitle,
-          description: enrichedDescription || `Actividad registrada: ${fullTitle}`,
-          latitude: Number(latitude),
-          longitude: Number(longitude),
-          category: safeCategory,
-          municipality: municipioFinal,
-          sectionId: sectionId || undefined,
-          assignedToUserId: assignedUser,
-          eventDate: scheduledDate,
-          status: "active",
-          mediaUrls: Array.isArray(body.mediaUrls) ? body.mediaUrls : undefined,
-          createdByUserId: actor.actorId as string
-        })
-        .returning();
-
-      // Si además se indicó un contacto, se agenda la visita asociada.
-      if (contactId) {
-        let colonyId: string | null = null;
-        if (sectionId) {
-          const secCol = await tx
-            .select({ colonyId: schema.sectionColonies.colonyId })
-            .from(schema.sectionColonies)
-            .where(eq(schema.sectionColonies.sectionId, sectionId))
-            .limit(1);
-          if (secCol.length > 0 && secCol[0]) colonyId = secCol[0].colonyId;
-        }
-        if (!colonyId) {
-          const firstCol = await tx.select({ id: schema.colonies.id }).from(schema.colonies).limit(1);
-          if (firstCol.length > 0 && firstCol[0]) colonyId = firstCol[0].id;
-        }
-
-        if (colonyId) {
-          await tx.insert(schema.visits).values({
-            id: crypto.randomUUID(),
-            contactId: contactId,
-            colonyId: colonyId,
-            // `visits.assigned_user_id` es NOT NULL. Aquí se usaba el campo crudo
-            // del cuerpo en vez de `assignedUser`, que es el que ya aplica el
-            // respaldo al actor: sin responsable explícito llegaba null y el
-            // INSERT reventaba con la actividad ya creada.
-            assignedUserId: assignedUser,
-            scheduledAt: scheduledDate,
-            status: "scheduled",
-            visitLocationText: locationText.trim() || "Visita de vinculación en campo",
-            createdByUserId: actor.actorId as string,
-            createdAt: new Date()
-          });
-        }
-      }
-
-      await tx.insert(schema.auditLogs).values({
-        actorUserId: actor.actorId as string,
-        action: "agenda.task.create",
-        entityType: "event_report",
-        entityId: task?.id || crypto.randomUUID(),
-        correlationId: actor.correlationId,
-        beforeData: null,
-        afterData: {
-          title,
-          assignedToUserId: assignedUser,
-          scheduledAt,
-          category,
-          roleAssignment
-        }
-      });
-
-      return task;
+  try {
+    const r = await crearActividad(actor, {
+      title: c.title,
+      description: c.description,
+      assignedToUserId: c.assignedToUserId,
+      scheduledAt: c.scheduledAt,
+      activityTypeId: c.activityTypeId,
+      categoriaHeredada: c.category,
+      tagIds: c.tagIds,
+      sectionId: c.sectionId,
+      contactId: c.contactId,
+      locationText: c.locationText,
+      estimatedAttendees: c.estimatedAttendees,
+      latitude: c.latitude,
+      longitude: c.longitude,
+      municipality: c.municipality,
+      mediaUrls: c.mediaUrls,
+      clientRequestId: c.clientRequestId,
+      modo: c.modo,
+      resultado: c.resultado
     });
-
-    return NextResponse.json({ success: true, task: insertedTask }, { status: 201 });
+    if (!r.ok) {
+      return NextResponse.json({ error: r.message, code: r.code }, { status: r.status });
+    }
+    return NextResponse.json(
+      { success: true, task: r.actividad, duplicada: r.duplicada, avisos: r.avisos },
+      { status: r.duplicada ? 200 : 201 }
+    );
   } catch (error) {
     console.error("Error creating operational task:", error);
-    return NextResponse.json(
-      { error: "Error interno al asignar la tarea u operación." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Error interno al registrar la actividad." }, { status: 500 });
   }
 }

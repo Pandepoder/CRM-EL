@@ -98,7 +98,7 @@ export class DrizzleVisitRepository implements VisitRepository, VisitsReader {
       created_at: Date;
       completed_at: Date | null;
       completed_by_user_id: string | null;
-      structured_outcome: "successful" | "no_contact" | "follow_up_required" | "rejected" | null;
+      structured_outcome: "successful" | "positive_commitment" | "no_contact" | "follow_up_required" | "rejected" | null;
       summary: string | null;
       version: number;
     }>(sql`
@@ -171,7 +171,7 @@ export class DrizzleVisitRepository implements VisitRepository, VisitsReader {
       scheduledAt: Date;
       status: "scheduled" | "completed";
       visitLocationText: string;
-      outcome: "successful" | "no_contact" | "follow_up_required" | "rejected" | null;
+      outcome: "successful" | "positive_commitment" | "no_contact" | "follow_up_required" | "rejected" | null;
       summary: string | null;
       completedAt: Date | null;
       assignedUserName: string | null;
@@ -215,7 +215,7 @@ export class DrizzleVisitRepository implements VisitRepository, VisitsReader {
       scheduledAt: Date;
       status: "scheduled" | "completed";
       visitLocationText: string;
-      outcome: "successful" | "no_contact" | "follow_up_required" | "rejected" | null;
+      outcome: "successful" | "positive_commitment" | "no_contact" | "follow_up_required" | "rejected" | null;
     };
 
     const todayFilter = onlyToday

@@ -3,7 +3,7 @@ import { incidentScopeCondition } from "@/lib/incident-visibility";
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq, count, gte, desc, and, or, inArray } from "drizzle-orm";
+import { eq, count, gte, desc, and, or, inArray, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import ResumenClient from "./ResumenClient";
 import { requirePageRole } from "@/lib/authorization";
@@ -45,7 +45,10 @@ export default async function ResumenPage() {
 
   const visibleIds = await visibleContactIds(networkScope);
   const contactRestriction = contactIdRestriction(visibleIds);
-  const visitRestriction = visibleIds === null ? undefined : inArray(schema.visits.contactId, visibleIds);
+  // Una actividad y la visita que agendó son UN registro: la visita vinculada a una actividad no se
+  // cuenta aparte (la actividad ya cuenta), igual que en la bitácora (lib/bitacora-consulta).
+  const sinVisitaVinculada = sql`NOT EXISTS (SELECT 1 FROM event_reports x WHERE x.visit_id = ${schema.visits.id})`;
+  const visitRestriction = visibleIds === null ? sinVisitaVinculada : and(inArray(schema.visits.contactId, visibleIds), sinVisitaVinculada);
   // Misma regla de incidencias que el mapa y la gestión (ver incident-visibility.ts). Antes solo
   // contaban las asignadas a un equipo: quedaban fuera las que la persona había levantado.
   const eventRestriction = incidentScopeCondition(networkScope);

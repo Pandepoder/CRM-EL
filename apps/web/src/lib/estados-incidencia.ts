@@ -31,7 +31,9 @@ export const ESTADOS_INCIDENCIA: Record<string, EstadoIncidencia> = {
   in_progress: { label: "En proceso",  ayuda: "Alguien la está atendiendo.",          color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", cerrada: false },
   resolved:    { label: "Resuelta",    ayuda: "Atendida y cerrada.",                  color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0", cerrada: true },
   archived:    { label: "Archivada",   ayuda: "Guardada en el historial.",            color: "#475569", bg: "#f8fafc", border: "#e2e8f0", cerrada: true },
-  rechazada:   { label: "Rechazada",   ayuda: "Revisada y descartada.",               color: "#7c2d12", bg: "#fff7ed", border: "#fed7aa", cerrada: true }
+  rechazada:   { label: "Rechazada",   ayuda: "Revisada y descartada.",               color: "#7c2d12", bg: "#fff7ed", border: "#fed7aa", cerrada: true },
+  // Solo para actividades de la bitácora: se cancela con motivo desde allí, no desde el selector de estado.
+  cancelada:    { label: "Cancelada",   ayuda: "Se canceló y ya no se realizará.",   color: "#475569", bg: "#f1f5f9", border: "#cbd5e1", cerrada: true }
 };
 
 export const CLAVES_ESTADO = Object.keys(ESTADOS_INCIDENCIA);

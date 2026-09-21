@@ -1,4 +1,6 @@
 import {
+  type AnyPgColumn,
+  boolean,
   check,
   doublePrecision,
   index,
@@ -480,9 +482,47 @@ export const visitResults = pgTable(
   (table) => [
     check(
       "visit_results_outcome_check",
-      sql`${table.structuredOutcome} IN ('successful', 'no_contact', 'follow_up_required', 'rejected')`
+      sql`${table.structuredOutcome} IN ('successful', 'positive_commitment', 'no_contact', 'follow_up_required', 'rejected')`
     ),
     check("visit_results_summary_check", sql`length(trim(${table.summary})) > 0`)
+  ]
+);
+
+/**
+ * Opciones configurables de la bitácora: tipos de actividad y etiquetas. Se crean y se archivan
+ * desde la aplicación; los ocho tipos que antes estaban en código son las primeras filas.
+ * Archivar no borra: las actividades anteriores siguen mostrando la opción que usaron.
+ */
+export const activityCatalogOptions = pgTable(
+  "activity_catalog_options",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: text("kind").notNull(),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    normalizedName: text("normalized_name").notNull(),
+    description: text("description"),
+    color: text("color"),
+    icon: text("icon"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    incidentCategory: text("incident_category").notNull().default("brigada"),
+    scope: text("scope").notNull().default("organization"),
+    isSystem: boolean("is_system").notNull().default(false),
+    createsVisit: boolean("creates_visit").notNull().default(false),
+    createdByUserId: uuid("created_by_user_id").references(() => userProfiles.id),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    archivedByUserId: uuid("archived_by_user_id").references(() => userProfiles.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    check("activity_catalog_options_kind_check", sql`${table.kind} IN ('type', 'tag', 'profile')`),
+    check("activity_catalog_options_scope_check", sql`${table.scope} IN ('organization', 'network')`),
+    check("activity_catalog_options_name_check", sql`length(trim(${table.name})) > 0`),
+    index("activity_catalog_options_kind_idx").on(table.kind, table.sortOrder),
+    index("activity_catalog_options_created_by_idx").on(table.createdByUserId)
+    // El índice único por nombre normalizado y alcance es una expresión (CASE) y vive solo en la
+    // migración 0017: activity_catalog_options_unique_name_idx.
   ]
 );
 
@@ -507,15 +547,37 @@ export const eventReports = pgTable(
     status: text("status").notNull().default("active"),
     mediaUrls: jsonb("media_urls"),
     createdByUserId: uuid("created_by_user_id").notNull().references(() => userProfiles.id),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // --- Bitácora de actividades (migración 0017). `category` sigue siendo la categoría de
+    // incidencia que entiende el mapa; el tipo de actividad es otra cosa.
+    activityTypeId: uuid("activity_type_id").references(() => activityCatalogOptions.id),
+    outcome: text("outcome"),
+    outcomeSummary: text("outcome_summary"),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    closedByUserId: uuid("closed_by_user_id").references(() => userProfiles.id),
+    cancelReason: text("cancel_reason"),
+    locationText: text("location_text"),
+    estimatedAttendees: integer("estimated_attendees"),
+    contactId: uuid("contact_id").references(() => contacts.id),
+    visitId: uuid("visit_id").references(() => visits.id),
+    followUpOfId: uuid("follow_up_of_id").references((): AnyPgColumn => eventReports.id, { onDelete: "set null" }),
+    clientRequestId: uuid("client_request_id"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
+    check("event_reports_outcome_check", sql`${table.outcome} IS NULL OR ${table.outcome} IN ('successful', 'positive_commitment', 'no_contact', 'follow_up_required', 'rejected')`),
+    check("event_reports_attendees_check", sql`${table.estimatedAttendees} IS NULL OR ${table.estimatedAttendees} >= 0`),
+    index("event_reports_activity_type_idx").on(table.activityTypeId),
+    index("event_reports_contact_idx").on(table.contactId),
+    index("event_reports_follow_up_of_idx").on(table.followUpOfId),
+    uniqueIndex("event_reports_client_request_idx").on(table.clientRequestId).where(sql`${table.clientRequestId} IS NOT NULL`),
+    uniqueIndex("event_reports_visit_idx").on(table.visitId).where(sql`${table.visitId} IS NOT NULL`),
     check("event_reports_category_check", sql`${table.category} IN ('emergencia', 'incidencia', 'mitin', 'propaganda', 'servicios', 'sospechoso', 'brigada', 'bache', 'alumbrado', 'fuga_agua', 'inundacion', 'basura', 'seguridad', 'lona_danada', 'otro')`),
     // `status` era texto libre mientras `category` sí estaba restringida, así que
     // cualquier ruta podía escribir un estado inventado y romper los filtros.
     // pendiente -> active -> in_progress -> resolved -> archived, y rechazada
     // como salida desde admisión. Ver lib/estados-incidencia.
-    check("event_reports_status_check", sql`${table.status} IN ('pendiente', 'active', 'in_progress', 'resolved', 'archived', 'rechazada')`),
+    check("event_reports_status_check", sql`${table.status} IN ('pendiente', 'active', 'in_progress', 'resolved', 'archived', 'rechazada', 'cancelada')`),
     // El GeoJSON del mapa hace LEFT JOIN de event_reports por section_id para
     // cada sección; sin índice eso es un recorrido secuencial por sección.
     index("event_reports_section_idx").on(table.sectionId),
@@ -524,6 +586,38 @@ export const eventReports = pgTable(
     index("event_reports_status_idx").on(table.status),
     index("event_reports_category_idx").on(table.category),
     index("event_reports_event_date_idx").on(table.eventDate)
+  ]
+);
+
+export const activityHistory = pgTable(
+  "activity_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventReportId: uuid("event_report_id").notNull().references(() => eventReports.id, { onDelete: "cascade" }),
+    actorUserId: uuid("actor_user_id").notNull().references(() => userProfiles.id),
+    kind: text("kind").notNull(),
+    note: text("note"),
+    data: jsonb("data"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    check(
+      "activity_history_kind_check",
+      sql`${table.kind} IN ('created', 'edited', 'note', 'rescheduled', 'reassigned', 'completed', 'cancelled', 'follow_up_created', 'archived', 'restored')`
+    ),
+    index("activity_history_report_idx").on(table.eventReportId, table.createdAt)
+  ]
+);
+
+export const activityTagLinks = pgTable(
+  "activity_tag_links",
+  {
+    eventReportId: uuid("event_report_id").notNull().references(() => eventReports.id, { onDelete: "cascade" }),
+    optionId: uuid("option_id").notNull().references(() => activityCatalogOptions.id)
+  },
+  (table) => [
+    primaryKey({ columns: [table.eventReportId, table.optionId], name: "activity_tag_links_pk" }),
+    index("activity_tag_links_option_idx").on(table.optionId)
   ]
 );
 
@@ -727,9 +821,17 @@ export const rapidActivityProspects = pgTable(
     privateNotes: text("private_notes"),
     convertedToContactId: uuid("converted_to_contact_id").references(() => contacts.id),
     createdByUserId: uuid("created_by_user_id").notNull().references(() => userProfiles.id),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    profileOptionId: uuid("profile_option_id").references(() => activityCatalogOptions.id),
+    nextStep: text("next_step"),
+    nextStepAt: timestamp("next_step_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    convertedAt: timestamp("converted_at", { withTimezone: true }),
+    convertedByUserId: uuid("converted_by_user_id").references(() => userProfiles.id)
   },
   (table) => [
+    index("rapid_activity_prospects_profile_idx").on(table.profileOptionId),
+    index("rapid_activity_prospects_converted_idx").on(table.convertedToContactId),
     index("rapid_activity_prospects_created_by_idx").on(table.createdByUserId),
     index("rapid_activity_prospects_activity_date_idx").on(table.activityDate)
   ]

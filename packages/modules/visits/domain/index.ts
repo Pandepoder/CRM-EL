@@ -9,6 +9,7 @@ export type VisitStatus = (typeof VisitStatus)[keyof typeof VisitStatus];
 
 export const VisitOutcome = {
   Successful: "successful",
+  PositiveCommitment: "positive_commitment",
   NoContact: "no_contact",
   FollowUpRequired: "follow_up_required",
   Rejected: "rejected"
