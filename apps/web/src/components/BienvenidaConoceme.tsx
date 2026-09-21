@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, PlayCircle } from "lucide-react";
+import { MARCA } from "@/lib/marca";
 
 /**
  * Presentación de campaña antes del formulario, en las páginas donde aterriza
@@ -78,28 +79,30 @@ export function BienvenidaConoceme({ accion, invitadoPor, clave }: BienvenidaCon
   if (!visible) return null;
 
   return (
-    <div className="bienvenida" role="dialog" aria-modal="true" aria-label="Conoce a Edgar López">
+    <div className="bienvenida" role="dialog" aria-modal="true" aria-label={`Conoce ${MARCA.sistema}`}>
       <div className="bienvenida-caja">
         <div className="bienvenida-foto">
+          {MARCA.retrato ? (
           <Image
-            src="/media/edgar-retrato.jpg"
-            alt="Edgar López"
+            src={MARCA.retrato}
+            alt={MARCA.referente.nombre}
             fill
             sizes="(max-width: 640px) 100vw, 420px"
             style={{ objectFit: "cover", objectPosition: "top center" }}
             priority
           />
+          ) : null}
           <div className="bienvenida-velo" />
           <div className="bienvenida-titulo">
             <Image
-              src="/brand/el-monograma-blanco.png"
+              src="/brand/monograma-blanco.svg"
               alt=""
               width={44}
               height={44}
               style={{ width: 44, height: 44, objectFit: "contain" }}
             />
-            <strong>Edgar López</strong>
-            <span>Un Jalisco Posible</span>
+            <strong>{MARCA.sistema}</strong>
+            <span>{MARCA.lema}</span>
           </div>
         </div>
 
@@ -122,7 +125,7 @@ export function BienvenidaConoceme({ accion, invitadoPor, clave }: BienvenidaCon
 
           <Link href="/conoceme" className="bienvenida-ver">
             <PlayCircle size={17} />
-            Ver videos y conocer a Edgar
+            Conocer el proyecto
           </Link>
         </div>
       </div>
