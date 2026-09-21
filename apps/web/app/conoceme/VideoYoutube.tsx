@@ -24,12 +24,26 @@ import { Play } from "lucide-react";
  * en 9:16 y la miniatura se pide en su proporción original (`oardefault`). La
  * miniatura estándar de YouTube es apaisada y recortaría la cabeza.
  *
- * La forma ya no se declara a mano. Los videos ahora se leen del canal, y el canal no dice si
- * cada uno es vertical u horizontal; la miniatura en proporción original sí, así que el marco se
- * ajusta a lo que mida la imagen al cargar. Mientras llega se asume vertical, que es casi todo
- * lo que se publica, y así el hueco no salta cuando aparece.
+ * La forma ya no se declara a mano: la lista del canal dice de qué pestaña salió cada video, y
+ * eso ya distingue un Short de un video largo. Cuando aun así no se sepa —el canal RSS no lo
+ * dice—, el marco se ajusta a lo que mida la miniatura al cargar; mientras llega se asume
+ * vertical, que es casi todo lo que se publica, y así el hueco no salta cuando aparece.
  */
 const PROPORCION = { corto: "9 / 16", horizontal: "16 / 9" } as const;
+
+/**
+ * `oardefault` es la miniatura en proporción original: la buena para un Short, porque la
+ * estándar es apaisada y le recorta la cabeza a quien salga. Pero para un video largo YouTube
+ * responde ahí un rectángulo gris de 120×90 —con código 200, así que `onError` ni se entera— y
+ * la tarjeta se queda en blanco. Por eso a cada formato se le pide de entrada la suya.
+ */
+const MINIATURA = {
+  corto: (id: string) => `https://i.ytimg.com/vi/${id}/oardefault.jpg`,
+  horizontal: (id: string) => `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
+} as const;
+
+/** El tamaño de ese rectángulo gris, que es como se reconoce que la miniatura no existe. */
+const HUECO = { ancho: 120, alto: 90 };
 
 export default function VideoYoutube({
   id,
@@ -44,9 +58,7 @@ export default function VideoYoutube({
 }) {
   const [reproduciendo, setReproduciendo] = useState(false);
   const [forma, setForma] = useState<"corto" | "horizontal">(formato);
-  // `oardefault` es la miniatura en proporción original, la buena para Shorts;
-  // no todos los videos la tienen, así que si falla se cae a la estándar.
-  const [miniatura, setMiniatura] = useState(`https://i.ytimg.com/vi/${id}/oardefault.jpg`);
+  const [miniatura, setMiniatura] = useState(MINIATURA[formato](id));
 
   return (
     <article
@@ -85,11 +97,17 @@ export default function VideoYoutube({
               loading="lazy"
               onError={() => {
                 // Sin miniatura en proporción original, la estándar es apaisada: el video lo es.
-                setMiniatura(`https://i.ytimg.com/vi/${id}/hqdefault.jpg`);
+                setMiniatura(MINIATURA.horizontal(id));
                 setForma("horizontal");
               }}
               onLoad={(e) => {
                 const img = e.currentTarget;
+                // El rectángulo gris: no hay miniatura en proporción original, así que es largo.
+                if (img.naturalWidth <= HUECO.ancho && img.naturalHeight <= HUECO.alto) {
+                  setMiniatura(MINIATURA.horizontal(id));
+                  setForma("horizontal");
+                  return;
+                }
                 if (img.naturalWidth > 0 && img.naturalHeight > 0) {
                   setForma(img.naturalWidth > img.naturalHeight ? "horizontal" : "corto");
                 }

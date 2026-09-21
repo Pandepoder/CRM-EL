@@ -8,7 +8,7 @@ import MapaJalisco from "./MapaJalisco";
 import ReelCampana from "./ReelCampana";
 import { CATEGORIAS_INCIDENCIA, CATEGORIA_DESCONOCIDA } from "@/lib/categorias-incidencia";
 import { cifrasPublicas } from "@/lib/pulso-publico";
-import { videosDelCanal } from "@/lib/videos-canal";
+import { videosDelCanal, type VideoDelCanal } from "@/lib/videos-canal";
 
 /**
  * Conóceme: página pública de campaña.
@@ -40,20 +40,15 @@ export const dynamic = "force-dynamic";
  * Si algún día hay que fijar uno a mano: el identificador de un Short es lo que va después de
  * `/shorts/` en la dirección, y en un video normal lo que va después de `v=`.
  */
-const VIDEOS_DE_RESPALDO: Array<{
-  id: string;
-  titulo: string;
-  descripcion?: string;
-  formato?: "corto" | "horizontal";
-}> = [
+const VIDEOS_DE_RESPALDO: VideoDelCanal[] = [
   // Los títulos son los que tienen los videos en YouTube, leídos de su ficha
-  // pública; no se inventó ninguno.
-  { id: "UU9QMqIk1B4", titulo: "Platicamos con las y los vecinos de la calle Javier Mina" },
-  { id: "2dquM8_pyUs", titulo: "Comunicación directa con SIAPA" },
-  { id: "ZU7W-_iD1ro", titulo: "Sistema Integral Municipal de Cuidados de Tonalá" },
-  { id: "mRRqvSGBvTQ", titulo: "Nuestro más sincero y orgulloso reconocimiento" },
-  { id: "GTDRp1-kcEk", titulo: "Tonalá, Jalisco y el barro" },
-  { id: "_KIjnKXLfPA", titulo: "2 de septiembre de 2026" }
+  // pública; no se inventó ninguno. Al 20 de septiembre de 2026.
+  { id: "XXRMuPPUEec", titulo: "Entre Mentes con Edgar López 🎙️🎥", formato: "horizontal" },
+  { id: "i8S0y49utMo", titulo: "¡TONALÁ SE VIVE CON SU GENTE!🇲🇽🤝", formato: "corto" },
+  { id: "xioVXXi1QsM", titulo: "DESFILE CÍVICO-MILITAR #tonala", formato: "corto" },
+  { id: "WOI0Wi9nO_s", titulo: "AYUDEMOS al comedor comunitario en Loma Bonita", formato: "corto" },
+  { id: "11p2xl9RyWk", titulo: "En #tonala siempre de cerca escuchando sus necesidades", formato: "corto" },
+  { id: "9Q3KK49ZIVU", titulo: "Las colonias se conocen por su #gente #tonala", formato: "corto" }
 ];
 
 // Los mismos trazos que usa la pantalla de acceso, para que las redes se vean
@@ -85,6 +80,16 @@ function haceCuanto(iso: string): string {
   return "Lo más reciente";
 }
 
+/**
+ * La etiqueta del primer video. Según de dónde venga la lista hay fecha exacta (canal RSS),
+ * solo un "hace 2 semanas" (pestañas del canal) o nada (Shorts, que no la traen).
+ */
+function etiquetaDeNovedad(v: VideoDelCanal): string | null {
+  if (v.publicado) return haceCuanto(v.publicado);
+  if (!v.antiguedad) return null;
+  return /hora|minuto|d[ií]a/.test(v.antiguedad) ? `Nuevo · ${v.antiguedad}` : "Lo más reciente";
+}
+
 function IconoRed({ path, size = 20 }: { path: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -94,11 +99,15 @@ function IconoRed({ path, size = 20 }: { path: string; size?: number }) {
 }
 
 export default async function ConocemePage() {
-  // Los últimos del canal, sin que nadie tenga que pegar enlaces ni volver a desplegar.
-  const { videos: VIDEOS } = await videosDelCanal(CUANTOS_VIDEOS, VIDEOS_DE_RESPALDO);
-  // Cifras del propio sistema. Si la base no responde, `cifras` es null y estas bandas
-  // simplemente no salen: la página nunca enseña un tablero en ceros.
-  const cifras = await cifrasPublicas();
+  // Las dos cosas que cuestan se piden a la vez, no una tras otra: YouTube y la base no se
+  // necesitan mutuamente, y en fila sus esperas se sumaban.
+  //   - Los últimos del canal, sin que nadie tenga que pegar enlaces ni volver a desplegar.
+  //   - Cifras del propio sistema. Si la base no responde, `cifras` es null y esas bandas
+  //     simplemente no salen: la página nunca enseña un tablero en ceros.
+  const [{ videos: VIDEOS }, cifras] = await Promise.all([
+    videosDelCanal(CUANTOS_VIDEOS, VIDEOS_DE_RESPALDO),
+    cifrasPublicas()
+  ]);
   const masPedido = cifras?.categorias[0]?.total ?? 0;
 
   return (
@@ -300,8 +309,11 @@ export default async function ConocemePage() {
             <div className="grid gap-4 sm:gap-5 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {VIDEOS.map((v, i) => (
                 <div key={v.id} className="welcome-video-card">
-                  {i === 0 && v.publicado ? <span className="video-nuevo">{haceCuanto(v.publicado)}</span> : null}
-                  <VideoYoutube id={v.id} titulo={v.titulo} />
+                  {i === 0 && etiquetaDeNovedad(v) ? (
+                    <span className="video-nuevo">{etiquetaDeNovedad(v)}</span>
+                  ) : null}
+                  {/* El formato solo se pasa si se sabe: si no, la tarjeta lo deduce de la miniatura. */}
+                  <VideoYoutube id={v.id} titulo={v.titulo} {...(v.formato ? { formato: v.formato } : {})} />
                 </div>
               ))}
             </div>
