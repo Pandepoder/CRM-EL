@@ -203,7 +203,7 @@ export default async function ConocemePage() {
                 animationDelay: ".24s"
               }}
             >
-              &ldquo;Si pasa por tu vida<br /><span className="welcome-title-soft">pasa por</span> <span className="welcome-title-accent">tu mente.&rdquo;</span>
+              &ldquo;Si pasa por tu mente,<br /><span className="welcome-title-soft">pasa por</span> <span className="welcome-title-accent">tu vida.&rdquo;</span>
             </h1>
 
             <div
