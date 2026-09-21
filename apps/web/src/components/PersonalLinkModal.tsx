@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Copy, Check, X, MessageSquare, Lightbulb } from "lucide-react";
 
+import { QrImagen } from "@/components/QrImagen";
 import { useMunicipioUsuario } from "@/lib/municipio-contexto";
 
 export function PersonalLinkModal({
@@ -29,8 +30,6 @@ export function PersonalLinkModal({
   );
   const whatsappUrl = `https://wa.me/?text=${whatsappMessage}`;
 
-  // QR Code URL via public SVG API
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(fullUrl)}&color=0f172a&bgcolor=ffffff`;
 
   function handleCopy() {
     navigator.clipboard.writeText(fullUrl);
@@ -47,7 +46,7 @@ export function PersonalLinkModal({
             <span className="text-[10px] font-black uppercase tracking-wider bg-white/10 px-2.5 py-0.5 rounded-full text-blue-200 border border-white/15">
               Enlace Personal & QR
             </span>
-            <h3 className="text-lg sm:text-xl font-black mt-1 text-white">Tu Enlace de Registro</h3>
+            <h3 className="text-lg sm:text-xl font-black mt-1 text-white">Tu Enlace para Registrar Ciudadanos</h3>
             <p className="text-xs text-blue-200 mt-0.5">{userName}</p>
           </div>
           <button
@@ -64,11 +63,7 @@ export function PersonalLinkModal({
         <div className="p-5 sm:p-6 space-y-6 text-center overflow-y-auto overscroll-contain flex-1 pb-16">
           {/* QR Code */}
           <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 inline-block shadow-inner">
-            <img
-              src={qrCodeUrl}
-              alt={`Código QR de ${userName}`}
-              className="w-48 h-48 mx-auto rounded-xl shadow-sm"
-            />
+            <QrImagen valor={fullUrl} tamano={192} alt={`Código QR de ${userName}`} color="#0f172a" className="w-48 h-48 mx-auto rounded-xl shadow-sm" />
             <p className="text-[10px] text-gray-500 font-bold mt-2">Escanea con tu celular o WhatsApp</p>
           </div>
 
@@ -113,7 +108,7 @@ export function PersonalLinkModal({
           </div>
 
           <p className="text-[10px] text-gray-400 font-medium flex items-start gap-1">
-            <Lightbulb size={12} className="shrink-0 mt-0.5" /> Cuando alguien se registre con este enlace o código QR, quedará sumado automáticamente a tu red y equipo.
+            <Lightbulb size={12} className="shrink-0 mt-0.5" /> Cuando alguien se registre con este enlace o código QR, quedará en tu red como contacto. Para sumar brigadistas, usa el QR de tu brigada en Equipos.
           </p>
         </div>
       </div>

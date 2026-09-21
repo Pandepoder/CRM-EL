@@ -43,10 +43,13 @@ export async function POST(request: Request) {
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       request.headers.get("x-real-ip") ||
       "unknown";
-    const rl = checkRateLimit(`unirme:${ip}`, 8, 60 * 60 * 1000);
+    const cuerpo = await request.json();
+    const slugLimite = typeof cuerpo?.slug === "string" ? cuerpo.slug.toLowerCase().slice(0, 80) : "";
+    // Por IP y enlace: una reunión de brigada comparte la misma red.
+    const rl = checkRateLimit(`unirme:${ip}:${slugLimite}`, 30, 60 * 60 * 1000);
     if (!rl.allowed) return rateLimitResponse(rl);
 
-    const parsed = esquema.safeParse(await request.json());
+    const parsed = esquema.safeParse(cuerpo);
     if (!parsed.success) {
       return NextResponse.json(
         { error: "Revisa los datos: falta algo o el correo no es válido." },
