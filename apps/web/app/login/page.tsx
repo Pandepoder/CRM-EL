@@ -4,6 +4,7 @@ import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ShieldCheck, Mail, Lock, ArrowRight, ArrowLeft, Loader2, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { MARCA } from "@/lib/marca";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -135,17 +136,17 @@ function LoginForm() {
 const REDES = [
   {
     nombre: "Instagram",
-    href: "https://www.instagram.com/edgar_lopezj",
+    href: MARCA.redes.instagram,
     path: "M12 2.2c3.2 0 3.6 0 4.9.07 1.2.05 1.8.25 2.2.42.6.2 1 .48 1.4.9.4.4.7.8.9 1.4.17.4.37 1 .42 2.2.06 1.3.07 1.7.07 4.9s0 3.6-.07 4.9c-.05 1.2-.25 1.8-.42 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.17-1 .37-2.2.42-1.3.06-1.7.07-4.9.07s-3.6 0-4.9-.07c-1.2-.05-1.8-.25-2.2-.42-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.17-.4-.37-1-.42-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9c.05-1.2.25-1.8.42-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.17 1-.37 2.2-.42C8.4 2.2 8.8 2.2 12 2.2Zm0 5.2a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2Zm0 7.6a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm5.9-7.8a1.08 1.08 0 1 1-2.15 0 1.08 1.08 0 0 1 2.15 0Z"
   },
   {
     nombre: "Facebook",
-    href: "https://www.facebook.com/share/14khJUZf2aw/",
+    href: MARCA.redes.facebook,
     path: "M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.51 1.5-3.9 3.78-3.9 1.1 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12Z"
   },
   {
     nombre: "YouTube",
-    href: "https://youtube.com/@edgarlopezj",
+    href: MARCA.redes.youtube ?? "",
     path: "M21.58 7.19a2.51 2.51 0 0 0-1.77-1.77C18.25 5 12 5 12 5s-6.25 0-7.81.42a2.51 2.51 0 0 0-1.77 1.77C2 8.75 2 12 2 12s0 3.25.42 4.81a2.51 2.51 0 0 0 1.77 1.77C5.75 19 12 19 12 19s6.25 0 7.81-.42a2.51 2.51 0 0 0 1.77-1.77C22 15.25 22 12 22 12s0-3.25-.42-4.81ZM10 15.02V8.98L15.2 12 10 15.02Z"
   }
 ] as const;
@@ -157,13 +158,13 @@ function Redes({ tono }: { tono: "claro" | "oscuro" }) {
       : "border-slate-200 text-slate-500 hover:bg-[#0b1f3a] hover:text-white hover:border-[#0b1f3a]";
   return (
     <div className="flex items-center gap-3">
-      {REDES.map((r) => (
+      {REDES.filter((r) => r.href).map((r) => (
         <a
           key={r.nombre}
           href={r.href}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`${r.nombre} de Edgar López`}
+          aria-label={`${r.nombre} de ${MARCA.referente.corto}`}
           title={r.nombre}
           className={`flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${base}`}
         >
@@ -181,15 +182,15 @@ export default function LoginPage() {
     <main className="login-premium">
       <header className="login-topbar">
         <Link href="/conoceme" className="login-back"><ArrowLeft size={17} /><span>Volver a la bienvenida</span></Link>
-        <span className="login-wordmark"><img src="/brand/el-monograma-blanco.png" alt="" width={28} height={28} /> Edgar López</span>
+        <span className="login-wordmark"><img src="/brand/monograma-blanco.svg" alt="" width={28} height={28} /> {MARCA.sistema}</span>
       </header>
       <div className="login-composition">
-        <section className="login-brand" aria-label="Edgar López, Jalisco">
+        <section className="login-brand" aria-label={`${MARCA.sistema}, Jalisco`}>
           <div className="login-halo" aria-hidden="true"><i /><i /></div>
           <p className="login-eyeline">JALISCO</p>
           <h2>&ldquo;Si pasa por tu mente,<br /><span>pasa por tu vida.&rdquo;</span></h2>
-          <div className="login-portrait"><img src="/media/edgar-retrato.jpg" alt="Edgar López" width={300} height={330} /><span>EDGAR LÓPEZ</span></div>
-          <div className="login-brand-bottom"><span>Un Jalisco Posible</span><Redes tono="claro" /></div>
+          {MARCA.retrato ? <div className="login-portrait"><img src={MARCA.retrato} alt={MARCA.referente.nombre} width={300} height={330} /><span>{MARCA.referente.corto.toUpperCase()}</span></div> : null}
+          <div className="login-brand-bottom"><span>{MARCA.lema}</span><Redes tono="claro" /></div>
         </section>
         <section className="login-panel" aria-labelledby="login-title">
           <div className="login-panel-heading">

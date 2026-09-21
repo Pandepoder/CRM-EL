@@ -25,12 +25,12 @@ const corto = (id: string, textoAccesible: string) =>
 
 describe("mezclarPestanas", () => {
   it("lee los videos largos con su título y su antigüedad", () => {
-    const videos = mezclarPestanas(largo("XXRMuPPUEec", "Entre Mentes con Edgar López", "hace 2 semanas"), "");
+    const videos = mezclarPestanas(largo("XXRMuPPUEec", "Entre Mentes con un invitado", "hace 2 semanas"), "");
 
     expect(videos).toEqual([
       {
         id: "XXRMuPPUEec",
-        titulo: "Entre Mentes con Edgar López",
+        titulo: "Entre Mentes con un invitado",
         formato: "horizontal",
         antiguedad: "hace 2 semanas"
       }

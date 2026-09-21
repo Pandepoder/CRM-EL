@@ -9,6 +9,7 @@ import ReelCampana from "./ReelCampana";
 import { CATEGORIAS_INCIDENCIA, CATEGORIA_DESCONOCIDA } from "@/lib/categorias-incidencia";
 import { cifrasPublicas } from "@/lib/pulso-publico";
 import { videosDelCanal, type VideoDelCanal } from "@/lib/videos-canal";
+import { MARCA } from "@/lib/marca";
 
 /**
  * Conóceme: página pública de campaña.
@@ -40,16 +41,7 @@ export const dynamic = "force-dynamic";
  * Si algún día hay que fijar uno a mano: el identificador de un Short es lo que va después de
  * `/shorts/` en la dirección, y en un video normal lo que va después de `v=`.
  */
-const VIDEOS_DE_RESPALDO: VideoDelCanal[] = [
-  // Los títulos son los que tienen los videos en YouTube, leídos de su ficha
-  // pública; no se inventó ninguno. Al 20 de septiembre de 2026.
-  { id: "XXRMuPPUEec", titulo: "Entre Mentes con Edgar López 🎙️🎥", formato: "horizontal" },
-  { id: "i8S0y49utMo", titulo: "¡TONALÁ SE VIVE CON SU GENTE!🇲🇽🤝", formato: "corto" },
-  { id: "xioVXXi1QsM", titulo: "DESFILE CÍVICO-MILITAR #tonala", formato: "corto" },
-  { id: "WOI0Wi9nO_s", titulo: "AYUDEMOS al comedor comunitario en Loma Bonita", formato: "corto" },
-  { id: "11p2xl9RyWk", titulo: "En #tonala siempre de cerca escuchando sus necesidades", formato: "corto" },
-  { id: "9Q3KK49ZIVU", titulo: "Las colonias se conocen por su #gente #tonala", formato: "corto" }
-];
+const VIDEOS_DE_RESPALDO: VideoDelCanal[] = [];
 
 // Los mismos trazos que usa la pantalla de acceso, para que las redes se vean
 // idénticas en las dos páginas.
@@ -59,15 +51,15 @@ const ICONO_YOUTUBE =
 const REDES = [
   {
     nombre: "Instagram",
-    href: "https://www.instagram.com/edgar_lopezj",
+    href: MARCA.redes.instagram,
     path: "M12 2.2c3.2 0 3.6 0 4.9.07 1.2.05 1.8.25 2.2.42.6.2 1 .48 1.4.9.4.4.7.8.9 1.4.17.4.37 1 .42 2.2.06 1.3.07 1.7.07 4.9s0 3.6-.07 4.9c-.05 1.2-.25 1.8-.42 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.17-1 .37-2.2.42-1.3.06-1.7.07-4.9.07s-3.6 0-4.9-.07c-1.2-.05-1.8-.25-2.2-.42-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.17-.4-.37-1-.42-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9c.05-1.2.25-1.8.42-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.17 1-.37 2.2-.42C8.4 2.2 8.8 2.2 12 2.2Zm0 5.2a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2Zm0 7.6a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm5.9-7.8a1.08 1.08 0 1 1-2.15 0 1.08 1.08 0 0 1 2.15 0Z"
   },
   {
     nombre: "Facebook",
-    href: "https://www.facebook.com/share/14khJUZf2aw/",
+    href: MARCA.redes.facebook,
     path: "M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.51 1.5-3.9 3.78-3.9 1.1 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12Z"
   },
-  { nombre: "YouTube", href: "https://youtube.com/@edgarlopezj", path: ICONO_YOUTUBE }
+  { nombre: "YouTube", href: MARCA.redes.youtube ?? "", path: ICONO_YOUTUBE }
 ];
 
 /** "Hace 3 días" para el video más reciente: da señal de que la página está viva. */
@@ -135,13 +127,13 @@ export default async function ConocemePage() {
             monograma como identidad, sin navegacion a ninguna parte. */}
         <span className="flex items-center gap-2 font-semibold text-sm" style={{ color: "#0b1f3a" }}>
           <Image
-            src="/brand/el-monograma-color.png"
-            alt="Edgar López"
+            src="/brand/monograma-color.svg"
+            alt={MARCA.sistema}
             width={30}
             height={30}
             style={{ width: 30, height: 30, objectFit: "contain", display: "block" }}
           />
-          Edgar López
+          {MARCA.sistema}
         </span>
         <Link
           href="/login"
@@ -172,6 +164,7 @@ export default async function ConocemePage() {
             }}
           />
           <div className="welcome-composition max-w-5xl mx-auto px-6 sm:px-8 py-14 sm:py-20 relative flex flex-col items-center text-center">
+            {MARCA.retrato ? (
             <div
               className="cm-foto welcome-portrait"
               style={{
@@ -187,17 +180,18 @@ export default async function ConocemePage() {
               }}
             >
               <img
-                src="/media/edgar-retrato.jpg"
-                alt="Edgar López"
+                src={MARCA.retrato ?? ""}
+                alt={MARCA.referente.nombre}
                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
               />
             </div>
+            ) : null}
 
             <p
               className="cm-anim text-xs font-bold uppercase mb-4"
               style={{ letterSpacing: ".18em", color: "#93c5fd", animationDelay: ".16s" }}
             >
-              Edgar López
+              {MARCA.referente.corto} · {MARCA.referente.cargo}
             </p>
 
             {/* El eslogan es el centro de la página: sin biografía todavía, es lo
@@ -219,7 +213,7 @@ export default async function ConocemePage() {
               className="cm-anim welcome-social flex items-center gap-3 mt-9"
               style={{ animationDelay: ".34s" }}
             >
-              {REDES.map(({ nombre, href, path }) => (
+              {REDES.filter((r) => r.href).map(({ nombre, href, path }) => (
                 <a
                   key={nombre}
                   href={href}
@@ -239,7 +233,7 @@ export default async function ConocemePage() {
                 </a>
               ))}
             </div>
-            <a href="#videos" className="welcome-cta">Conoce mi trabajo <span aria-hidden="true">↗︎</span></a>
+            <a href={MARCA.redes.youtube ? "#videos" : MARCA.redes.instagram} {...(MARCA.redes.youtube ? {} : { target: "_blank", rel: "noopener noreferrer" })} className="welcome-cta">Conoce su trabajo <span aria-hidden="true">↗︎</span></a>
             <div className="welcome-signature"><span className="signature-line" /><span>JALISCO</span><span className="signature-line" /></div>
           </div>
         </section>
@@ -290,7 +284,8 @@ export default async function ConocemePage() {
           </section>
         ) : null}
 
-        {/* Videos */}
+        {/* Videos: solo si hay canal de YouTube configurado */}
+        {MARCA.redes.youtube ? (
         <section id="videos" className="max-w-5xl mx-auto px-6 sm:px-8 py-14 sm:py-16">
           <h2
             className="cm-anim font-bold tracking-tight mb-2"
@@ -329,7 +324,7 @@ export default async function ConocemePage() {
                 Mientras tanto, los encuentras en el canal de YouTube.
               </p>
               <a
-                href="https://youtube.com/@edgarlopezj"
+                href={MARCA.redes.youtube ?? "#"}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="cm-red inline-flex items-center gap-2 font-bold rounded-xl mt-5"
@@ -340,6 +335,7 @@ export default async function ConocemePage() {
             </div>
           )}
         </section>
+        ) : null}
 
         {/* Lo que más nos piden */}
         {cifras && cifras.categorias.length > 0 ? (
@@ -373,7 +369,8 @@ export default async function ConocemePage() {
           </section>
         ) : null}
 
-        {/* Un minuto en territorio */}
+        {/* Un minuto en territorio: solo con reel propio */}
+        {MARCA.reel ? (
         <section className="reel-seccion">
           <div className="reel-interior">
             <div className="reel-texto">
@@ -383,19 +380,20 @@ export default async function ConocemePage() {
               </h2>
               <p className="reel-lead">Se descarga solo si lo tocas.</p>
             </div>
-            <ReelCampana src="/media/edgar-reel-1.mp4" poster="/media/edgar-frame-3s.jpg" titulo="Recorrido de campaña" />
+            <ReelCampana src={MARCA.reel.src} poster={MARCA.reel.poster} titulo="Recorrido de campaña" />
           </div>
         </section>
+        ) : null}
 
         {/* Cierre: comparte y sigue */}
         <section className="cierre">
           <div className="cierre-interior">
-            <img src="/brand/el-monograma-blanco.png" alt="" width={44} height={44} className="cierre-monograma" />
+            <img src="/brand/monograma-blanco.svg" alt="" width={44} height={44} className="cierre-monograma" />
             <h2 className="cierre-titulo">Pásale esta página a tu gente.</h2>
             <p className="cierre-lead">Se abre en cualquier teléfono y no gasta datos hasta que alguien toca un video.</p>
-            <BotonCompartir mensaje="Conoce el trabajo de Edgar López en Jalisco:" />
+            <BotonCompartir mensaje={`Conoce el trabajo de ${MARCA.referente.corto} en Jalisco:`} />
             <div className="cierre-redes">
-              {REDES.map(({ nombre, href, path }) => (
+              {REDES.filter((r) => r.href).map(({ nombre, href, path }) => (
                 <a key={nombre} href={href} target="_blank" rel="noopener noreferrer" aria-label={nombre} className="cm-red cierre-red">
                   <IconoRed path={path} />
                 </a>
@@ -408,7 +406,7 @@ export default async function ConocemePage() {
       <footer className="py-7 px-6 text-center" style={{ background: "#fff", borderTop: "1px solid #e6eaf2" }}>
         <div className="flex items-center justify-center gap-2 mb-2">
           <img
-            src="/brand/el-monograma-color.png"
+            src="/brand/monograma-color.svg"
             alt=""
             width={22}
             height={22}
@@ -418,7 +416,7 @@ export default async function ConocemePage() {
             Jalisco OS
           </span>
         </div>
-        <p style={{ color: "#8b95a9", fontSize: ".82rem" }}>© 2026 Edgar López · Un Jalisco Posible</p>
+        <p style={{ color: "#8b95a9", fontSize: ".82rem" }}>© 2026 {MARCA.sistema} · Con {MARCA.referente.corto}, {MARCA.referente.cargoTexto}</p>
       </footer>
     </div>
   );

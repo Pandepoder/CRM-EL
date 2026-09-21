@@ -33,8 +33,8 @@ import { unstable_cache } from "next/cache";
  * quitarlo de YouTube.
  */
 
-/** Canal de la campaña: youtube.com/@edgarlopezj */
-const CANAL_POR_OMISION = "UCPLZp6cBPcMYWbX7uuarkbw";
+/** Canal de Omar Borboa: youtube.com/channel/UC4ACrnzVpjepmv3p-t1orMw. Sin canal no se lee nada. */
+const CANAL_POR_OMISION = "UC4ACrnzVpjepmv3p-t1orMw";
 
 /** Una hora: el canal publica varias veces por semana, no varias veces por minuto. */
 const SEGUNDOS_DE_CACHE = 3600;
@@ -332,6 +332,7 @@ const leerDelCanal = unstable_cache(
 
 export async function videosDelCanal(limite: number, respaldo: VideoDelCanal[]): Promise<VideosDeLaPagina> {
   const canal = process.env.YOUTUBE_CANAL_ID?.trim() || CANAL_POR_OMISION;
+  if (!canal) return { videos: [], fuente: 'respaldo' };
   const ocultos = new Set(
     (process.env.YOUTUBE_VIDEOS_OCULTOS || "")
       .split(",")
