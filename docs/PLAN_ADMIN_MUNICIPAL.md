@@ -3,10 +3,10 @@
 **Fecha:** 2026-09-22 · **Rama:** `claude/municipal-admin-improvement-04c080`
 **Base del análisis:** `pnpm typecheck` ✅ · 205 pruebas unitarias ✅ · aplicación levantada contra la base local (177 usuarios, 3 385 ciudadanos, 19 equipos, 612 incidencias, 3 791 secciones)
 
-Este documento es el registro completo. Contiene **145 entradas** en la tabla del §3. Cinco pares son
+Este documento es el registro completo. Contiene **147 entradas** en la tabla del §3. Cinco pares son
 el mismo defecto visto desde el código y desde la aplicación corriendo (van marcadas con «Ver»); una
 entrada se **descartó** al verificarla (M12, falso positivo) y otra se **reclasificó** como no
-defecto (C20). Son **138 defectos distintos**. Cada entrada lleva su identificador, cómo se comprobó,
+defecto (C20). Son **140 defectos distintos**. Cada entrada lleva su identificador, cómo se comprobó,
 el archivo donde vive y la etapa que la cierra.
 
 Catorce entradas aparecieron al revisar y construir la propia etapa 1: R18, R19, D11 y C22 en la
@@ -14,7 +14,7 @@ primera revisión; A14, A15, R20, R21, R22, R23, D12, M15, M16 y M17 al implemen
 implementar la etapa 2: A16, R24, D13, M18, M19 y M20. Ocho más al implementar la etapa 3: A17,
 R25, R26, D14, D15, M21, M22 y M23. Catorce más al implementar la etapa 4: A18, R27, R28, R29, D16,
 D17, D18 y de M24 a M30. Dos más al implementar la etapa 5: M31 y M32. Cuatro más al implementar la
-etapa 6: A19, M33, M34 y M35. Nueve más en el simulacro de evento que se corrió después de la etapa 6: A20, R30, R31, D19, D20, M36, M37, M38 y M39. Nueve más en la revisión de fondo antes del commit: A21, D21, D22, D23, D24, R32, M40, M41 y M42. Cuatro más al revisar domicilios y GPS: D25, D26, D27 y M43. Cinco se **reescribieron** porque, al verificarlas, eran
+etapa 6: A19, M33, M34 y M35. Nueve más en el simulacro de evento que se corrió después de la etapa 6: A20, R30, R31, D19, D20, M36, M37, M38 y M39. Nueve más en la revisión de fondo antes del commit: A21, D21, D22, D23, D24, R32, M40, M41 y M42. Cuatro más al revisar domicilios y GPS: D25, D26, D27 y M43. Dos más en el ensayo de despliegue: M44 y M45. Cinco se **reescribieron** porque, al verificarlas, eran
 distintas de como se habían registrado (D6, D10, C20, R16 y C16). Cada una lo dice en su fila. Nada queda en prosa suelta: si algo no está en la
 tabla del §3, no está en el plan.
 
@@ -69,23 +69,23 @@ se puede realmente usar.
 
 ## §2 · Resumen por severidad
 
-Sobre las 145 entradas del §3 (recontadas con un script, no a mano):
+Sobre las 147 entradas del §3 (recontadas con un script, no a mano):
 
 | severidad | entradas | qué significa |
 | :--- | ---: | :--- |
 | **Crítica** | 14 | Hoy se cae, pierde datos o deja pasar una escalada de privilegios |
 | **Alta** | 51 | Bloquea trabajo de campo, filtra datos entre estructuras o no escala |
-| **Media** | 57 | Molesta, confunde o es una trampa para el siguiente cambio |
-| **Baja** | 21 | Ruido, código muerto, detalle cosmético |
+| **Media** | 58 | Molesta, confunde o es una trampa para el siguiente cambio |
+| **Baja** | 22 | Ruido, código muerto, detalle cosmético |
 | *sin severidad* | 2 | Verificadas y no son defecto: M12 (falso positivo) y C20 (reclasificada) |
 
 Por familia: **21** de aislamiento y privilegios (A), **32** de disponibilidad (R), **27** de
-integridad de datos (D), **43** de coherencia y menús (M) y **22** verificados en la aplicación
+integridad de datos (D), **45** de coherencia y menús (M) y **22** verificados en la aplicación
 corriendo (C).
 
-Y por cómo se supo: **12 medidos** con números, **47 reproducidos** en ejecución, **18 verificados**
+Y por cómo se supo: **12 medidos** con números, **49 reproducidos** en ejecución, **18 verificados**
 contra el DOM o la base, y **68 leídos** en el código con archivo y función identificados. Es decir:
-**77 de 145 se comprobaron con la aplicación en marcha**; los 68 restantes están localizados en el
+**79 de 147 se comprobaron con la aplicación en marcha**; los 68 restantes están localizados en el
 código pero no se provocaron, y así se declaran.
 
 ---
@@ -234,6 +234,8 @@ código pero no se provocaron, y así se declaran.
 | **M41** | **Una nota que no es texto daba 500**, y no tenía límite de largo; las notas de resolución de Escucha social, tampoco. *Encontrado en la revisión de fondo antes del commit* | REP | `api/crm/contacts/[id]/notes/route.ts` | Baja | 6 |
 | **M42** | **Las cuentas aceptaban un correo mal escrito** («juan», «juan@»), en el auto-registro y en el alta por administración: la cuenta quedaba creada y nadie podía entrar con ella. Y dos toques a «Enviar» en el auto-registro chocaban con el índice único del correo: 500. *Encontrado en la revisión de fondo antes del commit* | COD | `api/auth/register/route.ts`, `lib/gobierno-de-cuentas.ts` (`crearCuenta`) | Media | 6 |
 | **M43** | **`/onboarding` estaba huérfana y duplicaba ciudadanos.** Nada llevaba a ella; quien la abría a mano creaba una ficha de ciudadano con sus propios datos cada vez, sin revisar repetidos. El domicilio de las cuentas, que era lo que pedía, ahora va en el registro. *Encontrado al revisar domicilios* | COD | `app/onboarding/` (sin enlaces ni redirecciones hacia ella) | Baja | 6 |
+| **M44** | **Las pantallas se dibujaban con la hora del contenedor (UTC) y el teléfono con la de Jalisco.** Next dibuja cada pantalla primero en el servidor y luego en el navegador: cada fecha u hora formateada sin zona salía distinta en uno y otro (lo de las 19:00 en adelante era «del día siguiente» en el servidor), React tiraba el error #418 y volvía a dibujar la página. Y «hoy» en el Resumen se contaba con la medianoche del proceso: los contadores de hoy volvían a cero a las 18:00. Ya pasaba en producción, que corre `main` igual en UTC; en el equipo de desarrollo no se veía porque todo corre en la hora de Jalisco. *Encontrado en el ensayo de despliegue* | REP | Revisión de celular contra la imagen de Docker: 21 pantallas con #418 (Escucha, Perfil, Estructura, solicitudes, detalle de equipo); con el navegador en UTC, ninguna. `lib/resumen-kpis.ts` (`new Date(año, mes, día)`); la prueba nueva falla con ese cálculo en UTC | Media | 8 |
+| **M45** | **El alta de ciudadano revisaba los datos antes que el permiso.** Un brigadista, que no puede dar de alta, recibía 400 con lo que le faltaba al formulario en vez de 403. No exponía datos ni creaba nada: el permiso se revisaba después, antes de escribir. *Encontrado en el ensayo de despliegue* | REP | `api/crm/contacts/route.ts` (POST); el simulacro de evento lo marcó al exigirse la calle en el alta | Baja | 8 |
 
 ### 3.5 Verificados en la aplicación corriendo (C)
 
@@ -572,7 +574,7 @@ etapa 8 se conserva para no romper las referencias del registro.
 | 8.11 | Quitar el doble descifrado | D3 |
 | 8.13 | Restricciones sobre el líder de equipo: activo y del mismo municipio | D7 |
 | 8.14 | Quitar la condición repetida en `puedeAsignar` | M8 |
-| 8.15 | **Ensayo de migración sobre copia de producción**, con conteo por tabla antes y después | — |
+| 8.15 | **Ensayo de migración sobre copia de producción**, con conteo por tabla antes y después. Hecho en local con las imágenes de Docker de producción y una base en el estado de hoy (ver §9, «Ensayo de despliegue»); con los datos reales lo corre `scripts/ops/ensayo-despliegue.sh` en el servidor, sin tocar producción. De ahí: contenedores en la hora de Jalisco, «hoy» del Resumen en el día de Jalisco y el permiso del alta antes que sus datos | M44, M45 |
 | 8.16 | **Outbox:** índice parcial para el reclamo (`WHERE status = 'pending'`) y purga periódica de eventos procesados y sus acuses pasados N días. La purga no toca `dead_letter`: son los que alguien tiene que revisar | R20 |
 | 8.17 | Retirar el módulo de logística que quedó sin uso, con su lectura sin alcance | M34 |
 | 8.18 | La cartografía de secciones se completa solo en el propio municipio (o por el maestro) | M35 |
@@ -1064,6 +1066,60 @@ de texto de menos de 24 px de alto (el Resumen, el detalle de equipo).
 
 **Sin comprobar:** en un teléfono real con GPS de verdad (la emulación no mueve el receptor); los
 formularios de Escucha, actividades y Reportes se revisaron en el código y con la API, no con clics.
+
+### Ensayo de despliegue (2026-09-26)
+
+Pedido del dueño: ensayar el despliegue antes de hacerlo de verdad, «que sea la buena». Desde este equipo no
+hay acceso al servidor, así que el ensayo va en dos partes: completo en local, con las mismas imágenes de
+Docker y el mismo `docker-compose.yml` que producción, y un script que lo repite en el servidor con los datos
+reales sin tocar producción (8.15).
+
+**Producción de hoy, en local.** Un proyecto de compose aparte (`ensayo`, con nombres y puertos que no chocan
+con la base de desarrollo), con el código exacto de `main` (`git archive`, con fin de línea LF como en el
+servidor) y una copia de la base local llevada al estado 0018: se quitó a mano lo que añaden la 0019 a la 0025,
+y su esquema quedó idéntico, línea por línea (770), al de una base nueva con las migraciones de `main`. 3 385
+ciudadanos, 612 incidencias, 177 cuentas. Humo con las cinco cuentas de rol: sin fallas.
+
+**El despliegue, como en el servidor:** respaldo previo (el servicio `backup` vuelca en cuanto se reinicia),
+`docker compose up -d --build` con la versión nueva y, mientras tanto, `/api/health` por Caddy cada medio
+segundo.
+
+| qué | resultado |
+| :--- | :--- |
+| Caída del sitio | De 10.3 a 12.9 s en cinco despliegues. El build (de 40 s con caché a 3½ min) corre mientras la versión anterior sigue atendiendo |
+| Migraciones | De la 0019 a la 0025 en unos 5 s y en una sola transacción; 3 384 huellas; maestro nombrado (la cuenta de `ADMIN_EMAIL`); 74 filas en General; 4 administradores sin municipio |
+| Filas por tabla | Las mismas antes y después en las 36 tablas que ya existían, salvo el registro de migraciones (+7) y la auditoría (+1, el nombramiento del maestro) |
+| Esquema | Idéntico al de una base nueva con las 26 migraciones y al de la base local de desarrollo (1 118 líneas) |
+| Rescate | `docker compose run --rm migrate pnpm admin:rescatar … --contrasena-temporal` funciona dentro del contenedor |
+| Vuelta atrás | `main` sobre la base ya migrada arranca (11.4 s de caída), entran las cinco cuentas, registra por QR, levanta incidencias y suma brigadistas; los disparadores les ponen municipio. La huella que esa versión no calcula la rellena el siguiente `db:migrate` (1 huella, comprobado al volver a desplegar) |
+
+**Comprobaciones contra la imagen de Docker y la base migrada, con la versión final:** simulacro de evento
+**140** (actualizado a las reglas de domicilio y a leer los ids de las acciones del build que responde),
+privacidad de menús **195**, escrituras **576**, ficha y avisos **18**, doble clic **20**, domicilio y mapa
+**10 + 10**, pin exacto a **0 px** en escritorio y teléfono, revisión de celular sin errores de consola y
+tapados **9/9**. En el teléfono, un paso del domicilio (la sugerencia de dirección, que viene de un servicio
+externo) no llegó a tiempo una vez; repetido, 10/10.
+
+**Lo que encontró: M44 y M45** (§3). La revisión de celular contra la imagen de Docker dio el error #418 de
+React en 21 pantallas. En el equipo no salía porque ahí todo corre en la hora de Jalisco; con el navegador en
+UTC, como el servidor, desaparecía: la causa era la zona. Web, migrate y outbox-worker corren ahora con
+`TZ=America/Mexico_City`: con el navegador en la hora de Jalisco, 0 errores (salen, al revés, con el navegador
+en UTC). Ningún dato se mueve: todas las columnas de fecha son `timestamptz` (comprobado en la base) y los
+nacimientos se guardan y leen en UTC. «Hoy» del Resumen usa el día de Jalisco con o sin esa variable.
+
+`pnpm validate`: **561 pruebas** (dos nuevas; quitar cada arreglo rompe la suya), 0 errores de lint; las 561
+pasan también con `TZ=UTC`, como en CI. `pnpm web:build` ✅. Una corrida completa se cortó con código 127 sin
+que fallara ninguna prueba; repetida, pasó entera.
+
+**En el servidor, con los datos reales:** `scripts/ops/ensayo-despliegue.sh`. Construye la versión nueva,
+copia la base de producción a una base aparte con `pg_dump` (solo lee, sin escribir el padrón en ningún
+archivo), cuenta, migra, vuelve a contar, arranca la aplicación contra la copia y borra todo al terminar,
+también si falla o se interrumpe. Si algo sale mal lo dice y se detiene. Probado aquí contra la copia en
+0018: correcto, 51 s con la caché del build, sin dejar nada.
+
+**Sin comprobar:** el ensayo con los datos de producción, hasta que se corra en el servidor (dirá cuántas
+filas quedan en General, quién queda como maestro y si hay teléfonos que no se descifran); en un teléfono
+real.
 
 ### Comprobado con el build de producción (`next build` + `next start`)
 
