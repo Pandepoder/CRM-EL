@@ -1,0 +1,20 @@
+# Lo usa scripts/ops/ensayo-despliegue.sh: el mismo docker-compose.yml de producción, pero como un
+# proyecto aparte («crm-el-ensayo»), con su propia red y sus propios volúmenes, y sin nada que choque
+# con los contenedores de producción ni que se asome fuera del servidor.
+#
+# `!reset` necesita Docker Compose 2.24.4 o posterior; el script lo comprueba antes de empezar.
+services:
+  db:
+    container_name: !reset null
+    ports: !reset []
+  migrate:
+    container_name: !reset null
+  web:
+    container_name: !reset null
+  outbox-worker:
+    container_name: !reset null
+  backup:
+    container_name: !reset null
+  caddy:
+    container_name: !reset null
+    ports: !reset []

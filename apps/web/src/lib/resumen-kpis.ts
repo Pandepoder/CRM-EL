@@ -2,6 +2,7 @@ import { and, count, eq, gte, or, sql } from "drizzle-orm";
 
 import { schema } from "@tonala/shared/database";
 
+import { inicioDeDia } from "@/lib/actividades";
 import { contactIdRestriction, contactosVisibles } from "@/lib/contact-visibility";
 import { condicionPorAutor } from "@/lib/alcance-municipal";
 import { getDatabaseClient } from "@/lib/db-client";
@@ -62,7 +63,9 @@ export async function kpisDelResumen(
   const db = getDatabaseClient();
   const r = opciones.restricciones ?? (await restriccionesDelResumen(scope));
   const ahora = opciones.ahora ?? new Date();
-  const inicioDelDia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  // «Hoy» es el día de Jalisco, no el del servidor: con la hora del contenedor (UTC), los contadores
+  // de hoy volvían a cero a las 18:00. Mismo cálculo que la bitácora.
+  const inicioDelDia = inicioDeDia(ahora);
 
   const contar = async (consulta: Promise<Array<{ n: number }>>) => Number((await consulta)[0]?.n ?? 0);
   const [contactos, contactosHoy, confirmados, visitas, visitasHoy, incidencias, escucha] = await Promise.all([

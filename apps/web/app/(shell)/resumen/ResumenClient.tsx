@@ -698,7 +698,7 @@ export default function ResumenClient({
                           <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded">PAN</span>
                         )}
                         <span className="text-[11px] text-gray-400 font-medium tabular-nums">
-                          {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(c.createdAt).toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         <Link href={`/crm/contacts/${c.id}`} className="text-blue-600 hover:text-blue-700">
                           <ChevronRight size={14} />

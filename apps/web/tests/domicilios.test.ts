@@ -96,6 +96,15 @@ describe("alta de ciudadano en el panel", () => {
     expect(r.cuerpo).toMatchObject({ code: "domicilio_requerido", campo: "address" });
   });
 
+  it("quien no puede dar de alta recibe 403 aunque el formulario venga incompleto", async () => {
+    como(u.B, "visit_responsible");
+    for (const cuerpo of [{ firstName: "zz-Domicilio", municipality: "Tonalá" }, { firstName: "zz-Domicilio", municipality: "Tonalá", address: "Hidalgo #21" }]) {
+      const r = await leer(await alta.POST(pedir("/api/crm/contacts", "POST", { ...cuerpo, clientRequestId: id() })));
+      expect(r.status).toBe(403);
+      expect(r.cuerpo).toMatchObject({ code: "forbidden" });
+    }
+  });
+
   it("el punto marcado se guarda exacto, sin redondear", async () => {
     const lat = 20.624812345678;
     const lng = -103.242298765432;

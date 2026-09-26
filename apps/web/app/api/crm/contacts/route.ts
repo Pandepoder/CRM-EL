@@ -49,6 +49,8 @@ export async function GET(request: Request) {
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { Permission, requirePermission } from "@tonala/shared/auth";
+
 import { registrarCiudadano } from "@/lib/alta-ciudadano";
 import { registrarError } from "@/lib/registro";
 
@@ -92,6 +94,11 @@ const esquemaAlta = z.object({
 export async function POST(request: Request) {
   const actor = await actorFromSession();
   if (!actor) return unauthorized();
+  // El permiso va antes que los datos: quien no puede dar de alta recibe 403 aunque el formulario venga
+  // incompleto, no la lista de lo que le falta (antes, un brigadista con el domicilio vacío recibía 400).
+  if (!requirePermission(actor, Permission.ContactsCreate, permissionChecker).ok) {
+    return NextResponse.json({ code: "forbidden", message: "Tu rol no puede dar de alta ciudadanos." }, { status: 403 });
+  }
 
   let cuerpo: unknown;
   try {
