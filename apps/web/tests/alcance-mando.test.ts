@@ -7,10 +7,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { schema } from "@tonala/shared/database";
 
-import { visibleContactIds } from "@/lib/contact-visibility";
+import { contactosVisibles } from "@/lib/contact-visibility";
 import { getDatabaseClient } from "@/lib/db-client";
-import { incidentScopeCondition } from "@/lib/incident-visibility";
+import { incidenciasQuePuedeTrabajar, incidentScopeCondition } from "@/lib/incident-visibility";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { cargarContextoIncidencia, puedeSobreIncidencia } from "@/lib/permisos-incidencias";
 
 /**
  * Cascada de mando contra la base real.
@@ -20,7 +21,7 @@ import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
  * integrantes de brigadas que no estén bajo su mando.
  *
  *   D  (direction)  lidera C (Tonalá) ── integrantes L1, L2, ADM (admin)
- *   L1 (coordinador) lidera B1 (Tonalá)  ── integrante M1
+ *   L1 (coordinador) lidera B1 (Tonalá)  ── integrantes M1 (brigadista) y K1 (capturista)
  *   L2 (coordinador) lidera B2 (sin territorio) ── integrante M2
  *   ADM (admin)     lidera BA ── integrante MA
  *   D2 (direction)  lidera C2 ── integrante L3; L3 lidera B3 ── integrante M3
@@ -32,14 +33,14 @@ const db = getDatabaseClient();
 const id = () => crypto.randomUUID();
 
 const u = {
-  D: id(), L1: id(), L2: id(), M1: id(), M2: id(), ADM: id(), MA: id(),
+  D: id(), L1: id(), L2: id(), M1: id(), M2: id(), K1: id(), ADM: id(), MA: id(),
   D2: id(), L3: id(), M3: id(),
   D3: id(), LX: id(), MX: id(),
   CA: id(), CB: id()
 };
 const t = { C: id(), B1: id(), B2: id(), BA: id(), C2: id(), B3: id(), X: id(), X2: id(), CY1: id(), CY2: id() };
 const contacto = { m1Tonala: id(), m1Zapopan: id(), m2Zapopan: id(), m3: id() };
-const incidencia = { deM2: id(), deM3: id(), deAdmin: id(), asignadaAB1: id() };
+const incidencia = { deM2: id(), deM3: id(), deAdmin: id(), asignadaAB1: id(), deL2: id(), deD: id(), deL1: id() };
 
 async function alcance(userId: string) {
   return resolveUserNetworkScope(userId);
@@ -70,7 +71,9 @@ beforeAll(async () => {
     persona(u.L2, "territorial_coordinator"),
     persona(u.M1, "visit_responsible"),
     persona(u.M2, "visit_responsible"),
-    persona(u.ADM, "admin"),
+    persona(u.K1, "capturist"),
+    // Etapa 6: un administrador activo tiene municipio (o es el maestro).
+    { ...persona(u.ADM, "admin"), municipality: "Tonalá" },
     persona(u.MA, "visit_responsible"),
     persona(u.D2, "direction"),
     persona(u.L3, "territorial_coordinator"),
@@ -105,6 +108,7 @@ beforeAll(async () => {
     { teamId: t.C, userId: u.L2 },
     { teamId: t.C, userId: u.ADM },
     { teamId: t.B1, userId: u.M1 },
+    { teamId: t.B1, userId: u.K1 },
     { teamId: t.B2, userId: u.M2 },
     { teamId: t.BA, userId: u.MA },
     { teamId: t.C2, userId: u.L3 },
@@ -144,7 +148,10 @@ beforeAll(async () => {
     nuevaIncidencia(incidencia.deM2, u.M2),
     nuevaIncidencia(incidencia.deM3, u.M3),
     nuevaIncidencia(incidencia.deAdmin, u.ADM),
-    nuevaIncidencia(incidencia.asignadaAB1, u.ADM, t.B1)
+    nuevaIncidencia(incidencia.asignadaAB1, u.ADM, t.B1),
+    nuevaIncidencia(incidencia.deL2, u.L2),
+    nuevaIncidencia(incidencia.deD, u.D),
+    nuevaIncidencia(incidencia.deL1, u.L1)
   ]);
 });
 
@@ -170,17 +177,27 @@ describe("cascada de mando", () => {
     expect(a.teamIds).not.toContain(t.C2);
   });
 
-  it("un líder ve su brigada y a sus compañeros de coordinación, pero no las brigadas de ellos", async () => {
+  it("un líder ve su brigada, pero no lo de sus compañeros de coordinación ni sus brigadas", async () => {
+    // Decisión del dueño (2026-09-25, tras el simulacro de evento): antes veía a sus compañeros de
+    // coordinación y a su dirección, y con ellos todo lo registrado por el QR de cada uno.
     const a = await alcance(u.L1);
     expect(a.commandTeamIds).toEqual([t.B1]);
-    for (const persona of [u.L1, u.M1, u.D, u.L2]) expect(a.allowedUserIds).toContain(persona);
-    expect(a.allowedUserIds).not.toContain(u.M2);
+    expect(new Set(a.allowedUserIds)).toEqual(new Set([u.L1, u.M1, u.K1]));
+    // Sigue en la coordinación: lo asignado a ese equipo le llega.
+    expect(a.teamIds).toContain(t.C);
   });
 
-  it("un brigadista ve solo a su brigada", async () => {
+  it("un brigadista ve solo lo suyo y lo asignado a él o a su brigada, no lo de su líder", async () => {
     const a = await alcance(u.M1);
     expect(a.commandTeamIds).toEqual([]);
-    expect(new Set(a.allowedUserIds)).toEqual(new Set([u.M1, u.L1]));
+    expect(a.allowedUserIds).toEqual([u.M1]);
+    expect(a.teamIds).toEqual([t.B1]);
+  });
+
+  it("un capturista sí ve lo de sus compañeros de brigada (captura y convierte para ella), sin bajar a otras", async () => {
+    const a = await alcance(u.K1);
+    expect(new Set(a.allowedUserIds)).toEqual(new Set([u.K1, u.L1, u.M1]));
+    expect(a.commandUserIds).toEqual([u.K1]);
   });
 
   it("dirección como integrante de un equipo ajeno no se lleva al líder ni sus otras brigadas", async () => {
@@ -210,7 +227,10 @@ describe("cascada de mando", () => {
 
 describe("contactos e incidencias con la cascada", () => {
   it("cada contacto se filtra con el territorio de la brigada de quien lo registró", async () => {
-    const visibles = new Set((await visibleContactIds(await alcance(u.D))) ?? []);
+    const resultado = await contactosVisibles(await alcance(u.D));
+    // Quien no es administración recibe siempre la lista de su cascada.
+    if (!("ids" in resultado)) throw new Error("Dirección no debería ver el padrón sin recorte");
+    const visibles = new Set(resultado.ids);
     expect(visibles.has(contacto.m1Tonala)).toBe(true);
     // M1 está en una brigada de Tonalá: que B2 no tenga territorio no le abre Zapopan.
     expect(visibles.has(contacto.m1Zapopan)).toBe(false);
@@ -234,5 +254,46 @@ describe("contactos e incidencias con la cascada", () => {
     const l1 = await incidenciasVisibles(u.L1);
     expect(l1.has(incidencia.asignadaAB1)).toBe(true);
     expect(l1.has(incidencia.deM2)).toBe(false);
+  });
+});
+
+describe("ver no es trabajar", () => {
+  async function puedeCambiar(userId: string, reportId: string) {
+    const ctx = await cargarContextoIncidencia(reportId, userId);
+    const porRegla = ctx.incidencia !== null && puedeSobreIncidencia("actualizar", ctx.incidencia, userId, ctx.esAdmin, ctx.equipos, ctx.personas);
+    const [enSql] = await db
+      .select({ id: schema.eventReports.id })
+      .from(schema.eventReports)
+      .where(sql`${schema.eventReports.id} = ${reportId} AND ${incidenciasQuePuedeTrabajar(await alcance(userId)) ?? sql`true`}`);
+    // Las dos formas de la regla (la de la API y la de la Gestión, en SQL) tienen que decir lo mismo.
+    expect(Boolean(enSql), `regla y SQL no coinciden para ${reportId}`).toBe(porRegla);
+    return porRegla;
+  }
+
+  it("un líder no ve ni cambia lo que levantó otro líder de su coordinación", async () => {
+    // Encontrado en el simulacro de evento: el líder de Zalatitán cambiaba el estado de la incidencia
+    // de Tonalá Centro. Primero se le quitó cambiarla; después (decisión del dueño) también verla.
+    expect((await incidenciasVisibles(u.L1)).has(incidencia.deL2)).toBe(false);
+    expect(await puedeCambiar(u.L1, incidencia.deL2)).toBe(false);
+  });
+
+  it("el capturista ve lo que levantó su líder, pero no lo trabaja", async () => {
+    expect((await incidenciasVisibles(u.K1)).has(incidencia.deL1)).toBe(true);
+    expect(await puedeCambiar(u.K1, incidencia.deL1)).toBe(false);
+    expect(await puedeCambiar(u.L1, incidencia.deL1)).toBe(true);
+  });
+
+  it("tampoco le cambia la suya a su propia dirección", async () => {
+    expect(await puedeCambiar(u.L1, incidencia.deD)).toBe(false);
+  });
+
+  it("quien la levantó y quien manda sobre él sí la trabajan", async () => {
+    expect(await puedeCambiar(u.L2, incidencia.deL2)).toBe(true);
+    expect(await puedeCambiar(u.D, incidencia.deL2)).toBe(true);
+    expect(await puedeCambiar(u.D, incidencia.deM2)).toBe(true);
+  });
+
+  it("una que no ve es inexistente para él (404), no «sin permiso» (403)", async () => {
+    expect((await cargarContextoIncidencia(incidencia.deM3, u.L1)).incidencia).toBeNull();
   });
 });

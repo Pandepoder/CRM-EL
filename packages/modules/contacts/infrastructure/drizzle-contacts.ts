@@ -1,8 +1,17 @@
 import { sql, type SQL } from "drizzle-orm";
-import { type Database, decryptData, encryptData } from "@tonala/shared/database";
+import {
+  ciudadanosDeAdministracion,
+  type Database,
+  decryptData,
+  encryptData,
+  huellaDeTelefono,
+  huellasParaBuscarTelefono,
+  patronDeBusqueda,
+  sinAcentosSql
+} from "@tonala/shared/database";
 import { createEntityId } from "@tonala/shared/kernel";
 
-import { type ContactsReader, type ContactRegisteredV1 } from "../contracts/index.js";
+import { type ContactsReader, type ContactRegisteredV1, type ScopedAdministration } from "../contracts/index.js";
 import {
   type AuditWriter,
   type ContactRepository,
@@ -56,11 +65,12 @@ export class DrizzleContactRepository implements ContactRepository {
 
   public async insert(contact: Contact, tx: TransactionContext): Promise<void> {
     await executorFrom(tx).execute(sql`
-      INSERT INTO contacts (id, display_name, phone, status, created_by_user_id, created_at, version)
+      INSERT INTO contacts (id, display_name, phone, phone_hash, status, created_by_user_id, created_at, version)
       VALUES (
         ${contact.contactId},
         ${contact.displayName},
         ${encryptData(contact.phoneNumber ?? null)},
+        ${huellaDeTelefono(contact.phoneNumber)},
         ${contact.status},
         ${contact.createdByUserId},
         ${contact.createdAt.toISOString()},
@@ -128,12 +138,17 @@ export class DrizzleContactsReader implements ContactsReader {
     assignedUserId?: ReturnType<typeof createEntityId>;
     scopedUserIds?: readonly ReturnType<typeof createEntityId>[];
     scopedContactIds?: readonly ReturnType<typeof createEntityId>[];
+    scopedAdministration?: ScopedAdministration;
     q?: string;
     page?: number;
     pageSize?: number;
   }) {
     const conditions = [];
     conditions.push(sql`c.status = 'active'`);
+    if (options?.scopedAdministration) {
+      const { municipalityId, actorId } = options.scopedAdministration;
+      conditions.push(sql`c.id IN (${ciudadanosDeAdministracion(municipalityId, actorId)})`);
+    }
     if (options?.scopedContactIds !== undefined) {
       if (!options.scopedContactIds.length) return { items: [], total: 0 };
       conditions.push(sql`c.id IN (${sql.join(options.scopedContactIds.map(id => sql`${id}`), sql`, `)})`);
@@ -153,9 +168,24 @@ export class DrizzleContactsReader implements ContactsReader {
     if (options?.assignedUserId) {
       conditions.push(sql`ca.assigned_user_id = ${options.assignedUserId} AND ca.assignment_status = 'active'`);
     }
-    if (options?.q) {
-      const term = `%${options.q.trim()}%`;
-      conditions.push(sql`(c.display_name ILIKE ${term} OR c.phone ILIKE ${term})`);
+    if (options?.q?.trim()) {
+      // El teléfono va cifrado: `c.phone ILIKE` nunca coincidía (C22). Se busca como en el Directorio:
+      // nombre y colonia sin acentos, teléfono completo por su huella. Ver
+      // `packages/shared/database/busqueda.ts`.
+      const texto = options.q.trim();
+      const patron = patronDeBusqueda(texto);
+      const alternativas: SQL[] = [
+        sql`${sinAcentosSql(sql`c.display_name`)} LIKE ${patron}`,
+        sql`EXISTS (
+          SELECT 1 FROM contact_territory ct JOIN colonies col ON col.id = ct.colony_id
+          WHERE ct.contact_id = c.id AND ${sinAcentosSql(sql`col.name`)} LIKE ${patron}
+        )`
+      ];
+      const huellas = huellasParaBuscarTelefono(texto);
+      if (huellas.length > 0) {
+        alternativas.push(sql`c.phone_hash IN (${sql.join(huellas.map((h) => sql`${h}`), sql`, `)})`);
+      }
+      conditions.push(sql`(${sql.join(alternativas, sql` OR `)})`);
     }
 
     const whereClause = conditions.length > 0 
@@ -215,7 +245,9 @@ export class DrizzleContactsReader implements ContactsReader {
         ORDER BY created_at DESC LIMIT 1
       ) v ON true
       ${whereClause}
-      ORDER BY c.created_at DESC
+      -- El id desempata: en un evento se registran muchos en el mismo instante, y sin desempate el
+      -- orden entre páginas no es fijo (una ficha salía en dos páginas y otra en ninguna).
+      ORDER BY c.created_at DESC, c.id DESC
       LIMIT ${pageSize} OFFSET ${offset}
     `);
     
@@ -236,7 +268,8 @@ export class DrizzleContactsReader implements ContactsReader {
 
   public async getContactDetail(
     contactId: ReturnType<typeof createEntityId>,
-    scopedUserIds?: readonly ReturnType<typeof createEntityId>[]
+    scopedUserIds?: readonly ReturnType<typeof createEntityId>[],
+    scopedAdministration?: ScopedAdministration
   ) {
     type DetailRow = {
       contactId: string;
@@ -262,6 +295,9 @@ export class DrizzleContactsReader implements ContactsReader {
     };
 
     const conditions = [sql`c.id = ${contactId}`];
+    if (scopedAdministration) {
+      conditions.push(sql`c.id IN (${ciudadanosDeAdministracion(scopedAdministration.municipalityId, scopedAdministration.actorId, contactId)})`);
+    }
     if (scopedUserIds && scopedUserIds.length === 0) return null;
     if (scopedUserIds && scopedUserIds.length > 0) {
       const enAlcance = sql.join(scopedUserIds.map((id) => sql`${id}`), sql`, `);

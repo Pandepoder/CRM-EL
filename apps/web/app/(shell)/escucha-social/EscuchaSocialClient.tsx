@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Plus, Search, Filter, MapPin, MessageSquare, Check, X,
   Lightbulb, AlertTriangle, Handshake, RefreshCw, Landmark
@@ -10,6 +10,8 @@ import type { ComponentType } from "react";
 type CategoryIcon = ComponentType<{ size?: number | string; className?: string }>;
 import type { LocationValue } from "@/components/LocationPicker";
 import { LocationPicker } from "@/components/LocationPicker";
+import { MediaGallery } from "@/components/MediaGallery";
+import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
 import { useMunicipioUsuario } from "@/lib/municipio-contexto";
 
 type SocialListeningItem = {
@@ -29,6 +31,8 @@ type SocialListeningItem = {
   createdByUserId: string;
   createdByName: string | null;
   createdAt: string;
+  /** Puede cambiarle estado y notas (quien lo levantó o quien coordina); si no, solo lo consulta. */
+  puedeTrabajar?: boolean;
 };
 
 export default function EscuchaSocialClient({
@@ -53,9 +57,15 @@ export default function EscuchaSocialClient({
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("propuesta");
   const [locationText, setLocationText] = useState("");
+  // ¿El lugar lo puso el mapa o se escribió a mano? El del mapa sigue al punto; el escrito se respeta.
+  const lugarDelMapa = useRef(true);
   const [lat, setLat] = useState<number | undefined>(undefined);
   const [lng, setLng] = useState<number | undefined>(undefined);
   const [saving, setSaving] = useState(false);
+  // Fotos del reporte (3.7). La tabla, la API y la ficha ya las contemplaban, pero el formulario no
+  // tenía dónde subirlas (C16): el arreglo llegaba siempre vacío.
+  const [fotos, setFotos] = useState<MediaFile[]>([]);
+  const [errorAlta, setErrorAlta] = useState<string | null>(null);
 
   // Selected item for detail / resolution modal
   const [selectedItem, setSelectedItem] = useState<SocialListeningItem | null>(null);
@@ -83,6 +93,7 @@ export default function EscuchaSocialClient({
     if (!title.trim() || !description.trim()) return;
 
     setSaving(true);
+    setErrorAlta(null);
     try {
       const res = await fetch("/api/escucha-social", {
         method: "POST",
@@ -93,20 +104,25 @@ export default function EscuchaSocialClient({
           categories: [category],
           locationText,
           latitude: lat,
-          longitude: lng
+          longitude: lng,
+          photoUrls: fotos.map((f) => f.url)
         })
       });
 
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         setItems([data.item, ...items]);
         setIsModalOpen(false);
         setTitle("");
         setDescription("");
         setLocationText("");
+        setFotos([]);
+      } else {
+        // Antes un fallo no decía nada: el formulario seguía abierto y parecía que no había pasado nada.
+        setErrorAlta(data.error || "No se pudo guardar el registro. Tus datos siguen aquí.");
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      setErrorAlta("Sin conexión con el servidor. Tus datos siguen aquí; intenta de nuevo cuando tengas señal.");
     } finally {
       setSaving(false);
     }
@@ -329,7 +345,7 @@ export default function EscuchaSocialClient({
 
       {/* CREATE MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setIsModalOpen(false)}>
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setIsModalOpen(false)}>
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
               <div>
@@ -392,7 +408,10 @@ export default function EscuchaSocialClient({
                   type="text"
                   placeholder={municipioUsuario ? `Colonia, calle o referencia de ${municipioUsuario}...` : "Colonia, calle o referencia..."}
                   value={locationText}
-                  onChange={e => setLocationText(e.target.value)}
+                  onChange={e => {
+                    setLocationText(e.target.value);
+                    lugarDelMapa.current = e.target.value.trim() === "";
+                  }}
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 outline-none focus:bg-white"
                 />
               </div>
@@ -406,14 +425,31 @@ export default function EscuchaSocialClient({
                     locationText: locationText
                   }}
                   onChange={(val: LocationValue) => {
-                    if (val.latitude) setLat(val.latitude);
-                    if (val.longitude) setLng(val.longitude);
-                    if (val.address && !locationText) setLocationText(val.address);
+                    if (typeof val.latitude === "number") setLat(val.latitude);
+                    if (typeof val.longitude === "number") setLng(val.longitude);
+                    // Antes solo si el campo estaba vacío: al corregir el punto se quedaba la dirección del primero.
+                    if (val.address && (lugarDelMapa.current || !locationText.trim())) {
+                      setLocationText(val.address);
+                      lugarDelMapa.current = true;
+                    }
                   }}
                   label="Ubicación de la Demanda / Propuesta (Opcional)"
                   helperText="Selecciona en el mapa o escribe la calle y colonia."
                 />
               </div>
+
+              <MediaUploader
+                value={fotos}
+                onChange={setFotos}
+                maxFiles={4}
+                soloImagenes
+                label="Fotos (opcional)"
+                helperText="Hasta 4 fotos"
+              />
+
+              {errorAlta && (
+                <p role="alert" className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-xl">{errorAlta}</p>
+              )}
 
               <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
                 <button
@@ -438,7 +474,7 @@ export default function EscuchaSocialClient({
 
       {/* DETAIL / RESOLUTION MODAL */}
       {selectedItem && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setSelectedItem(null)}>
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setSelectedItem(null)}>
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
               <div>
@@ -470,6 +506,8 @@ export default function EscuchaSocialClient({
                 </div>
               )}
 
+              {selectedItem.photoUrls.length > 0 && <MediaGallery media={selectedItem.photoUrls} title="Fotos" />}
+
               {/* GESTIÓN FORMAL APPROVAL (EXCLUSIVE FOR COORDINATION) */}
               {isCoordinacion && (
                 <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl space-y-2">
@@ -494,6 +532,11 @@ export default function EscuchaSocialClient({
                 </div>
               )}
 
+              {selectedItem.puedeTrabajar === false ? (
+                <p className="pt-2 border-t border-gray-100 text-[11px] font-bold text-gray-500">
+                  Solo consulta: lo atiende quien lo levantó o quien coordina su brigada.
+                </p>
+              ) : (<>
               {/* RESOLUTION NOTES */}
               <div className="space-y-1.5">
                 <label className="block font-extrabold text-gray-700 uppercase text-[10px]">Notas de Resolución / Seguimiento</label>
@@ -527,6 +570,7 @@ export default function EscuchaSocialClient({
                   ))}
                 </div>
               </div>
+              </>)}
             </div>
           </div>
         </div>

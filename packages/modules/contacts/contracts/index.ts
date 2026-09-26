@@ -80,12 +80,24 @@ export interface ContactsReader {
      */
     scopedUserIds?: readonly EntityId[];
     scopedContactIds?: readonly EntityId[];
+    scopedAdministration?: ScopedAdministration;
     q?: string;
     page?: number;
     pageSize?: number;
   }): Promise<{ items: ContactListItem[]; total: number }>;
-  getContactDetail(contactId: EntityId, scopedUserIds?: readonly EntityId[]): Promise<ContactDetail | null>;
+  getContactDetail(
+    contactId: EntityId,
+    scopedUserIds?: readonly EntityId[],
+    scopedAdministration?: ScopedAdministration
+  ): Promise<ContactDetail | null>;
 }
+
+/**
+ * Un administrador municipal (etapa 6): ve los ciudadanos de su municipio y los de su gente; sin
+ * municipio, solo los suyos. La regla es `ciudadanosDeAdministracion` (packages/shared/database), la
+ * misma de las pantallas.
+ */
+export type ScopedAdministration = Readonly<{ municipalityId: string | null; actorId: EntityId }>;
 
 export type ContactRegisteredV1Payload = Readonly<{
   contact_id: string;

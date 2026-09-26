@@ -8,10 +8,14 @@ import pg from "pg";
  * Rota DATABASE_ENCRYPTION_KEY volviendo a cifrar el PII que ya esta guardado.
  *
  * Sin esto la llave era intocable: cambiarla en el .env deja los datos
- * existentes cifrados con la llave vieja, y `decryptData` devuelve el texto
- * cifrado tal cual cuando falla en vez de lanzar un error, asi que la base no
- * se rompe de forma visible: simplemente empiezan a aparecer cadenas ilegibles
- * en nombres, telefonos y CURPs sin una sola linea en los logs.
+ * existentes cifrados con la llave vieja, y la aplicacion no puede leerlos.
+ * `decryptData` devuelve ese valor cifrado tal cual (y lo registra en el log
+ * con una huella, nunca con el dato), asi que en pantalla aparecen cadenas
+ * ilegibles en nombres, telefonos y CURPs; el healthcheck cuenta los fallos.
+ *
+ * Nota: hasta septiembre de 2026 este comentario decia que `decryptData` no
+ * lanzaba. Era falso: lanzaba desde el primer commit, y una sola fila ilegible
+ * tumbaba la consulta entera. Ver packages/shared/database/crypto.ts.
  *
  * Uso:
  *
@@ -165,16 +169,37 @@ try {
     }
   }
 
+  // Las huellas del telefono (migracion 0019) salen de una subllave derivada de la llave de
+  // cifrado: con la llave nueva dejan de coincidir. Se borran en la misma transaccion y
+  // `pnpm db:migrate` las vuelve a calcular con la llave nueva. Mientras tanto el alta publica
+  // revisa aparte las filas sin huella, asi que no deja pasar duplicados; solo va mas lenta.
+  const { rows: tieneHuella } = await cliente.query(
+    `SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'contacts' AND column_name = 'phone_hash'`
+  );
+  let huellasBorradas = 0;
+  if (tieneHuella.length > 0) {
+    const { rowCount } = await cliente.query(
+      confirmado
+        ? "UPDATE contacts SET phone_hash = NULL WHERE phone_hash IS NOT NULL"
+        : "SELECT 1 FROM contacts WHERE phone_hash IS NOT NULL"
+    );
+    huellasBorradas = rowCount ?? 0;
+  }
+
   if (confirmado) {
     await cliente.query("COMMIT");
     console.warn(
       `\n  Listo. Reescritos ${reescritos} valores (${yaRotados} ya estaban rotados, ${revisados} revisados).\n` +
-        "  Ahora pon la llave nueva en DATABASE_ENCRYPTION_KEY y reinicia la aplicacion.\n"
+        `  Se borraron ${huellasBorradas} huellas de telefono, que dependian de la llave vieja.\n` +
+        "  Ahora pon la llave nueva en DATABASE_ENCRYPTION_KEY, corre `pnpm db:migrate` —recalcula las\n" +
+        "  huellas con la llave nueva— y reinicia la aplicacion.\n"
     );
   } else {
     await cliente.query("ROLLBACK");
     console.warn(
-      `\n  Ensayo terminado. Se reescribirian ${reescritos} valores (${yaRotados} ya rotados, ${revisados} revisados).\n` +
+      `\n  Ensayo terminado. Se reescribirian ${reescritos} valores (${yaRotados} ya rotados, ${revisados} revisados)\n` +
+        `  y se borrarian ${huellasBorradas} huellas de telefono.\n` +
         "  Nada fue modificado.\n"
     );
   }

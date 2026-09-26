@@ -1,13 +1,21 @@
-import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm";
-import { schema } from "@tonala/shared/database";
+import { and, eq, inArray, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { ciudadanosDeAdministracion, schema } from "@tonala/shared/database";
 import { getDatabaseClient } from "./db-client";
 import type { UserNetworkScope } from "./network-hierarchy";
 
 /**
- * Qué contactos puede ver quien no es administración.
+ * Qué contactos puede ver cada quien.
  *
- * Reglas (decididas por el dueño del sistema):
- *   1. Solo administración ve todo.
+ * Administración (etapa 6):
+ *   - El administrador maestro ve todo.
+ *   - Un administrador municipal ve los ciudadanos con la llave de su municipio y los que registró,
+ *     refirió, atiende o tiene asignados su gente —las personas con esa llave—, aunque vivan en otro
+ *     municipio. Se resuelve en la base, con una subconsulta: para un municipio grande, una lista de
+ *     identificadores sería el mismo problema que R3.
+ *   - Un administrador que sigue sin municipio ve solo lo suyo.
+ *
+ * Quien no es administración (reglas decididas por el dueño del sistema):
+ *   1. La cascada de mando manda; el municipio no la recorta (lo propio siempre se ve).
  *   2. Cada persona ve los contactos ligados a las personas activas de su alcance —sus
  *      compañeros de equipo y, en cascada, quienes están bajo su mando (ver network-hierarchy)—:
  *      creados, referidos, como contacto real o con asignación activa. Cada uno se filtra con el
@@ -87,13 +95,35 @@ export function matchesAssignedTerritory(contact: ContactoUbicado, territories: 
 }
 
 /**
- * Identificadores de los contactos visibles para un alcance, o null si ve todo.
+ * Los ciudadanos que ve un alcance:
+ * - `todos`: solo el administrador maestro;
+ * - `subconsulta`: administración municipal, resuelta en la base (ver arriba);
+ * - `ids`: quien no es administración. La pertenencia se filtra en SQL; el territorio, después, en
+ *   memoria, porque el municipio escrito del contacto va cifrado. Pasar a SQL es la etapa 8 (R3).
  *
- * La pertenencia se filtra en SQL; el territorio, después, en memoria, porque el municipio
- * del contacto va cifrado y Drizzle lo descifra al leer.
+ * Sustituye a `visibleContactIds`, que devolvía `null` («todo») para cualquier administrador. Se le
+ * cambió el nombre y la forma para que ninguna de sus llamadas siguiera tratando a un administrador
+ * municipal como si lo viera todo.
  */
-export async function visibleContactIds(scope: UserNetworkScope, contactId?: string): Promise<string[] | null> {
-  if (scope.isGlobal) return null;
+export type ContactosVisibles = { todos: true } | { subconsulta: SQL } | { ids: string[] };
+
+export async function contactosVisibles(scope: UserNetworkScope, contactId?: string): Promise<ContactosVisibles> {
+  if (scope.isMaster) return { todos: true };
+  if (scope.isAdmin) return { subconsulta: ciudadanosDeAdministracion(scope.adminMunicipalityId, scope.userId, contactId) };
+  return { ids: await idsDeLaCascada(scope, contactId) };
+}
+
+/** ¿Ve este alcance a este ciudadano? Para las guardas de una ficha. */
+export async function veCiudadano(scope: UserNetworkScope, contactId: string): Promise<boolean> {
+  const visibles = await contactosVisibles(scope, contactId);
+  if ("todos" in visibles) return true;
+  if ("ids" in visibles) return visibles.ids.includes(contactId);
+  const filas = await getDatabaseClient().execute(sql`SELECT 1 FROM (${visibles.subconsulta}) v LIMIT 1`);
+  return filas.rows.length > 0;
+}
+
+/** La cascada de quien no es administración: lista de ids (ver arriba). */
+async function idsDeLaCascada(scope: UserNetworkScope, contactId?: string): Promise<string[]> {
   const ids = scope.allowedUserIds || [];
   // Sin alcance (por ejemplo, una sesión de alguien dado de baja) no se ve nada, ni lo propio.
   if (ids.length === 0) return [];
@@ -219,13 +249,19 @@ async function territoriosPorPersona(teamIds: string[]): Promise<{
  * Con una lista vacía devuelve `AND false` en lugar de `IN ()`, que es un error de sintaxis en
  * Postgres: las consultas crudas con listas armadas a mano reventaban así con alcance vacío.
  */
-export function sqlRestriccionContactos(columna: SQL, ids: string[] | null): SQL {
-  if (ids === null) return sql``;
-  if (ids.length === 0) return sql`AND false`;
-  return sql`AND ${columna} IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`;
+export function sqlRestriccionContactos(columna: SQL, visibles: ContactosVisibles): SQL {
+  if ("todos" in visibles) return sql``;
+  if ("subconsulta" in visibles) return sql`AND ${columna} IN (${visibles.subconsulta})`;
+  if (visibles.ids.length === 0) return sql`AND false`;
+  return sql`AND ${columna} IN (${sql.join(visibles.ids.map((id) => sql`${id}`), sql`, `)})`;
 }
 
-/** Condición de Drizzle para acotar una consulta de contactos a los visibles. */
-export function contactIdRestriction(ids: string[] | null) {
-  return ids === null ? undefined : ids.length ? inArray(schema.contacts.id, ids) : sql`false`;
+/**
+ * Condición de Drizzle para acotar una consulta a los ciudadanos visibles. Por omisión sobre
+ * `contacts.id`; se puede dar otra columna que guarde el id de un ciudadano.
+ */
+export function contactIdRestriction(visibles: ContactosVisibles, columna: SQLWrapper = schema.contacts.id): SQL | undefined {
+  if ("todos" in visibles) return undefined;
+  if ("subconsulta" in visibles) return sql`${columna} IN (${visibles.subconsulta})`;
+  return visibles.ids.length ? inArray(columna as typeof schema.contacts.id, visibles.ids) : sql`false`;
 }

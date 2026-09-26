@@ -1,14 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { MoreVertical, Ban, Edit2, Check, KeyRound, UserCheck, X, Loader2 } from "lucide-react";
-import { deactivateUserAction, activateUserAction, updateUserAction, resetUserPasswordAction } from "./actions";
+import { MoreVertical, Ban, Edit2, Check, KeyRound, UserCheck, X, Loader2, LogOut, Trash2 } from "lucide-react";
+import {
+  deactivateUserAction,
+  activateUserAction,
+  updateUserAction,
+  resetUserPasswordAction,
+  closeSessionsAction,
+  deleteUserWithoutDataAction
+} from "./actions";
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 
+/**
+ * Las acciones sobre una cuenta que esta sesión gobierna (etapa 6). Cambiar de municipio y eliminar
+ * una cuenta sin datos son del administrador maestro; el resto, también de la administración del
+ * municipio de esa persona. Las acciones devuelven el motivo cuando no se puede.
+ */
 export function UserActions({
-  user
+  user,
+  puedeCambiarMunicipio = false,
+  puedeEliminar = false
 }: {
   user: { userId: string; displayName: string; status: string; municipality?: string | null };
+  puedeCambiarMunicipio?: boolean;
+  puedeEliminar?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -23,49 +39,52 @@ export function UserActions({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const handleDeactivate = async () => {
-    if (!confirm(`¿Estás seguro de que deseas desactivar al usuario ${user.displayName}?`)) return;
+  /** Corre una acción y dice el motivo si no se pudo (o si falló la red). */
+  const ejecutar = async (accion: () => Promise<{ ok: true; mensaje?: string } | { ok: false; error: string }>) => {
     setLoading(true);
     try {
-      await deactivateUserAction(user.userId);
-    } catch (e: any) {
-      alert("Error: " + e.message);
+      const r = await accion();
+      if (!r.ok) alert(r.error);
+      else if (r.mensaje) alert(r.mensaje);
+      return r.ok;
+    } catch {
+      alert("No se pudo completar. Revisa tu conexión e intenta de nuevo.");
+      return false;
     } finally {
       setLoading(false);
       setIsOpen(false);
     }
+  };
+
+  const handleDeactivate = async () => {
+    if (!confirm(`¿Dar de baja a ${user.displayName}? No podrá entrar y se cierran sus sesiones. No se borra nada de lo que registró.`)) return;
+    await ejecutar(() => deactivateUserAction(user.userId));
   };
 
   const handleActivate = async () => {
-    setLoading(true);
-    try {
-      await activateUserAction(user.userId);
-    } catch (e: any) {
-      alert("Error: " + e.message);
-    } finally {
-      setLoading(false);
-      setIsOpen(false);
-    }
+    await ejecutar(() => activateUserAction(user.userId));
+  };
+
+  const handleCloseSessions = async () => {
+    if (!confirm(`¿Cerrar todas las sesiones abiertas de ${user.displayName}? Tendrá que volver a entrar.`)) return;
+    await ejecutar(() => closeSessionsAction(user.userId));
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`¿Eliminar la cuenta de ${user.displayName}? Solo se puede si no tiene nada a su nombre; si tiene datos, se da de baja.`)) return;
+    await ejecutar(() => deleteUserWithoutDataAction(user.userId));
   };
 
   const handleSaveName = async () => {
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("userId", user.userId);
-      formData.append("displayName", newName);
-      // Solo si cambió respecto a lo que muestra la fila: el estado local puede ser de antes de
-      // que la persona completara su onboarding, y mandarlo borraría su municipio.
-      if (newMunicipality !== (user.municipality ?? "")) {
-        formData.append("municipality", newMunicipality);
-      }
-      await updateUserAction(formData);
-      setIsEditing(false);
-    } catch (e: any) {
-      alert("Error: " + e.message);
-    } finally {
-      setLoading(false);
+    const formData = new FormData();
+    formData.append("userId", user.userId);
+    formData.append("displayName", newName);
+    // Solo si cambió respecto a lo que muestra la fila: el estado local puede ser de antes de que
+    // cambiara su municipio, y mandarlo lo pisaría.
+    if (puedeCambiarMunicipio && newMunicipality !== (user.municipality ?? "")) {
+      formData.append("municipality", newMunicipality);
     }
+    if (await ejecutar(() => updateUserAction(formData))) setIsEditing(false);
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -79,15 +98,19 @@ export function UserActions({
     formData.append("newPassword", newPassword);
 
     try {
-      await resetUserPasswordAction(formData);
-      setSuccess("Contraseña actualizada con éxito.");
+      const r = await resetUserPasswordAction(formData);
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      setSuccess(r.mensaje ?? "Contraseña actualizada con éxito.");
       setTimeout(() => {
         setIsResettingPassword(false);
         setSuccess("");
         setNewPassword("");
       }, 1500);
-    } catch (e: any) {
-      setError(e.message || "Error al actualizar contraseña.");
+    } catch {
+      setError("No se pudo actualizar. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -104,18 +127,21 @@ export function UserActions({
           disabled={loading}
           autoFocus
         />
-        <select
-          value={newMunicipality}
-          onChange={(e) => setNewMunicipality(e.target.value)}
-          className="border border-gray-200 rounded-md px-2 py-1 text-xs w-40 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-          disabled={loading}
-          title="Municipio: define la marca que ve y el municipio con el que abre el mapa"
-        >
-          <option value="">Sin municipio</option>
-          {MUNICIPIOS_JALISCO.map((m) => (
-            <option key={m.name} value={m.name}>{m.name}</option>
-          ))}
-        </select>
+        {puedeCambiarMunicipio && (
+          <select
+            value={newMunicipality}
+            onChange={(e) => setNewMunicipality(e.target.value)}
+            className="border border-gray-200 rounded-md px-2 py-1 text-xs w-40 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+            disabled={loading}
+            title="Municipio: define la marca que ve, dónde abre el mapa y, si es administración, qué gobierna"
+            aria-label="Municipio"
+          >
+            <option value="">Sin municipio</option>
+            {MUNICIPIOS_JALISCO.map((m) => (
+              <option key={m.name} value={m.name}>{m.name}</option>
+            ))}
+          </select>
+        )}
         <button onClick={handleSaveName} disabled={loading} className="text-emerald-600 p-1 hover:bg-emerald-50 rounded">
           <Check size={16} />
         </button>
@@ -152,13 +178,20 @@ export function UserActions({
                   }}
                   className="w-full flex items-center px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors font-medium"
                 >
-                  <Edit2 size={14} className="mr-2.5 text-gray-400" /> Editar Nombre y Municipio
+                  <Edit2 size={14} className="mr-2.5 text-gray-400" /> {puedeCambiarMunicipio ? "Editar nombre y municipio" : "Editar nombre"}
                 </button>
                 <button
                   onClick={() => { setIsResettingPassword(true); setIsOpen(false); }}
                   className="w-full flex items-center px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors font-medium"
                 >
                   <KeyRound size={14} className="mr-2.5 text-blue-500" /> Cambiar Contraseña
+                </button>
+                <button
+                  onClick={() => { void handleCloseSessions(); }}
+                  disabled={loading}
+                  className="w-full flex items-center px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors font-medium"
+                >
+                  <LogOut size={14} className="mr-2.5 text-gray-400" /> Cerrar sus sesiones
                 </button>
               </div>
 
@@ -180,6 +213,15 @@ export function UserActions({
                     <UserCheck size={14} className="mr-2.5 text-emerald-500" /> Reactivar Cuenta
                   </button>
                 )}
+                {puedeEliminar && (
+                  <button
+                    onClick={() => { void handleDelete(); }}
+                    disabled={loading}
+                    className="w-full flex items-center px-4 py-2 text-xs text-red-700 hover:bg-red-50 transition-colors font-medium"
+                  >
+                    <Trash2 size={14} className="mr-2.5 text-red-500" /> Eliminar (solo sin datos)
+                  </button>
+                )}
               </div>
             </div>
           </>
@@ -188,7 +230,7 @@ export function UserActions({
 
       {/* Modal para restablecer contraseña */}
       {isResettingPassword && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsResettingPassword(false)}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsResettingPassword(false)}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
               <div className="flex items-center gap-2 font-bold text-gray-900 text-sm">

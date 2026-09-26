@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import crypto from "node:crypto";
 
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { schema } from "@tonala/shared/database";
@@ -102,11 +102,13 @@ beforeAll(async () => {
     .where(eq(schema.roles.key, "visit_responsible"))
     .limit(1);
 
+  // Administración que lo ve todo es el administrador maestro (etapa 6): un administrador municipal ve
+  // su municipio, y las brigadas de esta prueba no tienen.
   const [admin] = await db
     .select({ id: schema.userProfiles.id })
     .from(schema.userProfiles)
     .leftJoin(schema.roles, eq(schema.userProfiles.roleId, schema.roles.id))
-    .where(eq(schema.roles.key, "admin"))
+    .where(and(eq(schema.roles.key, "admin"), eq(schema.userProfiles.isMasterAdmin, true), eq(schema.userProfiles.status, "active")))
     .limit(1);
 
   if (!rolBrigadista || !admin) {
@@ -214,7 +216,7 @@ describe("Reparto entre equipos y brigadas", () => {
     expect(await idsVisiblesPara(actor(ids.liderB))).not.toContain(idAsignada);
   });
 
-  it("una incidencia asignada a una persona la ven sus companeros de brigada, no la otra", async () => {
+  it("una incidencia asignada a una persona la ven ella y quien manda sobre ella, no la otra brigada", async () => {
     const { cuerpo } = await crearIncidencia(actor(adminId, ["admin"]), {
       assignedToUserId: ids.brigadistaA,
       title: `Tarea con nombre y apellido ${sufijo}`
@@ -227,7 +229,7 @@ describe("Reparto entre equipos y brigadas", () => {
     expect(await idsVisiblesPara(actor(ids.liderB))).not.toContain(idAsignada);
   });
 
-  it("una incidencia sin asignar la ve la cadena de mando de quien la levanto, no la brigada de al lado", async () => {
+  it("una incidencia sin asignar la ve la cadena de mando de quien la levanto, no su brigadista ni la brigada de al lado", async () => {
     // Antes toda incidencia sin asignar se consideraba informacion general y la veia cualquiera.
     // Con eso, lo que levantaba una brigada aparecia en el mapa de otra direccion mientras
     // esperaba admision, que es casi todo lo recien llegado.
@@ -237,7 +239,9 @@ describe("Reparto entre equipos y brigadas", () => {
     const idLibre = cuerpo.id as string;
 
     expect(await idsVisiblesPara(actor(ids.liderA))).toContain(idLibre);
-    expect(await idsVisiblesPara(actor(ids.brigadistaA))).toContain(idLibre);
+    // El brigadista ve solo lo asignado a él o a su brigada (decisión del dueño, 2026-09-25): lo que
+    // su líder levanta sin asignar no le llega.
+    expect(await idsVisiblesPara(actor(ids.brigadistaA))).not.toContain(idLibre);
 
     expect(await idsVisiblesPara(actor(ids.liderB))).not.toContain(idLibre);
   });

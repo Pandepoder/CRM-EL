@@ -1,10 +1,18 @@
-import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
+import { contactosVisibles, contactIdRestriction } from "@/lib/contact-visibility";
 import { type NextRequest } from "next/server";
 import { getDatabaseClient } from "@/lib/db-client";
-import { schema, decryptData } from "@tonala/shared/database";
+import { schema, decryptData, patronDeBusqueda, sinAcentosSql } from "@tonala/shared/database";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
-import { like, eq, and } from "drizzle-orm";
+import { eq, and, asc, count, sql } from "drizzle-orm";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+
+/**
+ * Cuántos ciudadanos puede llevarse una exportación. Sin tope, cualquiera con permiso de lectura
+ * descargaba todo su padrón visible, descifrado, y no quedaba constancia (A13). Administración trabaja
+ * con su municipio entero; el resto, con su estructura.
+ */
+const TOPE_ADMINISTRACION = 50_000;
+const TOPE_ESTRUCTURA = 2_000;
 
 export async function GET(req: NextRequest) {
   const actor = await actorFromSession();
@@ -22,17 +30,42 @@ export async function GET(req: NextRequest) {
   const db = getDatabaseClient();
   const conditions = [eq(schema.contacts.status, "active")];
 
-  const restriction = contactIdRestriction(await visibleContactIds(alcance));
+  const restriction = contactIdRestriction(await contactosVisibles(alcance));
   if (restriction) conditions.push(restriction);
 
-  if (q) {
-    conditions.push(like(schema.contacts.displayName, `%${q}%`));
+  // El nombre como lo busca el Directorio: sin acentos ni mayúsculas, y un «%» escrito se busca tal
+  // cual. Antes era un LIKE con el texto crudo.
+  const busqueda = q?.trim().slice(0, 120);
+  if (busqueda) {
+    conditions.push(sql`${sinAcentosSql(schema.contacts.displayName)} LIKE ${patronDeBusqueda(busqueda)}`);
+  }
+
+  const tope = alcance.isAdmin ? TOPE_ADMINISTRACION : TOPE_ESTRUCTURA;
+  const [{ total } = { total: 0 }] = await db.select({ total: count() }).from(schema.contacts).where(and(...conditions));
+  if (total > tope) {
+    return new Response(
+      `Son ${total.toLocaleString("es-MX")} ciudadanos y una exportación lleva como máximo ${tope.toLocaleString("es-MX")}. ` +
+        "Acota la búsqueda del Directorio y vuelve a exportar.",
+      { status: 413, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+    );
   }
 
   const rawContacts = await db
     .select()
     .from(schema.contacts)
-    .where(and(...conditions));
+    .where(and(...conditions))
+    .orderBy(asc(schema.contacts.createdAt));
+
+  // Llevarse datos fuera del sistema queda en la auditoría: quién, cuántos y con qué búsqueda.
+  await db.insert(schema.auditLogs).values({
+    actorUserId: actor.actorId,
+    action: "contacts.export",
+    entityType: "user_profile",
+    entityId: actor.actorId,
+    correlationId: actor.correlationId,
+    beforeData: null,
+    afterData: { ciudadanos: rawContacts.length, busqueda: busqueda || null }
+  });
 
   const rows = rawContacts.map(c => {
     return {

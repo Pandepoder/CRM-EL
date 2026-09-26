@@ -12,7 +12,9 @@ import type {
   ResumenBitacora, VistaBitacora
 } from "@/lib/bitacora-tipos";
 import { ESTADOS_FILTRO, VISTAS_BITACORA } from "@/lib/bitacora-tipos";
-import { contactIdRestriction, visibleContactIds } from "@/lib/contact-visibility";
+import { contactIdRestriction, contactosVisibles } from "@/lib/contact-visibility";
+import { incidentScopeCondition } from "@/lib/incident-visibility";
+import { genteDelMunicipio } from "@/lib/network-hierarchy";
 import { getDatabaseClient } from "@/lib/db-client";
 import type { UserNetworkScope } from "@/lib/network-hierarchy";
 import { puedeSobreIncidencia } from "@/lib/permisos-incidencias";
@@ -38,20 +40,27 @@ const CERRADOS = ["resolved", "cancelada", "rechazada", "archived"] as const;
 export type ContextoBitacora = {
   userId: string;
   alcance: UserNetworkScope;
-  esAdmin: boolean;
+  /**
+   * Administración (el maestro o un administrador municipal): actúa sobre todo lo que ve. Lo que ve
+   * lo decide `veTodo` y, para un administrador municipal, su municipio (etapa 6). Antes era un solo
+   * `esAdmin` que quería decir las dos cosas.
+   */
+  esAdministracion: boolean;
+  /** Solo el administrador maestro: sin recorte. */
+  veTodo: boolean;
   puedeAsignar: boolean;
-  /** Personas cuyas actividades se pueden consultar. `null` = todas (administración). */
+  /** Personas cuyas actividades se pueden consultar. `null` = todas (el maestro). */
   personas: string[] | null;
 };
 
 export function crearContexto(alcance: UserNetworkScope): ContextoBitacora {
-  const esAdmin = alcance.isGlobal;
   return {
     userId: alcance.userId,
     alcance,
-    esAdmin,
-    puedeAsignar: esAdmin || alcance.isLeader || alcance.roleKey === "territorial_coordinator",
-    personas: esAdmin ? null : alcance.teammateUserIds
+    esAdministracion: alcance.isAdmin,
+    veTodo: alcance.isMaster,
+    puedeAsignar: alcance.isAdmin || alcance.isLeader || alcance.roleKey === "territorial_coordinator",
+    personas: alcance.isMaster ? null : alcance.teammateUserIds
   };
 }
 
@@ -125,7 +134,7 @@ export function descripcionPeriodo(f: FiltrosBitacora): string {
 /** A quién pertenece la consulta: mi agenda, la de una persona concreta, o toda la estructura. */
 function personaObjetivo(ctx: ContextoBitacora, f: FiltrosBitacora): string | undefined {
   if (f.id) return undefined;
-  if (f.responsableId && (ctx.esAdmin || ctx.alcance.teammateUserIds.includes(f.responsableId))) return f.responsableId;
+  if (f.responsableId && (ctx.veTodo || ctx.alcance.teammateUserIds.includes(f.responsableId))) return f.responsableId;
   if (f.scope === "mis" || !ctx.puedeAsignar) return ctx.userId;
   return undefined;
 }
@@ -143,12 +152,23 @@ function condicionAlcanceEventos(ctx: ContextoBitacora, objetivo: string | undef
       ...(objetivo === ctx.userId && porEquipo ? [porEquipo] : [])
     );
   }
+  // Administración: la misma regla que las incidencias (su municipio y su gente; el maestro, todo).
+  if (ctx.esAdministracion) return incidentScopeCondition(ctx.alcance);
   if (ctx.personas === null) return undefined;
   return or(inArray(er.assignedToUserId, ctx.personas), inArray(er.createdByUserId, ctx.personas), ...(porEquipo ? [porEquipo] : []));
 }
 
 function condicionAlcanceVisitas(ctx: ContextoBitacora, objetivo: string | undefined): SQL | undefined {
   if (objetivo) return eq(schema.visits.assignedUserId, objetivo);
+  if (ctx.veTodo) return undefined;
+  // Un administrador municipal, las visitas de su gente (también de quien ya no está activa); sin
+  // municipio, las suyas. Además, `consultarBitacora` las acota a ciudadanos que ve.
+  if (ctx.esAdministracion) {
+    const municipio = ctx.alcance.adminMunicipalityId;
+    return municipio
+      ? sql`${schema.visits.assignedUserId} IN (${genteDelMunicipio(municipio)})`
+      : eq(schema.visits.assignedUserId, ctx.userId);
+  }
   if (ctx.personas === null) return undefined;
   return inArray(schema.visits.assignedUserId, ctx.personas);
 }
@@ -240,7 +260,7 @@ export async function consultarBitacora(ctx: ContextoBitacora, f: FiltrosBitacor
   const er = schema.eventReports;
   const vt = schema.visits;
   const objetivo = personaObjetivo(ctx, f);
-  const visibles = contactIdRestriction(await visibleContactIds(ctx.alcance));
+  const visibles = contactIdRestriction(await contactosVisibles(ctx.alcance));
   const alcanceEv = condicionAlcanceEventos(ctx, objetivo);
   const alcanceVi = condicionAlcanceVisitas(ctx, objetivo);
 
@@ -397,9 +417,11 @@ export async function consultarBitacora(ctx: ContextoBitacora, f: FiltrosBitacor
       puedeActuar: puedeSobreIncidencia(
         "actualizar",
         { createdByUserId: r.createdByUserId, assignedToUserId: r.assignedToUserId, assignedTeamId: r.assignedTeamId, description: r.description ?? "" },
-        ctx.userId, ctx.esAdmin, ctx.alcance.teamIds, ctx.alcance.teammateUserIds
+        // Su mando, no sus compañeros: la misma lista con la que la API decide (permisos-incidencias).
+        ctx.userId, ctx.esAdministracion, ctx.alcance.teamIds, ctx.alcance.commandUserIds ?? []
       ),
-      puedeBorrar: ctx.esAdmin || r.createdByUserId === ctx.userId
+      // Lo que llega aquí ya está en su alcance: administración actúa sobre todo lo que ve.
+      puedeBorrar: ctx.esAdministracion || r.createdByUserId === ctx.userId
     };
   });
 
@@ -436,7 +458,7 @@ export async function consultarBitacora(ctx: ContextoBitacora, f: FiltrosBitacor
     visitId: v.id,
     followUpOfId: null,
     tieneSeguimiento: false,
-    puedeActuar: ctx.esAdmin || v.assignedUserId === ctx.userId || ctx.alcance.teammateUserIds.includes(v.assignedUserId),
+    puedeActuar: ctx.esAdministracion || v.assignedUserId === ctx.userId || ctx.alcance.teammateUserIds.includes(v.assignedUserId),
     puedeBorrar: false
   }));
 
@@ -511,7 +533,7 @@ export async function resumenBitacora(
           .where(and(
             eq(schema.contacts.status, "active"),
             inArray(schema.contacts.createdByUserId, ids),
-            contactIdRestriction(await visibleContactIds(ctx.alcance))
+            contactIdRestriction(await contactosVisibles(ctx.alcance))
           ))
           .groupBy(schema.contacts.createdByUserId)
       ])
@@ -562,11 +584,9 @@ export async function resumenBitacora(
         displayName: u.displayName,
         email: u.email,
         roleKey: u.roleKey || "visit_responsible",
-        roleName:
-          u.roleKey === "territorial_coordinator" ? "Líder"
-          : u.roleKey === "capturist" ? "Coordinador Territorial"
-          : u.roleKey === "visit_responsible" ? "Brigadista"
-          : u.roleName || "Operador",
+        // El nombre del rol sale de la base, como en el resto de la aplicación. Aquí había una copia
+        // escrita a mano que se habría quedado diciendo «Coordinador Territorial» tras renombrarlo.
+        roleName: u.roleName || "Operador",
         teamName: equipo?.name || `Equipo de ${u.displayName.split(" ")[0]}`,
         totalActivities: a?.total ?? 0,
         completedActivities: cerradas,
@@ -580,7 +600,7 @@ export async function resumenBitacora(
     })
     .sort((x, y) => (y.totalActivities + y.contactsCount) - (x.totalActivities + x.contactsCount));
 
-  const alcanceTxt = ctx.esAdmin ? "toda la organización" : "las personas de tu estructura";
+  const alcanceTxt = ctx.veTodo ? "toda la organización" : ctx.esAdministracion ? "tu municipio" : "las personas de tu estructura";
   const periodoTxt = f.desde || f.hasta ? `del ${f.desde ?? "inicio"} al ${f.hasta ?? "hoy"}` : "todo el historial";
   return {
     lideres,

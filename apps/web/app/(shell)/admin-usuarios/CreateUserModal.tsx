@@ -12,7 +12,11 @@ interface RoleOption {
   name: string;
 }
 
-export function CreateUserModal({ roles }: { roles: RoleOption[] }) {
+/**
+ * `municipioFijo`: el de un administrador municipal, que da de alta solo en su municipio (etapa 6). Los
+ * roles son los que esta sesión puede dar: administración, solo el maestro.
+ */
+export function CreateUserModal({ roles, municipioFijo = null }: { roles: RoleOption[]; municipioFijo?: string | null }) {
   // Se propone el municipio de quien está dando de alta: casi siempre suma gente de su
   // propio territorio, y así no hay que elegirlo cada vez.
   const municipioUsuario = useMunicipioUsuario();
@@ -28,10 +32,11 @@ export function CreateUserModal({ roles }: { roles: RoleOption[] }) {
     const formData = new FormData(event.currentTarget);
 
     try {
-      await createUserAction(formData);
-      setIsOpen(false);
-    } catch (err: any) {
-      setError(err?.message || "Ocurrió un error al crear el usuario.");
+      const r = await createUserAction(formData);
+      if (r.ok) setIsOpen(false);
+      else setError(r.error);
+    } catch {
+      setError("No se pudo crear el usuario. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -48,7 +53,7 @@ export function CreateUserModal({ roles }: { roles: RoleOption[] }) {
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsOpen(false)}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsOpen(false)}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
@@ -149,7 +154,9 @@ export function CreateUserModal({ roles }: { roles: RoleOption[] }) {
                   label="Municipio donde trabaja"
                   allowCustom={false}
                   placeholder="Escribe o busca municipio..."
-                  defaultValue={municipioUsuario ?? ""}
+                  defaultValue={municipioFijo ?? municipioUsuario ?? ""}
+                  disabled={Boolean(municipioFijo)}
+                  {...(municipioFijo ? { helperText: `Administras ${municipioFijo}: tu gente se da de alta ahí.` } : {})}
                   options={MUNICIPIOS_JALISCO.map((m) => ({
                     value: m.name,
                     label: m.name,

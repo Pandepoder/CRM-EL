@@ -29,14 +29,17 @@ export function RoleSelector({
       });
 
       if (!res.ok) {
-        throw new Error("Error al cambiar rol");
+        // El servidor dice por qué (etapa 6: solo el maestro nombra administradores, nadie toca a otro
+        // administrador…). Antes se decía «No se pudo» sin más.
+        const cuerpo = (await res.json().catch(() => null)) as { message?: string } | null;
+        alert(cuerpo?.message ?? "No se pudo cambiar el rol.");
+        setRole(currentRoleId);
+        return;
       }
-      
-      // Refresh the page data
+
       router.refresh();
-    } catch (err) {
-      console.error(err);
-      alert("No se pudo cambiar el rol.");
+    } catch {
+      alert("No se pudo cambiar el rol. Revisa tu conexión e intenta de nuevo.");
       setRole(currentRoleId); // Revert
     } finally {
       setIsUpdating(false);

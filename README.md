@@ -230,27 +230,102 @@ Listar lo que hay respaldado:
 docker compose exec backup ls -lh /backups
 ```
 
-**Ensayar la restauración** en una base desechable — hazlo antes de necesitarla,
+`restore.sh` **solo restaura en una base vacía**, y la crea si no existe. Nunca
+sobrescribe nada: si la base destino tiene tablas, se niega. Es a propósito.
+`pg_dump --clean` borra únicamente lo que trae el volcado. Restaurar un respaldo
+viejo encima de la base viva deja en pie las tablas de las migraciones
+posteriores mientras el registro de migraciones vuelve atrás, y la siguiente
+migración se rompe.
+
+**Ensayar la restauración** en una base desechable. Hazlo antes de necesitarla,
 no el día que falle el disco:
 
 ```bash
-docker compose exec db psql -U tonala -d postgres -c "CREATE DATABASE restore_test OWNER tonala;"
+docker compose run --rm --entrypoint sh -e RESTORE_TARGET_DB=restore_test backup /usr/local/bin/restore.sh /backups/tonala_os-<TIMESTAMP>.sql.gz
 ```
+
+El script verifica el gzip y **rechaza un volcado incompleto** (uno que no termina
+con la línea de cierre de `pg_dump`) antes de crear nada. Luego restaura e imprime
+los conteos de `contacts`, `user_profiles`, `colonies` y `electoral_sections`
+para que compares. Si algo falla a la mitad, lo dice y pide borrar la base a medias.
+`--entrypoint sh` es obligatorio: sin él, `compose run` arranca el bucle de
+respaldo y se queda colgado.
+
+Borra la base de ensayo al terminar:
 
 ```bash
-docker compose run --rm --entrypoint sh -e CONFIRM_RESTORE=si-borra-la-base-destino -e RESTORE_TARGET_DB=restore_test backup /usr/local/bin/restore.sh /backups/tonala_os-<TIMESTAMP>.sql.gz
+docker compose exec db psql -U tonala -d postgres -c "DROP DATABASE restore_test;"
 ```
 
-El script verifica el gzip, restaura e imprime los conteos de `contacts`,
-`user_profiles`, `colonies` y `electoral_sections` para que compares. Sin la
-variable `CONFIRM_RESTORE` aborta, y `--entrypoint sh` es obligatorio: sin él
-`compose run` arranca el bucle de respaldo y se queda colgado.
+**Restaurar de verdad**: se restaura en una base nueva y se cambian los nombres.
+La base dañada se conserva como `tonala_os_antes` hasta que decidas borrarla.
 
-Para restaurar de verdad sobre la base buena, omite `RESTORE_TARGET_DB`.
+1. Detén todo lo que se conecta a la base (cambiar de nombre una base con
+   sesiones abiertas falla):
+
+   ```bash
+   docker compose stop web outbox-worker backup
+   ```
+
+2. Restaura en una base nueva:
+
+   ```bash
+   docker compose run --rm --entrypoint sh -e RESTORE_TARGET_DB=tonala_os_restaurada backup /usr/local/bin/restore.sh /backups/tonala_os-<TIMESTAMP>.sql.gz
+   ```
+
+3. Cambia los nombres. Van en una sola transacción (`-1`): si el segundo cambio
+   falla, el primero se deshace y nada queda a medias.
+
+   ```bash
+   docker compose exec db psql -U tonala -d postgres -1 -v ON_ERROR_STOP=1 -c "ALTER DATABASE tonala_os RENAME TO tonala_os_antes;" -c "ALTER DATABASE tonala_os_restaurada RENAME TO tonala_os;"
+   ```
+
+4. Un respaldo anterior al último despliegue trae el esquema de entonces. Aplica
+   las migraciones que le falten:
+
+   ```bash
+   docker compose run --rm migrate
+   ```
+
+5. Arranca de nuevo:
+
+   ```bash
+   docker compose start web outbox-worker backup
+   ```
+
+`/api/health` debe responder `"status":"ok"`. Si faltara alguna migración
+respondería 503, y el registro de `web` lo dice al arrancar (`[arranque] ESQUEMA
+DESACTUALIZADO`). Cuando estés seguro, borra `tonala_os_antes`.
+
+En un **servidor nuevo** (se perdió el VPS), levanta solo la base con
+`docker compose up -d db`. Restaura sin `RESTORE_TARGET_DB`: la base que crea
+Postgres al iniciar está vacía. Después, `docker compose up -d` aplica las
+migraciones y arranca el resto.
+
+Qué garantiza el servicio `backup`:
+
+- Un archivo `tonala_os-*.sql.gz` **siempre está completo**: solo se guarda si
+  `pg_dump` terminó bien y el volcado trae su línea de cierre. Si falla —la base
+  caída, sin disco—, el registro dice `[backup] FALLÓ` y no se guarda nada.
+- **Solo se poda tras un volcado bueno.** Si los respaldos empiezan a fallar, los
+  anteriores se conservan todos hasta que alguien lo arregle. Revisa el registro
+  de vez en cuando: `docker compose logs --tail 20 backup`.
+
+> 🔑 **Un respaldo sin la llave de cifrado no sirve.** Nombres, teléfonos,
+> correos, domicilios, colonias, municipio y notas de los ciudadanos se guardan
+> cifrados con `DATABASE_ENCRYPTION_KEY`, y así salen en el volcado. Guarda esa
+> llave **fuera del servidor y separada de los respaldos** (en un gestor de
+> contraseñas, por ejemplo): si se pierde el VPS y con él el `.env`, los respaldos
+> se restauran pero esos campos quedan ilegibles. Y si algún día rotas la llave,
+> conserva también la anterior: los respaldos hechos antes de la rotación la siguen
+> necesitando.
 
 > ⚠️ **Falta la copia fuera del servidor.** Estos respaldos viven en un volumen
 > del mismo VPS: sirven ante un borrado accidental de datos, no ante la pérdida
-> del disco o del servidor. Añade una réplica a S3, rclone o `scp` a otra máquina.
+> del disco o del servidor. Hay que elegir un destino (otro servidor, S3, Backblaze
+> B2, Google Drive…) y replicar ahí `/backups` y el volumen de adjuntos. Nunca
+> guardes la llave de cifrado en ese mismo destino: quien obtuviera las dos cosas
+> leería el padrón completo.
 
 ### Archivos adjuntos
 

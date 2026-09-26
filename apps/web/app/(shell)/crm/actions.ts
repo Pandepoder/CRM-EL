@@ -1,260 +1,49 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { registerExtendedContact } from "@tonala/modules/contacts/application";
-import { DevelopmentLogger } from "@tonala/shared/observability";
 
-import { actorFromSession, permissionChecker } from "@/lib/api-helpers";
-import { assertActorPermission, Permission } from "@/lib/authorization";
-import {
-  createExtendedContactsMutationsDependencies
-} from "@/lib/crm-deps";
-import { getDatabaseClient } from "@/lib/db-client";
-import { schema } from "@tonala/shared/database";
-import { eq } from "drizzle-orm";
-import { processOutboxInline } from "@/lib/outbox";
+import { actorFromSession } from "@/lib/api-helpers";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { buscarMunicipio } from "@/lib/municipios-jalisco";
+import { darDeBajaCiudadano } from "@/lib/baja-ciudadano";
+import { esUuid } from "@/lib/ids";
+import { registrarError } from "@/lib/registro";
+import { veCiudadano } from "@/lib/contact-visibility";
 
-export async function createContactAction(formData: FormData) {
+// El alta de ciudadanos ya no es una acción de servidor: el formulario llama a `POST /api/crm/contacts`
+// (ver `lib/alta-ciudadano.ts`). La acción lanzaba sus errores, y en producción Next los oculta y
+// lleva a la pantalla de fallo: se perdía todo lo capturado. Una API, además, la puede reintentar la
+// cola del teléfono.
+
+/**
+ * Dar de baja a un ciudadano desde el Directorio o el detalle de equipo. Solo administración.
+ *
+ * Antes esto borraba físicamente la ficha con una cascada a mano: irreversible, sin auditoría, y
+ * fallaba con uno de cada seis ciudadanos (D10). Ahora es la misma baja lógica y auditada que
+ * `DELETE /api/crm/contacts/[id]`: ver `darDeBajaCiudadano`.
+ *
+ * Devuelve el error en vez de lanzarlo: en producción Next sustituye el mensaje de lo que lanza
+ * una acción por uno genérico, y la pantalla no podría decir qué pasó.
+ */
+export async function darDeBajaCiudadanoAction(contactId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const actor = await actorFromSession();
-  if (!actor) throw new Error("Unauthorized");
-  assertActorPermission(actor, Permission.ContactsCreate);
-  const creationScope = await resolveUserNetworkScope(actor.actorId);
-  for (const field of ["referredByUserId", "actualContactUserId"]) {
-    const value = formData.get(field);
-    const responsable = typeof value === "string" ? value : "";
-    if (responsable && !creationScope.isGlobal && !creationScope.teammateUserIds.includes(responsable)) throw new Error("El responsable debe pertenecer a tu equipo");
-  }
+  if (!actor) return { ok: false, error: "Tu sesión terminó. Vuelve a entrar." };
 
-  const firstName = ((formData.get("firstName") as string) || "").trim();
-  const lastName = ((formData.get("lastName") as string) || "").trim();
-  const maternalLastName = ((formData.get("maternalLastName") as string) || "").trim();
-  const displayName = `${firstName} ${lastName} ${maternalLastName}`.trim();
-
-  if (!displayName) throw new Error("Nombre es requerido");
-
-  const birthDay = formData.get("birthDay") as string;
-  const birthMonth = formData.get("birthMonth") as string;
-  const birthYear = formData.get("birthYear") as string;
-  let birthDate: Date | null = null;
-  if (birthDay && birthMonth) {
-    const yr = birthYear ? parseInt(birthYear, 10) : 2000;
-    birthDate = new Date(Date.UTC(yr, parseInt(birthMonth, 10) - 1, parseInt(birthDay, 10)));
-  } else {
-    const rawBirthDate = formData.get("birthDate") as string;
-    if (rawBirthDate) birthDate = new Date(rawBirthDate);
-  }
-
-  const db = getDatabaseClient();
-
-  const colony = ((formData.get("colony") as string) || "").trim() || "Por identificar";
-  // Solo un municipio del catálogo; si falta, se toma el de la sección más abajo. Antes el
-  // valor por omisión era "Tonalá" y cualquier alta sin municipio quedaba en Tonalá.
-  let municipality = buscarMunicipio(formData.get("municipality") as string | null)?.name ?? null;
-  const sectionNumStr = (formData.get("sectionNum") as string) || "";
-  let sectionId = ((formData.get("sectionId") as string) || "").trim() || null;
-
-  // Resolve section number or create on the fly
-  const sectionNum = parseInt(sectionNumStr, 10);
-  let seccionInexistente = false;
-  if (!isNaN(sectionNum) && sectionNum > 0) {
-    try {
-      const existingSec = await db
-        .select({ id: schema.electoralSections.id, municipality: schema.electoralSections.municipality })
-        .from(schema.electoralSections)
-        .where(eq(schema.electoralSections.sectionNum, sectionNum))
-        .limit(1);
-
-      if (existingSec.length > 0 && existingSec[0]) {
-        sectionId = existingSec[0].id;
-        municipality = municipality ?? existingSec[0].municipality;
-      } else {
-        // La cartografía del INE de los 125 municipios está completa: un número que no existe
-        // es un error de captura, no una sección nueva. Antes aquí se fabricaba un cuadrado de
-        // un kilómetro sobre el centro del municipio —sobre Tonalá si el municipio no estaba
-        // en una tabla de siete—, que se dibujaba en el mapa como si fuera real.
-        seccionInexistente = true;
-      }
-    } catch (err) {
-      console.error("Error auto-resolving section in createContactAction:", err);
-    }
-  }
-
-  // Fuera del try: dentro, el catch lo tragaba y el contacto se creaba sin sección.
-  if (seccionInexistente) {
-    throw new Error(`La sección ${sectionNum} no existe en la cartografía electoral de Jalisco. Verifica el número.`);
-  }
-
-  const deps = await createExtendedContactsMutationsDependencies(db);
-
-  const result = await registerExtendedContact(
-    actor,
-    {
-      displayName,
-      firstName: firstName || null,
-      lastName: lastName || null,
-      maternalLastName: maternalLastName || null,
-      referredByUserId: (formData.get("referredByUserId") as string) || (formData.get("actualContactUserId") as string) || null,
-      birthDate,
-      phone: (formData.get("phone") as string) || null,
-      email: (formData.get("email") as string) || null,
-      address: (formData.get("address") as string) || null,
-      addressNumber: (formData.get("addressNumber") as string) || null,
-      colony,
-      municipality,
-      sectionId,
-      profession: (formData.get("profession") as string) || null,
-      companyOrWork: (formData.get("companyOrWork") as string) || null,
-      yearsKnown: formData.get("yearsKnown") ? parseInt(formData.get("yearsKnown") as string, 10) : null,
-      skill: (formData.get("skill") as string) || null,
-      availability: (formData.get("availability") as string) || null,
-      interests: (formData.get("interests") as string) || (formData.get("participatingArea") as string) || null,
-      pastSupport: (formData.get("pastSupport") as string) || null
-    },
-    {
-      ...deps,
-      logger: new DevelopmentLogger(),
-      permissionChecker
-    }
-  );
-
-  if (!result.ok) {
-    throw new Error(result.error.publicMessage ?? "No se pudo registrar el contacto.");
-  }
-
-  const contactId = result.value.contactId;
-
-  // New Fields (ElApp Primera Etapa)
-  const origin = (formData.get("origin") as string) || "toca_toca";
-  const actualContactUserId = (formData.get("actualContactUserId") as string) || actor.actorId;
-  const firstContactDateStr = formData.get("firstContactDate") as string;
-  const firstContactDate = firstContactDateStr ? new Date(firstContactDateStr) : new Date();
-  const preferredContactMethod = (formData.get("preferredContactMethod") as string) || "whatsapp";
-  const preferredContactTime = (formData.get("preferredContactTime") as string) || "indiferente";
-  const panMilitancy = (formData.get("panMilitancy") as string) || "no_registrada";
-  const panMilitancyVerifiedAtStr = formData.get("panMilitancyVerifiedAt") as string;
-  const panMilitancyVerifiedAt = panMilitancyVerifiedAtStr ? new Date(panMilitancyVerifiedAtStr) : null;
-  const knowMeBetter = (formData.get("knowMeBetter") as string) || null;
-  const bardaPhotoUrl = (formData.get("bardaPhotoUrl") as string) || null;
-  const latStr = formData.get("exactLatitude") as string;
-  const lngStr = formData.get("exactLongitude") as string;
-  const exactLatitude = latStr ? parseFloat(latStr) : null;
-  const exactLongitude = lngStr ? parseFloat(lngStr) : null;
-
-  // Update contact with extended fields
-  await db
-    .update(schema.contacts)
-    .set({
-      origin,
-      actualContactUserId,
-      firstContactDate,
-      preferredContactMethod,
-      preferredContactTime,
-      panMilitancy,
-      panMilitancyVerifiedAt,
-      knowMeBetter,
-      bardaPhotoUrl,
-      exactLatitude,
-      exactLongitude
-    })
-    .where(eq(schema.contacts.id, contactId));
-
-  // Insert initial note if provided
-  const initialNote = (formData.get("initialNote") as string) || "";
-  if (initialNote.trim()) {
-    await db.insert(schema.contactNotes).values({
-      contactId,
-      authorUserId: actor.actorId,
-      noteText: initialNote.trim(),
-      createdAt: new Date()
-    });
-  }
-
-  // Insert survey if filled
-  const colonyPriorityNeed = (formData.get("survey_colonyPriorityNeed") as string) || null;
-  const colonyPriorityOther = (formData.get("survey_colonyPriorityOther") as string) || null;
-  const tonalaValues = (formData.get("survey_tonalaValues") as string) || null;
-  const tonalaValuesOther = (formData.get("survey_tonalaValuesOther") as string) || null;
-  const servicesRatingStr = formData.get("survey_servicesRating") as string;
-  const servicesRatingWhy = (formData.get("survey_servicesRatingWhy") as string) || null;
-  const projectExpectations = (formData.get("survey_projectExpectations") as string) || null;
-  const projectExpectationsOther = (formData.get("survey_projectExpectationsOther") as string) || null;
-  const participationForm = (formData.get("survey_participationForm") as string) || null;
-  const participationFormOther = (formData.get("survey_participationFormOther") as string) || null;
-  const openProposal = (formData.get("survey_openProposal") as string) || null;
-
-  if (colonyPriorityNeed || tonalaValues || servicesRatingStr || projectExpectations || participationForm || openProposal) {
-    await db.insert(schema.socialSurveys).values({
-      contactId,
-      colonyPriorityNeed,
-      colonyPriorityOther,
-      tonalaValues,
-      tonalaValuesOther,
-      servicesRating: servicesRatingStr ? parseInt(servicesRatingStr, 10) : null,
-      servicesRatingWhy,
-      projectExpectations,
-      projectExpectationsOther,
-      participationForm,
-      participationFormOther,
-      openProposal,
-      createdAt: new Date()
-    });
-  }
-
-  await processOutboxInline(db);
-  revalidatePath("/crm");
-  revalidatePath("/crm/contacts");
-  redirect("/crm/contacts");
-}
-
-export async function deleteContactAction(contactId: string) {
-  const actor = await actorFromSession();
-  if (!actor) throw new Error("No autenticado");
-
-  const db = getDatabaseClient();
-
-  // 1. Fetch contact
-  const contactRows = await db
-    .select({
-      id: schema.contacts.id,
-      createdByUserId: schema.contacts.createdByUserId,
-      actualContactUserId: schema.contacts.actualContactUserId,
-      referredByUserId: schema.contacts.referredByUserId
-    })
-    .from(schema.contacts)
-    .where(eq(schema.contacts.id, contactId))
-    .limit(1);
-
-  const contact = contactRows[0];
-  if (!contact) {
-    throw new Error("Ciudadano no encontrado");
-  }
-
-  // 2. Solo administración borra ciudadanos. Es un borrado definitivo en cascada —notas,
-  // encuestas, asignaciones, territorio y visitas—, y el DELETE de la API ya lo tenía así; esta
-  // acción seguía dejando hacerlo a cualquier líder, incluso sobre contactos fuera de su
-  // territorio que el directorio ya ni le muestra.
   const scope = await resolveUserNetworkScope(actor.actorId);
-  if (!scope.isGlobal) {
-    throw new Error("Solo administración puede eliminar ciudadanos del padrón");
-  }
+  if (!scope.isAdmin) return { ok: false, error: "Solo administración puede dar de baja ciudadanos del padrón." };
+  // Un administrador municipal, solo a los que ve: los de su municipio y los de su gente (etapa 6).
+  if (!esUuid(contactId) || !(await veCiudadano(scope, contactId))) return { ok: false, error: "Ese ciudadano no existe." };
 
-  // 3. Cascade deletion of related items
-  await db.transaction(async (tx) => {
-    await tx.delete(schema.contactNotes).where(eq(schema.contactNotes.contactId, contactId));
-    await tx.delete(schema.socialSurveys).where(eq(schema.socialSurveys.contactId, contactId));
-    await tx.delete(schema.contactAssignments).where(eq(schema.contactAssignments.contactId, contactId));
-    await tx.delete(schema.contactTerritory).where(eq(schema.contactTerritory.contactId, contactId));
-    await tx.delete(schema.visits).where(eq(schema.visits.contactId, contactId));
-    await tx.delete(schema.contacts).where(eq(schema.contacts.id, contactId));
-  });
+  try {
+    if (!(await darDeBajaCiudadano(contactId, actor))) return { ok: false, error: "Ese ciudadano no existe." };
+  } catch (error) {
+    registrarError("Failed to deactivate contact", error);
+    return { ok: false, error: "No se pudo dar de baja. Intenta de nuevo." };
+  }
 
   revalidatePath("/crm");
   revalidatePath("/crm/contacts");
   revalidatePath("/resumen");
   revalidatePath("/mapa");
-  return { success: true };
+  return { ok: true };
 }
 

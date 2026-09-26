@@ -8,8 +8,8 @@ import type { ActividadItem, OpcionSelector } from "@/lib/bitacora-tipos";
 import { LocationPicker } from "@/components/LocationPicker";
 import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
 import { useMunicipioUsuario } from "@/lib/municipio-contexto";
+import { enviarOEncolar, nuevaClave, TEXTO_DE_ESPERA } from "@/lib/cola-de-envios";
 
-import { llamar } from "./api";
 import { buscarCatalogo, buscarContactos, buscarSecciones, crearEnCatalogo } from "./buscadores";
 import { SelectorBuscable } from "./SelectorBuscable";
 
@@ -91,13 +91,15 @@ export function FormularioActividad({
 }) {
   const municipioUsuario = useMunicipioUsuario();
   const [f, setF] = useState<Estado>(() => estadoInicial(usuarioActualId));
+  // ¿El lugar lo puso el mapa o se escribió a mano? El del mapa sigue al punto; el escrito se respeta.
+  const lugarDelMapa = useRef(true);
   const [errores, setErrores] = useState<Partial<Record<Campo, string>>>({});
   const [guardando, setGuardando] = useState(false);
   const [mostrarMapa, setMostrarMapa] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   // Se genera al abrir el formulario y solo cambia tras un guardado: un doble clic o un reintento
   // tras un corte de red llega con la misma clave y el servidor devuelve la actividad ya creada.
-  const claveSolicitud = useRef(crypto.randomUUID());
+  const claveSolicitud = useRef(nuevaClave());
   const primerError = useRef<HTMLDivElement>(null);
   const formulario = useRef<HTMLFormElement>(null);
   const [agregarOtra, setAgregarOtra] = useState(false);
@@ -123,7 +125,7 @@ export function FormularioActividad({
       setErrores({});
       setMensaje(null);
       setMostrarMapa(false);
-      claveSolicitud.current = crypto.randomUUID();
+      claveSolicitud.current = nuevaClave();
     }
   }, [abierto, usuarioActualId, plantilla]);
 
@@ -180,41 +182,57 @@ export function FormularioActividad({
 
     setGuardando(true);
     setAgregarOtra(otra);
-    const r = await llamar<{ task: { id: string }; duplicada: boolean; avisos: string[] }>("/api/equipo/tareas", {
-      cuerpo: {
-        title: titulo.trim(),
-        description: f.descripcion.trim() || undefined,
-        assignedToUserId: f.responsableId || undefined,
-        scheduledAt: new Date(f.fecha).toISOString(),
-        activityTypeId: tipo!.id,
-        tagIds: f.etiquetas.map((t) => t.id),
-        sectionId: f.seccion[0]?.id || f.sectionId || undefined,
-        contactId: f.contacto[0]?.id || undefined,
-        locationText: f.locationText.trim() || undefined,
-        estimatedAttendees: f.asistentes ? Number(f.asistentes) : null,
-        latitude: f.latitude,
-        longitude: f.longitude,
-        municipality: f.municipality || undefined,
-        mediaUrls: f.media,
-        clientRequestId: claveSolicitud.current,
-        modo: f.modo,
-        resultado: f.modo === "registrar" ? { outcome: f.outcome, summary: f.conclusion.trim() } : undefined
-      }
+    const cuerpo = {
+      title: titulo.trim(),
+      description: f.descripcion.trim() || undefined,
+      assignedToUserId: f.responsableId || undefined,
+      scheduledAt: new Date(f.fecha).toISOString(),
+      activityTypeId: tipo!.id,
+      tagIds: f.etiquetas.map((t) => t.id),
+      sectionId: f.seccion[0]?.id || f.sectionId || undefined,
+      contactId: f.contacto[0]?.id || undefined,
+      locationText: f.locationText.trim() || undefined,
+      estimatedAttendees: f.asistentes ? Number(f.asistentes) : null,
+      latitude: f.latitude,
+      longitude: f.longitude,
+      municipality: f.municipality || undefined,
+      mediaUrls: f.media,
+      clientRequestId: claveSolicitud.current,
+      modo: f.modo,
+      resultado: f.modo === "registrar" ? { outcome: f.outcome, summary: f.conclusion.trim() } : undefined
+    };
+    // Sin señal, la actividad queda en la cola del teléfono y se envía sola; la clave evita que el
+    // reenvío la duplique (3.4).
+    const r = await enviarOEncolar({
+      clave: claveSolicitud.current,
+      tipo: "actividad",
+      url: "/api/equipo/tareas",
+      cuerpo,
+      descripcion: `Actividad: ${titulo.trim()}`,
+      usuarioId: usuarioActualId
     });
     setGuardando(false);
 
-    if (!r.ok) {
+    if (r.estado === "rechazado") {
       // Todo lo capturado se conserva: solo se marca el campo que falló.
       const campo = (r.codigo && CAMPO_DE_CODIGO[r.codigo]) || "general";
       setErrores({ [campo]: r.error });
       return;
     }
+    if (r.estado === "sin-cola") {
+      setErrores({ general: r.error });
+      return;
+    }
 
-    const avisos = r.datos.avisos ?? [];
-    const texto = avisos.length ? avisos.join(" ") : r.datos.duplicada ? "Esa actividad ya estaba guardada." : "Actividad guardada.";
+    const datos = r.estado === "enviado" ? (r.datos as { duplicada?: boolean; avisos?: string[] }) : {};
+    const avisos = datos.avisos ?? [];
+    const texto =
+      r.estado === "encolado"
+        ? TEXTO_DE_ESPERA[r.motivo]
+        : avisos.length ? avisos.join(" ") : datos.duplicada ? "Esa actividad ya estaba guardada." : "Actividad guardada.";
     if (otra) {
       // Se conserva el contexto útil para la siguiente (responsable, día, mapa) y se limpia lo demás.
-      claveSolicitud.current = crypto.randomUUID();
+      claveSolicitud.current = nuevaClave();
       setF((prev) => ({
         ...estadoInicial(prev.responsableId, prev.modo),
         latitude: prev.latitude, longitude: prev.longitude, municipality: prev.municipality,
@@ -315,7 +333,10 @@ export function FormularioActividad({
               </button>
             </div>
             <input id="af-lugar" aria-invalid={err("ubicacion") ? true : undefined} value={f.locationText} placeholder="Domicilio o lugar (opcional): calle, comité, plaza…" maxLength={240}
-              onChange={(e) => poner("locationText", e.target.value)} className={clase(false)} />
+              onChange={(e) => {
+                poner("locationText", e.target.value);
+                lugarDelMapa.current = e.target.value.trim() === "";
+              }} className={clase(false)} />
             {f.latitude !== null && !mostrarMapa && <p className="mt-1 text-[11px] font-semibold text-emerald-700">Punto marcado en el mapa{f.municipality ? ` · ${f.municipality}` : ""}.</p>}
             {err("ubicacion") && <p role="alert" className="mt-1 text-xs font-bold text-red-600">{err("ubicacion")}</p>}
             {mostrarMapa && (
@@ -326,13 +347,16 @@ export function FormularioActividad({
                   defaultMunicipality={f.municipality || municipioUsuario || undefined}
                   value={{ latitude: f.latitude, longitude: f.longitude, address: f.locationText, locationText: f.locationText, municipality: f.municipality, sectionId: f.sectionId }}
                   onChange={(loc) => {
+                    // El punto manda: su sección (vacía si cae fuera de la cartografía, para que no se quede la
+                    // de un punto anterior). El lugar escrito a mano («Salón ejidal») no se sustituye.
+                    const delMapa = lugarDelMapa.current;
                     setF((prev) => ({
                       ...prev,
                       latitude: loc.latitude ?? prev.latitude,
                       longitude: loc.longitude ?? prev.longitude,
-                      locationText: loc.address || loc.locationText || prev.locationText,
+                      locationText: delMapa || !prev.locationText.trim() ? loc.address || loc.locationText || prev.locationText : prev.locationText,
                       municipality: loc.municipality || prev.municipality,
-                      sectionId: loc.sectionId || prev.sectionId
+                      sectionId: loc.sectionId || ""
                     }));
                     setErrores((x) => { const { ubicacion: _u, ...r } = x; return r; });
                   }}

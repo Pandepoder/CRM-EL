@@ -40,13 +40,10 @@ export async function assignResponsible(
           return err(notFoundError("contact_not_found", `Contact ${input.contactId} was not found or inactive.`, "Contact was not found."));
         }
 
-        const territory = await dependencies.territoryReader.getContactTerritory(contactId);
-        if (!territory) {
-          return err(notFoundError("contact_territory_not_found", `Contact ${input.contactId} has no territory.`, "Contact territory was not found."));
-        }
-        if (territory.territoryStatus !== "confirmed") {
-          return err(validationError("contact_territory_not_confirmed", `Contact ${input.contactId} territory is not confirmed.`, "Contact territory is not confirmed."));
-        }
+        // Asignar ya no exige territorio confirmado (decisión del dueño, 2026-09-25): el brigadista solo
+        // ve lo que le asignan, y ninguna alta por QR trae colonia, así que para repartir un evento había
+        // que confirmar el territorio ficha por ficha. Lo exige la visita (`schedule-visit`), y quien la
+        // hace puede corregir el domicilio en la puerta.
 
         const user = await dependencies.userDirectoryReader.getUserCapability(assignedUserId);
         if (!user) {

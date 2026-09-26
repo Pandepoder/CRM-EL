@@ -38,6 +38,8 @@ export type OpcionCatalogo = {
   isSystem: boolean;
   createsVisit: boolean;
   createdByUserId: string | null;
+  /** Llave de municipio (0022). Las de organización son de su municipio; las de General, de todos. */
+  municipalityId: string;
   archived: boolean;
   /** Cuántas actividades la usan. Solo se calcula al administrar. */
   usos?: number;
@@ -57,6 +59,7 @@ const COLUMNAS = {
   isSystem: schema.activityCatalogOptions.isSystem,
   createsVisit: schema.activityCatalogOptions.createsVisit,
   createdByUserId: schema.activityCatalogOptions.createdByUserId,
+  municipalityId: schema.activityCatalogOptions.municipalityId,
   archivedAt: schema.activityCatalogOptions.archivedAt
 };
 
@@ -74,6 +77,7 @@ type Fila = {
   isSystem: boolean;
   createsVisit: boolean;
   createdByUserId: string | null;
+  municipalityId: string;
   archivedAt: Date | null;
 };
 
@@ -92,19 +96,40 @@ function aOpcion(f: Fila, usos?: number): OpcionCatalogo {
     isSystem: f.isSystem,
     createsVisit: f.createsVisit,
     createdByUserId: f.createdByUserId,
+    municipalityId: f.municipalityId,
     archived: f.archivedAt !== null,
     ...(usos !== undefined ? { usos } : {})
   };
 }
 
-/** Condición SQL de las opciones que puede ver quien tiene este alcance. */
+const GENERAL = sql`(SELECT m.id FROM municipalities m WHERE m.kind = 'general')`;
+
+/**
+ * Condición SQL de las opciones que puede ver quien tiene este alcance.
+ *
+ * Las «de toda la organización» eran globales: las que creaba el administrador de un municipio las
+ * veía el de otro (A10). Ahora cada quien ve las del sistema, las estatales (en General: las que
+ * crea el maestro y las que ya existían antes de la 0023), las de organización de su municipio y las
+ * de red de las personas de su alcance. El maestro, todas.
+ */
 export function condicionVisibilidad(alcance: UserNetworkScope): SQL | undefined {
-  if (alcance.isGlobal) return undefined;
+  if (alcance.isMaster) return undefined;
+  const o = schema.activityCatalogOptions;
   const personas = [...new Set([alcance.userId, ...(alcance.allowedUserIds ?? [])])];
+  const municipio = alcance.adminMunicipalityId ?? alcance.userMunicipalityId;
   return or(
-    eq(schema.activityCatalogOptions.scope, "organization"),
-    inArray(schema.activityCatalogOptions.createdByUserId, personas)
+    eq(o.isSystem, true),
+    and(
+      eq(o.scope, "organization"),
+      municipio ? sql`${o.municipalityId} IN (${GENERAL}, ${municipio})` : sql`${o.municipalityId} = ${GENERAL}`
+    ),
+    and(eq(o.scope, "network"), inArray(o.createdByUserId, personas))
   );
+}
+
+/** ¿Crea opciones «de toda la organización»? El maestro (estatales) y un administrador municipal (de su municipio). */
+function creaDeOrganizacion(alcance: UserNetworkScope): boolean {
+  return alcance.isMaster || (alcance.isAdmin && alcance.adminMunicipalityId !== null);
 }
 
 /** Escapa los comodines de LIKE para que "50%" se busque literal. */
@@ -182,10 +207,20 @@ export async function obtenerOpcionVisible(
   return fila ? aOpcion(fila) : null;
 }
 
-/** Quién puede modificar una opción: administración, o quien creó una de red. */
-export function puedeEditarOpcion(opcion: OpcionCatalogo, actorId: string, esAdmin: boolean): boolean {
-  if (esAdmin) return true;
-  return !opcion.isSystem && opcion.scope === "network" && opcion.createdByUserId === actorId;
+/**
+ * Quién puede modificar una opción: el maestro, cualquiera; un administrador municipal, las de
+ * organización de su municipio y las de red de su gente; el resto, las de red que creó. Las del
+ * sistema y las estatales, solo el maestro: cambiarlas cambia la agenda de todos los municipios.
+ */
+export function puedeEditarOpcion(opcion: OpcionCatalogo, alcance: UserNetworkScope): boolean {
+  if (alcance.isMaster) return true;
+  if (opcion.isSystem) return false;
+  const administraSuMunicipio = alcance.isAdmin && alcance.adminMunicipalityId !== null;
+  if (opcion.scope === "network") {
+    if (opcion.createdByUserId === alcance.userId) return true;
+    return administraSuMunicipio && (alcance.allowedUserIds ?? []).includes(opcion.createdByUserId ?? "");
+  }
+  return administraSuMunicipio && opcion.municipalityId === alcance.adminMunicipalityId;
 }
 
 export type ResultadoCreacion =
@@ -204,7 +239,6 @@ function esViolacionUnica(error: unknown): boolean {
  * nombre contiene al nuevo o al revés, para que la interfaz pueda avisar antes de duplicar.
  */
 export async function crearOpcion(
-  actor: { actorId: string; esAdmin: boolean },
   alcance: UserNetworkScope,
   entrada: {
     kind: TipoOpcion;
@@ -224,8 +258,10 @@ export async function crearOpcion(
     return { estado: "invalida", motivo: "La descripción no puede pasar de 240 caracteres." };
   }
 
-  // Solo administración crea opciones para toda la organización; el resto, para su red.
-  const scope = actor.esAdmin && (entrada.scope ?? "organization") === "organization" ? "organization" : "network";
+  // Solo administración crea opciones para toda la organización —el maestro, estatales; un
+  // administrador municipal, de su municipio (la base les pone la llave de quien las crea)—; el
+  // resto, para su red.
+  const scope = creaDeOrganizacion(alcance) && (entrada.scope ?? "organization") === "organization" ? "organization" : "network";
 
   const categoria = entrada.kind === "type" ? entrada.incidentCategory ?? "brigada" : "brigada";
   if (!esCategoriaValida(categoria)) {
@@ -275,7 +311,7 @@ export async function crearOpcion(
     icon: entrada.icon ?? null,
     incidentCategory: categoria,
     scope,
-    createdByUserId: actor.actorId
+    createdByUserId: alcance.userId
   } as const;
 
   try {
@@ -320,13 +356,12 @@ export type ResultadoEdicion =
 
 export async function editarOpcion(
   id: string,
-  actor: { actorId: string; esAdmin: boolean },
   alcance: UserNetworkScope,
   cambios: CambiosOpcion
 ): Promise<ResultadoEdicion> {
   const actual = await obtenerOpcionVisible(id, alcance);
   if (!actual) return { ok: false, codigo: "no_encontrada", motivo: "La opción no existe." };
-  if (!puedeEditarOpcion(actual, actor.actorId, actor.esAdmin)) {
+  if (!puedeEditarOpcion(actual, alcance)) {
     return {
       ok: false,
       codigo: "prohibido",
@@ -375,7 +410,7 @@ export async function editarOpcion(
   if (cambios.archived !== undefined) {
     if (cambios.archived) {
       set.archivedAt = new Date();
-      set.archivedByUserId = actor.actorId;
+      set.archivedByUserId = alcance.userId;
     } else {
       // Restaurar puede chocar con una opción activa que tomó el mismo nombre mientras tanto.
       const otra = await buscarCoincidencia(actual.kind, normalizarNombre(actual.name), alcance, id);
@@ -437,23 +472,28 @@ export type ResultadoFusion =
  * confirmar. Es una operación de administración porque reescribe actividades de otras redes.
  */
 export async function fusionarOpciones(
-  actor: { actorId: string; esAdmin: boolean },
+  alcance: UserNetworkScope,
   origenId: string,
   destinoId: string,
   aplicar: boolean
 ): Promise<ResultadoFusion> {
-  if (!actor.esAdmin) return { ok: false, motivo: "Solo la administración puede fusionar opciones." };
+  if (!alcance.isAdmin) return { ok: false, motivo: "Solo la administración puede fusionar opciones." };
   if (origenId === destinoId) return { ok: false, motivo: "El origen y el destino son la misma opción." };
 
   const db = getDatabaseClient();
   return db.transaction(async (tx) => {
+    // Solo entre opciones que ve, y el origen tiene que ser una que puede modificar: fusionar reescribe
+    // las actividades que la usan (etapa 6: un administrador municipal no toca las estatales).
     const filas = await tx
       .select(COLUMNAS)
       .from(schema.activityCatalogOptions)
-      .where(inArray(schema.activityCatalogOptions.id, [origenId, destinoId]));
+      .where(and(inArray(schema.activityCatalogOptions.id, [origenId, destinoId]), condicionVisibilidad(alcance)));
     const origen = filas.find((f) => f.id === origenId);
     const destino = filas.find((f) => f.id === destinoId);
     if (!origen || !destino) return { ok: false as const, motivo: "Una de las opciones no existe." };
+    if (!puedeEditarOpcion(aOpcion(origen), alcance)) {
+      return { ok: false as const, motivo: "Esa opción es de todo el estado o de otro municipio: la fusiona el administrador maestro." };
+    }
     if (origen.kind !== destino.kind) return { ok: false as const, motivo: "Solo se fusionan opciones del mismo tipo." };
     if (destino.archivedAt) return { ok: false as const, motivo: "El destino está archivado." };
 
@@ -501,10 +541,10 @@ export async function fusionarOpciones(
     if (aplicar) {
       await tx
         .update(schema.activityCatalogOptions)
-        .set({ archivedAt: new Date(), archivedByUserId: actor.actorId, updatedAt: new Date() })
+        .set({ archivedAt: new Date(), archivedByUserId: alcance.userId, updatedAt: new Date() })
         .where(eq(schema.activityCatalogOptions.id, origenId));
       await tx.insert(schema.auditLogs).values({
-        actorUserId: actor.actorId,
+        actorUserId: alcance.userId,
         action: "agenda.catalog.merge",
         entityType: "activity_catalog_option",
         entityId: origenId,

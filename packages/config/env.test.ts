@@ -29,6 +29,44 @@ describe("environment validation", () => {
     );
   });
 
+  describe("límites del pool de la aplicación web", () => {
+    it("sin configurar, usa los valores de siempre más los límites nuevos", () => {
+      const env = loadAppEnv(validEnv);
+
+      expect(env.private.DATABASE_POOL_MAX).toBe(10);
+      expect(env.private.DATABASE_CONNECTION_TIMEOUT_MS).toBe(5_000);
+      expect(env.private.DATABASE_STATEMENT_TIMEOUT_MS).toBe(30_000);
+      expect(env.private.DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS).toBe(60_000);
+    });
+
+    it("acepta valores configurados", () => {
+      const env = loadAppEnv({ ...validEnv, DATABASE_POOL_MAX: "25", DATABASE_STATEMENT_TIMEOUT_MS: "15000" });
+
+      expect(env.private.DATABASE_POOL_MAX).toBe(25);
+      expect(env.private.DATABASE_STATEMENT_TIMEOUT_MS).toBe(15_000);
+    });
+
+    /**
+     * `DATABASE_POOL_MAX=` en un .env, o `${DATABASE_POOL_MAX}` sin valor en docker-compose, llega
+     * como cadena vacía. Sin tratarla como ausente, `coerce` la volvía 0 y la aplicación no
+     * arrancaba por una variable que nadie quiso fijar.
+     */
+    it("trata una variable vacía como ausente y aplica el valor por omisión", () => {
+      const env = loadAppEnv({ ...validEnv, DATABASE_POOL_MAX: "", DATABASE_STATEMENT_TIMEOUT_MS: "   " });
+
+      expect(env.private.DATABASE_POOL_MAX).toBe(10);
+      expect(env.private.DATABASE_STATEMENT_TIMEOUT_MS).toBe(30_000);
+    });
+
+    it("rechaza al arrancar un valor mal escrito en vez de convertirlo en 'sin límite'", () => {
+      expect(() => loadAppEnv({ ...validEnv, DATABASE_POOL_MAX: "diez" })).toThrow(/DATABASE_POOL_MAX/);
+      expect(() => loadAppEnv({ ...validEnv, DATABASE_POOL_MAX: "0" })).toThrow(/DATABASE_POOL_MAX/);
+      expect(() => loadAppEnv({ ...validEnv, DATABASE_STATEMENT_TIMEOUT_MS: "50" })).toThrow(
+        /DATABASE_STATEMENT_TIMEOUT_MS/
+      );
+    });
+  });
+
   it("does not require private variables for public env loading", () => {
     expect(loadPublicEnv({ NEXT_PUBLIC_APP_NAME: "Tonala OS", NEXT_PUBLIC_APP_ENV: "local", NODE_ENV: "test" }))
       .toEqual({ NEXT_PUBLIC_APP_NAME: "Tonala OS", NEXT_PUBLIC_APP_ENV: "local" });

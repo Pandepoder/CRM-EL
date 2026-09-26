@@ -741,7 +741,7 @@ export default function ResumenClient({
 
       {/* ─── 6. PROMOTION MODAL ─── */}
       {promotingUser && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setPromotingUser(null)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setPromotingUser(null)}>
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-200 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             <div
               className="px-5 py-4 flex justify-between items-center shrink-0"

@@ -213,11 +213,25 @@ button {
   box-shadow: 0 4px 12px rgba(11, 31, 58, 0.03);
 }
 
+/* El hueco inferior del contenido: en el teléfono deja libre la barra de navegación (64px + safe-area).
+   Debajo de cada vista, además, AppShell deja --hueco-boton-flotante para que el botón de crear no
+   tape lo último de la pantalla. El mapa descuenta los dos para caber entero en la pantalla. */
+:root {
+  --relleno-inferior-contenido: calc(80px + env(safe-area-inset-bottom));
+  --hueco-boton-flotante: calc(64px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  :root {
+    --relleno-inferior-contenido: 28px;
+  }
+}
+
 .content {
   flex: 1;
   min-width: 0;
   padding: 16px;
-  padding-bottom: calc(80px + env(safe-area-inset-bottom)); /* Space for mobile nav */
+  padding-bottom: var(--relleno-inferior-contenido); /* Space for mobile nav */
   display: flex;
   flex-direction: column;
 }
@@ -225,7 +239,7 @@ button {
 @media (min-width: 768px) {
   .content {
     padding: 28px;
-    padding-bottom: 28px;
+    padding-bottom: var(--relleno-inferior-contenido);
   }
 }
 
@@ -988,9 +1002,18 @@ input[placeholder*="buscar"] {
 
 .custom-incident-marker,
 .incident-cluster-marker,
+.contact-cluster-marker,
+.contact-map-marker,
+.municipio-marcador,
 .gps-user-marker {
   background: transparent !important;
   border: none !important;
+}
+
+/* Los municipios en la vista de todo Jalisco: el rótulo mide lo que su nombre y se centra en el punto. */
+.municipio-marcador {
+  width: auto !important;
+  height: auto !important;
 }
 
 
@@ -1123,7 +1146,6 @@ input[placeholder*="buscar"] {
    Bienvenida de campaña antes del formulario (BienvenidaConoceme)
 
    En globals.css a proposito: es el unico archivo de estilos que Next empaqueta.
-   packages/ui/styles.css define clases parecidas pero no lo importa nadie.
    --------------------------------------------------------------------------- */
 
 .bienvenida {
@@ -1305,13 +1327,19 @@ input[placeholder*="buscar"] {
 }
 
 /*
-   El mapa ocupa la ventana menos la cabecera. Estaba con 100vh en un estilo en
-   linea, que en React no admite la declaracion doble del respaldo.
+   El mapa ocupa la ventana menos lo que tiene encima y el hueco inferior del
+   contenido. Lo que tiene encima se mide al montar (mapa/page.tsx) y llega en
+   --arriba-del-mapa; esto es el respaldo mientras tanto. Antes restaba 64px fijos
+   empezando debajo de una cabecera de ~130px: en el teléfono la franja inferior
+   del mapa quedaba bajo la barra de navegación (C13).
 */
 .alto-mapa {
-  height: calc(100vh - 64px);
-  height: calc(100dvh - 64px);
-  min-height: 480px;
+  height: calc(100vh - var(--arriba-del-mapa, 64px) - var(--relleno-inferior-contenido));
+  height: calc(100dvh - var(--arriba-del-mapa, 64px) - var(--relleno-inferior-contenido));
+  min-height: 320px;
+  /* El botón flotante va encima del mapa, como el resto de sus controles: el hueco que AppShell deja
+     para él debajo de la vista aquí sobra, y sin anularlo la página se desplazaba 64px. */
+  margin-bottom: calc(-1 * var(--hueco-boton-flotante));
 }
 
 /*

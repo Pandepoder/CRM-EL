@@ -1,11 +1,13 @@
 import { decryptData, schema } from "@tonala/shared/database";
 import type { ActorContext } from "@tonala/shared/auth";
-import { and, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import { normalizarNombre } from "@/lib/actividades";
 import { condicionVisibilidad } from "@/lib/catalogo-actividades";
-import { contactIdRestriction, visibleContactIds } from "@/lib/contact-visibility";
+import { contactIdRestriction, contactosVisibles } from "@/lib/contact-visibility";
+import { condicionPorAutor } from "@/lib/alcance-municipal";
 import { getDatabaseClient } from "@/lib/db-client";
+import { crearUnaSolaVez } from "@/lib/idempotencia";
 import { resolveUserNetworkScope, type UserNetworkScope } from "@/lib/network-hierarchy";
 import { puedeVerContacto } from "@/lib/permisos-contacto";
 import { esDisposicionValida, type PosibleContacto, type ProspectoItem } from "@/lib/prospectos";
@@ -35,8 +37,9 @@ export type FiltrosProspectos = {
   pagina: number;
 };
 
-function personasVisibles(alcance: UserNetworkScope): string[] | null {
-  return alcance.isGlobal ? null : alcance.allowedUserIds ?? [];
+/** Los prospectos que ve un alcance: los de su gente, o de su municipio si es administración (etapa 6). */
+function prospectosVisibles(alcance: UserNetworkScope) {
+  return condicionPorAutor(alcance, P.municipalityId, P.createdByUserId);
 }
 
 function comodin(texto: string) {
@@ -50,9 +53,8 @@ export async function listarProspectos(
   f: FiltrosProspectos
 ): Promise<{ items: ProspectoItem[]; total: number; pagina: number; tamano: number }> {
   const db = getDatabaseClient();
-  const personas = personasVisibles(alcance);
   const donde = and(
-    personas === null ? undefined : inArray(P.createdByUserId, personas),
+    prospectosVisibles(alcance),
     f.q ? or(ilike(P.prospectName, comodin(f.q)), ilike(P.organizationOrReference, comodin(f.q)), ilike(P.locationText, comodin(f.q))) : undefined,
     f.disposicion ? eq(P.disposition, f.disposicion) : undefined,
     f.perfilId ? eq(P.profileOptionId, f.perfilId) : undefined,
@@ -181,31 +183,55 @@ async function prepararColumnas(
   return { ok: true, cols };
 }
 
-export async function crearProspecto(actor: ActorContext, e: EntradaProspecto) {
+/**
+ * Con `clientRequestId`, un doble toque o un reintento tras un corte de señal devuelve el prospecto
+ * ya creado en vez de registrar otro (R16, `lib/idempotencia.ts`).
+ */
+export async function crearProspecto(actor: ActorContext, e: EntradaProspecto, clientRequestId?: string | null) {
+  const db = getDatabaseClient();
+  const buscar = async (clave: string) => (await db.select().from(P).where(eq(P.clientRequestId, clave)).limit(1))[0];
+
+  // Un reintento de algo ya guardado se devuelve antes de volver a validar: si entre tanto se
+  // archivó el perfil elegido, el reintento no debe fallar por algo que ya quedó registrado.
+  if (clientRequestId) {
+    const previa = await buscar(clientRequestId);
+    if (previa && previa.createdByUserId !== actor.actorId) return fallo(409, "solicitud_repetida", "Esta solicitud ya se usó.");
+    if (previa) return { ok: true as const, prospecto: previa, repetido: true };
+  }
+
   const alcance = await resolveUserNetworkScope(actor.actorId);
   const c = await prepararColumnas(alcance, e, true);
   if (!c.ok) return c;
-  const db = getDatabaseClient();
-  const [fila] = await db
-    .insert(P)
-    .values({
-      prospectName: c.cols.prospectName!,
-      createdByUserId: actor.actorId,
-      ...c.cols,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    })
-    .returning();
-  return { ok: true as const, prospecto: fila! };
+  const r = await crearUnaSolaVez({
+    clave: clientRequestId,
+    indice: "rapid_activity_prospects_client_request_idx",
+    buscar,
+    creadaPor: (fila) => fila.createdByUserId,
+    quien: actor.actorId,
+    crear: async () => {
+      const [fila] = await db
+        .insert(P)
+        .values({
+          prospectName: c.cols.prospectName!,
+          createdByUserId: actor.actorId,
+          ...c.cols,
+          clientRequestId: clientRequestId || null,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+      return fila!;
+    }
+  });
+  if (!r.ok) return fallo(409, "solicitud_repetida", "Esta solicitud ya se usó.");
+  return { ok: true as const, prospecto: r.fila, repetido: r.repetida };
 }
 
 async function cargarVisible(id: string, alcance: UserNetworkScope) {
   const db = getDatabaseClient();
-  const [p] = await db.select().from(P).where(eq(P.id, id)).limit(1);
-  const personas = personasVisibles(alcance);
   // 404 y no 403: confirmar que el identificador existe ya es información sobre el trabajo ajeno.
-  if (!p || (personas !== null && !personas.includes(p.createdByUserId))) return null;
-  return p;
+  const [p] = await db.select().from(P).where(and(eq(P.id, id), prospectosVisibles(alcance))).limit(1);
+  return p ?? null;
 }
 
 export async function editarProspecto(actor: ActorContext, id: string, e: EntradaProspecto) {
@@ -230,11 +256,11 @@ export async function posiblesContactos(alcance: UserNetworkScope, nombre: strin
   const palabras = normalizarNombre(nombre).split(" ").filter((w) => w.length >= 3);
   if (palabras.length === 0) return [];
   const db = getDatabaseClient();
-  const visibles = contactIdRestriction(await visibleContactIds(alcance));
+  const restriccion = contactIdRestriction(await contactosVisibles(alcance));
   const candidatos = await db
     .select({ id: schema.contacts.id, nombre: schema.contacts.displayName, colony: schema.contacts.colony })
     .from(schema.contacts)
-    .where(and(eq(schema.contacts.status, "active"), visibles, or(...palabras.map((w) => ilike(schema.contacts.displayName, comodin(w))))))
+    .where(and(eq(schema.contacts.status, "active"), restriccion, or(...palabras.map((w) => ilike(schema.contacts.displayName, comodin(w))))))
     .limit(200);
 
   const requeridas = Math.min(2, palabras.length);
@@ -288,9 +314,8 @@ export async function convertirProspecto(
   const db = getDatabaseClient();
   return db.transaction(async (tx): Promise<ResultadoConversion> => {
     // El bloqueo de fila serializa las conversiones simultáneas del mismo prospecto.
-    const [p] = await tx.select().from(P).where(eq(P.id, id)).for("update");
-    const personas = personasVisibles(alcance);
-    if (!p || (personas !== null && !personas.includes(p.createdByUserId))) {
+    const [p] = await tx.select().from(P).where(and(eq(P.id, id), prospectosVisibles(alcance))).for("update");
+    if (!p) {
       return fallo(404, "no_encontrado", "Prospecto no encontrado.");
     }
     if (p.convertedToContactId) {

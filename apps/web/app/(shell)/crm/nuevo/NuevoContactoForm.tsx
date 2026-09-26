@@ -1,20 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { useFormStatus } from "react-dom";
+import { useRef, useState } from "react";
 import Link from "next/link";
-import { 
-  ArrowLeft, Save, User, MapPin, Briefcase, Sparkles, HeartHandshake, Calendar, MessageSquare, ChevronDown, ChevronUp,
+import { useRouter } from "next/navigation";
+import {
+  AlertCircle, ArrowLeft, CloudOff, Save, User, MapPin, Briefcase, Sparkles, HeartHandshake, Calendar, MessageSquare, ChevronDown, ChevronUp,
   ClipboardList
 } from "lucide-react";
 import { ColonySelector } from "@/components/ColonySelector";
+import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
-import { createContactAction } from "../actions";
-
-function SaveContactButton() {
-  const { pending } = useFormStatus();
-  return <button type="submit" disabled={pending} className="contact-save"><Save size={18} />{pending ? "Guardando ciudadano…" : "Guardar ciudadano"}</button>;
-}
+import { enviarOEncolar, nuevaClave, TEXTO_DE_ESPERA } from "@/lib/cola-de-envios";
 
 export default function NuevoContactoForm({
   userOptions,
@@ -23,12 +19,111 @@ export default function NuevoContactoForm({
   userOptions: { value: string; label: string; badge?: string }[];
   currentUserId: string;
 }) {
+  const router = useRouter();
+  const formulario = useRef<HTMLFormElement>(null);
+  // Se genera al abrir el formulario y cambia solo después de un alta confirmada o guardada en el
+  // teléfono: un doble toque o un reintento llega con la misma clave y el servidor devuelve el mismo
+  // ciudadano en vez de crear otro (R16).
+  const [clave, setClave] = useState(() => nuevaClave());
+  // Cambiarla vuelve a montar el formulario entero, vacío: «registrar otro».
+  const [version, setVersion] = useState(0);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [enEspera, setEnEspera] = useState<string | null>(null);
+  const [barda, setBarda] = useState<MediaFile[]>([]);
   const [showSurvey, setShowSurvey] = useState(false);
   const [colony, setColony] = useState("");
   const [sectionNum, setSectionNum] = useState("");
   const [lat, setLat] = useState<number | undefined>(undefined);
   const [lng, setLng] = useState<number | undefined>(undefined);
   const [address, setAddress] = useState("");
+  // ¿La calle la puso el mapa (o el GPS) o la escribió quien captura? La del mapa se sustituye cada vez
+  // que se marca otro punto —la calle de un punto anterior no es la de este—; la escrita a mano, no.
+  const calleDelMapa = useRef(true);
+  // El teléfono ya está en otra ficha: el servidor avisa y quien captura decide (familias que comparten
+  // teléfono). `confirmarTelefono` viaja solo en el envío que sigue a «Es otra persona: guardar».
+  const [telefonoRepetido, setTelefonoRepetido] = useState<{ mensaje: string; contactoId: string | null } | null>(null);
+  const confirmarTelefono = useRef(false);
+
+  /**
+   * Antes el formulario se enviaba a una acción de servidor que lanzaba sus errores: en producción
+   * Next oculta ese mensaje y lleva a la pantalla de fallo, así que una sección mal tecleada hacía
+   * perder todo lo capturado sin decir por qué. Ahora el error vuelve aquí, con el campo, y lo
+   * capturado se queda. Sin señal, el alta se guarda en el teléfono y se envía sola.
+   */
+  async function guardar(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (guardando) return;
+    setError(null);
+    setTelefonoRepetido(null);
+    const confirmado = confirmarTelefono.current;
+    confirmarTelefono.current = false;
+    const datos = new FormData(e.currentTarget);
+    const campos: Record<string, unknown> = {};
+    const encuesta: Record<string, unknown> = {};
+    for (const [nombre, valor] of datos.entries()) {
+      if (typeof valor !== "string") continue;
+      if (nombre.startsWith("survey_")) encuesta[nombre.slice("survey_".length)] = valor;
+      else campos[nombre] = valor;
+    }
+    const nombre = [campos.firstName, campos.lastName].filter((v) => typeof v === "string" && v.trim()).join(" ");
+
+    setGuardando(true);
+    const r = await enviarOEncolar({
+      clave,
+      tipo: "ciudadano",
+      url: "/api/crm/contacts",
+      cuerpo: {
+        ...campos,
+        survey: encuesta,
+        bardaPhotoUrl: barda[0]?.url ?? "",
+        clientRequestId: clave,
+        ...(confirmado ? { confirmarTelefonoRepetido: true } : {})
+      },
+      descripcion: `Ciudadano: ${nombre || "sin nombre"}`,
+      usuarioId: currentUserId || null
+    });
+    setGuardando(false);
+
+    if (r.estado === "enviado") {
+      router.push("/crm/contacts");
+      router.refresh();
+      return;
+    }
+    if (r.estado === "encolado") {
+      setEnEspera(TEXTO_DE_ESPERA[r.motivo]);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (r.estado === "rechazado" && r.codigo === "telefono_repetido") {
+      const id = r.datos.contactoExistenteId;
+      setTelefonoRepetido({ mensaje: r.error, contactoId: typeof id === "string" ? id : null });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    setError(r.error);
+    // El foco va al campo que el servidor señaló, si está a la vista en el formulario.
+    const campo = r.estado === "rechazado" && r.campo ? formulario.current?.querySelector<HTMLElement>(`[name="${r.campo}"]`) : null;
+    if (campo && campo.getAttribute("type") !== "hidden") campo.focus();
+    else window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function registrarOtro() {
+    setClave(nuevaClave());
+    setVersion((v) => v + 1);
+    setEnEspera(null);
+    setError(null);
+    setTelefonoRepetido(null);
+    setBarda([]);
+    setShowSurvey(false);
+    setColony("");
+    setSectionNum("");
+    setLat(undefined);
+    setLng(undefined);
+    setAddress("");
+    calleDelMapa.current = true;
+    window.scrollTo({ top: 0 });
+  }
 
   const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
   const months = [
@@ -45,6 +140,27 @@ export default function NuevoContactoForm({
     { num: "11", name: "Noviembre" },
     { num: "12", name: "Diciembre" },
   ];
+
+  if (enEspera) {
+    return (
+      <div className="workspace-page citizen-page p-4 md:p-6 max-w-2xl mx-auto space-y-5">
+        <div role="status" className="bg-amber-50 border border-amber-200 text-amber-900 rounded-3xl p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <CloudOff size={22} className="shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="space-y-1">
+              <h1 className="text-lg font-black">El registro está a salvo</h1>
+              <p className="text-sm font-semibold">{enEspera}</p>
+              <p className="text-xs font-medium">Puedes seguir registrando: el aviso de arriba dice cuándo se envió.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={registrarOtro} className="px-5 py-3 rounded-2xl bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-sm cursor-pointer">Registrar otro ciudadano</button>
+            <Link href="/crm/contacts" className="px-5 py-3 rounded-2xl border border-amber-300 bg-white text-amber-900 font-bold text-sm">Ir al directorio</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="workspace-page citizen-page p-4 md:p-6 max-w-5xl mx-auto space-y-6">
@@ -70,7 +186,39 @@ export default function NuevoContactoForm({
         </div>
       </div>
 
-      <form action={createContactAction} className="space-y-6">
+      <form key={version} ref={formulario} onSubmit={guardar} className="space-y-6">
+        {telefonoRepetido && (
+          <div role="alert" className="p-4 bg-amber-50 border border-amber-200 text-amber-900 text-sm font-bold rounded-2xl space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle size={18} className="shrink-0 mt-0.5 text-amber-600" aria-hidden="true" />
+              <span>{telefonoRepetido.mensaje}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {telefonoRepetido.contactoId && (
+                <Link href={`/crm/contacts/${telefonoRepetido.contactoId}`} target="_blank" className="px-4 py-2 rounded-xl border border-amber-300 bg-white text-amber-900 text-xs font-extrabold">
+                  Ver la ficha que ya existe
+                </Link>
+              )}
+              <button
+                type="button"
+                disabled={guardando}
+                onClick={() => {
+                  confirmarTelefono.current = true;
+                  formulario.current?.requestSubmit();
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold cursor-pointer disabled:opacity-60"
+              >
+                Es otra persona: guardar
+              </button>
+            </div>
+          </div>
+        )}
+        {error && (
+          <div role="alert" className="p-4 bg-rose-50 border border-rose-200 text-rose-800 text-sm font-bold rounded-2xl flex items-start gap-2">
+            <AlertCircle size={18} className="shrink-0 mt-0.5 text-rose-600" aria-hidden="true" />
+            <span>{error} Lo que capturaste sigue aquí.</span>
+          </div>
+        )}
         <div className="form-guide"><User size={20} /><div><strong>Un registro claro, de principio a fin</strong><p>Completa los campos con *. Los datos adicionales y la encuesta son opcionales.</p></div></div>
         {/* SECCIÓN B: DATOS DE CONTACTO */}
         <section className="bg-white p-5 md:p-6 rounded-3xl border border-gray-200 shadow-sm space-y-4">
@@ -262,15 +410,20 @@ export default function NuevoContactoForm({
               
               defaultValue={colony}
               defaultSectionNum={sectionNum}
-              onSelect={(_secId, col, _mun, secNum, coords, detectedAddress) => {
+              onSelect={(_secId, col, _mun, secNum, coords, calle) => {
                 if (col) setColony(col);
-                if (secNum) setSectionNum(String(secNum));
+                setSectionNum(secNum ? String(secNum) : "");
                 if (coords) {
+                  // El punto tal cual se marcó: es el que se guarda y el que usa el mapa.
                   setLat(coords.lat);
                   setLng(coords.lng);
                 }
-                if (detectedAddress && !address) {
-                  setAddress(detectedAddress);
+                // Antes se tomaba la dirección entera (con colonia, CP y municipio, que ya van en sus
+                // campos) y solo si el campo estaba vacío: al corregir el punto se quedaba la calle del
+                // primero. Ahora, la calle y el número del punto, mientras no se haya escrito a mano.
+                if (calle !== undefined && (calleDelMapa.current || !address.trim())) {
+                  setAddress(calle);
+                  calleDelMapa.current = true;
                 }
               }}
               onChange={(c, s) => {
@@ -279,24 +432,46 @@ export default function NuevoContactoForm({
               }}
             />
 
-            {/* CALLE Y NÚMERO DOMICILIAR */}
+            {/* CALLE Y NÚMERO DOMICILIAR: obligatorios en el panel (decisión del dueño, 2026-09-26). */}
             <div>
               <label htmlFor="citizen-address" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                Calle y Número Domiciliar
+                Calle y Número Domiciliar *
               </label>
               <input id="citizen-address"
                 type="text"
                 name="address"
+                required
+                maxLength={300}
                 placeholder="Ej. Calle Juárez #145 interior B (entre López Cotilla y Reforma)"
                 value={address}
-                onChange={e => setAddress(e.target.value)}
+                onChange={e => {
+                  setAddress(e.target.value);
+                  calleDelMapa.current = e.target.value.trim() === "";
+                }}
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 shadow-sm"
               />
+              {lat !== undefined && lng !== undefined && (
+                <p className="mt-1.5 text-[11px] font-semibold text-emerald-800 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <MapPin size={12} className="shrink-0" aria-hidden="true" />
+                  <span>Punto marcado: {lat.toFixed(6)}, {lng.toFixed(6)}. Es el que se guarda y el que usa el mapa.</span>
+                  {!address.trim() && <span className="text-amber-800">El mapa no tiene la calle de ese punto: escríbela.</span>}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLat(undefined);
+                      setLng(undefined);
+                    }}
+                    className="underline text-gray-600 cursor-pointer"
+                  >
+                    Quitar el punto
+                  </button>
+                </p>
+              )}
             </div>
 
-            {/* COORDENADAS EXACTAS OCULTAS */}
-            <input type="hidden" name="exactLatitude" value={lat || ""} />
-            <input type="hidden" name="exactLongitude" value={lng || ""} />
+            {/* COORDENADAS EXACTAS OCULTAS: el punto tal cual se marcó, sin redondear. */}
+            <input type="hidden" name="exactLatitude" value={lat ?? ""} />
+            <input type="hidden" name="exactLongitude" value={lng ?? ""} />
           </div>
         </section>
 
@@ -350,12 +525,15 @@ export default function NuevoContactoForm({
             </div>
 
             <div className="sm:col-span-2 md:col-span-3">
-              <label htmlFor="citizen-bardaPhotoUrl" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">URL Foto de Barda / Espacio Ofrecido (Opcional)</label>
-              <input id="citizen-bardaPhotoUrl"
-                type="text"
-                name="bardaPhotoUrl"
-                placeholder="https://... (enlace o fotografía)"
-                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white"
+              {/* Antes pedía escribir la URL de la foto (C17): nadie en la calle puede teclear la
+                  dirección de una foto que acaba de tomar. Ahora se toma o se elige en el teléfono. */}
+              <MediaUploader
+                value={barda}
+                onChange={setBarda}
+                maxFiles={1}
+                soloImagenes
+                label="Foto de barda / espacio ofrecido (opcional)"
+                helperText="Una foto, hasta 15 MB"
               />
             </div>
           </div>
@@ -588,7 +766,7 @@ export default function NuevoContactoForm({
             Cancelar
           </Link>
 
-          <SaveContactButton />
+          <button type="submit" disabled={guardando} className="contact-save"><Save size={18} />{guardando ? "Guardando ciudadano…" : "Guardar ciudadano"}</button>
         </div>
       </form>
     </div>

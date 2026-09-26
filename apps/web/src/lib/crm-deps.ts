@@ -110,11 +110,9 @@ export async function createAssignmentsMutationsDependencies(db: Database) {
     DrizzleUserDirectoryReader
   } = await import("@tonala/modules/assignments/infrastructure");
   const { DrizzleContactsReader } = await import("@tonala/modules/contacts/infrastructure");
-  const { DrizzleTerritoryReader } = await import("@tonala/modules/territory/infrastructure");
 
   return {
     contactsReader: new DrizzleContactsReader(db),
-    territoryReader: new DrizzleTerritoryReader(db),
     userDirectoryReader: new DrizzleUserDirectoryReader(db),
     contactAssignmentRepository: new DrizzleContactAssignmentRepository(db),
     transactionManager: new DrizzleTransactionManager(db),

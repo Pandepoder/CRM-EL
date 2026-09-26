@@ -15,6 +15,7 @@ export function ColonySelector({
   defaultSectionNum,
   defaultSectionId,
   defaultPostalCode = "",
+  defaultCoords,
   onSelect,
   onChange
 }: { 
@@ -25,7 +26,14 @@ export function ColonySelector({
   defaultSectionNum?: number | string | undefined;
   defaultSectionId?: string | undefined;
   defaultPostalCode?: string | undefined;
-  onSelect?: ((sectionId: string, colony: string, municipality: string, sectionNum?: number, coords?: { lat: number; lng: number }, address?: string) => void) | undefined;
+  /** El punto que ya tiene el domicilio: el mapa abre ahí, con el pin puesto. */
+  defaultCoords?: { lat: number; lng: number } | undefined;
+  /**
+   * Al elegir colonia, marcar un punto en el mapa o usar el GPS. `coords`: el punto exacto, tal cual se
+   * marcó. `calle`: la calle y el número de ese punto si el mapa los conoce, `""` si el punto no tiene
+   * calle (para que no se quede la de otro punto) y `undefined` si no hubo punto.
+   */
+  onSelect?: ((sectionId: string, colony: string, municipality: string, sectionNum?: number, coords?: { lat: number; lng: number }, calle?: string) => void) | undefined;
   onChange?: ((colony: string, sectionNum?: number) => void) | undefined;
 }) {
   const municipioUsuario = useMunicipioUsuario();
@@ -42,7 +50,11 @@ export function ColonySelector({
   const [colony, setColony] = useState<string>(defaultValue || defaultColony || "");
   const [postalCode, setPostalCode] = useState<string>(defaultPostalCode || "");
   const [showMapPicker, setShowMapPicker] = useState(false);
-  const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
+  const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>(
+    defaultCoords ? { lat: defaultCoords.lat, lng: defaultCoords.lng } : { lat: null, lng: null }
+  );
+  // La dirección del último punto marcado (mapa o GPS), para enseñarla junto al punto.
+  const [direccionDelPunto, setDireccionDelPunto] = useState("");
   
   // GPS Detection states
   const [isLocatingGPS, setIsLocatingGPS] = useState(false);
@@ -157,7 +169,14 @@ export function ColonySelector({
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const { latitude, longitude } = pos.coords;
+        const { latitude, longitude, accuracy } = pos.coords;
+        // Las coordenadas del dispositivo se conservan y se propagan, tal cual. Antes se usaban solo
+        // para deducir colonia y sección y se descartaban; y si el servidor no contestaba la dirección,
+        // también se perdían: el contacto se guardaba sin ubicación exacta.
+        setCoords({ lat: latitude, lng: longitude });
+        const precision = accuracy > 50
+          ? ` Señal débil: el punto puede estar a ±${Math.round(accuracy)} m; ajústalo en «Abrir mapa» si hace falta.`
+          : ` (GPS ±${Math.round(accuracy)} m)`;
         try {
           const res = await fetch(`/api/map/reverse-geocode?lat=${latitude}&lng=${longitude}`);
           if (res.ok) {
@@ -166,37 +185,32 @@ export function ColonySelector({
             const detectedSecNum = data.sectionNum ? String(data.sectionNum) : "";
             const detectedColony = data.colony || data.neighborhood || "";
             const detectedCP = data.postalCode || "";
+            const direccion = data.formattedAddress || data.address || "";
 
             setMunicipality(detectedMuni);
-            if (detectedSecNum) setSectionNum(detectedSecNum);
-            if (data.sectionId) setSelectedSectionId(data.sectionId);
+            setSectionNum(detectedSecNum);
+            setSelectedSectionId(data.sectionId || "");
             if (detectedColony) setColony(detectedColony);
             if (detectedCP) setPostalCode(detectedCP);
+            setDireccionDelPunto(direccion);
 
-            setGpsStatus(`✓ Ubicación detectada: ${detectedMuni}${detectedSecNum ? ` · Secc. #${detectedSecNum}` : ""}${detectedColony ? ` (${detectedColony})` : ""}`);
-
-            // Las coordenadas del dispositivo se conservan y se propagan. Antes
-            // se usaban solo para deducir colonia y sección y se descartaban, así
-            // que el contacto se guardaba sin ubicación exacta: el mapa no podía
-            // llevar a nadie a un domicilio, solo al centroide de la sección.
-            setCoords({ lat: latitude, lng: longitude });
-
-            if (onSelect) {
-              onSelect(
-                data.sectionId || "",
-                detectedColony,
-                detectedMuni,
-                detectedSecNum ? parseInt(detectedSecNum, 10) : undefined,
-                { lat: latitude, lng: longitude },
-                data.formattedAddress || data.address || undefined
-              );
-            }
+            setGpsStatus(`✓ Ubicación detectada: ${detectedMuni}${detectedSecNum ? ` · Secc. #${detectedSecNum}` : ""}${detectedColony ? ` (${detectedColony})` : ""}.${precision}`);
+            onSelect?.(
+              data.sectionId || "",
+              detectedColony || colony,
+              detectedMuni,
+              detectedSecNum ? parseInt(detectedSecNum, 10) : undefined,
+              { lat: latitude, lng: longitude },
+              data.street ? `${data.street}${data.houseNumber ? ` #${data.houseNumber}` : ""}` : ""
+            );
           } else {
-            setGpsStatus("✓ Coordenadas obtenidas");
+            setGpsStatus(`✓ Punto GPS guardado (${latitude.toFixed(5)}, ${longitude.toFixed(5)}); no se pudo leer la dirección.${precision}`);
+            onSelect?.(selectedSectionId, colony, municipality, sectionNum ? parseInt(sectionNum, 10) : undefined, { lat: latitude, lng: longitude });
           }
         } catch (e) {
           console.error("GPS Reverse geocode error:", e);
-          setGpsStatus("Error al consultar datos territoriales.");
+          setGpsStatus(`✓ Punto GPS guardado (${latitude.toFixed(5)}, ${longitude.toFixed(5)}); sin conexión para leer la dirección.${precision}`);
+          onSelect?.(selectedSectionId, colony, municipality, sectionNum ? parseInt(sectionNum, 10) : undefined, { lat: latitude, lng: longitude });
         } finally {
           setIsLocatingGPS(false);
         }
@@ -204,7 +218,11 @@ export function ColonySelector({
       (err) => {
         setIsLocatingGPS(false);
         console.warn("GPS error:", err);
-        setGpsStatus("No se pudo acceder al GPS. Verifica los permisos.");
+        setGpsStatus(
+          err.code === err.PERMISSION_DENIED
+            ? "El navegador no dio permiso para usar tu ubicación. Actívalo en los ajustes del sitio o marca el punto en «Abrir mapa»."
+            : "No se pudo obtener el GPS. Marca el punto en «Abrir mapa»."
+        );
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -263,7 +281,7 @@ export function ColonySelector({
 
       {/* DEDICATED FULL-VIEW MAP MODAL */}
       {showMapPicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-gray-950/70 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowMapPicker(false)}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-6 bg-gray-950/70 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowMapPicker(false)}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-blue-900 to-indigo-900 text-white flex items-center justify-between shrink-0">
@@ -295,32 +313,35 @@ export function ColonySelector({
                 value={{
                   latitude: coords.lat,
                   longitude: coords.lng,
-                  address: colony ? `${colony}, ${municipality}` : "",
+                  address: direccionDelPunto,
                   municipality: municipality,
                   colony: colony,
                   sectionId: selectedSectionId,
                   sectionNum: sectionNum ? parseInt(sectionNum, 10) : undefined
                 }}
                 onChange={(loc) => {
+                  // El punto marcado manda: su sección sustituye a la de antes (vacía si el punto no la
+                  // trae, para que no se quede la de otro lugar). La colonia escrita a mano se conserva si
+                  // el punto no trae una.
+                  const nuevaColonia = loc.colony || colony;
+                  const nuevaSeccion = loc.sectionNum ? String(loc.sectionNum) : "";
+                  const nuevoMunicipio = loc.municipality || municipality;
                   setCoords({ lat: loc.latitude ?? null, lng: loc.longitude ?? null });
-                  if (loc.municipality) setMunicipality(loc.municipality);
-                  if (loc.colony) setColony(loc.colony);
-                  if (loc.sectionNum) setSectionNum(String(loc.sectionNum));
-                  if (loc.sectionId) setSelectedSectionId(loc.sectionId);
-                  
-                  if (onSelect && (loc.colony || loc.address)) {
-                    onSelect(
-                      loc.sectionId || selectedSectionId || "",
-                      loc.colony || colony || loc.address || "",
-                      loc.municipality || municipality,
-                      loc.sectionNum || (sectionNum ? parseInt(sectionNum, 10) : undefined),
-                      loc.latitude && loc.longitude ? { lat: loc.latitude, lng: loc.longitude } : undefined,
-                      loc.address
-                    );
-                  }
-                  if (onChange && loc.colony) {
-                    onChange(loc.colony, loc.sectionNum || (sectionNum ? parseInt(sectionNum, 10) : undefined));
-                  }
+                  setMunicipality(nuevoMunicipio);
+                  setColony(nuevaColonia);
+                  setSectionNum(nuevaSeccion);
+                  setSelectedSectionId(loc.sectionId || "");
+                  setDireccionDelPunto(loc.address || "");
+
+                  onSelect?.(
+                    loc.sectionId || "",
+                    nuevaColonia,
+                    nuevoMunicipio,
+                    nuevaSeccion ? parseInt(nuevaSeccion, 10) : undefined,
+                    typeof loc.latitude === "number" && typeof loc.longitude === "number" ? { lat: loc.latitude, lng: loc.longitude } : undefined,
+                    loc.street ?? ""
+                  );
+                  onChange?.(nuevaColonia, nuevaSeccion ? parseInt(nuevaSeccion, 10) : undefined);
                 }}
               />
             </div>
@@ -328,7 +349,9 @@ export function ColonySelector({
             {/* Modal Footer */}
             <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3 shrink-0">
               <span className="text-xs text-gray-600 font-semibold truncate">
-                {colony ? `Seleccionado: ${colony}${sectionNum ? ` (Secc. #${sectionNum})` : ""}` : "Haz clic en el mapa para fijar dirección"}
+                {coords.lat !== null
+                  ? `Punto marcado${colony ? ` en ${colony}` : ""}${sectionNum ? ` (Secc. #${sectionNum})` : ""}`
+                  : "Toca el mapa para marcar el domicilio"}
               </span>
               <button
                 type="button"
@@ -360,8 +383,12 @@ export function ColonySelector({
             </span>
             
           </label>
+          {/* Obligatorio: ningún ciudadano sin municipio (etapa 5). Dentro de un formulario, el
+              navegador no deja enviar sin elegirlo; el servidor lo vuelve a exigir. */}
           <select
             value={municipality}
+            required
+            aria-label="Municipio"
             onChange={(e) => {
               setMunicipality(e.target.value);
               guardarMunicipioPreferido(e.target.value);
@@ -436,11 +463,13 @@ export function ColonySelector({
                 </button>
               ))}
 
-              {sectionNum && !allSections.some((s) => String(s.sectionNum) === sectionNum.trim()) && (
-                <div className="p-2 bg-gradient-to-r from-emerald-50 to-teal-50 border-t border-emerald-100">
-                  <div className="px-2 py-1 text-xs font-semibold text-emerald-900 flex items-center gap-1.5">
-                    <Sparkles size={14} className="text-emerald-600 shrink-0" />
-                    <span>Sección <strong>#{sectionNum}</strong> (Se dará de alta automáticamente)</span>
+              {/* Antes decía «se dará de alta automáticamente», y el servidor la rechaza: la cartografía de
+                  Jalisco está completa y un número que no está es un error de captura. */}
+              {sectionNum && allSections.length > 0 && !allSections.some((s) => String(s.sectionNum) === sectionNum.trim()) && (
+                <div className="p-2 bg-amber-50 border-t border-amber-100">
+                  <div className="px-2 py-1 text-xs font-semibold text-amber-900 flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-amber-600 shrink-0" />
+                    <span>La sección <strong>#{sectionNum}</strong> no está en la cartografía de Jalisco. Revisa el número en la credencial.</span>
                   </div>
                 </div>
               )}

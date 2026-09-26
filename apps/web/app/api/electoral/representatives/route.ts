@@ -3,6 +3,7 @@ import { schema } from "@tonala/shared/database";
 import { withOutbox } from "@/lib/outbox-helper";
 import { requireActorRoles } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { registrarError } from "@/lib/registro";
 
 export async function POST(request: Request) {
   // La guarda miraba el rol guardado en la cookie de sesión, que no se revalida: a quien le
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     // representante a cualquier persona del sistema, incluso de otra dirección, y quedaba
     // registrada a su nombre. Solo se puede nombrar a alguien del propio alcance.
     const alcance = await resolveUserNetworkScope(actor.actorId);
-    if (!alcance.isGlobal && !(alcance.allowedUserIds ?? []).includes(userId)) {
+    if (!alcance.isMaster && !(alcance.allowedUserIds ?? []).includes(userId)) {
       return NextResponse.json(
         { error: "Solo puedes nombrar representante a alguien de tu equipo." },
         { status: 403 }
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
     if (error.code === '23505') {
        return NextResponse.json({ error: "El usuario ya está asignado a esta sección" }, { status: 400 });
     }
-    console.error("Failed to assign representative:", error);
+    registrarError("Failed to assign representative", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

@@ -4,6 +4,8 @@ import pg from "pg";
 import * as schema from "./schema.js";
 export * from "./schema.js";
 export * from "./crypto.js";
+export * from "./busqueda.js";
+export * from "./municipios.js";
 
 export type DatabasePool = pg.Pool;
 export type Database = ReturnType<typeof createDatabaseClient>;

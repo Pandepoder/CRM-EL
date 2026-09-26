@@ -19,6 +19,8 @@ export class DrizzleUsersReader implements UsersReader {
         roleKey: roles.key,
         roleName: roles.name,
         status: userProfiles.status,
+        isMasterAdmin: userProfiles.isMasterAdmin,
+        sessionVersion: userProfiles.sessionVersion,
         createdAt: userProfiles.createdAt
       })
       .from(userProfiles)
@@ -41,6 +43,8 @@ export class DrizzleUsersReader implements UsersReader {
         roleKey: roles.key,
         roleName: roles.name,
         status: userProfiles.status,
+        isMasterAdmin: userProfiles.isMasterAdmin,
+        sessionVersion: userProfiles.sessionVersion,
         createdAt: userProfiles.createdAt
       })
       .from(userProfiles)

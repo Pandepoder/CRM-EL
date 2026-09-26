@@ -3,29 +3,37 @@
 import { useState } from "react";
 import { ArrowRight, Check, Loader2 } from "lucide-react";
 
+import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
+
 /**
  * Alta de brigadista desde el QR de una brigada.
  *
- * Cuatro campos y nada más. Esto se llena de pie en la banqueta, con el teléfono
- * de otra persona y una señal mala: cada campo de más es alguien que abandona a
- * la mitad. Lo demás —sección, colonia, cargo— lo completa el líder después,
- * desde el sistema.
+ * Pocos campos: esto se llena de pie en la banqueta, con el teléfono de otra persona y una señal mala,
+ * y cada campo de más es alguien que abandona a la mitad. El domicilio sí se pide (decisión del dueño,
+ * 2026-09-26): calle y número, colonia y municipio, con el del anfitrión ya elegido. Lo demás —sección,
+ * cargo— lo completa el líder después, desde el sistema.
  */
 export default function UnirmeForm({
   slug,
   anfitrion,
-  equipo
+  equipo,
+  municipioSugerido = null
 }: {
   slug: string;
   anfitrion: string;
   equipo: string | null;
+  /** El municipio del anfitrión: casi siempre es también donde vive quien se suma. */
+  municipioSugerido?: string | null;
 }) {
-  const [datos, setDatos] = useState({ displayName: "", phone: "", email: "", password: "" });
+  const [datos, setDatos] = useState({
+    displayName: "", phone: "", email: "", password: "",
+    homeAddress: "", homeColony: "", homeMunicipality: municipioSugerido ?? ""
+  });
   const [enviando, setEnviando] = useState(false);
   const [listo, setListo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const cambiar = (campo: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const cambiar = (campo: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setDatos((prev) => ({ ...prev, [campo]: e.target.value }));
 
   async function enviar(e: React.FormEvent) {
@@ -117,6 +125,32 @@ export default function UnirmeForm({
         </label>
         <input id="clave" required type="password" minLength={6} value={datos.password} onChange={cambiar("password")}
           autoComplete="new-password" placeholder="Mínimo 6 caracteres" style={campo} />
+      </div>
+
+      <div>
+        <label htmlFor="calle" className="block text-xs font-bold uppercase mb-1.5" style={{ letterSpacing: ".08em", color: "#5b6780" }}>
+          Tu calle y número
+        </label>
+        <input id="calle" required maxLength={300} value={datos.homeAddress} onChange={cambiar("homeAddress")}
+          autoComplete="street-address" placeholder="Av. Tonaltecas #120" style={campo} />
+      </div>
+
+      <div>
+        <label htmlFor="colonia" className="block text-xs font-bold uppercase mb-1.5" style={{ letterSpacing: ".08em", color: "#5b6780" }}>
+          Tu colonia
+        </label>
+        <input id="colonia" required maxLength={150} value={datos.homeColony} onChange={cambiar("homeColony")}
+          placeholder="Centro" style={campo} />
+      </div>
+
+      <div>
+        <label htmlFor="municipio" className="block text-xs font-bold uppercase mb-1.5" style={{ letterSpacing: ".08em", color: "#5b6780" }}>
+          Municipio donde vives
+        </label>
+        <select id="municipio" required value={datos.homeMunicipality} onChange={cambiar("homeMunicipality")} style={campo}>
+          <option value="">Elige tu municipio…</option>
+          {MUNICIPIOS_JALISCO.map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}
+        </select>
       </div>
 
       {error ? (

@@ -1,6 +1,6 @@
-import { requirePageRole } from "@/lib/authorization";
+import { requirePageAccess } from "@/lib/authorization";
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
-  await requirePageRole("admin", "direction", "territorial_coordinator");
+  await requirePageAccess("/admin-inbox");
   return <>{children}</>;
 }

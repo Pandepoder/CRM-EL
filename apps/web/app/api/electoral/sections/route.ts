@@ -8,9 +8,10 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { requireActorRoles } from "@/lib/authorization";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { visibleContactIds, sqlRestriccionContactos } from "@/lib/contact-visibility";
+import { contactosVisibles, sqlRestriccionContactos } from "@/lib/contact-visibility";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
+import { registrarError } from "@/lib/registro";
 
 const createSectionSchema = z.object({
   sectionNum: z.coerce.number().int().positive(),
@@ -38,7 +39,7 @@ export async function GET() {
   // sección es el termómetro con el que se comparan los equipos entre sí.
   const alcance = await resolveUserNetworkScope(actor.actorId);
   // Mismos contactos que el directorio (equipo y territorio). Con alcance vacío, `AND false`.
-  const filtroContactos = sqlRestriccionContactos(sql.raw("cont.id"), await visibleContactIds(alcance));
+  const filtroContactos = sqlRestriccionContactos(sql.raw("cont.id"), await contactosVisibles(alcance));
 
   const db = getDatabaseClient();
   try {
@@ -73,7 +74,7 @@ export async function GET() {
       }))
     });
   } catch (error) {
-    console.error("Failed to fetch electoral sections:", error);
+    registrarError("Failed to fetch electoral sections", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
@@ -191,7 +192,7 @@ export async function POST(request: Request) {
       }
     });
   } catch (error: any) {
-    console.error("Failed to create electoral section:", error);
+    registrarError("Failed to create electoral section", error);
     return NextResponse.json({ error: "Error en base de datos al registrar la sección." }, { status: 500 });
   }
 }

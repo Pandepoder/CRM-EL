@@ -2,11 +2,12 @@ import { schema } from "@tonala/shared/database";
 import { and, eq, inArray } from "drizzle-orm";
 import { Permission } from "@tonala/shared/auth";
 
-import { requirePageRole } from "@/lib/authorization";
+import { requirePageAccess } from "@/lib/authorization";
 import { consultarBitacora, crearContexto, leerFiltros, resumenBitacora } from "@/lib/bitacora-consulta";
 import type { PaginaBitacora, ResumenBitacora } from "@/lib/bitacora-tipos";
 import { listarOpciones } from "@/lib/catalogo-actividades";
-import { contactIdRestriction, visibleContactIds } from "@/lib/contact-visibility";
+import { contactIdRestriction, contactosVisibles } from "@/lib/contact-visibility";
+import { condicionDeEquipos } from "@/lib/alcance-municipal";
 import { getDatabaseClient } from "@/lib/db-client";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { permissionsForRole } from "@/lib/permissions";
@@ -23,7 +24,7 @@ export default async function EquipoMiDiaPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requirePageRole("admin", "direction", "territorial_coordinator", "capturist", "visit_responsible");
+  await requirePageAccess("/equipo");
   const session = await getServerSession();
   const sp = await searchParams;
 
@@ -48,7 +49,7 @@ export default async function EquipoMiDiaPage({
     })
     .from(schema.userProfiles)
     .leftJoin(schema.roles, eq(schema.userProfiles.roleId, schema.roles.id))
-    .where(and(eq(schema.userProfiles.status, "active"), ctx.esAdmin ? undefined : inArray(schema.userProfiles.id, alcance.teammateUserIds)))
+    .where(and(eq(schema.userProfiles.status, "active"), ctx.veTodo ? undefined : inArray(schema.userProfiles.id, alcance.teammateUserIds)))
     .orderBy(schema.userProfiles.displayName);
 
   let pagina: PaginaBitacora | null = null;
@@ -70,7 +71,7 @@ export default async function EquipoMiDiaPage({
     etiquetas = opcEtiquetas.map((o) => ({ id: o.id, nombre: o.archived ? `${o.name} (archivada)` : o.name }));
 
     if (filtros.contactoId) {
-      const visibles = contactIdRestriction(await visibleContactIds(alcance));
+      const visibles = contactIdRestriction(await contactosVisibles(alcance));
       const [c] = await db
         .select({ nombre: schema.contacts.displayName })
         .from(schema.contacts)
@@ -82,7 +83,7 @@ export default async function EquipoMiDiaPage({
     const equipos = await db
       .select({ leaderId: schema.teams.leaderId, name: schema.teams.name })
       .from(schema.teams)
-      .where(ctx.esAdmin ? undefined : inArray(schema.teams.id, alcance.teamIds));
+      .where(condicionDeEquipos(alcance));
     resumen = await resumenBitacora(ctx, filtros, usuarios, equipos);
   }
 
@@ -100,8 +101,8 @@ export default async function EquipoMiDiaPage({
       usuarioActualId={session.userId}
       puedeAsignar={ctx.puedeAsignar}
       // Mismo criterio que exige el servidor para crear actividades y opciones (lidera un equipo o es administración).
-      puedeCrear={ctx.esAdmin || alcance.isLeader}
-      esAdmin={ctx.esAdmin}
+      puedeCrear={ctx.esAdministracion || alcance.isLeader}
+      esAdmin={ctx.esAdministracion}
       puedeConvertir={permissionsForRole(rol).includes(Permission.ContactsCreate)}
     />
   );

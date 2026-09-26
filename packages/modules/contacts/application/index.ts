@@ -8,6 +8,7 @@ export {
 export {
   registerExtendedContact,
   type ExtendedContactInput,
+  type ExtendedContactSurvey,
   type ExtendedContactRepository,
   type RegisterExtendedContactDependencies
 } from "./register-extended-contact.js";

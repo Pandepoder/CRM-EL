@@ -5,6 +5,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
 import { buscarMunicipio } from "@/lib/municipios-jalisco";
+import { registrarError } from "@/lib/registro";
 
 /**
  * GET /api/catalog/colonies/search
@@ -74,7 +75,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json(formatted);
   } catch (error) {
-    console.error("Error searching colonies catalog:", error);
+    registrarError("Error searching colonies catalog", error);
     return NextResponse.json([]);
   }
 }

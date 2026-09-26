@@ -1,15 +1,23 @@
-import { getDatabaseClient } from "@/lib/db-client";
-import { createLogisticsDependencies } from "@/lib/logistics-deps";
-import { Package, Inbox, LogOut, Search } from "lucide-react";
+import { Package, Inbox, LogOut, Search, Warehouse } from "lucide-react";
+
+import { MarcaMunicipio } from "@/components/MarcaMunicipio";
+import { datosDeLogistica, tieneLogistica } from "@/lib/logistica";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { getServerSession } from "@/lib/session-server";
+
 import { AssignModal } from "./AssignModal";
 import { CreateItemModal } from "./CreateItemModal";
+import { CreateWarehouseModal } from "./CreateWarehouseModal";
 
+/**
+ * Logística e inventarios, en los almacenes de tu municipio (etapa 6): el maestro, todos. Ver
+ * `lib/logistica.ts` (A4, M32, M33).
+ */
 export default async function LogisticaPage() {
-  const db = getDatabaseClient();
-  const { repository } = await createLogisticsDependencies(db);
-
-  const items = await repository.getAllItems();
-  const recentTxs = await repository.getRecentTransactions();
+  const session = await getServerSession();
+  const alcance = await resolveUserNetworkScope(session.userId);
+  const { almacenes, articulos: items, movimientos: recentTxs, personas } = await datosDeLogistica(alcance);
+  const conMunicipio = tieneLogistica(alcance);
 
   const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -23,11 +31,36 @@ export default async function LogisticaPage() {
           </h1>
           <p className="text-gray-500 mt-2">Gestión de almacén y distribución de materiales operativos.</p>
         </div>
-        <div className="flex gap-2">
-          <CreateItemModal />
-          <AssignModal items={items.map(i => ({ id: i.id, name: i.name, quantity: i.quantity }))} />
-        </div>
+        {conMunicipio && (
+          <div className="flex flex-wrap gap-2 justify-end">
+            <CreateWarehouseModal eligeMunicipio={alcance.isMaster} />
+            <CreateItemModal almacenes={almacenes.map((a) => ({ id: a.id, nombre: a.municipio ? `${a.nombre} · ${a.municipio}` : a.nombre }))} />
+            <AssignModal items={items.map(i => ({ id: i.id, name: i.name, quantity: i.quantity }))} personas={personas} />
+          </div>
+        )}
       </header>
+
+      {!conMunicipio && (
+        <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950">
+          Tu cuenta no tiene municipio, así que no tiene almacenes. El administrador maestro te lo asigna.
+        </p>
+      )}
+
+      {conMunicipio && (
+        <section aria-label="Almacenes" className="flex flex-wrap gap-2">
+          {almacenes.length === 0 ? (
+            <p className="text-sm text-gray-500">Todavía no hay almacenes. Da de alta el primero con «Nuevo almacén».</p>
+          ) : (
+            almacenes.map((a) => (
+              <div key={a.id} className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
+                <Warehouse size={16} className="text-blue-600" />
+                <span className="font-bold text-gray-900">{a.nombre}</span>
+                <span className="text-xs text-gray-500"><MarcaMunicipio nombre={a.municipio} esGeneral={a.municipioTipo === "general"} /></span>
+              </div>
+            ))
+          )}
+        </section>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -158,7 +191,8 @@ export default async function LogisticaPage() {
                         {tx.transactionType === "in" ? "Entrada" : "Asignación"} de Stock
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        <span className="font-medium text-gray-700">{tx.quantity} uds.</span> - ID: {tx.itemId.slice(0,8)}
+                        <span className="font-medium text-gray-700">{tx.quantity} uds.</span> · {tx.articulo}
+                        {tx.responsable ? ` · para ${tx.responsable}` : ""}
                       </p>
                     </div>
                   </div>

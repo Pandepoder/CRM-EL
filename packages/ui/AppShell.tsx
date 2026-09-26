@@ -19,16 +19,22 @@ import {
   Headset,
   Package,
   Shield,
+  MapPinOff,
+  Building2,
+  History,
   Menu,
   X
 } from "lucide-react";
+import { rolesDeAcceso } from "./capacidades.js";
 import type { NavItemConfig } from "./role-home.js";
-import { getNavSection } from "./role-home.js";
+import { getNavSection, itemsDeBarraMovil, SECCIONES_DEL_MENU } from "./role-home.js";
 import { QuickCreateFab } from "./QuickCreateFab.js";
 
 export type AppShellProps = Readonly<{
   children: ReactNode;
   userDisplayName: string;
+  /** Foto de perfil (`/api/uploads/…`). Sin ella, el avatar son las iniciales. */
+  userPhotoUrl?: string | null | undefined;
   userRoleLabel: string;
   /**
    * Rol con el que se filtra el menú. Quien monte este componente tiene que pasar el rol
@@ -37,6 +43,14 @@ export type AppShellProps = Readonly<{
    * del servidor —que sí consultan la base— le niegan a quien cambió de rol.
    */
   userRoleKey: string;
+  /** El administrador maestro (etapa 6): ve además las entradas reservadas a `master_admin`. */
+  esMaestro?: boolean | undefined;
+  /**
+   * Puede levantar incidencias y registrar actividades. Lo calcula el servidor con el alcance de
+   * la persona —la misma condición que aplican las APIs—, porque depende de si lidera un equipo y
+   * no solo de su rol.
+   */
+  puedeCoordinar: boolean;
   activeNavKey: string;
   /**
    * Municipio de quien está usando el sistema. La marca se arma con él —"Zapopan OS"— en vez
@@ -66,6 +80,9 @@ const getIconForNavKey = (key: string, size = 18) => {
     case "reportes": return <Megaphone size={size} />;
     case "logistica": return <Package size={size} />;
     case "perfil": return <User size={size} />;
+    case "sin-municipio": return <MapPinOff size={size} />;
+    case "administracion-municipal": return <Building2 size={size} />;
+    case "auditoria": return <History size={size} />;
     case "settings": return <Settings size={size} />;
     default: return <MessageSquare size={size} />;
   }
@@ -73,7 +90,7 @@ const getIconForNavKey = (key: string, size = 18) => {
 
 type ElementoNav = NavItemConfig & { active: boolean };
 
-/** Iniciales para el avatar de la sesión: dos letras bastan y no dependen de tener foto. */
+/** Iniciales para el avatar de quien todavía no tiene foto de perfil. */
 function iniciales(nombre: string): string {
   const partes = nombre.trim().split(/\s+/).filter(Boolean);
   if (partes.length === 0) return "?";
@@ -127,8 +144,11 @@ function SeccionNav({
 export function AppShell({
   children,
   userDisplayName,
+  userPhotoUrl,
   userRoleLabel,
   userRoleKey,
+  esMaestro = false,
+  puedeCoordinar,
   activeNavKey,
   municipality,
   appName,
@@ -137,21 +157,20 @@ export function AppShell({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const cerrarCajon = () => setIsDrawerOpen(false);
 
+  const rolesQueAbren = rolesDeAcceso(userRoleKey, esMaestro);
   const filterNavItems = (items: NavItemConfig[]) => {
     return items
-      .filter((item) => item.allowedRoles === "all" || item.allowedRoles.includes(userRoleKey))
+      .filter((item) => item.allowedRoles.some((rol) => rolesQueAbren.includes(rol)))
       .map(item => ({
         ...item,
         active: item.key === activeNavKey
       }));
   };
 
-  const dashboardItems = filterNavItems(getNavSection("dashboard"));
-  const estructuraItems = filterNavItems(getNavSection("estructura"));
-  const territorioItems = filterNavItems(getNavSection("territorio"));
-  const configuracionItems = filterNavItems(getNavSection("configuracion"));
-
-  const allItems = [...dashboardItems, ...estructuraItems, ...territorioItems, ...configuracionItems];
+  const secciones = SECCIONES_DEL_MENU.map(({ clave, titulo }) => ({ clave, titulo, items: filterNavItems(getNavSection(clave)) }));
+  const allItems = secciones.flatMap((s) => s.items);
+  const barraMovil = itemsDeBarraMovil(userRoleKey, allItems);
+  const activaFueraDeBarra = allItems.some((item) => item.active) && !barraMovil.some((item) => item.active);
   const marca = municipality ? `${municipality} OS` : (appName || "Jalisco OS");
   const activeTitle = allItems.find((n) => n.active)?.label ?? marca;
 
@@ -176,7 +195,13 @@ export function AppShell({
         </div>
 
         <div className="sesion-tarjeta">
-          <span className="sesion-avatar" aria-hidden="true">{iniciales(userDisplayName)}</span>
+          {userPhotoUrl ? (
+            <span className="sesion-avatar sesion-avatar--foto" aria-hidden="true">
+              <img src={userPhotoUrl} alt="" width={36} height={36} />
+            </span>
+          ) : (
+            <span className="sesion-avatar" aria-hidden="true">{iniciales(userDisplayName)}</span>
+          )}
           <span className="sesion-datos">
             <span className="sesion-nombre" title={userDisplayName}>{userDisplayName}</span>
             <span className="sesion-rol">{userRoleLabel}</span>
@@ -184,10 +209,9 @@ export function AppShell({
         </div>
 
         <div className="sidebar-scrollable">
-          <SeccionNav titulo="Panel de Control" items={dashboardItems} />
-          <SeccionNav titulo="Estructura y CRM" items={estructuraItems} />
-          <SeccionNav titulo="Territorio y Operación" items={territorioItems} />
-          <SeccionNav titulo="Configuración" items={configuracionItems} />
+          {secciones.map((s) => (
+            <SeccionNav key={s.clave} titulo={s.titulo} items={s.items} />
+          ))}
         </div>
 
         {/* Profile / Logout Section at bottom */}
@@ -219,7 +243,7 @@ export function AppShell({
           </div>
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
             <div className="user-chip" style={{ background: "white", border: "1px solid rgba(0,0,0,0.05)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
-              <User size={14} className="text-blue-600" />
+              {userPhotoUrl ? <img className="user-chip__foto" src={userPhotoUrl} alt="" /> : <User size={14} className="text-blue-600" />}
               <span className="font-bold text-blue-950">{userDisplayName}</span>
             </div>
           </div>
@@ -232,13 +256,14 @@ export function AppShell({
             <p className="mobile-subtitle">{userRoleLabel}</p>
           </div>
           <div className="user-chip">
-            <User size={14} />
+            {userPhotoUrl ? <img className="user-chip__foto" src={userPhotoUrl} alt="" /> : <User size={14} />}
             {userDisplayName}
           </div>
         </header>
 
-        {/* CHILDREN (VIEWS) */}
-        <div style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}>
+        {/* CHILDREN (VIEWS). El hueco final deja ver lo último de cada pantalla por encima del botón
+            flotante; lo define globals.css (--hueco-boton-flotante) y el mapa lo descuenta de su alto. */}
+        <div style={{ paddingBottom: "var(--hueco-boton-flotante, calc(64px + env(safe-area-inset-bottom)))" }}>
           {children}
         </div>
       </main>
@@ -271,10 +296,9 @@ export function AppShell({
             <div className="mobile-drawer-content sidebar-scrollable">
               {/* Las mismas secciones que en el escritorio: una lista corrida de trece enlaces
                   obligaba a leerlos todos para encontrar uno. */}
-              <SeccionNav titulo="Panel de Control" items={dashboardItems} alNavegar={cerrarCajon} />
-              <SeccionNav titulo="Estructura y CRM" items={estructuraItems} alNavegar={cerrarCajon} />
-              <SeccionNav titulo="Territorio y Operación" items={territorioItems} alNavegar={cerrarCajon} />
-              <SeccionNav titulo="Configuración" items={configuracionItems} alNavegar={cerrarCajon} />
+              {secciones.map((s) => (
+                <SeccionNav key={s.clave} titulo={s.titulo} items={s.items} alNavegar={cerrarCajon} />
+              ))}
             </div>
 
             <div className="mobile-drawer-salida">
@@ -291,8 +315,8 @@ export function AppShell({
 
       {/* MOBILE BOTTOM NAV */}
       <nav className="mobile-bottom-nav" aria-label="Navegación movil">
-        {/* We take up to 4 most important items that the user has access to */}
-        {allItems.filter((i) => i.key !== "perfil" && i.key !== "settings").slice(0, 4).map((item) => (
+        {/* Las cuatro que cada rol usa en campo, Mapa y Agenda primero: ver itemsDeBarraMovil. */}
+        {barraMovil.map((item) => (
           <a
             key={item.key}
             className={`mobile-nav-button ${item.active ? "is-active" : ""}`}
@@ -306,8 +330,13 @@ export function AppShell({
             <span className="mobile-nav-texto">{item.corto ?? item.label}</span>
           </a>
         ))}
-        {/* 'Más' abre el cajón con el menú completo */}
-        <button className="mobile-nav-button" onClick={() => setIsDrawerOpen(true)} aria-haspopup="dialog">
+        {/* 'Más' abre el cajón con el menú completo. Se marca cuando la pantalla abierta no está
+            en la barra: si no, estando en ella ninguna entrada decía dónde estás. */}
+        <button
+          className={`mobile-nav-button ${activaFueraDeBarra ? "is-active" : ""}`}
+          onClick={() => setIsDrawerOpen(true)}
+          aria-haspopup="dialog"
+        >
           <span className="mobile-nav-marca" aria-hidden="true" />
           <Menu size={21} />
           <span className="mobile-nav-texto">Más</span>
@@ -315,7 +344,7 @@ export function AppShell({
       </nav>
 
       {/* Crear incidencia o evento desde cualquier pantalla, sin ir al mapa. */}
-      <QuickCreateFab userRoleKey={userRoleKey} />
+      <QuickCreateFab puedeCoordinar={puedeCoordinar} />
     </div>
   );
 }

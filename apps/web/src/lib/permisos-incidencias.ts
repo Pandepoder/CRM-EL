@@ -1,8 +1,10 @@
 import { schema } from "@tonala/shared/database";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { getDatabaseClient } from "@/lib/db-client";
+import { esUuid } from "@/lib/ids";
 import { resolveUserNetworkScope, type UserNetworkScope } from "@/lib/network-hierarchy";
+import { incidentScopeCondition } from "@/lib/incident-visibility";
 
 /**
  * Quién puede tocar una incidencia. Regla única para todas las rutas.
@@ -42,33 +44,50 @@ export type Incidencia = {
   assignedToUserId: string | null;
   assignedTeamId: string | null;
   description: string;
+  /** Con valor, es una actividad de la bitácora que comparte tabla con las incidencias. */
+  activityTypeId?: string | null;
 };
+
+/**
+ * Las actividades de la bitácora también salen en el mapa, pero allí no se cierran ni se borran:
+ * cerrarlas pide un resultado y deja historial, y borrarlas se llevaría su historial y sus
+ * etiquetas (van en cascada). Desde el mapa se cerraban sin resultado y se borraban de verdad.
+ */
+export const MOTIVO_ES_ACTIVIDAD =
+  "Es una actividad de la bitácora: se cierra, cancela o archiva desde la Agenda.";
 
 export type ContextoIncidencia = {
   incidencia: Incidencia | null;
   esAdmin: boolean;
   equipos: string[];
-  /** Personas del alcance de quien actúa: él, sus compañeros y quienes están bajo su mando. */
+  /**
+   * Quien actúa y quienes están bajo su mando (`commandUserIds`). Sus compañeros de un equipo donde
+   * solo es integrante no: el capturista los ve, pero no trabaja lo suyo.
+   */
   personas: string[];
 };
 
-/** Solo administración pasa por encima de la propiedad y del equipo. */
-export function esAdministracion(roles: readonly string[]): boolean {
-  return roles.includes("admin");
-}
-
-export async function cargarContextoIncidencia(
-  id: string,
-  actorId: string,
-  roles: readonly string[]
-): Promise<ContextoIncidencia> {
+/**
+ * Administración pasa por encima de la propiedad y del equipo, pero solo en lo que ve (etapa 6): el
+ * maestro, en todo; un administrador municipal, en las incidencias de su municipio y de su gente.
+ * Antes bastaba el rol (`roles.includes("admin")`), y con administradores por municipio eso dejaba a
+ * cualquiera cerrar o borrar las de otro municipio conociendo su identificador.
+ *
+ * Una incidencia que la persona no ve se trata como inexistente (404), igual que una ficha de
+ * ciudadano: responder 403 confirmaba que el identificador existe.
+ */
+export async function cargarContextoIncidencia(id: string, actorId: string): Promise<ContextoIncidencia> {
+  // Un id que no es UUID no existe; sin esto la base lo rechazaba y /api/map/reports/[id]
+  // respondía 500. Ver `ids.ts`.
+  if (!esUuid(id)) return { incidencia: null, esAdmin: false, equipos: [], personas: [] };
   const db = getDatabaseClient();
   const filas = await db
     .select({
       createdByUserId: schema.eventReports.createdByUserId,
       assignedToUserId: schema.eventReports.assignedToUserId,
       assignedTeamId: schema.eventReports.assignedTeamId,
-      description: schema.eventReports.description
+      description: schema.eventReports.description,
+      activityTypeId: schema.eventReports.activityTypeId
     })
     .from(schema.eventReports)
     .where(eq(schema.eventReports.id, id))
@@ -77,14 +96,25 @@ export async function cargarContextoIncidencia(
   const incidencia = filas[0] ?? null;
   if (!incidencia) return { incidencia: null, esAdmin: false, equipos: [], personas: [] };
 
-  const esAdmin = esAdministracion(roles);
-  const alcance = esAdmin ? null : await resolveUserNetworkScope(actorId);
+  const alcance = await resolveUserNetworkScope(actorId);
+  if (!(await laVe(alcance, id))) return { incidencia: null, esAdmin: false, equipos: [], personas: [] };
   return {
     incidencia,
-    esAdmin,
-    equipos: alcance?.teamIds ?? [],
-    personas: alcance?.allowedUserIds ?? []
+    esAdmin: alcance.isAdmin,
+    equipos: alcance.teamIds,
+    personas: alcance.commandUserIds ?? []
   };
+}
+
+/** ¿Está esta incidencia en lo que ve el alcance? */
+export async function laVe(alcance: UserNetworkScope, id: string): Promise<boolean> {
+  if (alcance.isMaster) return true;
+  const [fila] = await getDatabaseClient()
+    .select({ id: schema.eventReports.id })
+    .from(schema.eventReports)
+    .where(and(eq(schema.eventReports.id, id), incidentScopeCondition(alcance)))
+    .limit(1);
+  return Boolean(fila);
 }
 
 export function puedeSobreIncidencia(
@@ -104,6 +134,10 @@ export function puedeSobreIncidencia(
   // desde el mapa la incidencia que levantó uno de sus líderes, igual que desde el Centro de
   // Gestión. Antes solo valía ser el autor, el asignado o del equipo asignado, así que las dos
   // pantallas decían cosas distintas sobre la misma incidencia.
+  //
+  // `personasDelActor` es su mando, no todo lo que ve: con la lista de lo que ve, un líder cerraba la
+  // incidencia de otro líder de su coordinación, o la de su propia dirección, solo por ser compañeros
+  // de equipo (encontrado en el simulacro de evento). La misma regla en SQL: `incidenciasQuePuedeTrabajar`.
   return personasDelActor.includes(incidencia.createdByUserId)
     || Boolean(incidencia.assignedToUserId && personasDelActor.includes(incidencia.assignedToUserId));
 }
@@ -128,7 +162,9 @@ export function motivoAsignacionFueraDeAlcance(
   alcance: UserNetworkScope,
   destino: { assignedToUserId?: unknown; assignedTeamId?: unknown }
 ): string | null {
-  if (alcance.isGlobal) return null;
+  // El maestro asigna a quien sea; un administrador municipal, a su gente y sus equipos, que son su
+  // alcance (etapa 6).
+  if (alcance.isMaster) return null;
 
   const persona = typeof destino.assignedToUserId === "string" ? destino.assignedToUserId : "";
   const equipo = typeof destino.assignedTeamId === "string" ? destino.assignedTeamId : "";

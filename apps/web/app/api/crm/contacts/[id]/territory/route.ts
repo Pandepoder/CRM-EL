@@ -11,6 +11,8 @@ import { exigirAccesoAContacto } from "@/lib/permisos-contacto";
 import { permissionChecker, resultToResponse } from "@/lib/api-helpers";
 import { Permission, requireActorPermission } from "@/lib/authorization";
 import { buscarMunicipio } from "@/lib/municipios-jalisco";
+import { registrarError } from "@/lib/registro";
+import { safeErrorMessage } from "@/lib/safe-error";
 
 export async function POST(
   request: Request,
@@ -27,12 +29,45 @@ export async function POST(
 
   const vetado = await exigirAccesoAContacto(id, actor.actorId, actor.roles);
   if (vetado) return vetado;
-  const body = (await request.json()) as { 
-    colonyId?: string; 
+  let body: {
+    colonyId?: string;
     colonyName?: string;
     municipality?: string;
     sectionNum?: number | string;
+    /** Calle y número. `""` o `null` lo borra. */
+    address?: unknown;
+    /** El punto exacto del domicilio (mapa o GPS), tal cual se marcó. `null` en los dos lo quita. */
+    exactLatitude?: unknown;
+    exactLongitude?: unknown;
   };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "El cuerpo de la petición no es JSON válido." }, { status: 400 });
+  }
+
+  // El punto marcado se guarda exacto, sin redondear ni moverlo a la sección: es el que usa el mapa para
+  // llevar a alguien a la puerta. Antes esta ruta no lo aceptaba y el diálogo lo tiraba al guardar.
+  let punto: { lat: number | null; lng: number | null } | undefined;
+  if (body.exactLatitude !== undefined || body.exactLongitude !== undefined) {
+    const lat = body.exactLatitude;
+    const lng = body.exactLongitude;
+    if (lat === null && lng === null) {
+      punto = { lat: null, lng: null };
+    } else if (typeof lat === "number" && typeof lng === "number" && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      punto = { lat, lng };
+    } else {
+      return NextResponse.json({ error: "La ubicación marcada no es válida. Vuelve a marcarla en el mapa." }, { status: 400 });
+    }
+  }
+  let calle: string | null | undefined;
+  if (body.address !== undefined) {
+    if (body.address !== null && typeof body.address !== "string") {
+      return NextResponse.json({ error: "La calle no es válida." }, { status: 400 });
+    }
+    calle = body.address?.trim() || null;
+    if (calle && calle.length > 300) return NextResponse.json({ error: "La calle puede tener hasta 300 caracteres." }, { status: 400 });
+  }
 
   const db = getDatabaseClient();
   let targetColonyId = body.colonyId || "";
@@ -74,6 +109,16 @@ export async function POST(
           { status: 400 }
         );
       }
+    }
+
+    // La sección decide el municipio. Uno escrito distinto dejaba al ciudadano con el municipio de un
+    // lado y la sección —y la llave de municipio, que sale de la sección— del otro. Es el mismo
+    // criterio del alta (`resolverSeccionYMunicipio`).
+    if (municipality && municipioDeSeccion && municipality !== municipioDeSeccion) {
+      return NextResponse.json(
+        { error: `La sección ${sectionNum} es de ${municipioDeSeccion}, no de ${municipality}. Corrige el municipio o la sección.` },
+        { status: 400 }
+      );
     }
 
     // 2. Resolve or create colony in catalog if colonyName is provided
@@ -151,12 +196,43 @@ export async function POST(
     const municipioContacto = municipality ?? municipioDeSeccion;
     if (municipioContacto) updateFields.municipality = municipioContacto;
     if (resolvedSectionId) updateFields.sectionId = resolvedSectionId;
+    if (calle !== undefined) updateFields.address = calle;
+    if (punto) {
+      updateFields.exactLatitude = punto.lat;
+      updateFields.exactLongitude = punto.lng;
+    }
 
     if (Object.keys(updateFields).length > 0) {
-      await db
-        .update(schema.contacts)
-        .set(updateFields)
-        .where(eq(schema.contacts.id, id));
+      await db.transaction(async (tx) => {
+        const [antes] = await tx
+          .select({ address: schema.contacts.address, lat: schema.contacts.exactLatitude, lng: schema.contacts.exactLongitude })
+          .from(schema.contacts)
+          .where(eq(schema.contacts.id, id));
+        await tx.update(schema.contacts).set(updateFields).where(eq(schema.contacts.id, id));
+        // La calle y el punto quedan en la auditoría como la corrección de datos (`editar-ciudadano.ts`):
+        // se dice qué cambió, sin escribir en claro lo que en la ficha va cifrado.
+        const cambio: Record<string, string> = {};
+        const previo: Record<string, string> = {};
+        if (calle !== undefined && (antes?.address ?? null) !== calle) {
+          previo.address = antes?.address ? "(cifrado)" : "(vacía)";
+          cambio.address = calle ? "(cifrado)" : "(vacía)";
+        }
+        if (punto && (antes?.lat !== punto.lat || antes?.lng !== punto.lng)) {
+          previo.ubicacion = antes?.lat !== null && antes?.lat !== undefined ? "punto marcado" : "sin punto";
+          cambio.ubicacion = punto.lat !== null ? "punto marcado" : "sin punto";
+        }
+        if (Object.keys(cambio).length > 0) {
+          await tx.insert(schema.auditLogs).values({
+            actorUserId: actor.actorId,
+            action: "contacts.update",
+            entityType: "contact",
+            entityId: id,
+            correlationId: actor.correlationId,
+            beforeData: previo,
+            afterData: cambio
+          });
+        }
+      });
     }
 
     // 4. Link via territory application module if targetColonyId is present
@@ -178,8 +254,9 @@ export async function POST(
     }
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    console.error("Error updating contact territory:", err);
-    return NextResponse.json({ error: err.message || "Internal Server Error" }, { status: 500 });
+  } catch (err: unknown) {
+    registrarError("Error updating contact territory", err);
+    // Antes se respondía `err.message`: ante un fallo de la base, la consulta SQL y sus valores.
+    return NextResponse.json({ error: safeErrorMessage(err, "No se pudo actualizar el domicilio.") }, { status: 500 });
   }
 }

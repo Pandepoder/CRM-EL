@@ -2,7 +2,7 @@ import { cache } from "react";
 
 import { getDatabaseClient } from "./db-client.js";
 import { schema } from "@tonala/shared/database";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 export type AccessType = "coordinacion" | "enlace" | "conexion";
 
@@ -11,9 +11,43 @@ export interface UserNetworkScope {
   userId: string;
   accessType: AccessType;
   roleKey: string;
-  allowedUserIds: string[] | null; // null solo para administración activa; [] = sin acceso
-  /** Las mismas personas que allowedUserIds: la persona, sus compañeros y quienes están bajo su mando. */
+  /**
+   * Administración: el maestro o un administrador municipal. Dice lo que puede HACER (dar de baja,
+   * gestionar equipos y cuentas…), no lo que ve: eso lo deciden `isMaster` y `adminMunicipalityId`,
+   * y cada acción de administración se hace solo sobre lo que ve.
+   *
+   * Sustituye a `isGlobal`, que quería decir las dos cosas a la vez («es administración» y «lo ve
+   * todo»): con administradores por municipio dejaron de coincidir, y se quitó para que ninguna de
+   * las ~50 llamadas que lo usaban siguiera leyendo «ve todo» donde ya no lo es (A1).
+   */
+  isAdmin: boolean;
+  /** Solo el administrador maestro (0023): ve los 125 municipios sin recorte. */
+  isMaster: boolean;
+  /**
+   * La llave del municipio que gobierna un administrador municipal. `null` para el maestro, para
+   * quien no es administración y para un administrador que sigue sin municipio (la 0022 lo dejó en
+   * General): ese no ve más que lo suyo hasta que el maestro se lo asigna.
+   */
+  adminMunicipalityId: string | null;
+  /**
+   * `null` solo para el maestro; [] = sin acceso. Para un administrador municipal, las personas activas
+   * de su municipio; para el resto, las de su cascada de mando.
+   */
+  allowedUserIds: string[] | null;
+  /**
+   * La llave de municipio de la propia persona, si es un municipio real (no General). Sirve para lo
+   * que es «de su municipio» sin ser administración, como las opciones de catálogo (A10).
+   */
+  userMunicipalityId: string | null;
+  /** Las mismas personas que allowedUserIds: la persona, quienes están bajo su mando y, si es capturista, sus compañeros. */
   teammateUserIds: string[];
+  /**
+   * Solo quienes están bajo su mando, y la propia persona: los compañeros de un equipo donde solo es
+   * integrante NO cuentan. Ver no es trabajar: en la coordinación, un líder ve lo que registró otro
+   * líder (son compañeros), pero no se lo modifica. Es la lista para «quien manda trabaja lo de su
+   * gente» (incidencias). Administración: la misma que `allowedUserIds` (`null` para el maestro).
+   */
+  commandUserIds: string[] | null;
   /** Equipos a los que pertenece más los que están bajo su mando, en cascada. */
   teamIds: string[];
   /** Solo los equipos bajo su mando: los que lidera (o le asignaron, si es dirección) y las brigadas que cuelgan de ellos. */
@@ -24,7 +58,6 @@ export interface UserNetworkScope {
    * cubre su municipio aunque sus brigadas tengan solo unas secciones).
    */
   commandRootTeamIds: string[];
-  isGlobal: boolean;
   isLeader: boolean;
 }
 
@@ -38,15 +71,24 @@ const MAX_NIVELES_DE_MANDO = 8;
 /**
  * Resuelve el alcance de un usuario: a qué otros usuarios y equipos puede ver.
  *
- * - Administración: vista global de todo el sistema. Es la única.
+ * - Administrador maestro: todo el sistema, los 125 municipios. Es el único.
+ * - Administrador municipal: todo lo que tiene la llave de su municipio, y lo que registró o tiene
+ *   asignado su gente (las personas con esa llave) aunque sea de otro municipio —lo mismo que ve el
+ *   líder de una brigada de lo suyo—. Ver `condicion*` en contact-visibility, incident-visibility y
+ *   alcance-municipal.
+ * - Administrador sin municipio (lo que la 0022 dejó en General): solo lo suyo.
  * - Mando: los equipos que la persona lidera y, en cascada, las brigadas que lideran los
  *   integrantes de esos equipos. Así dirección ve su coordinación, a los líderes que la forman
  *   y a los integrantes de las brigadas de esos líderes, pero nada de otra dirección. A
  *   dirección también le cuentan como mando los equipos donde un administrador la puso como
  *   integrante.
- * - Pertenencia: en los equipos donde la persona es integrante sin mandar ve a sus compañeros
- *   (el líder y los demás integrantes), pero no baja a las brigadas de ellos: nadie ve
- *   integrantes de brigadas que no estén bajo su mando.
+ * - Pertenencia: en los equipos donde la persona es integrante sin mandar, solo el capturista ve
+ *   lo de sus compañeros (el líder y los demás integrantes), porque captura y convierte prospectos
+ *   para su brigada; tampoco él baja a las brigadas de ellos. El líder no ve lo de los otros líderes
+ *   de su coordinación, y el brigadista ve solo lo suyo y lo que le asignan, a él o a su brigada
+ *   (decisión del dueño del 2026-09-25, tras el simulacro de evento: como el registro por QR queda a
+ *   nombre del dueño del enlace, «ver a los compañeros» era ver el evento entero de otro líder, y un
+ *   brigadista recién aceptado veía todo el padrón de su líder).
  *
  * La cascada sigue la estructura aunque el eslabón esté dado de baja (una brigada no deja de
  * ser de su coordinación porque su líder cause baja); lo que se ve, en cambio, son solo
@@ -60,10 +102,10 @@ export const resolveUserNetworkScope = cache(resolverAlcance);
  * el layout, la página y cada ruta de la API. `cache` de React lo comparte dentro de la misma
  * petición, como ya se hace con el municipio del usuario.
  */
-async function resolverAlcance(
-  userId: string,
-  userAccessType?: string | null
-): Promise<UserNetworkScope> {
+async function resolverAlcance(userId: string): Promise<UserNetworkScope> {
+  // Un solo argumento a propósito: `cache` memoiza por argumentos, y las pantallas que pasaban
+  // además el `accessType` resolvían el alcance dos veces por petición, porque el layout lo pide
+  // solo con el id (M7). El `accessType` ya no decide nada: sale de la base.
   const db = getDatabaseClient();
 
   const userRow = await db
@@ -71,15 +113,19 @@ async function resolverAlcance(
       id: schema.userProfiles.id,
       accessType: schema.userProfiles.accessType,
       status: schema.userProfiles.status,
-      roleKey: schema.roles.key
+      roleKey: schema.roles.key,
+      isMasterAdmin: schema.userProfiles.isMasterAdmin,
+      municipalityId: schema.userProfiles.municipalityId,
+      municipioTipo: schema.municipalities.kind
     })
     .from(schema.userProfiles)
     .leftJoin(schema.roles, eq(schema.userProfiles.roleId, schema.roles.id))
+    .leftJoin(schema.municipalities, eq(schema.userProfiles.municipalityId, schema.municipalities.id))
     .where(eq(schema.userProfiles.id, userId))
     .limit(1);
 
   const roleKey = userRow[0]?.roleKey || "";
-  const accessType: AccessType = (userAccessType as AccessType) || (userRow[0]?.accessType as AccessType) || "conexion";
+  const accessType: AccessType = (userRow[0]?.accessType as AccessType) || "conexion";
 
   // Una sesión de alguien dado de baja (o inexistente) no concede nada. Antes se lanzaba un
   // error, y las páginas que leen la sesión directamente respondían 500 en vez de mostrar una
@@ -90,28 +136,57 @@ async function resolverAlcance(
       accessType: "conexion",
       roleKey,
       allowedUserIds: [],
+      userMunicipalityId: null,
       teammateUserIds: [],
+      commandUserIds: [],
       teamIds: [],
       commandTeamIds: [],
       commandRootTeamIds: [],
-      isGlobal: false,
+      isAdmin: false,
+      isMaster: false,
+      adminMunicipalityId: null,
       isLeader: false
     };
   }
 
-  // 1. Solo administración tiene acceso global.
+  const municipioPropio = userRow[0].municipioTipo === "municipio" ? userRow[0].municipalityId : null;
+
+  // 1. Administración: el maestro lo ve todo; un administrador municipal, su municipio.
   if (roleKey === "admin") {
-    return {
+    const base = {
+      userMunicipalityId: municipioPropio,
       userId,
-      accessType: "coordinacion",
+      accessType: "coordinacion" as const,
       roleKey,
-      allowedUserIds: null,
-      teammateUserIds: [userId],
-      teamIds: [],
-      commandTeamIds: [],
+      isAdmin: true,
       commandRootTeamIds: [],
-      isGlobal: true,
       isLeader: true
+    };
+    if (userRow[0].isMasterAdmin) {
+      return { ...base, isMaster: true, adminMunicipalityId: null, allowedUserIds: null, teammateUserIds: [userId], commandUserIds: null, teamIds: [], commandTeamIds: [] };
+    }
+    const municipio = municipioPropio;
+    if (!municipio) {
+      return { ...base, isMaster: false, adminMunicipalityId: null, allowedUserIds: [userId], teammateUserIds: [userId], commandUserIds: [userId], teamIds: [], commandTeamIds: [] };
+    }
+    const [gente, equipos] = await Promise.all([
+      db
+        .select({ id: schema.userProfiles.id })
+        .from(schema.userProfiles)
+        .where(and(eq(schema.userProfiles.municipalityId, municipio), eq(schema.userProfiles.status, "active"))),
+      db.select({ id: schema.teams.id }).from(schema.teams).where(eq(schema.teams.municipalityId, municipio))
+    ]);
+    const personas = [userId, ...gente.map((g) => g.id).filter((id) => id !== userId)];
+    const idsDeEquipos = equipos.map((e) => e.id);
+    return {
+      ...base,
+      isMaster: false,
+      adminMunicipalityId: municipio,
+      allowedUserIds: personas,
+      teammateUserIds: personas,
+      commandUserIds: personas,
+      teamIds: idsDeEquipos,
+      commandTeamIds: idsDeEquipos
     };
   }
 
@@ -152,9 +227,14 @@ async function resolverAlcance(
     for (const id of frontera) mando.add(id);
   }
 
-  // 4. Equipos donde solo es integrante: ve a sus compañeros, sin bajar a sus brigadas.
+  // Quienes están bajo su mando, antes de sumar a los compañeros de los equipos donde solo es integrante.
+  const deSuMando = new Set([...mando].flatMap((equipo) => personasPorEquipo.get(equipo) ?? []));
+
+  // 4. Equipos donde solo es integrante: el capturista ve a sus compañeros, sin bajar a sus brigadas.
+  //    El líder y el brigadista no (ver arriba): los equipos siguen en `teamIds`, así que ven lo
+  //    asignado al equipo, pero no lo que registró cada compañero.
   const soloIntegrante = idsDondeEsIntegrante.filter((id) => !mando.has(id));
-  if (soloIntegrante.length > 0) {
+  if (soloIntegrante.length > 0 && roleKey === "capturist") {
     for (const [equipo, { lider, integrantes }] of await personasDeEquipos(soloIntegrante)) {
       personasPorEquipo.set(equipo, [lider, ...integrantes]);
     }
@@ -175,13 +255,20 @@ async function resolverAlcance(
     roleKey,
     allowedUserIds: allowed,
     teammateUserIds: allowed,
+    commandUserIds: [userId, ...activos.filter((id) => deSuMando.has(id))],
     teamIds: allTeamIds,
     commandTeamIds: [...mando],
     commandRootTeamIds: raices,
-    isGlobal: false,
+    userMunicipalityId: municipioPropio,
+    isAdmin: false,
+    isMaster: false,
+    adminMunicipalityId: null,
     isLeader
   };
 }
+
+/** Ver `packages/shared/database/municipios.ts`. */
+export { genteDelMunicipio } from "@tonala/shared/database";
 
 /** Líder e integrantes de cada equipo, sin importar su estado. */
 async function personasDeEquipos(teamIds: string[]): Promise<Map<string, { lider: string; integrantes: string[] }>> {

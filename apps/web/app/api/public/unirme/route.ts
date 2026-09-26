@@ -10,7 +10,10 @@ import { schema } from "@tonala/shared/database";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { safeErrorMessage } from "@/lib/safe-error";
 import { municipioDelUsuario } from "@/lib/municipio-usuario";
+import { esViolacionUnica } from "@/lib/idempotencia";
 import { buscarMunicipio } from "@/lib/municipios-jalisco";
+import { registrar, registrarError } from "@/lib/registro";
+import { validarDomicilioDePersona } from "@/lib/domicilio-persona";
 
 /**
  * Alta de brigadista desde el QR de una brigada.
@@ -34,7 +37,12 @@ const esquema = z.object({
   displayName: z.string().trim().min(3).max(120),
   phone: z.string().trim().min(7).max(20),
   email: z.string().trim().max(160).email(),
-  password: z.string().min(6).max(200)
+  password: z.string().min(6).max(200),
+  // Su domicilio (0025, decisión del dueño 2026-09-26): se valida abajo con el mismo criterio que el
+  // auto-registro y «Mi perfil».
+  homeAddress: z.string().optional(),
+  homeColony: z.string().optional(),
+  homeMunicipality: z.string().optional()
 });
 
 export async function POST(request: Request) {
@@ -58,6 +66,8 @@ export async function POST(request: Request) {
     }
     const { slug, displayName, phone, email, password } = parsed.data;
     const correo = email.toLowerCase();
+    const domicilio = validarDomicilioDePersona(parsed.data);
+    if (!domicilio.ok) return NextResponse.json({ error: domicilio.error, campo: domicilio.campo }, { status: 400 });
 
     const db = getDatabaseClient();
 
@@ -112,7 +122,7 @@ export async function POST(request: Request) {
 
     const rolBrigadista = roles[0];
     if (!rolBrigadista) {
-      console.error("Catálogo de roles sin 'visit_responsible': alta de brigada rechazada.");
+      registrar("error", "Catálogo de roles sin 'visit_responsible': alta de brigada rechazada.");
       return NextResponse.json({ error: "Error interno de configuración." }, { status: 500 });
     }
 
@@ -143,30 +153,47 @@ export async function POST(request: Request) {
     const municipio = (await municipioDelUsuario(anfitrion.id)) ?? buscarMunicipio(equipo?.municipality)?.name ?? null;
 
     const userId = randomUUID();
-    await db.insert(schema.userProfiles).values({
-      id: userId,
-      email: correo,
-      displayName,
-      phone,
-      passwordHash: await hashPassword(password),
-      roleId: rolBrigadista.id,
-      personalSlug: await generateUniquePersonalSlug(displayName),
-      // Lo que faltaba: de quién viene y bajo qué enlace queda.
-      invitedByUserId: anfitrion.id,
-      parentEnlaceId: anfitrion.id,
-      ...(municipio ? { municipality: municipio } : {}),
-      status: "pending",
-      version: 1
-    });
+    const passwordHash = await hashPassword(password);
+    const personalSlug = await generateUniquePersonalSlug(displayName);
+    try {
+      // La cuenta y su lugar en la brigada, juntos: eran dos escrituras sueltas, y un fallo entre las
+      // dos dejaba una solicitud que ningún líder veía en su equipo.
+      await db.transaction(async (tx) => {
+        await tx.insert(schema.userProfiles).values({
+          id: userId,
+          email: correo,
+          displayName,
+          phone,
+          passwordHash,
+          roleId: rolBrigadista.id,
+          personalSlug,
+          // Lo que faltaba: de quién viene y bajo qué enlace queda.
+          invitedByUserId: anfitrion.id,
+          parentEnlaceId: anfitrion.id,
+          ...(municipio ? { municipality: municipio } : {}),
+          ...domicilio.domicilio,
+          status: "pending",
+          version: 1
+        });
 
-    // 5. Se apunta a la brigada desde ya. La cuenta sigue en `pending`, así que
-    //    no puede entrar: cuando la acepten, ya está en su equipo y nadie tiene
-    //    que acordarse de añadirla.
-    if (equipo) {
-      await db
-        .insert(schema.teamMembers)
-        .values({ teamId: equipo.id, userId })
-        .onConflictDoNothing();
+        // 5. Se apunta a la brigada desde ya. La cuenta sigue en `pending`, así que
+        //    no puede entrar: cuando la acepten, ya está en su equipo y nadie tiene
+        //    que acordarse de añadirla.
+        if (equipo) {
+          await tx
+            .insert(schema.teamMembers)
+            .values({ teamId: equipo.id, userId })
+            .onConflictDoNothing();
+        }
+      });
+    } catch (error) {
+      // Dos o tres toques a la vez con el mismo correo pasan juntos la comprobación del paso 2; el índice
+      // deja pasar a uno y los demás respondían 500 (visto en el simulacro de evento). Para quien toca
+      // es su propia solicitud, que ya está en revisión.
+      if (esViolacionUnica(error, "user_profiles_email_unique") || esViolacionUnica(error, "user_profiles_email_lower_unique")) {
+        return NextResponse.json({ error: "Ya tienes una solicitud en revisión con ese correo." }, { status: 400 });
+      }
+      throw error;
     }
 
     return NextResponse.json({
@@ -179,7 +206,7 @@ export async function POST(request: Request) {
         : `Solicitud enviada. ${anfitrion.displayName} tiene que aceptarte para que puedas entrar.`
     });
   } catch (error: unknown) {
-    console.error("Alta desde QR de brigada:", error);
+    registrarError("Alta desde QR de brigada", error);
     return NextResponse.json(
       { error: safeErrorMessage(error, "No se pudo enviar tu solicitud.") },
       { status: 500 }

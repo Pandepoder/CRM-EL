@@ -5,6 +5,7 @@ import { schema } from "@tonala/shared/database";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { exigirAccesoAContacto } from "@/lib/permisos-contacto";
 import { safeErrorMessage } from "@/lib/safe-error";
+import { registrarError } from "@/lib/registro";
 
 export async function POST(
   req: NextRequest,
@@ -21,11 +22,19 @@ export async function POST(
 
     const vetado = await exigirAccesoAContacto(id, actor.actorId, actor.roles);
     if (vetado) return vetado;
-    const body = await req.json();
-    const { noteText } = body;
+    let noteText: unknown;
+    try {
+      ({ noteText } = await req.json());
+    } catch {
+      return NextResponse.json({ error: "El cuerpo de la petición no es JSON válido." }, { status: 400 });
+    }
 
-    if (!noteText || !noteText.trim()) {
+    // Un valor que no es texto (un número, un objeto) hacía fallar `.trim()` con un 500.
+    if (typeof noteText !== "string" || !noteText.trim()) {
       return NextResponse.json({ error: "El texto de la nota es requerido." }, { status: 400 });
+    }
+    if (noteText.trim().length > 4000) {
+      return NextResponse.json({ error: "La nota puede tener hasta 4000 caracteres." }, { status: 400 });
     }
 
     const db = getDatabaseClient();
@@ -45,7 +54,7 @@ export async function POST(
       note: inserted
     });
   } catch (error: unknown) {
-    console.error("Error adding contact note:", error);
+    registrarError("Error adding contact note", error);
     return NextResponse.json({ error: safeErrorMessage(error, "Error al registrar la nota.") }, { status: 500 });
   }
 }

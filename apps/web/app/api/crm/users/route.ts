@@ -32,7 +32,7 @@ export async function GET() {
     .from(userProfiles)
     .innerJoin(roles, eq(roles.id, userProfiles.roleId))
     // Sin alcance (una cuenta dada de baja) la lista queda vacía, no sin filtrar.
-    .where(alcance.isGlobal ? undefined : inArray(userProfiles.id, alcance.allowedUserIds ?? []))
+    .where(alcance.isMaster ? undefined : inArray(userProfiles.id, alcance.allowedUserIds ?? []))
     .orderBy(desc(userProfiles.createdAt));
 
   return NextResponse.json(

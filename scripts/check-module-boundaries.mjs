@@ -48,8 +48,13 @@ function layerFromModuleImport(specifier) {
   return { moduleName: match[1], layer: match[2] };
 }
 
+// Módulos de @tonala/ui que se pueden importar por su ruta: solo los que no traen React. El middleware
+// corre en el runtime edge y la raíz del paquete arrastra componentes; la pantalla de inicio de cada rol
+// tiene que salir de la misma función que usa el resto de la aplicación.
+const UI_SIN_REACT = new Set(["@tonala/ui/role-home.js"]);
+
 function isSharedImport(specifier) {
-  return specifier.startsWith("@tonala/shared/") || specifier === "@tonala/ui" || specifier === "@tonala/config";
+  return specifier.startsWith("@tonala/shared/") || specifier === "@tonala/ui" || UI_SIN_REACT.has(specifier) || specifier === "@tonala/config";
 }
 
 function isProjectionPublicImport(specifier) {

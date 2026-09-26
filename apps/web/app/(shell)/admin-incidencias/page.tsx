@@ -1,18 +1,19 @@
-import { requirePageRole } from "@/lib/authorization";
+import { requirePageAccess } from "@/lib/authorization";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { AlertTriangle, MapPin, Calendar, CheckCircle2, Clock } from "lucide-react";
+import { AlertTriangle, MapPin, Calendar, Clock, Loader } from "lucide-react";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getServerSession } from "@/lib/session-server";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { incidentScopeCondition } from "@/lib/incident-visibility";
+import { incidenciasQuePuedeTrabajar, incidentScopeCondition } from "@/lib/incident-visibility";
 import { municipioDelUsuario } from "@/lib/municipio-usuario";
 import { resolverMunicipio } from "@/lib/municipios-jalisco";
 import Link from "next/link";
-import { ESTADOS_ABIERTOS } from "@/lib/estados-incidencia";
+import { ESTADO_DESCONOCIDO, ESTADOS_ABIERTOS, ESTADOS_INCIDENCIA } from "@/lib/estados-incidencia";
 import { StatusSelector } from "./StatusSelector";
 import { IncidentSectionAssigner } from "./IncidentSectionAssigner";
 import { MediaGallery } from "@/components/MediaGallery";
+import { MarcaMunicipio } from "@/components/MarcaMunicipio";
 
 /**
  * Cuántas incidencias se atienden de una sentada. La tabla monta un asignador de sección por
@@ -27,7 +28,7 @@ export default async function AdminIncidenciasPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  await requirePageRole("admin", "direction", "territorial_coordinator");
+  await requirePageAccess("/admin-incidencias");
 
   const db = getDatabaseClient();
   const session = await getServerSession();
@@ -36,8 +37,10 @@ export default async function AdminIncidenciasPage({
   const alcance = await resolveUserNetworkScope(session.userId);
 
   // Los indicadores cuentan todo lo abierto del alcance, no solo la página que se está viendo.
-  const abiertasDelAlcance = and(inArray(schema.eventReports.status, ESTADOS_ABIERTOS), incidentScopeCondition(alcance));
-  const [porEstado, sinSeccion] = await Promise.all([
+  // Solo incidencias. Las actividades de la bitácora comparten tabla y se colaban aquí como
+  // incidencias abiertas; cambiarles el estado las cerraba sin resultado. Se trabajan en la Agenda.
+  const abiertasDelAlcance = and(inArray(schema.eventReports.status, ESTADOS_ABIERTOS), isNull(schema.eventReports.activityTypeId), incidentScopeCondition(alcance));
+  const [porEstado, sinSeccion, porAceptar] = await Promise.all([
     db
       .select({ status: schema.eventReports.status, total: count() })
       .from(schema.eventReports)
@@ -46,18 +49,27 @@ export default async function AdminIncidenciasPage({
     db
       .select({ total: count() })
       .from(schema.eventReports)
-      .where(and(abiertasDelAlcance, isNull(schema.eventReports.sectionId)))
+      .where(and(abiertasDelAlcance, isNull(schema.eventReports.sectionId))),
+    // El aviso invita a aceptar: cuenta solo las que esta persona puede aceptar. Un líder ve las de sus
+    // compañeros de coordinación, pero no las acepta (ver `incidenciasQuePuedeTrabajar`).
+    db
+      .select({ total: count() })
+      .from(schema.eventReports)
+      .where(and(eq(schema.eventReports.status, "pendiente"), isNull(schema.eventReports.activityTypeId), incidenciasQuePuedeTrabajar(alcance)))
   ]);
   const cuantas = (estado: string) => porEstado.find((f) => f.status === estado)?.total ?? 0;
-  const totalReports = porEstado.reduce((suma, f) => suma + f.total, 0);
-  const pendingCount = cuantas("pendiente");
-  const activeCount = cuantas("active");
-  const resolvedCount = cuantas("in_progress");
+  // Cada tarjeta dice lo que cuenta. Antes «Total» eran solo las abiertas, «Activas / Pendientes» solo las
+  // aceptadas y «Resueltas» las que están en proceso: esta pantalla solo lee abiertas, así que nunca
+  // podía contar resueltas (encontrado en las capturas del simulacro de evento).
+  const abiertas = porEstado.reduce((suma, f) => suma + f.total, 0);
+  const pendientes = cuantas("pendiente");
+  const enProceso = cuantas("in_progress");
+  const pendientesQueAcepta = porAceptar[0]?.total ?? 0;
   const missingSectionCount = sinSeccion[0]?.total ?? 0;
 
   const { page } = await searchParams;
   const paginaPedida = Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
-  const totalPaginas = Math.max(1, Math.ceil(totalReports / POR_PAGINA));
+  const totalPaginas = Math.max(1, Math.ceil(abiertas / POR_PAGINA));
   // Pedir una página que ya no existe —se cerraron incidencias mientras tanto— deja la pantalla
   // en blanco sin explicar nada: se cae a la última que sí tiene contenido.
   const pagina = Math.min(paginaPedida, totalPaginas);
@@ -79,9 +91,15 @@ export default async function AdminIncidenciasPage({
       status: schema.eventReports.status,
       mediaUrls: schema.eventReports.mediaUrls,
       createdAt: schema.eventReports.createdAt,
+      municipioLlave: schema.municipalities.name,
+      municipioTipo: schema.municipalities.kind,
+      // Ver no es trabajar: la de un compañero de equipo se ve, pero su estado y su sección los cambia
+      // quien la tiene a su cargo. Sin esto la fila ofrecía botones que la acción rechazaba.
+      puedeTrabajar: sql<boolean>`coalesce((${incidenciasQuePuedeTrabajar(alcance) ?? sql`true`}), false)`,
     })
     .from(schema.eventReports)
     .leftJoin(schema.electoralSections, eq(schema.eventReports.sectionId, schema.electoralSections.id))
+    .innerJoin(schema.municipalities, eq(schema.municipalities.id, schema.eventReports.municipalityId))
     // Solo lo que sigue requiriendo trabajo. Lo resuelto, archivado o rechazado
     // vive en el Historial: mezclarlo aquí enterraba lo que hay que atender.
     .where(abiertasDelAlcance)
@@ -174,25 +192,35 @@ export default async function AdminIncidenciasPage({
             Acepta los reportes que llegan de campo, asígnales su sección y sigue su avance.
           </p>
         </div>
-        <Link
-          href="/historial-incidencias"
-          className="text-sm font-semibold px-4 py-2.5 rounded-xl whitespace-nowrap"
-          style={{ background: "#eef2f8", color: "#0b1f3a" }}
-        >
-          Ver historial →
-        </Link>
+        {/* Historial y alta ya no tienen entrada propia en el menú (M11): se llega desde aquí. */}
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/reportes"
+            className="text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap text-white"
+            style={{ background: "#dc2626" }}
+          >
+            + Levantar incidencia
+          </Link>
+          <Link
+            href="/historial-incidencias"
+            className="text-sm font-semibold px-4 py-2.5 rounded-xl whitespace-nowrap"
+            style={{ background: "#eef2f8", color: "#0b1f3a" }}
+          >
+            Ver historial →
+          </Link>
+        </div>
       </div>
 
-      {pendingCount > 0 ? (
+      {pendientesQueAcepta > 0 ? (
         <div
           className="rounded-2xl px-5 py-4 flex items-center gap-3"
           style={{ background: "#fefce8", border: "1px solid #fde68a" }}
         >
           <Clock className="h-5 w-5" style={{ color: "#a16207" }} />
           <p className="text-sm font-semibold" style={{ color: "#713f12" }}>
-            {pendingCount === 1
-              ? "Hay 1 reporte esperando aceptación."
-              : `Hay ${pendingCount} reportes esperando aceptación.`}
+            {pendientesQueAcepta === 1
+              ? "Hay 1 reporte esperando que lo aceptes."
+              : `Hay ${pendientesQueAcepta} reportes esperando que los aceptes.`}
           </p>
         </div>
       ) : null}
@@ -200,20 +228,20 @@ export default async function AdminIncidenciasPage({
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-          <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Incidencias</div>
-          <div className="text-2xl font-extrabold text-blue-950 mt-1">{totalReports}</div>
+          <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">Abiertas</div>
+          <div className="text-2xl font-extrabold text-blue-950 mt-1">{abiertas}</div>
         </div>
-        <div className="bg-white border border-red-100 rounded-2xl p-4 shadow-sm">
-          <div className="text-xs font-bold text-red-600 uppercase tracking-wider flex items-center gap-1">
-            <Clock size={14} /> Activas / Pendientes
+        <div className="bg-white border border-amber-100 rounded-2xl p-4 shadow-sm">
+          <div className="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1">
+            <Clock size={14} /> Por aceptar
           </div>
-          <div className="text-2xl font-extrabold text-red-600 mt-1">{activeCount}</div>
+          <div className="text-2xl font-extrabold text-amber-800 mt-1">{pendientes}</div>
         </div>
-        <div className="bg-white border border-emerald-100 rounded-2xl p-4 shadow-sm">
-          <div className="text-xs font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1">
-            <CheckCircle2 size={14} /> Resueltas
+        <div className="bg-white border border-blue-100 rounded-2xl p-4 shadow-sm">
+          <div className="text-xs font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1">
+            <Loader size={14} /> En proceso
           </div>
-          <div className="text-2xl font-extrabold text-emerald-700 mt-1">{resolvedCount}</div>
+          <div className="text-2xl font-extrabold text-blue-700 mt-1">{enProceso}</div>
         </div>
         <div className="bg-white border border-amber-100 rounded-2xl p-4 shadow-sm">
           <div className="text-xs font-bold text-amber-700 uppercase tracking-wider">
@@ -263,7 +291,8 @@ export default async function AdminIncidenciasPage({
                     <div className="flex items-start gap-1.5 text-xs text-gray-700 whitespace-nowrap">
                       <MapPin size={14} className="text-gray-400 shrink-0 mt-0.5" />
                       <div>
-                        <div className="font-semibold text-gray-800">{r.municipality || "Municipio sin determinar"}</div>
+                        {/* El de su llave (0022): General se marca en vez de decir «sin determinar». */}
+                        <div className="font-semibold text-gray-800"><MarcaMunicipio nombre={r.municipioLlave} esGeneral={r.municipioTipo === "general"} /></div>
                         {r.latitude && r.longitude ? (
                           <div className="text-[11px] font-mono text-gray-400 mt-0.5">
                             {Number(r.latitude).toFixed(4)}, {Number(r.longitude).toFixed(4)}
@@ -277,16 +306,20 @@ export default async function AdminIncidenciasPage({
 
                   {/* Section Electoral Autoselector */}
                   <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
-                    <IncidentSectionAssigner
-                      reportId={r.id}
-                      reportTitle={r.title}
-                      currentSectionId={r.sectionId}
-                      currentSectionNum={r.sectionNum}
-                      currentMunicipality={r.municipality}
-                      latitude={r.latitude ? Number(r.latitude) : null}
-                      longitude={r.longitude ? Number(r.longitude) : null}
-                      availableSections={sectionsList}
-                    />
+                    {r.puedeTrabajar ? (
+                      <IncidentSectionAssigner
+                        reportId={r.id}
+                        reportTitle={r.title}
+                        currentSectionId={r.sectionId}
+                        currentSectionNum={r.sectionNum}
+                        currentMunicipality={r.municipality}
+                        latitude={r.latitude ? Number(r.latitude) : null}
+                        longitude={r.longitude ? Number(r.longitude) : null}
+                        availableSections={sectionsList}
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-600">{r.sectionNum ? `Sección ${r.sectionNum}` : "Sin sección"}</span>
+                    )}
                   </td>
 
                   {/* Date */}
@@ -299,7 +332,17 @@ export default async function AdminIncidenciasPage({
 
                   {/* Status */}
                   <td className="px-4 py-3 md:px-6 md:py-4 text-right whitespace-nowrap">
-                    <StatusSelector reportId={r.id} currentStatus={r.status || "active"} />
+                    {r.puedeTrabajar ? (
+                      <StatusSelector reportId={r.id} currentStatus={r.status || "active"} />
+                    ) : (
+                      <span
+                        className="inline-flex flex-col items-end gap-0.5"
+                        title="La trabaja quien la tiene a su cargo: tú solo la ves."
+                      >
+                        <span className="text-xs font-bold">{(ESTADOS_INCIDENCIA[r.status ?? ""] ?? ESTADO_DESCONOCIDO).label}</span>
+                        <span className="text-[11px] text-gray-500">Solo consulta</span>
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -331,7 +374,7 @@ export default async function AdminIncidenciasPage({
             <span />
           )}
           <span className="text-[13px] font-semibold text-gray-500">
-            Página {pagina} de {totalPaginas} · {totalReports} abiertas
+            Página {pagina} de {totalPaginas} · {abiertas} abiertas
           </span>
           {pagina < totalPaginas ? (
             <Link

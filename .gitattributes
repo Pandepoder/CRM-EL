@@ -1,0 +1,4 @@
+# Los scripts de shell corren dentro de contenedores Linux (docker-compose.yml monta
+# scripts/ops/*.sh en el servicio `backup`). Con core.autocrlf=true, en Windows se
+# escribían con CRLF y `sh` fallaba con "set: illegal option -" antes de respaldar nada.
+*.sh text eol=lf

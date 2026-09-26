@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Archive, ArrowLeft, MapPin, Calendar } from "lucide-react";
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
 
-import { requirePageRole } from "@/lib/authorization";
+import { requirePageAccess } from "@/lib/authorization";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { CATEGORIAS_INCIDENCIA, CATEGORIA_DESCONOCIDA } from "@/lib/categorias-incidencia";
@@ -32,14 +32,15 @@ export default async function HistorialIncidenciasPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  await requirePageRole("admin", "direction", "territorial_coordinator");
+  await requirePageAccess("/historial-incidencias");
 
   const db = getDatabaseClient();
   const session = await getServerSession();
   // Solo lo del alcance de quien consulta; antes se leía el historial de todo el sistema.
   const alcance = await resolveUserNetworkScope(session.userId);
 
-  const cerradasDelAlcance = and(inArray(schema.eventReports.status, ESTADOS_CERRADOS), incidentScopeCondition(alcance));
+  // Solo incidencias: las actividades cerradas de la bitácora tienen su historial en la Agenda.
+  const cerradasDelAlcance = and(inArray(schema.eventReports.status, ESTADOS_CERRADOS), isNull(schema.eventReports.activityTypeId), incidentScopeCondition(alcance));
 
   // Los totales por estado cuentan todo el historial del alcance, no solo la página visible.
   const totalesPorEstado = await db

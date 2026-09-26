@@ -3,14 +3,15 @@ import { schema } from "@tonala/shared/database";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { getServerSession } from "@/lib/session-server";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { condicionDeEquipos } from "@/lib/alcance-municipal";
 import ReportesClient from "./ReportesClient";
-import { requirePageRole } from "@/lib/authorization";
+import { requirePageAccess } from "@/lib/authorization";
 
 export default async function ReportesPage() {
   // Esta pantalla levanta incidencias, y POST /api/map/reports solo se lo permite a
   // quien coordina. Al brigadista se le quitó de aquí y del menú: la pantalla le
   // prometía un alta que la API le negaba al guardar.
-  await requirePageRole("admin", "direction", "territorial_coordinator");
+  await requirePageAccess("/reportes");
 
   const db = getDatabaseClient();
   const session = await getServerSession();
@@ -29,7 +30,7 @@ export default async function ReportesPage() {
     email: schema.userProfiles.email,
   }).from(schema.userProfiles).where(and(
     eq(schema.userProfiles.status, "active"),
-    alcance.isGlobal ? undefined : inArray(schema.userProfiles.id, alcance.teammateUserIds)
+    alcance.isMaster ? undefined : inArray(schema.userProfiles.id, alcance.teammateUserIds)
   ));
 
   // El conteo de integrantes se muestra en el selector: asignar a un equipo
@@ -40,8 +41,8 @@ export default async function ReportesPage() {
     zone: schema.teams.zone,
     memberCount: sql<number>`(SELECT count(*)::int FROM team_members m WHERE m.team_id = ${schema.teams.id})`
   }).from(schema.teams)
-    .where(alcance.isGlobal ? undefined : inArray(schema.teams.id, alcance.teamIds))
+    .where(condicionDeEquipos(alcance))
     .orderBy(schema.teams.name);
 
-  return <ReportesClient sections={sections} users={users} teams={teams} />;
+  return <ReportesClient sections={sections} users={users} teams={teams} usuarioActualId={session.userId} />;
 }

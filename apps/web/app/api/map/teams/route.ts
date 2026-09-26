@@ -5,8 +5,10 @@ export const revalidate = 0;
 import { getDatabaseClient } from "@/lib/db-client";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { condicionDeEquipos } from "@/lib/alcance-municipal";
 import { schema } from "@tonala/shared/database";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { registrarError } from "@/lib/registro";
 
 /**
  * GET /api/map/teams
@@ -25,7 +27,7 @@ export async function GET(_request: Request) {
 
   try {
     const alcance = await resolveUserNetworkScope(actor.actorId);
-    if (!alcance.isGlobal && alcance.teamIds.length === 0) {
+    if (!alcance.isMaster && alcance.teamIds.length === 0) {
       return NextResponse.json({ teams: [] });
     }
     const teams = await db
@@ -42,12 +44,12 @@ export async function GET(_request: Request) {
       })
       .from(schema.teams)
       .leftJoin(schema.userProfiles, eq(schema.teams.leaderId, schema.userProfiles.id))
-      .where(alcance.isGlobal ? undefined : inArray(schema.teams.id, alcance.teamIds))
+      .where(condicionDeEquipos(alcance))
       .orderBy(schema.teams.name);
 
     return NextResponse.json({ teams });
   } catch (error) {
-    console.error("Error fetching teams for assignment:", error);
+    registrarError("Error fetching teams for assignment", error);
     return NextResponse.json({ teams: [] }, { status: 500 });
   }
 }

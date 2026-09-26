@@ -25,6 +25,7 @@ import {
   puedeSobreIncidencia
 } from "@/lib/permisos-incidencias";
 import { safeErrorMessage } from "@/lib/safe-error";
+import { registrarError } from "@/lib/registro";
 
 export const dynamic = "force-dynamic";
 
@@ -122,7 +123,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         return responder(await editarActividad(actor, id, a));
     }
   } catch (error: unknown) {
-    console.error("Error updating task:", error);
+    registrarError("Error updating task", error);
     return NextResponse.json({ error: safeErrorMessage(error, "Error al actualizar la actividad") }, { status: 500 });
   }
 }
@@ -164,7 +165,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!UUID.test(id)) return NO_ENCONTRADA();
   try {
     const actorId = actor.actorId;
-    const { incidencia, esAdmin, equipos, personas } = await cargarContextoIncidencia(id, actorId, actor.roles);
+    const { incidencia, esAdmin, equipos, personas } = await cargarContextoIncidencia(id, actorId);
     if (!incidencia) {
       return NextResponse.json({ error: "Incidencia no encontrada" }, { status: 404 });
     }
@@ -188,7 +189,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     });
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-    console.error("Error deleting task:", error);
+    registrarError("Error deleting task", error);
     return NextResponse.json({ error: safeErrorMessage(error, "Error al eliminar la actividad") }, { status: 500 });
   }
 }

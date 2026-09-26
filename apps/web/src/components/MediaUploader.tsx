@@ -16,7 +16,8 @@ export function MediaUploader({
   maxFiles = 6,
   label = "Evidencia Fotográfica / Video",
   helperText = "Puedes adjuntar fotos o videos (hasta 60 MB)",
-  disabled = false
+  disabled = false,
+  soloImagenes = false
 }: {
   value?: MediaFile[];
   onChange: (files: MediaFile[]) => void;
@@ -24,6 +25,8 @@ export function MediaUploader({
   label?: string;
   helperText?: string;
   disabled?: boolean;
+  /** Para una foto de perfil o de barda: el selector del teléfono ofrece solo fotos. */
+  soloImagenes?: boolean;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -91,8 +94,8 @@ export function MediaUploader({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*,video/*"
-        multiple
+        accept={soloImagenes ? "image/*" : "image/*,video/*"}
+        multiple={maxFiles > 1}
         disabled={disabled || isUploading || safeFiles.length >= maxFiles}
         onChange={handleFileSelect}
         style={{ display: "none" }}
@@ -129,11 +132,11 @@ export function MediaUploader({
               <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#64748b" }}>
                 <UploadCloud size={18} style={{ color: "#2563eb" }} />
                 <span style={{ fontSize: "11px", fontWeight: "700", color: "#334155" }}>
-                  Tomar foto, video o seleccionar de la galería
+                  {soloImagenes ? "Tomar foto o elegirla de la galería" : "Tomar foto, video o seleccionar de la galería"}
                 </span>
               </div>
               <span style={{ fontSize: "10px", color: "#94a3b8" }}>
-                Formatos: JPG, PNG, WEBP, MP4, MOV (Auto-optimizado)
+                {soloImagenes ? "Formatos: JPG, PNG, WEBP, HEIC" : "Formatos: JPG, PNG, WEBP, MP4, MOV (Auto-optimizado)"}
               </span>
             </>
           )}

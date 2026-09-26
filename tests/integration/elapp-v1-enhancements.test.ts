@@ -3,7 +3,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { resolveUserNetworkScope } from "../../apps/web/src/lib/network-hierarchy.js";
 import { getDatabaseClient } from "../../apps/web/src/lib/db-client.js";
 import { schema } from "@tonala/shared/database";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import crypto from "crypto";
 
 describe("ElApp v1 Enhancements Integration Tests", () => {
@@ -33,20 +33,35 @@ describe("ElApp v1 Enhancements Integration Tests", () => {
     adminId = admin.id;
   });
 
-  it("resolves global scope for coordinacion / admin users", async () => {
-    const scope = await resolveUserNetworkScope(adminId, "coordinacion");
+  it("administración: solo el maestro lo ve todo (etapa 6)", async () => {
+    // Cualquier administrador es administración, pero ver todo es solo del maestro: un administrador
+    // municipal ve su municipio, y uno sin municipio, lo suyo. Se comprueba con cada administrador de
+    // la base, sea cual sea el caso de cada uno.
+    const db = getDatabaseClient();
+    const administradores = await db
+      .select({ id: schema.userProfiles.id, maestro: schema.userProfiles.isMasterAdmin })
+      .from(schema.userProfiles)
+      .leftJoin(schema.roles, eq(schema.userProfiles.roleId, schema.roles.id))
+      .where(and(eq(schema.roles.key, "admin"), eq(schema.userProfiles.status, "active")));
+    expect(administradores.map((a) => a.id)).toContain(adminId);
 
-    expect(scope.isGlobal).toBe(true);
-    expect(scope.accessType).toBe("coordinacion");
-    expect(scope.allowedUserIds).toBeNull();
+    for (const admin of administradores) {
+      const scope = await resolveUserNetworkScope(admin.id);
+      expect(scope.isAdmin).toBe(true);
+      expect(scope.accessType).toBe("coordinacion");
+      expect(scope.isMaster).toBe(admin.maestro);
+      if (admin.maestro) expect(scope.allowedUserIds).toBeNull();
+      else expect(scope.allowedUserIds).toContain(admin.id);
+    }
   });
 
   it("gives an empty scope to a user that does not exist or is not active", async () => {
     // Una sesión de alguien inexistente o dado de baja no concede nada: ni global ni lo propio.
     const randomId = crypto.randomUUID();
-    const scope = await resolveUserNetworkScope(randomId, "conexion");
+    const scope = await resolveUserNetworkScope(randomId);
 
-    expect(scope.isGlobal).toBe(false);
+    expect(scope.isAdmin).toBe(false);
+    expect(scope.isMaster).toBe(false);
     expect(scope.allowedUserIds).toEqual([]);
     expect(scope.teamIds).toEqual([]);
   });

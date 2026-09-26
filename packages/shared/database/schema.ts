@@ -31,6 +31,42 @@ export const encryptedText = customType<{ data: string; driverData: string }>({
   }
 });
 
+/**
+ * Los 125 municipios de Jalisco y la fila especial «General (estatal)» (migración 0022).
+ *
+ * Es la llave de municipio de personas, equipos, ciudadanos, incidencias, almacenes, catálogo, escucha
+ * y prospectos. Antes el municipio era un texto libre en cada tabla —en `contacts`, cifrado—: entraban
+ * «TONALA», «Zapopan Jal.» o «Tlaquepaque», y no se podía filtrar en SQL. Lo que no se pudo ubicar va a
+ * General, a la vista y reasignable en «Sin municipio»; nunca en nulo.
+ */
+export const municipalities = pgTable(
+  "municipalities",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Nombre oficial del INE, el mismo de `electoral_sections.municipality`. */
+    name: text("name").notNull(),
+    /** Minúsculas, sin acentos ni signos (`municipio_clave()` en la base). */
+    clave: text("clave").notNull(),
+    kind: text("kind").notNull().default("municipio"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    uniqueIndex("municipalities_name_idx").on(table.name),
+    uniqueIndex("municipalities_clave_idx").on(table.clave),
+    check("municipalities_kind_check", sql`${table.kind} IN ('municipio', 'general')`)
+  ]
+);
+
+/**
+ * Llave de municipio obligatoria. Si la aplicación no la trae, la pone la base con las reglas de la
+ * migración 0022 (la sección, quien registra…, y si nada, General): por eso no se exige al insertar.
+ */
+const llaveDeMunicipio = () =>
+  uuid("municipality_id")
+    .notNull()
+    .references(() => municipalities.id)
+    .$defaultFn(() => sql`default`);
+
 export const roles = pgTable(
   "roles",
   {
@@ -62,14 +98,46 @@ export const userProfiles = pgTable(
     // municipio con el que abre el mapa: el sistema deja de ser "de Tonalá" y pasa a ser el
     // del municipio de quien lo usa. Sin dato propio se hereda el del equipo; ver
     // municipioDelUsuario en apps/web/src/lib/municipio-usuario.ts.
+    /**
+     * Donde vive la persona (0025): se pide al registrarse por el QR de brigada o en el auto-registro.
+     * No es `municipality`, que es donde trabaja y decide qué ve y quién la gobierna.
+     */
+    homeAddress: encryptedText("home_address"),
+    homeColony: encryptedText("home_colony"),
+    homeMunicipality: text("home_municipality"),
     municipality: text("municipality"),
+    /** Llave de municipio (0022). El texto de al lado se conserva hasta la etapa 8. */
+    municipalityId: llaveDeMunicipio(),
     status: text("status").notNull().default("active"),
     version: integer("version").notNull().default(1),
+    // Foto de perfil: la URL de un archivo que subió la propia persona (`/api/uploads/…`). Sin
+    // ella, la barra lateral y la ficha pintan iniciales. Migración 0021.
+    photoUrl: text("photo_url"),
+    /**
+     * El administrador maestro (MOM, migración 0023): una cuenta de administración que gobierna los
+     * 125 municipios. Uno solo (índice único) y siempre en General. Se nombra desde el servidor, nunca
+     * desde la aplicación.
+     */
+    isMasterAdmin: boolean("is_master_admin").notNull().default(false),
+    /**
+     * Sube con cada cambio de rol, estado, contraseña o marca de maestro —y de municipio, si es
+     * administración— (disparador de la 0023). Una sesión abierta con otra versión deja de valer.
+     */
+    sessionVersion: integer("session_version").notNull().default(1),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
+    uniqueIndex("user_profiles_un_solo_maestro_idx").on(sql`(true)`).where(sql`${table.isMasterAdmin}`),
+    index("user_profiles_photo_url_idx").on(table.photoUrl).where(sql`${table.photoUrl} IS NOT NULL`),
     uniqueIndex("user_profiles_email_unique").on(table.email),
+    // El login busca por `lower(email)`: sin un índice sobre esa expresión recorría la tabla en
+    // cada intento, y el único sobre `email` crudo dejaba coexistir "Ana@x" y "ana@x". Migración
+    // 0019. Si en una base ya hubiera correos repetidos por mayúsculas, la migración crea en su
+    // lugar `user_profiles_email_lower_idx` (no único) para no bloquear el despliegue, y
+    // `pnpm db:migrate` los informa: unir dos cuentas es una decisión humana.
+    uniqueIndex("user_profiles_email_lower_unique").on(sql`lower(${table.email})`),
     uniqueIndex("user_profiles_auth_user_id_unique").on(table.authUserId),
     uniqueIndex("user_profiles_slug_unique").on(table.personalSlug)
   ]
@@ -113,6 +181,8 @@ export const electoralSections = pgTable("electoral_sections", {
   id: uuid("id").primaryKey().defaultRandom(),
   sectionNum: integer("section_num").notNull().unique(),
   municipality: text("municipality"),
+  /** Llave de municipio (0022), sacada de su nombre. Nula si la sección no tiene municipio. */
+  municipalityId: uuid("municipality_id").references(() => municipalities.id),
   districtFederal: integer("district_federal"),
   districtLocal: integer("district_local"),
   geomJson: jsonb("geom_json"),
@@ -155,12 +225,22 @@ export const contacts = pgTable(
     lastName: encryptedText("last_name"),
     maternalLastName: encryptedText("maternal_last_name"),
     birthDate: timestamp("birth_date", { withTimezone: true }),
+    /** ¿El año de `birthDate` es real? Sin año capturado se guarda el 2000 y esto va en falso (D4, 0024). */
+    birthYearKnown: boolean("birth_year_known").notNull().default(true),
     phone: encryptedText("phone"),
+    // Huella del teléfono (HMAC con subllave derivada de la de cifrado): permite encontrar un
+    // teléfono sin descifrar el padrón. Texto en claro a propósito —no revela el número sin la
+    // llave— y NO única: el alta interna nunca deduplicó y hay números compartidos legítimos, como
+    // el de una familia. La calcula `huellaDeTelefono` al escribir; migración 0019.
+    phoneHash: text("phone_hash"),
     email: encryptedText("email"),
     address: encryptedText("address"),
     addressNumber: encryptedText("address_number"),
     colony: encryptedText("colony"),
     municipality: encryptedText("municipality"),
+    /** Llave de municipio (0022): la de su sección, y sin sección la de quien lo registró. El texto
+     *  cifrado de al lado no se puede consultar en SQL; se conserva hasta la etapa 8. */
+    municipalityId: llaveDeMunicipio(),
     profession: encryptedText("profession"),
     companyOrWork: encryptedText("company_or_work"),
     yearsKnown: integer("years_known"),
@@ -180,21 +260,31 @@ export const contacts = pgTable(
     knowMeBetter: encryptedText("know_me_better"),
     bardaPhotoUrl: text("barda_photo_url"),
     exactLatitude: doublePrecision("exact_latitude"),
-    exactLongitude: doublePrecision("exact_longitude")
+    exactLongitude: doublePrecision("exact_longitude"),
+    // Clave que genera el teléfono por formulario: un doble toque o un reintento tras un corte de
+    // señal devuelve el ciudadano ya creado en vez de crear otro. Migración 0021.
+    clientRequestId: uuid("client_request_id")
   },
   (table) => [
+    uniqueIndex("contacts_client_request_idx").on(table.clientRequestId).where(sql`${table.clientRequestId} IS NOT NULL`),
+    index("contacts_barda_photo_url_idx").on(table.bardaPhotoUrl).where(sql`${table.bardaPhotoUrl} IS NOT NULL`),
     check("contacts_status_check", sql`${table.status} IN ('active', 'inactive')`),
     check("contacts_version_check", sql`${table.version} >= 1`),
     index("contacts_created_by_user_idx").on(table.createdByUserId),
     index("contacts_referred_by_user_idx").on(table.referredByUserId),
     index("contacts_section_idx").on(table.sectionId),
-    index("contacts_actual_contact_user_idx").on(table.actualContactUserId)
+    index("contacts_actual_contact_user_idx").on(table.actualContactUserId),
+    index("contacts_phone_hash_idx").on(table.phoneHash).where(sql`${table.phoneHash} IS NOT NULL`),
+    // Las filas con teléfono y todavía sin huella: el alta pública las revisa aparte mientras el
+    // relleno no termina. Con este índice, comprobar que ya no queda ninguna no recorre la tabla.
+    index("contacts_phone_hash_pending_idx").on(table.id).where(sql`${table.phoneHash} IS NULL AND ${table.phone} IS NOT NULL`)
   ]
 );
 
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
-  actorUserId: uuid("actor_user_id").notNull().references(() => userProfiles.id),
+  /** Sin autor: se hizo desde la consola del servidor (`pnpm admin:rescatar`). Migración 0023. */
+  actorUserId: uuid("actor_user_id").references(() => userProfiles.id),
   action: text("action").notNull(),
   entityType: text("entity_type").notNull(),
   entityId: uuid("entity_id").notNull(),
@@ -507,6 +597,8 @@ export const activityCatalogOptions = pgTable(
     sortOrder: integer("sort_order").notNull().default(0),
     incidentCategory: text("incident_category").notNull().default("brigada"),
     scope: text("scope").notNull().default("organization"),
+    /** Llave de municipio (0022): la de quien creó la opción; las del sistema, General. */
+    municipalityId: llaveDeMunicipio(),
     isSystem: boolean("is_system").notNull().default(false),
     createsVisit: boolean("creates_visit").notNull().default(false),
     createdByUserId: uuid("created_by_user_id").references(() => userProfiles.id),
@@ -536,6 +628,8 @@ export const eventReports = pgTable(
     longitude: doublePrecision("longitude").notNull(),
     category: text("category").notNull(),
     municipality: text("municipality"),
+    /** Llave de municipio (0022). El texto de al lado se conserva hasta la etapa 8. */
+    municipalityId: llaveDeMunicipio(),
     district: text("district"),
     sectionId: uuid("section_id").references(() => electoralSections.id),
     assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
@@ -585,7 +679,9 @@ export const eventReports = pgTable(
     index("event_reports_assigned_team_idx").on(table.assignedTeamId),
     index("event_reports_status_idx").on(table.status),
     index("event_reports_category_idx").on(table.category),
-    index("event_reports_event_date_idx").on(table.eventDate)
+    index("event_reports_event_date_idx").on(table.eventDate),
+    // Qué registro usa un archivo subido, sin recorrer la tabla en cada foto (`/api/uploads`).
+    index("event_reports_media_urls_idx").using("gin", sql`${table.mediaUrls} jsonb_path_ops`)
   ]
 );
 
@@ -629,6 +725,8 @@ export const teams = pgTable(
     leaderId: uuid("leader_id").notNull().references(() => userProfiles.id),
     zone: text("zone"),
     municipality: text("municipality"),
+    /** Llave de municipio (0022). El texto de al lado se conserva hasta la etapa 8. */
+    municipalityId: llaveDeMunicipio(),
     section: text("section"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   }
@@ -665,6 +763,10 @@ export const warehouses = pgTable("warehouses", {
   name: text("name").notNull(),
   location: text("location"),
   status: text("status").notNull().default("active"),
+  /** Llave de municipio (0022). */
+  municipalityId: llaveDeMunicipio(),
+  /** Quién lo dio de alta (0023). Los anteriores no lo guardaban. */
+  createdByUserId: uuid("created_by_user_id").references(() => userProfiles.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -797,12 +899,15 @@ export const socialListening = pgTable(
     approvedByUserId: uuid("approved_by_user_id").references(() => userProfiles.id),
     resolutionNotes: text("resolution_notes"),
     createdByUserId: uuid("created_by_user_id").notNull().references(() => userProfiles.id),
+    /** Llave de municipio (0022): la de quien lo levantó. */
+    municipalityId: llaveDeMunicipio(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
     index("social_listening_status_idx").on(table.status),
     index("social_listening_created_by_idx").on(table.createdByUserId),
-    index("social_listening_created_at_idx").on(table.createdAt)
+    index("social_listening_created_at_idx").on(table.createdAt),
+    index("social_listening_photo_urls_idx").using("gin", sql`${table.photoUrls} jsonb_path_ops`)
   ]
 );
 
@@ -821,18 +926,44 @@ export const rapidActivityProspects = pgTable(
     privateNotes: text("private_notes"),
     convertedToContactId: uuid("converted_to_contact_id").references(() => contacts.id),
     createdByUserId: uuid("created_by_user_id").notNull().references(() => userProfiles.id),
+    /** Llave de municipio (0022): la de quien lo registró. */
+    municipalityId: llaveDeMunicipio(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     profileOptionId: uuid("profile_option_id").references(() => activityCatalogOptions.id),
     nextStep: text("next_step"),
     nextStepAt: timestamp("next_step_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     convertedAt: timestamp("converted_at", { withTimezone: true }),
-    convertedByUserId: uuid("converted_by_user_id").references(() => userProfiles.id)
+    convertedByUserId: uuid("converted_by_user_id").references(() => userProfiles.id),
+    // Idempotencia del alta, como en `contacts` y `event_reports`. Migración 0021.
+    clientRequestId: uuid("client_request_id")
   },
   (table) => [
+    uniqueIndex("rapid_activity_prospects_client_request_idx").on(table.clientRequestId).where(sql`${table.clientRequestId} IS NOT NULL`),
     index("rapid_activity_prospects_profile_idx").on(table.profileOptionId),
     index("rapid_activity_prospects_converted_idx").on(table.convertedToContactId),
     index("rapid_activity_prospects_created_by_idx").on(table.createdByUserId),
     index("rapid_activity_prospects_activity_date_idx").on(table.activityDate)
+  ]
+);
+
+/**
+ * Quién subió cada archivo de `/api/upload`. Decide quién puede pedirlo a `/api/uploads/<nombre>`
+ * mientras el registro que lo usará todavía no existe (la vista previa del formulario), y al
+ * guardar impide adjuntar como propia la foto de otra persona para ampliar quién la ve. Los
+ * archivos subidos antes de la migración 0021 no tienen fila; ver `apps/web/src/lib/archivos.ts`.
+ */
+export const uploadedFiles = pgTable(
+  "uploaded_files",
+  {
+    fileName: text("file_name").primaryKey(),
+    uploadedByUserId: uuid("uploaded_by_user_id").notNull().references(() => userProfiles.id),
+    mediaType: text("media_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    check("uploaded_files_media_type_check", sql`${table.mediaType} IN ('image', 'video')`),
+    index("uploaded_files_uploaded_by_idx").on(table.uploadedByUserId)
   ]
 );

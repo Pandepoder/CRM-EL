@@ -6,6 +6,12 @@ export default defineConfig({
   test: {
     globals: false,
     environment: "node",
+    // Hilos y no procesos: con procesos (lo predeterminado), una de cada tres o cuatro corridas completas
+    // abortaba al arrancar con «Channel closed» (ERR_IPC_CHANNEL_CLOSED) sin que fallara ninguna prueba:
+    // una falla de tinypool en vitest 3.2 (vitest-dev/vitest#8201), que vitest 4 corrige cambiando de
+    // mecanismo. Medido el 2026-09-26: con procesos, 2 de 8 corridas cortadas; con hilos, 0 de 8, en el
+    // mismo tiempo. Al subir a vitest 4 se puede quitar.
+    pool: "threads",
     include: ["packages/**/*.test.ts", "apps/**/*.test.ts", "tests/**/*.test.ts"]
   },
   resolve: {

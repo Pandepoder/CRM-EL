@@ -27,7 +27,6 @@ import {
   DrizzleContactTerritoryRepository,
   DrizzleOutboxWriter as TerritoryOutboxWriter,
   DrizzleTerritoryCatalogReader,
-  DrizzleTerritoryReader,
   DrizzleTransactionManager as TerritoryTransactionManager
 } from "@tonala/modules/territory/infrastructure";
 import { linkContactToColony } from "@tonala/modules/territory/application";
@@ -118,7 +117,6 @@ function assignmentDeps(overrides: Partial<{
   const database = db();
   return {
     contactsReader: new DrizzleContactsReader(database),
-    territoryReader: new DrizzleTerritoryReader(database),
     userDirectoryReader: new DrizzleUserDirectoryReader(database),
     contactAssignmentRepository: overrides.repository ?? new DrizzleContactAssignmentRepository(database),
     transactionManager: new AssignmentsTransactionManager(database),
@@ -276,12 +274,13 @@ describe("assignments minimal integration", () => {
     const created = await registerMinimalContact(actor(), { displayName: "No Territory" }, contactDeps());
     expect(created.ok).toBe(true);
     if (!created.ok) return;
+    // Sin territorio ya se puede asignar (decisión del dueño, 2026-09-25); agendar la visita lo sigue
+    // exigiendo.
     const withoutTerritory = await assignResponsible(actor(), {
       contactId: created.value.contactId,
       assignedUserId: coordinatorUserId
     }, assignmentDeps());
-    expect(withoutTerritory.ok).toBe(false);
-    if (!withoutTerritory.ok) expect(withoutTerritory.error.code).toBe("contact_territory_not_found");
+    expect(withoutTerritory.ok).toBe(true);
 
     const contactId = await createContactWithTerritory("Invalid Users");
     const missingUser = await assignResponsible(actor(), { contactId, assignedUserId: crypto.randomUUID() }, assignmentDeps());

@@ -9,6 +9,9 @@ interface PendingUser {
   displayName: string;
   email: string;
   createdAt: string;
+  homeAddress?: string | null;
+  homeColony?: string | null;
+  homeMunicipality?: string | null;
 }
 
 interface RoleOption {
@@ -41,24 +44,26 @@ export function PendingUsersCard({
     formData.append("roleId", roleId);
 
     try {
-      await approveUserAction(formData);
-    } catch (err: any) {
-      setError(err?.message || "Error al autorizar usuario.");
+      const resultado = await approveUserAction(formData);
+      if (!resultado.ok) setError(resultado.error);
+    } catch {
+      setError("No se pudo autorizar. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setLoadingId(null);
     }
   }
 
   async function handleReject(userId: string) {
-    if (!confirm("¿Estás seguro de que deseas rechazar y descartar esta solicitud de registro?")) return;
+    if (!confirm("¿Rechazar esta solicitud? La cuenta no podrá entrar. No se borra nada: si fue un error, se puede reactivar desde la lista de usuarios.")) return;
 
     setError("");
     setLoadingId(userId);
 
     try {
-      await rejectUserAction(userId);
-    } catch (err: any) {
-      setError(err?.message || "Error al rechazar usuario.");
+      const resultado = await rejectUserAction(userId);
+      if (!resultado.ok) setError(resultado.error);
+    } catch {
+      setError("No se pudo rechazar. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setLoadingId(null);
     }
@@ -103,6 +108,9 @@ export function PendingUsersCard({
                   {u.displayName}
                 </div>
                 <div className="text-xs text-gray-500">{u.email}</div>
+                <div className="text-xs text-gray-500">
+                  Vive en: {[u.homeAddress, u.homeColony ? `Col. ${u.homeColony}` : null, u.homeMunicipality].filter(Boolean).join(", ") || "sin domicilio registrado"}
+                </div>
                 <div className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
                   <Clock size={12} />
                   Solicitado: {new Date(u.createdAt).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" })}
@@ -141,7 +149,7 @@ export function PendingUsersCard({
                   className="flex items-center gap-1 text-gray-500 hover:text-red-600 hover:bg-red-50 font-semibold py-1.5 px-2.5 rounded-lg text-xs transition-colors disabled:opacity-50"
                 >
                   <UserX size={14} />
-                  Descartar
+                  Rechazar
                 </button>
               </div>
             </div>

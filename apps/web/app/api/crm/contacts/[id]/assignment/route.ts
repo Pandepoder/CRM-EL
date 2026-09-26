@@ -28,9 +28,10 @@ export async function POST(
   const body = (await request.json()) as { assignedUserId: string };
 
   // Y solo hacia su propia gente: con el identificador de alguien de otra dirección se le podía
-  // encajar un ciudadano que ni siquiera ve.
+  // encajar un ciudadano que ni siquiera ve. «Su gente» es quien está bajo su mando, no a quien ve:
+  // un líder no le reparte trabajo al brigadista de otro líder (A20).
   const alcance = await resolveUserNetworkScope(actor.actorId);
-  if (!alcance.isGlobal && !(alcance.allowedUserIds ?? []).includes(body.assignedUserId)) {
+  if (!alcance.isMaster && !(alcance.commandUserIds ?? []).includes(body.assignedUserId)) {
     return NextResponse.json(
       { error: "Solo puedes asignar ciudadanos a personas de tu estructura." },
       { status: 403 }

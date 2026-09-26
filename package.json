@@ -10,6 +10,7 @@
   "scripts": {
     "check:boundaries": "node scripts/check-module-boundaries.mjs",
     "db:migrate": "tsx scripts/db/migrate.ts",
+    "db:backfill-phone-hash": "tsx scripts/db/backfill-phone-hash.ts",
     "db:restore-geo": "tsx scripts/db/restore-official-section-geometry.ts",
     "db:clean-sections": "tsx scripts/db/clean-unofficial-sections.ts",
     "db:reset": "tsx scripts/db/reset.ts",
@@ -18,6 +19,7 @@
     "db:clean": "tsx scripts/db/clean-production.ts",
     "db:start": "docker compose up -d db && tsx scripts/db/wait-for-db.ts",
     "db:status": "tsx scripts/db/status.ts",
+    "admin:rescatar": "tsx scripts/db/rescatar-administracion.ts",
     "db:stop": "docker compose down",
     "db:wait": "tsx scripts/db/wait-for-db.ts",
     "typecheck": "tsc --noEmit",

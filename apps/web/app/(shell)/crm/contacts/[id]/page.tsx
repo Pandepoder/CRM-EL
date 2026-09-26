@@ -8,10 +8,19 @@ import {
   Search, ClipboardList, CalendarDays, Plus
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ColonySelector } from "@/components/ColonySelector";
+import { MediaGallery } from "@/components/MediaGallery";
+import { MarcaMunicipio } from "@/components/MarcaMunicipio";
+import { DatosPersonales, type DatosDelCiudadano } from "./DatosPersonales";
+import { EditarDomicilio } from "./EditarDomicilio";
 
-type ContactDetail = {
+type ContactDetail = DatosDelCiudadano & {
   canManageSensitive?: boolean;
+  /** Puede corregir sección y colonia (misma regla que POST /territory). */
+  canEditTerritory?: boolean;
+  /** Puede asignar un enlace responsable (misma regla que POST /assignment). */
+  canAssign?: boolean;
+  /** Su llave de municipio (0022). */
+  municipio?: { nombre: string; esGeneral: boolean } | null;
   contactId: string;
   displayName: string;
   phoneNumber: string | null;
@@ -65,12 +74,17 @@ const MOTIVOS_VISITA: Record<string, string> = {
   contact_territory_not_confirmed:
     "El territorio de este ciudadano aún no está confirmado.",
   contact_not_found: "El ciudadano no fue encontrado o está inactivo.",
-  visit_scheduled_at_in_past: "La fecha de la visita no puede estar en el pasado."
+  visit_scheduled_at_in_past: "La fecha de la visita no puede estar en el pasado.",
+  responsible_user_inactive: "Esa persona está dada de baja: elige a alguien activo.",
+  responsible_user_not_operational: "Esa persona no hace visitas (por ejemplo, capturista): elige a un brigadista o líder.",
+  contact_assignment_version_conflict: "Alguien más cambió la asignación al mismo tiempo. Vuelve a intentarlo."
 };
 
-function motivoVisita(err: { code?: string; message?: string } | null): string | null {
+// También para asignar responsable y territorio: antes esos dos solo decían «no se pudo», y quien
+// asignaba a un ciudadano sin territorio no sabía que primero tenía que confirmar su colonia.
+function motivoVisita(err: { code?: string; message?: string; error?: string } | null): string | null {
   if (!err) return null;
-  return (err.code && MOTIVOS_VISITA[err.code]) || err.message || null;
+  return (err.code && MOTIVOS_VISITA[err.code]) || err.message || err.error || null;
 }
 
 const OUTCOME_LABELS: Record<string, string> = {
@@ -98,10 +112,6 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   // Modal-specific state
   const [users, setUsers] = useState<UserItem[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
-  const [selectedColonyId, setSelectedColonyId] = useState("");
-  const [selectedColonyName, setSelectedColonyName] = useState("");
-  const [selectedMunicipality, setSelectedMunicipality] = useState("");
-  const [selectedSectionNum, setSelectedSectionNum] = useState<number | undefined>(undefined);
   const [scheduledAt, setScheduledAt] = useState("");
   const [visitLocation, setVisitLocation] = useState("");
   const [outcomeVisitId, setOutcomeVisitId] = useState("");
@@ -116,6 +126,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const fetchDetail = useCallback(async () => {
     try {
       const res = await fetch(`/api/crm/contacts/${id}`);
+      // Una respuesta de error traía `{ error }`, y se guardaba como si fuera la ficha: con un 404
+      // —ficha inexistente o de otra brigada— nunca se veía «Contacto no encontrado», sino una ficha
+      // vacía. Otro fallo al recargar (tras guardar una nota, por ejemplo) conserva lo que ya se veía.
+      if (!res.ok) {
+        if (res.status === 404) setDetail(null);
+        return;
+      }
       const data = await res.json();
       setDetail(data as ContactDetail);
     } catch (err) {
@@ -159,33 +176,6 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  async function handleAssignTerritory() {
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/crm/contacts/${id}/territory`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          colonyId: selectedColonyId,
-          colonyName: selectedColonyName || selectedColonyId,
-          // Vacío: el servidor usa el municipio de la sección.
-          municipality: selectedMunicipality || undefined,
-          sectionNum: selectedSectionNum
-        }),
-      });
-      if (!res.ok) throw new Error("Error al asignar territorio");
-      await fetchDetail();
-      setModal(null);
-      setSelectedColonyId("");
-      setSelectedColonyName("");
-      showToast("success", "Territorio y sección actualizados correctamente.");
-    } catch {
-      showToast("error", "No se pudo asignar el territorio.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function handleAssignResponsible() {
     if (!selectedUserId) return;
     setSaving(true);
@@ -195,13 +185,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assignedUserId: selectedUserId }),
       });
-      if (!res.ok) throw new Error("Error al asignar responsable");
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(motivoVisita(err) || "No se pudo asignar el responsable.");
+      }
       await fetchDetail();
       setModal(null);
       setSelectedUserId("");
       showToast("success", "Responsable asignado correctamente.");
-    } catch {
-      showToast("error", "No se pudo asignar el responsable.");
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "No se pudo asignar el responsable.");
     } finally {
       setSaving(false);
     }
@@ -264,19 +257,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }
 
   async function handleDeleteContact() {
-    if (!confirm("¿Estás seguro de que deseas eliminar este contacto? Esta acción lo desactivará.")) return;
+    if (!confirm("¿Dar de baja a este ciudadano? Deja de aparecer en el directorio, el mapa y los conteos. Su historial de visitas y notas se conserva.")) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/crm/contacts/${id}`, {
         method: "DELETE"
       });
-      if (!res.ok) throw new Error("Error al eliminar contacto");
-      showToast("success", "Contacto eliminado.");
+      if (!res.ok) throw new Error("Error al dar de baja");
+      showToast("success", "Ciudadano dado de baja.");
       setTimeout(() => {
         router.push("/crm/contacts");
       }, 1000);
     } catch {
-      showToast("error", "No se pudo eliminar el contacto.");
+      showToast("error", "No se pudo dar de baja al ciudadano.");
       setSaving(false);
     }
   }
@@ -368,13 +361,15 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               onClick={handleDeleteContact}
               disabled={saving}
               className="p-2.5 bg-white/10 hover:bg-rose-600 rounded-xl text-white transition-colors cursor-pointer"
-              title="Eliminar contacto"
+              title="Dar de baja del padrón"
             >
               <Trash2 size={16} />
             </button>
           )}
         </div>
       </div>
+
+      <DatosPersonales detail={detail} onGuardado={fetchDetail} avisar={showToast} />
 
       {/* GRID: TERRITORIO, RESPONSABLE, MILITANCIA */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -387,7 +382,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </div>
             <button
               type="button"
-              hidden={!detail.canManageSensitive}
+              hidden={!detail.canEditTerritory}
               onClick={() => setModal("territory")}
               className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
             >
@@ -402,6 +397,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             <div className="text-xs text-gray-500 font-medium">
               {detail.section?.sectionNum ? `Sección ${detail.section.sectionNum}` : "Sección no asignada"}
             </div>
+            <div className="text-xs text-gray-500 font-medium mt-1 flex items-center gap-1.5">
+              Municipio: <MarcaMunicipio nombre={detail.municipio?.nombre} esGeneral={detail.municipio?.esGeneral ?? true} />
+            </div>
           </div>
         </div>
 
@@ -414,7 +412,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </div>
             <button
               type="button"
-              hidden={!detail.canManageSensitive}
+              hidden={!detail.canAssign}
               onClick={() => setModal("assignment")}
               className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
             >
@@ -470,14 +468,20 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <ImageIcon size={14} className="text-blue-600" />
               <span>Espacio Ofrecido / Barda</span>
             </div>
-            <a
-              href={detail.bardaPhotoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-blue-600 hover:underline font-bold block truncate"
-            >
-              <ImageIcon size={13} className="inline -mt-0.5 mr-1" /> Ver Fotografía de Barda / Espacio
-            </a>
+            {/* Las nuevas son fotos subidas desde el teléfono (C17) y se ven aquí mismo; las de antes
+                eran una URL escrita a mano y se siguen abriendo como enlace. */}
+            {detail.bardaPhotoUrl.startsWith("/api/uploads/") ? (
+              <MediaGallery media={[{ url: detail.bardaPhotoUrl, type: "image", name: "Barda" }]} title="Foto" />
+            ) : (
+              <a
+                href={detail.bardaPhotoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:underline font-bold block truncate"
+              >
+                <ImageIcon size={13} className="inline -mt-0.5 mr-1" /> Ver Fotografía de Barda / Espacio
+              </a>
+            )}
           </div>
         )}
       </div>
@@ -649,64 +653,25 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
       {/* MODALS */}
       {modal === "territory" && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setModal(null)}>
-          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
-              <h3 className="font-black text-sm text-gray-900">Editar Territorio y Colonia</h3>
-              <button 
-                type="button" 
-                onClick={() => setModal(null)} 
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center cursor-pointer transition-colors"
-                title="Cerrar ventana"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
-              <ColonySelector
-                defaultValue={detail.territory?.colonyName || ""}
-                onSelect={(_sectionId, _colony, municipio) => {
-                  if (municipio) setSelectedMunicipality(municipio);
-                }}
-                onChange={(c, s) => {
-                  setSelectedColonyName(c);
-                  setSelectedColonyId(c);
-                  if (s) setSelectedSectionNum(typeof s === "number" ? s : parseInt(s, 10));
-                }}
-              />
-
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sección Electoral</label>
-                <input
-                  type="number"
-                  placeholder="Número de sección"
-                  defaultValue={detail.section?.sectionNum || ""}
-                  onChange={e => setSelectedSectionNum(parseInt(e.target.value, 10))}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
-                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-xs font-bold text-gray-600 cursor-pointer">
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAssignTerritory}
-                  disabled={saving}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50"
-                >
-                  {saving ? "Guardando..." : "Guardar Territorio"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <EditarDomicilio
+          contactId={id}
+          actual={{
+            colonia: detail.territory?.colonyName ?? null,
+            seccion: detail.section?.sectionNum ?? null,
+            municipio: detail.municipio && !detail.municipio.esGeneral ? detail.municipio.nombre : null,
+            calle: detail.address ?? null,
+            lat: typeof detail.exactLatitude === "number" ? detail.exactLatitude : null,
+            lng: typeof detail.exactLongitude === "number" ? detail.exactLongitude : null
+          }}
+          onCerrar={() => setModal(null)}
+          onGuardado={fetchDetail}
+          avisar={showToast}
+          motivo={motivoVisita}
+        />
       )}
 
       {modal === "assignment" && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setModal(null)}>
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setModal(null)}>
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
               <h3 className="font-black text-sm text-gray-900">Asignar Responsable de Enlace</h3>
@@ -754,7 +719,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       )}
 
       {modal === "schedule" && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setModal(null)}>
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setModal(null)}>
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
               <h3 className="font-black text-sm text-gray-900">Programar Visita Domiciliaria</h3>
@@ -809,7 +774,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       )}
 
       {modal === "complete" && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setModal(null)}>
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setModal(null)}>
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
               <h3 className="font-black text-sm text-gray-900">Reportar Resultado de la Visita</h3>

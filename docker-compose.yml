@@ -129,9 +129,13 @@ services:
     restart: unless-stopped
 
   # Respaldo periódico de la base. Escribe un dump comprimido por ciclo y poda
-  # los más viejos que BACKUP_RETENTION_DAYS.
-  # PENDIENTE: estas copias quedan EN EL MISMO VPS. Para que sirvan ante pérdida
-  # del disco hay que replicarlas fuera (S3, rclone, scp a otra máquina).
+  # los más viejos que BACKUP_RETENTION_DAYS (solo tras un volcado bueno).
+  # PENDIENTE (pospuesto a propósito, 2026-09-23): estas copias quedan EN EL
+  # MISMO VPS. Sirven ante un borrado accidental, no ante la pérdida del disco o
+  # del servidor. Falta elegir destino fuera (otro servidor, S3, Backblaze B2,
+  # Google Drive…) y sus credenciales; con eso, la réplica es otro servicio aquí
+  # que copie /backups y el volumen tonala_os_uploads. La llave de cifrado nunca
+  # va a ese mismo destino. Ver R12 en docs/PLAN_ADMIN_MUNICIPAL.md.
   backup:
     image: postgres:16-alpine
     container_name: tonala-os-backup
