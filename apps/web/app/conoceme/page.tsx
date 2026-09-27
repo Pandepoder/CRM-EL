@@ -9,7 +9,7 @@ import ReelCampana from "./ReelCampana";
 import { CATEGORIAS_INCIDENCIA, CATEGORIA_DESCONOCIDA } from "@/lib/categorias-incidencia";
 import { cifrasPublicas } from "@/lib/pulso-publico";
 import { videosDelCanal, type VideoDelCanal } from "@/lib/videos-canal";
-import { MARCA } from "@/lib/marca";
+import { ESLOGAN_EN_TEXTO, ESLOGAN_ES_LARGO, MARCA } from "@/lib/marca";
 
 /**
  * Conóceme: página pública de campaña.
@@ -41,7 +41,17 @@ export const dynamic = "force-dynamic";
  * Si algún día hay que fijar uno a mano: el identificador de un Short es lo que va después de
  * `/shorts/` en la dirección, y en un video normal lo que va después de `v=`.
  */
-const VIDEOS_DE_RESPALDO: VideoDelCanal[] = [];
+const VIDEOS_DE_RESPALDO: VideoDelCanal[] = [
+  // Los títulos son los que tienen los videos en YouTube, leídos de su ficha
+  // pública; no se inventó ninguno. Al 20 de septiembre de 2026. Son del canal de Edgar López: si
+  // cambia la persona de `marca.ts`, esta lista se vacía o se cambia con ella.
+  { id: "XXRMuPPUEec", titulo: "Entre Mentes con Edgar López 🎙️🎥", formato: "horizontal" },
+  { id: "i8S0y49utMo", titulo: "¡TONALÁ SE VIVE CON SU GENTE!🇲🇽🤝", formato: "corto" },
+  { id: "xioVXXi1QsM", titulo: "DESFILE CÍVICO-MILITAR #tonala", formato: "corto" },
+  { id: "WOI0Wi9nO_s", titulo: "AYUDEMOS al comedor comunitario en Loma Bonita", formato: "corto" },
+  { id: "11p2xl9RyWk", titulo: "En #tonala siempre de cerca escuchando sus necesidades", formato: "corto" },
+  { id: "9Q3KK49ZIVU", titulo: "Las colonias se conocen por su #gente #tonala", formato: "corto" }
+];
 
 // Los mismos trazos que usa la pantalla de acceso, para que las redes se vean
 // idénticas en las dos páginas.
@@ -127,13 +137,13 @@ export default async function ConocemePage() {
             monograma como identidad, sin navegacion a ninguna parte. */}
         <span className="flex items-center gap-2 font-semibold text-sm" style={{ color: "#0b1f3a" }}>
           <Image
-            src="/brand/monograma-color.svg"
-            alt={MARCA.sistema}
+            src={MARCA.monograma.color}
+            alt={MARCA.firma}
             width={30}
             height={30}
             style={{ width: 30, height: 30, objectFit: "contain", display: "block" }}
           />
-          {MARCA.sistema}
+          {MARCA.firma}
         </span>
         <Link
           href="/login"
@@ -191,7 +201,7 @@ export default async function ConocemePage() {
               className="cm-anim text-xs font-bold uppercase mb-4"
               style={{ letterSpacing: ".18em", color: "#93c5fd", animationDelay: ".16s" }}
             >
-              {MARCA.referente.corto} · {MARCA.referente.cargo}
+              {MARCA.referente.corto}{MARCA.referente.cargo ? ` · ${MARCA.referente.cargo}` : ""}
             </p>
 
             {/* El eslogan es el centro de la página: sin biografía todavía, es lo
@@ -199,14 +209,20 @@ export default async function ConocemePage() {
             <h1
               className="cm-anim font-extrabold tracking-tight"
               style={{
-                fontSize: "clamp(3.2rem, 11vw, 6.6rem)",
+                fontSize: ESLOGAN_ES_LARGO ? "clamp(1.95rem, 5.4vw, 3.35rem)" : "clamp(3.2rem, 11vw, 6.6rem)",
                 lineHeight: 1.08,
                 textWrap: "balance",
                 maxWidth: "18ch",
                 animationDelay: ".24s"
               }}
             >
-              <span className="welcome-title-soft">¿Y si</span> <span className="welcome-title-accent">sí?</span>
+              <span className="sr-only">{ESLOGAN_EN_TEXTO}</span>
+              <span aria-hidden="true">
+                {MARCA.eslogan.comillas ? "“" : ""}
+                {MARCA.eslogan.inicio ? <>{MARCA.eslogan.inicio}<br /></> : null}
+                <span className="welcome-title-soft">{MARCA.eslogan.suave}</span>{" "}
+                <span className="welcome-title-accent">{MARCA.eslogan.acento}{MARCA.eslogan.comillas ? "”" : ""}</span>
+              </span>
             </h1>
 
             <div
@@ -233,7 +249,7 @@ export default async function ConocemePage() {
                 </a>
               ))}
             </div>
-            <a href={MARCA.redes.youtube ? "#videos" : MARCA.redes.instagram} {...(MARCA.redes.youtube ? {} : { target: "_blank", rel: "noopener noreferrer" })} className="welcome-cta">Conoce su trabajo <span aria-hidden="true">↗︎</span></a>
+            <a href={MARCA.redes.youtube ? "#videos" : MARCA.redes.instagram} {...(MARCA.redes.youtube ? {} : { target: "_blank", rel: "noopener noreferrer" })} className="welcome-cta">{MARCA.primeraPersona ? "Conoce mi trabajo" : "Conoce su trabajo"} <span aria-hidden="true">↗︎</span></a>
             <div className="welcome-signature"><span className="signature-line" /><span>JALISCO</span><span className="signature-line" /></div>
           </div>
         </section>
@@ -388,7 +404,7 @@ export default async function ConocemePage() {
         {/* Cierre: comparte y sigue */}
         <section className="cierre">
           <div className="cierre-interior">
-            <img src="/brand/monograma-blanco.svg" alt="" width={44} height={44} className="cierre-monograma" />
+            <img src={MARCA.monograma.blanco} alt="" width={44} height={44} className="cierre-monograma" />
             <h2 className="cierre-titulo">Pásale esta página a tu gente.</h2>
             <p className="cierre-lead">Se abre en cualquier teléfono y no gasta datos hasta que alguien toca un video.</p>
             <BotonCompartir mensaje={`Conoce el trabajo de ${MARCA.referente.corto} en Jalisco:`} />
@@ -406,7 +422,7 @@ export default async function ConocemePage() {
       <footer className="py-7 px-6 text-center" style={{ background: "#fff", borderTop: "1px solid #e6eaf2" }}>
         <div className="flex items-center justify-center gap-2 mb-2">
           <img
-            src="/brand/monograma-color.svg"
+            src={MARCA.monograma.color}
             alt=""
             width={22}
             height={22}
@@ -416,7 +432,7 @@ export default async function ConocemePage() {
             Jalisco OS
           </span>
         </div>
-        <p style={{ color: "#8b95a9", fontSize: ".82rem" }}>© 2026 {MARCA.sistema} · Con {MARCA.referente.corto}, {MARCA.referente.cargoTexto}</p>
+        <p style={{ color: "#8b95a9", fontSize: ".82rem" }}>© 2026 {MARCA.firma} · {MARCA.lema}</p>
       </footer>
     </div>
   );

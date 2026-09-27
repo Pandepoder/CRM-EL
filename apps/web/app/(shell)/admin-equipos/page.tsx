@@ -8,8 +8,9 @@ import { requirePageAccess } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { gestionaEquipos, lideresPosibles, puedeBorrarEquipo, puedeCambiarLider, puedeEditarEquipo } from "@/lib/permisos-equipos";
 import { condicionDeEquipos, municipioDeAdministracion, nombreDeMunicipio } from "@/lib/alcance-municipal";
+import { tableroDeEquipos } from "@/lib/integrantes-equipo";
 
-export default async function AdminEquiposPage() {
+export default async function AdminEquiposPage({ searchParams }: { searchParams: Promise<{ vista?: string }> }) {
   await requirePageAccess("/admin-equipos");
   const session = await getServerSession();
   const db = getDatabaseClient();
@@ -119,9 +120,16 @@ export default async function AdminEquiposPage() {
     };
   });
 
+  // El tablero para arrastrar personas: los equipos cuyos integrantes puede cambiar y a quién puede sumar,
+  // con la misma regla que la API (`lib/integrantes-equipo.ts`).
+  const tablero = await tableroDeEquipos(networkScope, session.userId);
+  const { vista } = await searchParams;
+
   return (
     <TeamsClient
       teams={teamsData}
+      tablero={tablero}
+      vistaInicial={vista === "tablero" && tablero.columnas.length > 0 ? "tablero" : "tarjetas"}
       users={users}
       esAdministracion={networkScope.isAdmin}
       municipioFijo={municipioFijo}

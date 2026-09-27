@@ -74,8 +74,8 @@ export default async function UnirmePage({ params }: { params: Promise<{ slug: s
       >
         <div className="max-w-md mx-auto px-6 pt-10 pb-9 text-center">
           <img
-            src="/brand/monograma-blanco.svg"
-            alt={MARCA.sistema}
+            src={MARCA.monograma.blanco}
+            alt={MARCA.firma}
             width={44}
             height={44}
             style={{ width: 44, height: 44, objectFit: "contain", margin: "0 auto 1.1rem" }}
@@ -117,7 +117,7 @@ export default async function UnirmePage({ params }: { params: Promise<{ slug: s
       </main>
 
       <footer className="py-6 px-6 text-center" style={{ background: "#fff", borderTop: "1px solid #e6eaf2" }}>
-        <p style={{ color: "#8b95a9", fontSize: ".8rem" }}>© 2026 {MARCA.sistema} · Con {MARCA.referente.corto}, {MARCA.referente.cargoTexto}</p>
+        <p style={{ color: "#8b95a9", fontSize: ".8rem" }}>© 2026 {MARCA.firma} · {MARCA.lema}</p>
       </footer>
     </div>
   );

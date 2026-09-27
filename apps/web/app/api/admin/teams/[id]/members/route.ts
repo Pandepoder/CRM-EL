@@ -2,27 +2,12 @@ import { NextResponse } from "next/server";
 import { actorFromSession } from "@/lib/api-helpers";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq, and, or } from "drizzle-orm";
-import { resolveUserNetworkScope, type UserNetworkScope } from "@/lib/network-hierarchy";
+import { eq, and } from "drizzle-orm";
 import { registrarError } from "@/lib/registro";
 import { esUuid } from "@/lib/ids";
-import { puedeEditarEquipo } from "@/lib/permisos-equipos";
-
-/**
- * ¿Puede esta sesión tocar los integrantes del equipo? Administración sobre los equipos que gobierna
- * (el maestro, todos; un administrador municipal, los de su municipio), o el líder de ese mismo
- * equipo (misma regla que las acciones de /admin-equipos).
- */
-async function permisoSobreIntegrantes(
-  userId: string,
-  teamId: string
-): Promise<{ ok: boolean; esAdmin: boolean; scope: UserNetworkScope }> {
-  const scope = await resolveUserNetworkScope(userId);
-  if (scope.isAdmin) return { ok: puedeEditarEquipo(scope, teamId), esAdmin: true, scope };
-  const db = getDatabaseClient();
-  const equipo = await db.query.teams.findFirst({ where: eq(schema.teams.id, teamId) });
-  return { ok: Boolean(equipo && equipo.leaderId === userId), esAdmin: false, scope };
-}
+// Quién puede tocar los integrantes y a quién puede sumar: la misma regla que el tablero de
+// /admin-equipos (`lib/integrantes-equipo.ts`).
+import { motivoParaNoSumar, permisoSobreIntegrantes } from "@/lib/integrantes-equipo";
 
 export async function POST(
   request: Request,
@@ -50,21 +35,10 @@ export async function POST(
     if (!permiso.ok) {
       return NextResponse.json({ error: "Solo administración o el líder de este equipo pueden modificar integrantes" }, { status: 403 });
     }
-    // Un administrador municipal suma solo a personas activas de su municipio (etapa 6).
-    if (permiso.esAdmin && !permiso.scope.isMaster && !(permiso.scope.allowedUserIds ?? []).includes(userId)) {
-      return NextResponse.json({ error: "Solo puedes sumar a personas activas de tu municipio." }, { status: 403 });
-    }
-    // El líder solo suma a personas activas que él invitó; ver addMemberAction.
-    if (!permiso.esAdmin) {
-      const persona = await db.query.userProfiles.findFirst({
-        where: and(
-          eq(schema.userProfiles.id, userId),
-          eq(schema.userProfiles.status, "active"),
-          or(eq(schema.userProfiles.invitedByUserId, actor.actorId), eq(schema.userProfiles.parentEnlaceId, actor.actorId))
-        )
-      });
-      if (!persona) return NextResponse.json({ error: "Solo puedes agregar a personas activas que tú invitaste" }, { status: 403 });
-    }
+    // Un administrador municipal suma solo a personas de su municipio (etapa 6); el líder, solo a
+    // personas activas que él invitó.
+    const motivo = await motivoParaNoSumar(permiso, actor.actorId, userId);
+    if (motivo) return NextResponse.json({ error: motivo }, { status: 403 });
 
     await db.insert(schema.teamMembers).values({
       teamId: id,

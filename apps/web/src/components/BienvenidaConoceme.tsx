@@ -79,7 +79,7 @@ export function BienvenidaConoceme({ accion, invitadoPor, clave }: BienvenidaCon
   if (!visible) return null;
 
   return (
-    <div className="bienvenida" role="dialog" aria-modal="true" aria-label={`Conoce ${MARCA.sistema}`}>
+    <div className="bienvenida" role="dialog" aria-modal="true" aria-label={`Conoce a ${MARCA.referente.corto}`}>
       <div className="bienvenida-caja">
         <div className="bienvenida-foto">
           {MARCA.retrato ? (
@@ -95,13 +95,13 @@ export function BienvenidaConoceme({ accion, invitadoPor, clave }: BienvenidaCon
           <div className="bienvenida-velo" />
           <div className="bienvenida-titulo">
             <Image
-              src="/brand/monograma-blanco.svg"
+              src={MARCA.monograma.blanco}
               alt=""
               width={44}
               height={44}
               style={{ width: 44, height: 44, objectFit: "contain" }}
             />
-            <strong>{MARCA.sistema}</strong>
+            <strong>{MARCA.firma}</strong>
             <span>{MARCA.lema}</span>
           </div>
         </div>
@@ -125,7 +125,7 @@ export function BienvenidaConoceme({ accion, invitadoPor, clave }: BienvenidaCon
 
           <Link href="/conoceme" className="bienvenida-ver">
             <PlayCircle size={17} />
-            Conocer el proyecto
+            {MARCA.redes.youtube ? `Ver videos y conocer a ${MARCA.referente.nombrePila}` : "Conocer el proyecto"}
           </Link>
         </div>
       </div>
