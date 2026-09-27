@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Plus, MapPin, X, Edit, Trash, ArrowRight, User, Search, ChevronRight } from "lucide-react";
+import { Users, Plus, MapPin, X, Edit, Trash, ArrowRight, User, Search, ChevronRight, LayoutGrid, Columns3 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 import { MarcaMunicipio } from "@/components/MarcaMunicipio";
+import type { Tablero } from "@/lib/integrantes-equipo";
+import TableroEquipos from "./TableroEquipos";
 
 type Team = {
   id: string;
@@ -47,10 +49,20 @@ type Props = {
   /** Crear equipos: Administración, Dirección y Líder, dentro de su mando. */
   puedeCrear?: boolean;
   currentUserId?: string;
+  /** Los equipos cuyos integrantes puede cambiar y a quién puede sumar; sin columnas, no hay tablero. */
+  tablero?: Tablero;
+  vistaInicial?: "tarjetas" | "tablero";
 };
 
-export default function TeamsClient({ teams, users, esAdministracion = false, municipioFijo = null, puedeCrear = false, currentUserId }: Props) {
+export default function TeamsClient({ teams, users, esAdministracion = false, municipioFijo = null, puedeCrear = false, currentUserId, tablero, vistaInicial = "tarjetas" }: Props) {
   const router = useRouter();
+  const hayTablero = Boolean(tablero && tablero.columnas.length > 0);
+  const [vista, setVista] = useState<"tarjetas" | "tablero">(vistaInicial);
+  const cambiarVista = (v: "tarjetas" | "tablero") => {
+    setVista(v);
+    // En la dirección: al recargar o compartir el enlace se abre igual, sin parpadeo.
+    router.replace(v === "tablero" ? "/admin-equipos?vista=tablero" : "/admin-equipos", { scroll: false });
+  };
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -172,6 +184,21 @@ export default function TeamsClient({ teams, users, esAdministracion = false, mu
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {hayTablero && (
+            <div className="flex bg-slate-100 rounded-xl p-1" role="group" aria-label="Vista">
+              {([["tarjetas", "Tarjetas", LayoutGrid], ["tablero", "Tablero", Columns3]] as const).map(([clave, etiqueta, Icono]) => (
+                <button
+                  key={clave}
+                  type="button"
+                  onClick={() => cambiarVista(clave)}
+                  aria-pressed={vista === clave}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-all ${vista === clave ? "bg-white text-blue-800 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                >
+                  <Icono size={15} /> {etiqueta}
+                </button>
+              ))}
+            </div>
+          )}
           {puedeCrear && (
             <button
               onClick={openCreateModal}
@@ -183,6 +210,10 @@ export default function TeamsClient({ teams, users, esAdministracion = false, mu
         </div>
       </div>
 
+      {vista === "tablero" && hayTablero && tablero ? (
+        <TableroEquipos tablero={tablero} />
+      ) : (
+      <>
       {/* SEARCH BAR */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
         <div className="relative w-full sm:w-96">
@@ -335,6 +366,8 @@ export default function TeamsClient({ teams, users, esAdministracion = false, mu
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
 
       {/* CREATE / EDIT MODAL */}

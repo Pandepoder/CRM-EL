@@ -1,82 +1,15 @@
-import { getDatabaseClient } from "@/lib/db-client";
-import { schema, decryptData } from "@tonala/shared/database";
 import AnalyticsClient from "./AnalyticsClient";
+import { analisisDemografico } from "@/lib/analisis-demografico";
 import { requirePageAccess } from "@/lib/authorization";
-import { getServerSession } from "@/lib/session-server";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { contactosVisibles, contactIdRestriction } from "@/lib/contact-visibility";
-import { and, eq } from "drizzle-orm";
+import { getServerSession } from "@/lib/session-server";
 
 export default async function AnalyticsPage() {
   await requirePageAccess("/analytics");
   const session = await getServerSession();
 
-  const db = getDatabaseClient();
-
-  // El análisis se hace sobre lo que quien consulta puede ver, no sobre toda la
-  // base. Antes leía `SELECT * FROM contacts` sin condición alguna: ni alcance
-  // de equipo ni filtro de estado, así que Dirección obtenía la demografía
-  // completa del padrón y los conteos incluían registros dados de baja.
-  const alcance = await resolveUserNetworkScope(session.userId);
-  // Los mismos contactos que el directorio (equipo y territorio), no solo los creados por el equipo.
-  const restriccion = contactIdRestriction(await contactosVisibles(alcance));
-
-  const contacts = await db
-    .select()
-    .from(schema.contacts)
-    .where(and(eq(schema.contacts.status, "active"), restriccion));
-  
-  const totalCitizens = contacts.length;
-  
-  // Aggregate data in memory
-  const availabilityCount: Record<string, number> = {};
-  const skillCount: Record<string, number> = {};
-  const colonyCount: Record<string, number> = {};
-
-  for (const c of contacts) {
-    // Decrypt categorical fields
-    const availability = c.availability ? decryptData(c.availability) : null;
-    const skill = c.skill ? decryptData(c.skill) : null;
-    const colony = c.colony ? decryptData(c.colony) : null;
-    const municipio = c.municipality ? decryptData(c.municipality) : null;
-
-    if (availability) {
-      availabilityCount[availability] = (availabilityCount[availability] || 0) + 1;
-    }
-    if (skill) {
-      skillCount[skill] = (skillCount[skill] || 0) + 1;
-    }
-    if (colony) {
-      // "Centro" existe en decenas de municipios: sin el municipio en la clave, el Centro
-      // de Tonalá, el de Zapopan y el de Tepatitlán se sumaban en una sola barra.
-      const clave = municipio ? `${colony} (${municipio})` : colony;
-      colonyCount[clave] = (colonyCount[clave] || 0) + 1;
-    }
-  }
-
-  // 2. Availability Distribution
-  const availabilityData = Object.entries(availabilityCount || {})
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, value]) => ({ name, value }));
-
-  // 3. Skills Distribution (Top 10)
-  const skillData = Object.entries(skillCount || {})
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([name, value]) => ({ name, value }));
-
-  // 4. Top Colonies (Top 9)
-  const topColonies = Object.entries(colonyCount || {})
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 9)
-    .map(([name, value]) => ({ name, value }));
-
-  return (
-    <AnalyticsClient 
-      totalCitizens={totalCitizens} 
-      availabilityData={availabilityData} 
-      skillData={skillData} 
-      topColonies={topColonies} 
-    />
-  );
+  // Sobre lo que quien consulta puede ver (el mismo alcance que el directorio), no sobre toda la base.
+  // Los números se calculan en `lib/analisis-demografico.ts`; a la pantalla solo llegan conteos.
+  const analisis = await analisisDemografico(await resolveUserNetworkScope(session.userId));
+  return <AnalyticsClient analisis={analisis} />;
 }

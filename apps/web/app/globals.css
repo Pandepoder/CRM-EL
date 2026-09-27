@@ -1354,3 +1354,23 @@ input[placeholder*="buscar"] {
     min-height: 40px;
   }
 }
+
+/* Análisis demográfico: las barras crecen al aparecer. */
+@keyframes crecer-barra {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.animar-barra {
+  transform-origin: left center;
+  animation: crecer-barra .9s cubic-bezier(.2, .8, .2, 1) both;
+}
+.animar-barra-centro {
+  transform-origin: center;
+  animation: crecer-barra .9s cubic-bezier(.2, .8, .2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animar-barra,
+  .animar-barra-centro {
+    animation: none;
+  }
+}
