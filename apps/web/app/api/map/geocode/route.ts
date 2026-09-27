@@ -6,6 +6,7 @@ import { ubicarEnSeccion } from "@/lib/sections-geo-cache";
 import { buscarMunicipio, resolverMunicipio } from "@/lib/municipios-jalisco";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { buscarDireccion } from "@/lib/osm-search";
+import { registrarError } from "@/lib/registro";
 
 // Lugares de referencia de Tonalá. Solo se ofrecen cuando se captura en Tonalá o la
 // búsqueda nombra Tonalá: antes "comité pan" llevaba a Tonalá desde cualquier municipio.
@@ -99,6 +100,8 @@ export async function GET(request: Request) {
         lng,
         displayName: item.display_name,
         formattedAddress: `${addr.road ? addr.road + (addr.house_number ? " #" + addr.house_number : "") : item.name || query}${colony ? `, Col. ${colony}` : ""}${municipality ? `, ${municipality}` : ""}`,
+        // Solo la calle y el número: lo que va en «Calle y número» de un domicilio.
+        street: addr.road ? `${addr.road}${addr.house_number ? ` #${addr.house_number}` : ""}` : undefined,
         municipality,
         colony,
         postalCode: addr.postcode || "",
@@ -117,7 +120,7 @@ export async function GET(request: Request) {
 
     results.push(...deOSM);
   } catch (err) {
-    console.error("OSM geocode lookup error:", err);
+    registrarError("OSM geocode lookup error", err);
   }
 
   // 3. Sin resultados no se inventa uno.

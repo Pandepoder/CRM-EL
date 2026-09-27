@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { schema } from "@tonala/shared/database";
 
-import { visibleContactIds } from "@/lib/contact-visibility";
+import { contactosVisibles } from "@/lib/contact-visibility";
 import { getDatabaseClient } from "@/lib/db-client";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { puedeVerContacto } from "@/lib/permisos-contacto";
@@ -46,8 +46,10 @@ let rolIds: Record<string, string> = {};
 let seccionTonalaId = "";
 
 async function visibles(userId: string) {
-  const ids = await visibleContactIds(await resolveUserNetworkScope(userId));
-  return new Set(ids ?? []);
+  const resultado = await contactosVisibles(await resolveUserNetworkScope(userId));
+  // Estas personas no son administración: siempre llega la lista de su cascada.
+  if (!("ids" in resultado)) throw new Error("Una persona sin administración no debería ver el padrón sin recorte");
+  return new Set(resultado.ids);
 }
 
 beforeAll(async () => {

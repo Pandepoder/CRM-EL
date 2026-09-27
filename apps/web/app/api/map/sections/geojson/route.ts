@@ -4,10 +4,10 @@ import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { createHash } from "crypto";
-import { visibleContactIds, sqlRestriccionContactos } from "@/lib/contact-visibility";
-import { sqlCondicionIncidencias } from "@/lib/incident-visibility";
+import { contactosVisibles, sqlRestriccionContactos } from "@/lib/contact-visibility";
 import { resolverMunicipio } from "@/lib/municipios-jalisco";
 import { municipioDelUsuario } from "@/lib/municipio-usuario";
+import { registrarError } from "@/lib/registro";
 
 /**
  * Caché en proceso del GeoJSON por municipio.
@@ -56,6 +56,20 @@ function simplificarGeometria(geom: any): any {
 }
 
 /**
+ * Coordenadas a cinco decimales, ~1 metro: a cualquier zoom del mapa es invisible, y la geometría
+ * de la base viene con quince. Solo eso quitaba del orden de la mitad del peso de un municipio.
+ */
+function redondearGeometria(geom: any): any {
+  const punto = (p: number[]) => [Math.round(p[0]! * 1e5) / 1e5, Math.round(p[1]! * 1e5) / 1e5];
+  const anillo = (a: number[][]) => (Array.isArray(a) ? a.map(punto) : a);
+  if (geom?.type === "Polygon") return { type: "Polygon", coordinates: geom.coordinates.map(anillo) };
+  if (geom?.type === "MultiPolygon") {
+    return { type: "MultiPolygon", coordinates: geom.coordinates.map((pol: number[][][]) => pol.map(anillo)) };
+  }
+  return geom;
+}
+
+/**
  * GET /api/map/sections/geojson
  * Returns a GeoJSON FeatureCollection of electoral sections.
  * Uses the geom_json column if available, filtered by municipality.
@@ -85,19 +99,24 @@ export async function GET(req: Request) {
   // Antes cada persona veía la actividad de toda la estructura sección por
   // sección: el termómetro exacto para comparar el rendimiento entre brigadas.
   const alcance = await resolveUserNetworkScope(actor.actorId);
-  const enAlcance = alcance.isGlobal ? null : (alcance.allowedUserIds ?? [actor.actorId]);
+
+  // La cartografía de los 125 municipios de una vez (varios MB) es del administrador maestro (A11).
+  // El mapa ya no la pide así desde la etapa 4: en todo Jalisco dibuja los municipios del catálogo,
+  // y las secciones de uno cuando se acerca. Quien no tiene municipio y no dice cuál, igual.
+  if (targetMunicipality.toLowerCase() === "all" && !alcance.isMaster) {
+    return NextResponse.json(
+      { error: "Elige un municipio: las secciones de todo el estado a la vez solo las pide el administrador maestro." },
+      { status: 400 }
+    );
+  }
+
+  const enAlcance = alcance.isMaster ? null : (alcance.allowedUserIds ?? [actor.actorId]);
   const misEquipos = alcance.teamIds ?? [];
 
-  // Con una lista vacía, `IN (NULL)` es falso; `IN ()` sería un error de sintaxis.
-  const lista = (ids: readonly string[]) => (ids.length ? sql.join(ids.map((i) => sql`${i}`), sql`, `) : sql`NULL`);
   // Los mismos contactos que el directorio (equipo y territorio). Antes solo por creador: el mapa
   // contaba en cada sección contactos que el CRM ya no le enseña a esa persona.
-  const idsVisibles = await visibleContactIds(alcance);
-  const filtroContactos = sqlRestriccionContactos(sql.raw("cont.id"), idsVisibles);
-  const filtroRepresentantes = enAlcance ? sql`AND erep.user_id IN (${lista(enAlcance)})` : sql``;
-  // La misma regla que el resto de las pantallas de incidencias. Antes el mapa sumaba en cada
-  // sección todas las incidencias sin asignar del sistema, incluidas las de otra dirección.
-  const filtroIncidencias = enAlcance ? sql`AND ${sqlCondicionIncidencias(alcance, "rep")}` : sql``;
+  const visibles = await contactosVisibles(alcance);
+  const filtroContactos = sqlRestriccionContactos(sql.raw("cont.id"), visibles);
 
   const db = getDatabaseClient();
   // El caché se guardaba solo por municipio. Ahora la respuesta depende de quién
@@ -105,8 +124,15 @@ export async function GET(req: Request) {
   // los números de una brigada se servirían a la siguiente que abriera el mapa.
   // La huella incluye a la persona: con "lo propio siempre visible", dos integrantes del mismo
   // equipo ya no ven exactamente los mismos contactos.
+  // Un administrador municipal lleva además su municipio: los números salen de su llave, no de una lista.
   const huellaAlcance = enAlcance
-    ? createHash("sha1").update(alcance.userId + "|" + [...enAlcance].sort().join(",") + "|" + [...misEquipos].sort().join(",") + "|" + (idsVisibles ?? []).length).digest("hex").slice(0, 12)
+    ? createHash("sha1")
+        .update(
+          alcance.userId + "|" + (alcance.adminMunicipalityId ?? "") + "|" + [...enAlcance].sort().join(",") + "|" +
+            [...misEquipos].sort().join(",") + "|" + ("ids" in visibles ? visibles.ids.length : "municipio")
+        )
+        .digest("hex")
+        .slice(0, 12)
     : "global";
   // Va el municipio efectivo, no el parámetro: dos peticiones sin parámetro hechas desde
   // municipios distintos resuelven a respuestas distintas y no pueden compartir entrada.
@@ -127,11 +153,7 @@ export async function GET(req: Request) {
       colonies: string[];
       municipality: string;
       contacts_count: string;
-      visits_scheduled: string;
       visits_completed: string;
-      incidents_active: string;
-      incidents_resolved: string;
-      representatives: Array<{ name: string; role: string }>;
       atlas_priority: string | null;
       atlas_main_colony: string | null;
       atlas_polling_place: string | null;
@@ -150,15 +172,10 @@ export async function GET(req: Request) {
         COALESCE(es.municipality, 'Sin municipio') AS municipality,
         COALESCE(ARRAY_AGG(DISTINCT col.name) FILTER (WHERE col.name IS NOT NULL), '{}') AS colonies,
         COUNT(DISTINCT cont.id)::text AS contacts_count,
-        COUNT(DISTINCT v.id) FILTER (WHERE v.status = 'scheduled')::text AS visits_scheduled,
         COUNT(DISTINCT v.id) FILTER (WHERE v.status = 'completed')::text AS visits_completed,
-        COUNT(DISTINCT rep.id) FILTER (WHERE rep.status = 'active')::text AS incidents_active,
-        COUNT(DISTINCT rep.id) FILTER (WHERE rep.status = 'resolved')::text AS incidents_resolved,
-        COALESCE(
-          JSON_AGG(DISTINCT JSONB_BUILD_OBJECT('name', u.display_name, 'role', erep.role))
-          FILTER (WHERE erep.id IS NOT NULL),
-          '[]'::json
-        ) AS representatives,
+        -- Aquí también se calculaban visitas agendadas, incidencias por estado y los representantes
+        -- de cada sección, con dos uniones más que multiplicaban las filas: el mapa no usaba nada de
+        -- eso. Las incidencias de la sección elegida las cuenta el mapa con las que ya tiene cargadas.
         -- Atlas de la campaña. Va por LEFT JOIN porque solo cubre un distrito: el resto de
         -- las secciones seguirá llegando sin estos campos, y el mapa las pinta como antes.
         ser.priority AS atlas_priority,
@@ -174,9 +191,6 @@ export async function GET(req: Request) {
       LEFT JOIN colonies col ON col.id = sc.colony_id
       LEFT JOIN contacts cont ON cont.section_id = es.id AND cont.status = 'active' ${filtroContactos}
       LEFT JOIN visits v ON v.contact_id = cont.id
-      LEFT JOIN event_reports rep ON rep.section_id = es.id ${filtroIncidencias}
-      LEFT JOIN electoral_representatives erep ON erep.section_id = es.id ${filtroRepresentantes}
-      LEFT JOIN user_profiles u ON u.id = erep.user_id
       WHERE es.geom_json IS NOT NULL
         ${isFilterAll ? sql`` : sql`AND LOWER(COALESCE(es.municipality, 'Sin municipio')) = LOWER(${targetMunicipality})`}
       GROUP BY es.id, es.section_num, es.municipality, es.geom_json,
@@ -202,15 +216,10 @@ export async function GET(req: Request) {
           properties: {
             id: row.id,
             section_num: row.section_num,
-            name: `Sección ${row.section_num}`,
             municipality: row.municipality,
             colonies: (row.colonies || []).filter(c => c && !c.startsWith("Cabecera ") && !c.startsWith("Municipio ")),
             contactsCount: Number(row.contacts_count || 0),
-            visitsScheduled: Number(row.visits_scheduled || 0),
             visitsCompleted: Number(row.visits_completed || 0),
-            incidentsActive: Number(row.incidents_active || 0),
-            incidentsResolved: Number(row.incidents_resolved || 0),
-            representatives: typeof row.representatives === "string" ? JSON.parse(row.representatives) : (row.representatives || []),
             // `atlas` es null en las secciones que el documento no cubre. El mapa distingue
             // "sin datos" de "cero votos": pintar de gris una sección sin información no es
             // lo mismo que pintarla como empate.
@@ -228,7 +237,7 @@ export async function GET(req: Request) {
                 }
               : null
           },
-          geometry: isFilterAll ? simplificarGeometria(geometry) : geometry,
+          geometry: isFilterAll ? simplificarGeometria(geometry) : redondearGeometria(geometry),
         };
       })
       .filter((f): f is NonNullable<typeof f> => Boolean(f));
@@ -237,7 +246,7 @@ export async function GET(req: Request) {
     cache.set(claveCache, { en: Date.now(), payload });
     return NextResponse.json(payload);
   } catch (error) {
-    console.error("Failed to load sections GeoJSON:", error);
+    registrarError("Failed to load sections GeoJSON", error);
     return NextResponse.json({ type: "FeatureCollection", features: [] });
   }
 }

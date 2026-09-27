@@ -3,7 +3,7 @@ import { decryptData, schema } from "@tonala/shared/database";
 import { and, asc, eq, ilike, or } from "drizzle-orm";
 
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
-import { contactIdRestriction, visibleContactIds } from "@/lib/contact-visibility";
+import { contactIdRestriction, contactosVisibles } from "@/lib/contact-visibility";
 import { getDatabaseClient } from "@/lib/db-client";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   const id = idCrudo;
 
   const alcance = await resolveUserNetworkScope(actor.actorId);
-  const restriccion = contactIdRestriction(await visibleContactIds(alcance));
+  const restriccion = contactIdRestriction(await contactosVisibles(alcance));
   const comodin = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
   const db = getDatabaseClient();

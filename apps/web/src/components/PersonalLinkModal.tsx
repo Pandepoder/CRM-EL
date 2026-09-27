@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, X, MessageSquare, Lightbulb } from "lucide-react";
+import { Copy, Check, X, MessageSquare, Lightbulb, Users } from "lucide-react";
 
 import { QrImagen } from "@/components/QrImagen";
 import { useMunicipioUsuario } from "@/lib/municipio-contexto";
@@ -38,7 +38,7 @@ export function PersonalLinkModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200" onClick={onClose}>
       <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 sm:p-6 flex justify-between items-center relative overflow-hidden shrink-0">
@@ -106,6 +106,16 @@ export function PersonalLinkModal({
               <span>Compartir por WhatsApp Directo</span>
             </a>
           </div>
+
+          {/* Modo evento (3.1): en un mitin, la brigada registra a una persona tras otra en este
+              teléfono, con municipio y sección ya puestos para todo el evento. */}
+          <a
+            href={`/registro/${slug}?modo=evento`}
+            className="w-full py-3 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Users size={16} />
+            <span>Registrar en un evento desde este teléfono</span>
+          </a>
 
           <p className="text-[10px] text-gray-400 font-medium flex items-start gap-1">
             <Lightbulb size={12} className="shrink-0 mt-0.5" /> Cuando alguien se registre con este enlace o código QR, quedará en tu red como contacto. Para sumar brigadistas, usa el QR de tu brigada en Equipos.

@@ -5,6 +5,7 @@ import { schema } from "@tonala/shared/database";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { esResultadoValido, RESULTADOS_ACTIVIDAD } from "@/lib/actividades";
+import { motivoSiAdjuntosAjenos, urlsDeAdjuntos } from "@/lib/archivos";
 import { permissionChecker } from "@/lib/api-helpers";
 import { buscarMunicipio } from "@/lib/municipios-jalisco";
 import { condicionVisibilidad, type OpcionCatalogo } from "@/lib/catalogo-actividades";
@@ -84,7 +85,7 @@ async function auditar(
 /** Lo que el llamador necesita para decidir si puede actuar sobre una actividad. */
 async function cargarActividad(id: string, actor: ActorActividad) {
   const db = getDatabaseClient();
-  const contexto = await cargarContextoIncidencia(id, actor.actorId, actor.roles);
+  const contexto = await cargarContextoIncidencia(id, actor.actorId);
   if (!contexto.incidencia) return { fallo: fallo(404, "no_encontrada", "La actividad no existe.") } as const;
   if (
     !puedeSobreIncidencia("actualizar", contexto.incidencia, actor.actorId, contexto.esAdmin, contexto.equipos, contexto.personas)
@@ -127,6 +128,7 @@ async function resolverTipo(
     icon: f.icon,
     sortOrder: f.sortOrder,
     incidentCategory: f.incidentCategory,
+    municipalityId: f.municipalityId,
     scope: f.scope as "organization" | "network",
     isSystem: f.isSystem,
     createsVisit: f.createsVisit,
@@ -232,6 +234,10 @@ export async function crearActividad(actor: ActorActividad, entrada: EntradaActi
   if (entrada.estimatedAttendees != null && (!Number.isInteger(entrada.estimatedAttendees) || entrada.estimatedAttendees < 0)) {
     return fallo(400, "asistentes_invalidos", "Los asistentes deben ser un número entero, cero o más.");
   }
+  // Solo archivos que subió quien registra: con la URL de una foto ajena, esa foto quedaría a la
+  // vista de toda la cadena de mando de esta actividad (A12, `lib/archivos.ts`).
+  const adjuntosAjenos = await motivoSiAdjuntosAjenos(actor.actorId, urlsDeAdjuntos(entrada.mediaUrls));
+  if (adjuntosAjenos) return fallo(400, "adjunto_ajeno", adjuntosAjenos);
 
   const alcance = await resolveUserNetworkScope(actor.actorId);
   const responsable = entrada.assignedToUserId || actor.actorId;
@@ -711,6 +717,10 @@ export async function editarActividad(actor: ActorActividad, id: string, entrada
     cambios.estimatedAttendees = true;
   }
   if (entrada.mediaUrls !== undefined) {
+    // Las que ya tenía se conservan aunque las haya subido otra persona (quien la creó); las nuevas
+    // tienen que ser de quien edita.
+    const adjuntosAjenos = await motivoSiAdjuntosAjenos(actor.actorId, urlsDeAdjuntos(entrada.mediaUrls), urlsDeAdjuntos(fila.mediaUrls));
+    if (adjuntosAjenos) return fallo(400, "adjunto_ajeno", adjuntosAjenos);
     set.mediaUrls = entrada.mediaUrls.length > 0 ? entrada.mediaUrls : null;
     cambios.mediaUrls = true;
   }
@@ -766,7 +776,7 @@ export async function editarActividad(actor: ActorActividad, id: string, entrada
 
 export async function historialDeActividad(actor: ActorActividad, id: string) {
   const db = getDatabaseClient();
-  const contexto = await cargarContextoIncidencia(id, actor.actorId, actor.roles);
+  const contexto = await cargarContextoIncidencia(id, actor.actorId);
   if (!contexto.incidencia) return fallo(404, "no_encontrada", "La actividad no existe.");
   // Ver el historial exige poder ver la actividad: propia, asignada, de su equipo o de su alcance.
   const puede = puedeSobreIncidencia("actualizar", contexto.incidencia, actor.actorId, contexto.esAdmin, contexto.equipos, contexto.personas);

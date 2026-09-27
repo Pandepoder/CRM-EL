@@ -30,6 +30,15 @@ name: Despliegue a producción
 #
 # Para exigir aprobacion humana antes de cada despliegue: Settings >
 # Environments > produccion > Required reviewers. El job se queda esperando.
+#
+# PENDIENTE (pospuesto a proposito, 2026-09-23): los secretos de arriba no
+# estan configurados en el repositorio. Las 26 ejecuciones de este flujo hasta
+# esa fecha fallaron en el paso de SSH ("Faltan los secretos VPS_SSH_KEY o
+# VPS_HOST"): todos los despliegues han sido a mano. Cuando se retome: o se
+# crean los cuatro secretos, o se desactiva este flujo para que deje de fallar
+# en cada push. Ver R21 en docs/PLAN_ADMIN_MUNICIPAL.md.
+# Del mismo acceso: la contrasena de root del VPS sigue pendiente de rotar desde
+# que aparecieron credenciales en el historial publico del repositorio.
 # ---------------------------------------------------------------------------
 
 on:
@@ -134,8 +143,12 @@ jobs:
           set -euo pipefail
           ssh -i ~/.ssh/id_despliegue -o BatchMode=yes "${USUARIO}@${SERVIDOR}" 'bash -euo pipefail -s' <<'REMOTO'
           cd /opt/crm-el
+          # Se pregunta DENTRO del contenedor `web`: el servicio no publica el puerto 3000 al
+          # servidor (solo Caddy lo alcanza por la red de Docker), así que un curl a
+          # 127.0.0.1:3000 desde el VPS no podía conectarse nunca. Es el mismo mecanismo que el
+          # healthcheck de docker-compose.yml. El cuerpo conserva "status":"ok" / "error".
           for intento in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:3000/api/health 2>/dev/null | grep -q '"status":"ok"'; then
+            if docker compose exec -T web node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>r.text()).then(t=>process.stdout.write(t)).catch(()=>process.exit(1))" 2>/dev/null | grep -q '"status":"ok"'; then
               echo "La aplicacion responde sana tras ${intento} intento(s)."
               exit 0
             fi

@@ -6,7 +6,11 @@ export default tseslint.config(
   {
     // docs/ no es codigo del proyecto: guarda informes y los scripts sueltos que
     // los acompanan, que no siguen (ni deben seguir) las reglas del monorepo.
-    ignores: ["node_modules/**", "outputs/**", "output/**", "work/**", "coverage/**", "dist/**", "docs/**", "apps/**/public/**", "apps/**/.next/**", "apps/**/next-env.d.ts"]
+    //
+    // scripts/local/ tampoco: son pruebas y datos simulados que nunca se versionan
+    // (estan excluidos de git). Sin esto, escribir un script de prueba con fetch o
+    // FormData rompe `pnpm lint` con "no-undef" y parece que el fallo es del repo.
+    ignores: ["node_modules/**", "outputs/**", "output/**", "work/**", "coverage/**", "dist/**", "docs/**", "scripts/local/**", "apps/*/public/**", "apps/**/.next/**", "apps/**/next-env.d.ts"]
   },
   js.configs.recommended,
   {
@@ -80,6 +84,14 @@ export default tseslint.config(
     rules: {
       "no-console": "off",
       "@typescript-eslint/unbound-method": "off"
+    }
+  },
+  {
+    // El registro estructurado es el único sitio de la aplicación que escribe en la consola a
+    // propósito, en cualquier nivel: todo lo demás pasa por `registrar` y `registrarError`.
+    files: ["apps/web/src/lib/registro.ts"],
+    rules: {
+      "no-console": "off"
     }
   }
 );

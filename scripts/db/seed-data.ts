@@ -2,7 +2,8 @@ export const roleSeeds = [
   { key: "admin", name: "Administrador" },
   { key: "direction", name: "Dirección" },
   { key: "territorial_coordinator", name: "Líder" },
-  { key: "capturist", name: "Coordinador Territorial" },
+  // Antes «Coordinador Territorial», que no coordinaba nada (M3; migración 0020).
+  { key: "capturist", name: "Capturista" },
   { key: "visit_responsible", name: "Brigadista" }
 ] as const;
 
@@ -16,6 +17,9 @@ export const roleSeeds = [
  * password_hash, sembrar sobre una base real le cambiaba la contrasena al administrador.
  *
  * Si agregas uno, usa .local. tests/unit/seed-user-isolation.test.ts falla si no lo haces.
+ *
+ * El de administración sale como administrador maestro si la base todavía no tiene uno, y si no, como
+ * administrador de Tonalá (etapa 6: `seeds.ts`).
  */
 export const userSeeds = [
   {

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Permission, requireActorPermission } from "@/lib/authorization";
 import { convertirProspecto, revisarConversion } from "@/lib/prospectos-servicio";
 import { safeErrorMessage } from "@/lib/safe-error";
+import { registrarError } from "@/lib/registro";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         : r.creado ? "Prospecto convertido en contacto." : "Prospecto vinculado al contacto existente."
     });
   } catch (error: unknown) {
-    console.error("Error converting prospect:", error);
+    registrarError("Error converting prospect", error);
     return NextResponse.json({ error: safeErrorMessage(error, "Error al convertir prospecto.") }, { status: 500 });
   }
 }

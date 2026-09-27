@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { requirePageRole } from "@/lib/authorization";
+import { requirePageAccess } from "@/lib/authorization";
 import { getDatabaseClient } from "@/lib/db-client";
 import { incidentScopeCondition } from "@/lib/incident-visibility";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
@@ -35,7 +35,7 @@ export default async function AdminInboxPage({
 }) {
   // La auditoría leía todas las incidencias del sistema sin pedir rol ni mirar el alcance: era
   // la puerta trasera por la que se veía lo que el mapa y el centro de gestión ya acotan.
-  await requirePageRole("admin", "direction", "territorial_coordinator");
+  await requirePageAccess("/admin-inbox");
 
   const session = await getServerSession();
   const alcance = await resolveUserNetworkScope(session.userId);

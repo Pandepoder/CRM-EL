@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
+import { MarcaMunicipio } from "@/components/MarcaMunicipio";
 
 type Team = {
   id: string;
@@ -14,10 +15,17 @@ type Team = {
   leaderName: string | null;
   leaderId: string;
   municipality?: string | null;
+  /** El de su llave (0022), que es el que cuenta; General se marca. */
+  municipio?: { nombre: string; esGeneral: boolean };
   section?: string | null;
   membersCount?: number;
   contactsCount?: number;
   isMyTeam?: boolean;
+  /** Lo calcula el servidor con `permisos-equipos.ts`, la misma regla que aplica la API. */
+  editable?: boolean;
+  liderEditable?: boolean;
+  /** Borrar: administración, sobre los equipos que gobierna (el maestro, todos; un municipal, los suyos). */
+  borrable?: boolean;
 };
 
 type UserProfile = {
@@ -29,11 +37,19 @@ type UserProfile = {
 type Props = {
   teams: Team[];
   users: UserProfile[];
-  isGlobalAdmin?: boolean;
+  /** Administración (el maestro o un administrador municipal): cambia el texto de ayuda del líder. */
+  esAdministracion?: boolean;
+  /**
+   * El municipio de un administrador municipal: sus equipos son de ahí, y el campo no se puede
+   * cambiar (mover estructura entre municipios es del maestro, etapa 6).
+   */
+  municipioFijo?: string | null;
+  /** Crear equipos: Administración, Dirección y Líder, dentro de su mando. */
+  puedeCrear?: boolean;
   currentUserId?: string;
 };
 
-export default function TeamsClient({ teams, users, isGlobalAdmin = false, currentUserId }: Props) {
+export default function TeamsClient({ teams, users, esAdministracion = false, municipioFijo = null, puedeCrear = false, currentUserId }: Props) {
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -41,15 +57,28 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = false, curre
   const [searchTerm, setSearchTerm] = useState("");
   const [form, setForm] = useState({ name: "", leaderId: "", zone: "", municipality: "", section: "" });
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [errorDelFormulario, setErrorDelFormulario] = useState("");
+  const equipoEnEdicion = editingId ? teams.find((t) => t.id === editingId) : undefined;
+  const liderBloqueado = Boolean(equipoEnEdicion && !equipoEnEdicion.liderEditable);
+  // El líder actual siempre aparece entre las opciones, aunque ya no se pueda elegir a otro: si no,
+  // el campo mostraba un identificador en vez de un nombre.
+  const opcionesDeLider = [
+    ...users.map((u) => ({ value: u.id, label: u.displayName, badge: u.roleKey || "Usuario" })),
+    ...(equipoEnEdicion && !users.some((u) => u.id === equipoEnEdicion.leaderId)
+      ? [{ value: equipoEnEdicion.leaderId, label: equipoEnEdicion.leaderName || "Líder actual", badge: "Líder actual" }]
+      : [])
+  ];
 
   function openCreateModal() {
     setEditingId(null);
-    setForm({ name: "", leaderId: currentUserId || (users[0]?.id ?? ""), zone: "", municipality: "", section: "" });
+    setErrorDelFormulario("");
+    setForm({ name: "", leaderId: currentUserId || (users[0]?.id ?? ""), zone: "", municipality: municipioFijo ?? "", section: "" });
     setShowModal(true);
   }
 
   function openEditModal(t: Team) {
     setEditingId(t.id);
+    setErrorDelFormulario("");
     setForm({
       name: t.name,
       leaderId: t.leaderId,
@@ -65,6 +94,7 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = false, curre
     if (!form.name || !form.leaderId) return;
 
     setSaving(true);
+    setErrorDelFormulario("");
     try {
       const url = editingId ? `/api/admin/teams/${editingId}` : "/api/admin/teams";
       const method = editingId ? "PATCH" : "POST";
@@ -73,15 +103,25 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = false, curre
         headers: { "Content-Type": "application/json" },
         // Vacío viaja como null. Antes el formulario mandaba zone: "Tonalá" —campo que ni se
         // muestra en el modal— y todo equipo de Jalisco quedaba con zona Tonalá.
-        body: JSON.stringify({ ...form, zone: form.zone || null, municipality: form.municipality || null })
+        body: JSON.stringify({
+          ...form,
+          zone: form.zone || null,
+          municipality: form.municipality || null,
+          // Si el líder no se puede cambiar, ni se manda: así no hay forma de pedirlo por error.
+          ...(liderBloqueado ? { leaderId: undefined } : {})
+        })
       });
       if (res.ok) {
         setShowModal(false);
         setForm({ name: "", leaderId: "", zone: "", municipality: "", section: "" });
         router.refresh();
       } else {
-        alert("Error al guardar equipo");
+        // El motivo lo da el servidor: municipio que no es de Jalisco, líder fuera de tu mando…
+        const datos = await res.json().catch(() => null);
+        setErrorDelFormulario(datos?.error || "No se pudo guardar el equipo.");
       }
+    } catch {
+      setErrorDelFormulario("No se pudo guardar. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -95,7 +135,8 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = false, curre
       if (res.ok) {
         router.refresh();
       } else {
-        alert("Error al eliminar");
+        const datos = await res.json().catch(() => null);
+        alert(datos?.error || "No se pudo eliminar el equipo.");
       }
     } finally {
       setDeletingId(null);
@@ -131,7 +172,7 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = false, curre
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {isGlobalAdmin && (
+          {puedeCrear && (
             <button
               onClick={openCreateModal}
               className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all text-sm cursor-pointer active:scale-95"
@@ -169,7 +210,7 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = false, curre
           <p className="text-gray-500 max-w-sm mx-auto mb-6 text-sm">
             {searchTerm ? "No hay equipos que coincidan con tu búsqueda." : "No hay equipos configurados en este momento."}
           </p>
-          {isGlobalAdmin && (
+          {puedeCrear && (
             <button
               onClick={openCreateModal}
               className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all text-sm"
@@ -204,20 +245,24 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = false, curre
                       </h3>
                       <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                         <MapPin size={12} className="text-rose-500" />
-                        {t.municipality || "Sin municipio"} {t.section ? `· Secc #${t.section}` : ""}
+                        {t.municipio ? <MarcaMunicipio nombre={t.municipio.nombre} esGeneral={t.municipio.esGeneral} /> : t.municipality || "Sin municipio"}
+                        {t.section ? ` · Secc #${t.section}` : ""}
                       </p>
                     </div>
                   </div>
 
-                  {isGlobalAdmin && (
+                  {(t.editable || t.borrable) && (
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => openEditModal(t)}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Editar"
-                      >
-                        <Edit size={14} />
-                      </button>
+                      {t.editable && (
+                        <button
+                          onClick={() => openEditModal(t)}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <Edit size={14} />
+                        </button>
+                      )}
+                      {t.borrable && (
                       <button
                         onClick={() => handleDelete(t.id)}
                         disabled={deletingId === t.id}
@@ -226,6 +271,7 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = false, curre
                       >
                         <Trash size={14} />
                       </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -293,7 +339,7 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = false, curre
 
       {/* CREATE / EDIT MODAL */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowModal(false)}>
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-blue-900 to-indigo-900 text-white flex justify-between items-center shrink-0">
               <div>
@@ -337,11 +383,19 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = false, curre
                   placeholder="Seleccionar usuario líder..."
                   value={form.leaderId}
                   onChange={(val) => setForm({ ...form, leaderId: val })}
-                  options={users.map((u) => ({
-                    value: u.id,
-                    label: u.displayName,
-                    badge: u.roleKey || "Usuario"
-                  }))}
+                  options={opcionesDeLider}
+                  disabled={liderBloqueado}
+                  helperText={
+                    liderBloqueado
+                      ? "Es un equipo desde el que mandas: si cambia de líder, perderías el mando sobre su estructura. Pídeselo a administración."
+                      : esAdministracion
+                        ? municipioFijo
+                          ? "Una persona activa de tu municipio."
+                          : undefined
+                        : puedeCrear
+                          ? "Tú o alguien de un equipo bajo tu mando."
+                          : undefined
+                  }
                   icon={<User size={13} className="text-blue-600" />}
                 />
               </div>
@@ -355,6 +409,8 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = false, curre
                     onChange={(val) => setForm({ ...form, municipality: val })}
                     options={MUNICIPIOS_JALISCO.map((m) => ({ value: m.name, label: m.name, badge: `${m.count} secc.` }))}
                     icon={<MapPin size={13} className="text-rose-500" />}
+                    disabled={Boolean(municipioFijo)}
+                    {...(municipioFijo ? { helperText: `Administras ${municipioFijo}: tus equipos son de ahí.` } : {})}
                   />
                 </div>
 
@@ -371,6 +427,12 @@ export default function TeamsClient({ teams, users, isGlobalAdmin = false, curre
                   />
                 </div>
               </div>
+
+              {errorDelFormulario && (
+                <p role="alert" className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs font-semibold rounded-xl">
+                  {errorDelFormulario}
+                </p>
+              )}
 
               <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
                 <button

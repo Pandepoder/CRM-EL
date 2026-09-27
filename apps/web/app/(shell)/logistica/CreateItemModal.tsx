@@ -5,20 +5,28 @@ import { PlusCircle, X, CheckCircle2, Image as ImageIcon, Tag } from "lucide-rea
 import { createInventoryItemAction } from "./actions";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 
-export function CreateItemModal() {
+/**
+ * Un artículo nuevo, en uno de tus almacenes. Antes el primero inventaba en silencio un «Almacén
+ * Principal» sin municipio ni autor (M32); ahora se elige el almacén, y si no hay ninguno se pide dar
+ * de alta uno antes.
+ */
+export function CreateItemModal({ almacenes }: { almacenes: { id: string; nombre: string }[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     try {
-      await createInventoryItemAction(formData);
-      setStep(2);
-    } catch (err: any) {
-      alert("Error: " + err.message);
+      const r = await createInventoryItemAction(formData);
+      if (r.ok) setStep(2);
+      else setError(r.error);
+    } catch {
+      setError("No se pudo guardar. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -26,9 +34,11 @@ export function CreateItemModal() {
 
   if (!isOpen) {
     return (
-      <button 
+      <button
         onClick={() => setIsOpen(true)}
-        className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 transition-colors mr-3"
+        disabled={almacenes.length === 0}
+        title={almacenes.length === 0 ? "Primero da de alta un almacén" : undefined}
+        className="bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 font-bold py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 transition-colors mr-3"
       >
         <PlusCircle className="h-5 w-5" />
         Nuevo Artículo
@@ -46,7 +56,7 @@ export function CreateItemModal() {
         Nuevo Artículo
       </button>
 
-      <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => { setIsOpen(false); setStep(1); }}>
+      <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => { setIsOpen(false); setStep(1); }}>
         <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
           
           <div className="flex justify-between items-center p-4 sm:p-5 border-b border-gray-100 bg-gray-50/50 shrink-0">
@@ -66,8 +76,20 @@ export function CreateItemModal() {
 
           <div className="p-5 sm:p-6 overflow-y-auto overscroll-contain flex-1 pb-16">
             {step === 1 ? (
-              <form className="space-y-4" onSubmit={handleSubmit}>
-                <div className="grid grid-cols-2 gap-4">
+              <form className="space-y-4" onSubmit={(e) => { void handleSubmit(e); }}>
+                {error && (
+                  <p role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-semibold">{error}</p>
+                )}
+                <div>
+                  <label htmlFor="articulo-almacen" className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Almacén *</label>
+                  <select id="articulo-almacen" name="warehouseId" required defaultValue={almacenes.length === 1 ? almacenes[0]!.id : ""} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 bg-gray-50 text-sm font-semibold outline-none focus:border-blue-500 focus:bg-white">
+                    <option value="" disabled>Elige el almacén…</option>
+                    {almacenes.map((a) => (
+                      <option key={a.id} value={a.id}>{a.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Nombre *</label>
                     <input name="name" type="text" required placeholder="Ej. Lona 2x2" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 bg-gray-50 text-sm font-semibold outline-none focus:border-blue-500 focus:bg-white transition-colors" />

@@ -396,3 +396,26 @@ html { scroll-behavior:auto !important; }
 @media(prefers-reduced-motion:reduce) {
  .nav-button,.mobile-nav-button,.mobile-nav-marca { transition:none !important; }
 }
+
+/* Foto de perfil en lugar de las iniciales (3.6). Misma caja que el avatar de iniciales. */
+.sesion-avatar--foto { padding:0; overflow:hidden; background:#e2e8f0; }
+.sesion-avatar--foto img { width:100%; height:100%; object-fit:cover; display:block; }
+.user-chip__foto { width:22px; height:22px; border-radius:999px; object-fit:cover; flex:0 0 auto; }
+
+/* Aviso de lo que espera en la cola del teléfono (EnviosPendientes). Es una franja dentro del
+   contenido, no un elemento flotante: no compite con diálogos (110) ni con la barra inferior (50). */
+.envios-aviso { margin:12px 16px 0; padding:10px 12px; border-radius:12px; border:1px solid; font-size:12.5px; font-weight:700; line-height:1.4; }
+.envios-aviso--espera { background:var(--warning-bg); border-color:#f3d58c; color:#7a4d0b; }
+.envios-aviso--error { background:var(--danger-bg); border-color:#f5b5b5; color:#8f1d1d; }
+.envios-aviso--listo { display:flex; align-items:center; gap:8px; background:var(--green-100); border-color:#9fdcbe; color:var(--green-700); }
+.envios-aviso__linea { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.envios-aviso__texto { flex:1 1 200px; }
+.envios-aviso__boton { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:0 12px; border-radius:10px; border:0; background:#7a4d0b; color:#fff; font-size:12px; font-weight:800; cursor:pointer; }
+.envios-aviso__boton:disabled { opacity:.6; cursor:default; }
+.envios-aviso__boton--claro { background:rgba(255,255,255,.75); color:inherit; border:1px solid currentColor; }
+.envios-aviso__boton--peligro { background:var(--danger); }
+.envios-aviso__lista { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:8px; }
+.envios-aviso__lista li { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; border-radius:10px; background:rgba(255,255,255,.7); }
+.envios-aviso__detalle { display:block; font-weight:600; opacity:.85; }
+.envios-aviso__confirmar { display:inline-flex; flex-wrap:wrap; align-items:center; gap:6px; font-weight:700; }
+@media (min-width:768px) { .envios-aviso { margin:16px 32px 0; } }

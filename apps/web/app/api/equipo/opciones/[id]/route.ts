@@ -6,7 +6,6 @@ import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { editarOpcion, type CambiosOpcion } from "@/lib/catalogo-actividades";
 import { getDatabaseClient } from "@/lib/db-client";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { esAdministracion } from "@/lib/permisos-incidencias";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +41,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   const alcance = await resolveUserNetworkScope(actor.actorId);
-  const resultado = await editarOpcion(id, { actorId: actor.actorId, esAdmin: esAdministracion(actor.roles) }, alcance, cambios);
+  const resultado = await editarOpcion(id, alcance, cambios);
   if (!resultado.ok) {
     return NextResponse.json(
       { error: resultado.motivo, existente: resultado.existente },

@@ -1,227 +1,21 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
-import Link from "next/link";
-import { 
-  AlertCircle, 
-  CheckCircle2, 
-  MapPin, 
-  Layers, 
-  X, 
-  PlusCircle, 
-  Search, 
-  ChevronRight, 
-  ListFilter, 
-  Trash2, 
-  SlidersHorizontal, 
-  Loader2, 
-  Download, 
-  Edit3, 
-  ShieldAlert, 
-  Flame, 
-  LocateFixed,
-  Users,
-  Compass,
-  Check,
-  Eye,
-  Minimize2,
-  Moon,
-  Building2,
-  Satellite,
-  Map,
-  Lightbulb,
-  Construction,
-  Droplets,
-  ShieldCheck,
-  Landmark,
-  AlertTriangle,
-  Vote
-} from "lucide-react";
-import type { ComponentType } from "react";
-import { CENTRO_JALISCO, MUNICIPIOS_JALISCO, RECUADRO_JALISCO, TODO_JALISCO, TOTAL_SECCIONES_JALISCO, buscarMunicipio, guardarMunicipioPreferido, leerMunicipioPreferido, resolverMunicipio } from "@/lib/municipios-jalisco";
+
+import { ESTADOS_INCIDENCIA } from "@/lib/estados-incidencia";
+import { CENTRO_JALISCO, RECUADRO_JALISCO, TODO_JALISCO, buscarMunicipio, guardarMunicipioPreferido, leerMunicipioPreferido, resolverMunicipio } from "@/lib/municipios-jalisco";
 import { useMunicipioUsuario } from "@/lib/municipio-contexto";
+import { useUsuarioActual } from "@/lib/usuario-contexto";
 
-type MapIconType = ComponentType<{ size?: number | string; className?: string }>;
-import { PredictiveCombobox } from "@/components/PredictiveCombobox";
-import { AddressAutocomplete, type AutocompleteItem } from "@/components/AddressAutocomplete";
-import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
-import { MediaGallery } from "@/components/MediaGallery";
-
-// Lucide icon SVGs baked for crisp Leaflet HTML markers
-import { CATEGORIAS_INCIDENCIA } from "@/lib/categorias-incidencia";
-
-const SVGS = {
-  TriangleAlert: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`,
-  AlertCircle: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>`,
-  Users: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
-  Megaphone: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>`,
-  Wrench: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
-  Eye: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>`,
-  MapPin: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>`,
-  Trash: `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>`,
-  User: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
-};
-
-// Compact badge used everywhere a contact's confirmed PAN militancy needs a visual mark
-const PAN_BADGE_HTML = `<span style="display:inline-flex; align-items:center; justify-content:center; width:1.35em; height:1.35em; border-radius:50%; background:#2563eb; flex-shrink:0;"><span style="color:#fff; font-size:0.7em; font-weight:900; line-height:1;">M</span></span>`;
-
-const CATEGORIES = CATEGORIAS_INCIDENCIA;
-
-const MUNICIPALITY_COLORS: Record<string, { stroke: string; fill: string }> = {
-  "Tonalá": { stroke: "#4f46e5", fill: "#6366f1" },
-  "Guadalajara": { stroke: "#7e22ce", fill: "#a855f7" },
-  "San Pedro Tlaquepaque": { stroke: "#d97706", fill: "#f59e0b" },
-  "Zapopan": { stroke: "#059669", fill: "#10b981" },
-  "Tlajomulco de Zúñiga": { stroke: "#0891b2", fill: "#06b6d4" },
-  "El Salto": { stroke: "#e11d48", fill: "#f43f5e" },
-  "Zapotlanejo": { stroke: "#475569", fill: "#64748b" },
-  "Ixtlahuacán de los Membrillos": { stroke: "#0d9488", fill: "#14b8a6" },
-  "Juanacatlán": { stroke: "#4338ca", fill: "#818cf8" },
-};
-
-// Etiqueta corta de cada capa para la barra. Antes se resolvía con ternarios
-// encadenados que mandaban a "OSM" todo lo que no fuera calles ni noche, así que
-// al mostrar la cuarta capa habría aparecido "OSM" dos veces.
-const TILE_LABELS: Record<string, string> = {
-  esriStreet: "Calles HD",
-  dark: "Noche",
-  osm: "OSM",
-  satellite: "Satélite"
-};
-
-const TILE_STYLES = {
-  esriStreet: {
-    name: "Calles HD (Color)",
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-    attribution: "&copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
-    icon: Map
-  },
-  dark: {
-    name: "Táctico Nocturno",
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
-    attribution: "&copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
-    icon: Moon
-  },
-  osm: {
-    name: "OpenStreetMap",
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: "&copy; OpenStreetMap contributors",
-    icon: Building2
-  },
-  satellite: {
-    name: "Satélite HD",
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: "&copy; Esri, Maxar, Earthstar Geographics",
-    icon: Satellite
-  }
-};
-
-
-type ReportFeature = {
-  properties: {
-    id: string;
-    title: string;
-    description: string;
-    category: string;
-    status: string;
-    createdAt: string;
-    sectionNum?: number;
-    sectionId?: string;
-    municipality?: string;
-    assignedToUserId?: string | undefined;
-    eventDate?: string | undefined;
-    mediaUrls?: MediaFile[] | undefined;
-  };
-  geometry: { type: "Point"; coordinates: [number, number] };
-};
-
-type SectionProperties = {
-  id: string;
-  section_num: number;
-  name: string;
-  municipality?: string;
-  colonies: string[];
-  contactsCount: number;
-  visitsScheduled: number;
-  visitsCompleted: number;
-  incidentsActive: number;
-  incidentsResolved: number;
-  representatives: Array<{ name: string; role: string }>;
-  /** Datos del atlas de campaña. Null en las secciones que el documento no cubre. */
-  atlas: AtlasSeccion | null;
-};
-
-type AtlasSeccion = {
-  priority: "A" | "B" | "C" | "D";
-  mainColony: string | null;
-  pollingPlace: string | null;
-  votes: { pan: number; morena: number; mc: number };
-  source: string | null;
-};
-
-type BloqueElectoral = "pan" | "morena" | "mc";
-
-/**
- * Bloques del atlas. Son los del documento impreso, no partidos sueltos: "PAN y socios" y
- * "Morena y socios" agrupan coaliciones. Los colores son los de identidad de cada fuerza,
- * que es como la campaña los lee de un vistazo.
- */
-const BLOQUES: Record<BloqueElectoral, { etiqueta: string; corto: string; color: string; borde: string }> = {
-  pan: { etiqueta: "PAN y socios", corto: "PAN", color: "#2563eb", borde: "#1d4ed8" },
-  morena: { etiqueta: "Morena y socios", corto: "Morena", color: "#9f1239", borde: "#881337" },
-  mc: { etiqueta: "MC", corto: "MC", color: "#ea580c", borde: "#c2410c" }
-};
-
-/** Gris para las secciones sin ficha: "no hay dato" no es lo mismo que "empate". */
-const SIN_ATLAS = { color: "#94a3b8", borde: "#64748b" };
-
-type Resultado = {
-  ganador: BloqueElectoral;
-  votosGanador: number;
-  total: number;
-  /** Puntos porcentuales sobre el segundo lugar. Es lo que separa un bastión de una plaza en disputa. */
-  margen: number;
-  empate: boolean;
-};
-
-function calcularResultado(atlas: AtlasSeccion): Resultado {
-  const orden = (Object.keys(BLOQUES) as BloqueElectoral[])
-    .map((clave) => ({ clave, votos: atlas.votes[clave] }))
-    .sort((a, b) => b.votos - a.votos);
-
-  const primero = orden[0]!;
-  const segundo = orden[1]!;
-  const total = orden.reduce((suma, x) => suma + x.votos, 0);
-
-  return {
-    ganador: primero.clave,
-    votosGanador: primero.votos,
-    total,
-    margen: total > 0 ? ((primero.votos - segundo.votos) / total) * 100 : 0,
-    empate: primero.votos === segundo.votos
-  };
-}
-
-/**
- * Opacidad según el margen: cuanto más holgada la ventaja, más sólido el color.
- *
- * Sin esto, un bastión con 40 puntos de ventaja y una sección ganada por 20 votos se veían
- * idénticos, que es justo la distinción que la campaña necesita para decidir dónde empujar.
- */
-function opacidadPorMargen(margen: number): number {
-  if (margen >= 30) return 0.62;
-  if (margen >= 15) return 0.48;
-  if (margen >= 5) return 0.34;
-  return 0.22;
-}
-
-type UserOption = {
-  id: string;
-  displayName: string;
-  email: string;
-  role: string;
-};
+import { useCapaContactos, useCapaIncidencias, useCapaMunicipios, useCapaSecciones } from "./capas";
+import { CentroDeMando } from "./CentroDeMando";
+import { BLOQUES, SIN_ATLAS, TILE_STYLES, type EstiloDeMapa } from "./constantes";
+import { ControlesDelMapa } from "./ControlesDelMapa";
+import { globoGps, ICONO_GPS } from "./html";
+import { ModalArchivarResueltas, ModalEditarIncidencia, ModalNuevaIncidencia, type PuntoDeReporte } from "./ModalesDeIncidencia";
+import { PanelDelMapa, type Panel } from "./PanelDelMapa";
+import type { BloqueElectoral, Coloreado, CoberturaContactos, ContactoDelMapa, GrupoDeContactos, ReportFeature, SectionProperties, UserOption } from "./tipos";
 
 declare global {
   interface Window {
@@ -230,2974 +24,712 @@ declare global {
   }
 }
 
+/** Una ubicación GPS vale para «Reportar aquí» durante este tiempo; después se usa el centro del mapa. */
+const GPS_VIGENTE_MS = 2 * 60 * 1000;
+const SECCIONES_FRESCAS_MS = 60_000;
+
+const abierta = (r: ReportFeature) => !(ESTADOS_INCIDENCIA[r.properties.status]?.cerrada ?? false);
+
+/**
+ * Mapa en vivo.
+ *
+ * Era un único componente de 3 200 líneas (R17). Ahora las capas viven en `capas.ts`, el HTML que va
+ * a Leaflet —siempre escapado— en `html.ts`, el menú en `ControlesDelMapa.tsx`, los paneles en
+ * `PanelDelMapa.tsx`, la lista en `CentroDeMando.tsx` y los formularios en `ModalesDeIncidencia.tsx`.
+ * Aquí queda el estado, la carga de datos y el cableado.
+ */
 export default function MapaPage() {
-  const [L, setL] = useState<any>(null);
-  const [mapRef, setMapRef] = useState<any>(null);
-  const [tileLayerRef, setTileLayerRef] = useState<any>(null);
-  const [markersLayer, setMarkersLayer] = useState<any>(null);
-  const [contactsLayer, setContactsLayer] = useState<any>(null);
-  const [geoJsonLayer, setGeoJsonLayer] = useState<any>(null);
-  const [labelsLayer, setLabelsLayer] = useState<any>(null);
-  const [userLocationMarker, setUserLocationMarker] = useState<any>(null);
-  const [allReports, setAllReports] = useState<ReportFeature[]>([]);
-  const [allContacts, setAllContacts] = useState<any[]>([]);
-  const [showContacts, setShowContacts] = useState(false);
-  const [sectionsData, setSectionsData] = useState<any>(null);
-  const [systemUsers, setSystemUsers] = useState<UserOption[]>([]);
-  
-  // Views: Map view or Incident Operations Center view
-  const [activeTab, setActiveTab] = useState<"map" | "list">("map");
-
-  // Operational Category Sub-Tab in Incident Center:
-  const [incidentSubTab, setIncidentSubTab] = useState<"active" | "emergency" | "resolved" | "all">("active");
-
-  // =========================================================================
-  // INFORMATION DENSITY SLIDER (0 = Solo Incidencias, 1 = Territorial, 2 = Completo)
-  // Vista inicial en 1 (Territorial con secciones visibles)
-  // =========================================================================
-  const [infoDensity, setInfoDensity] = useState<number>(1);
-
-  // =========================================================================
-  // ZERO-OVERLAP UNIFIED DRAWER STATE
-  // ("none" | "search" | "section" | "incidents" | "layers")
-  // =========================================================================
-  const [activeDrawer, setActiveDrawer] = useState<"none" | "search" | "section" | "incidents" | "layers">("none");
-  // En un teléfono la barra completa se apilaba en seis filas y ocupaba el 60%
-  // de la pantalla, dejando el mapa en una franja. Se pliega por defecto en
-  // pantallas estrechas y se despliega a voluntad.
-  const [barraAbierta, setBarraAbierta] = useState(true);
-  // Total de contactos ubicables en el alcance del usuario. Se guarda aparte
-  // porque el mapa solo carga los del recuadro visible: contar los dibujados
-  // convertiría el rótulo en "los que caben en pantalla".
-  const [totalContactos, setTotalContactos] = useState(0);
-  const [esPantallaEstrecha, setEsPantallaEstrecha] = useState(false);
-
-  // Selected Section for floating detail card / drawer
-  const [selectedSection, setSelectedSection] = useState<SectionProperties | null>(null);
-
-  // GPS State
-  const [isLocatingGPS, setIsLocatingGPS] = useState(false);
-
-  // Layer Toggles & Map View Settings (OpenStreetMap y Secciones activas por defecto)
-  const [selectedTileStyle, setSelectedTileStyle] = useState<string>("osm");
-  const [showSections, setShowSections] = useState(true);
-  const [showSectionLabels, setShowSectionLabels] = useState(true);
-  const [enableClustering, setEnableClustering] = useState(true);
-  const [mapZoom, setMapZoom] = useState<number>(12);
-  // El dibujado de contactos solo depende del zoom por tramos: agrupa o no según
-  // supere 14, y el tamaño de rejilla cambia en 11 y 13. Depender del zoom exacto
-  // hacía que cada paso destruyera y reconstruyera los 259 marcadores; con el
-  // tramo, solo se rehacen cuando de verdad cambia la forma de agrupar.
-  const nivelAgrupacion = mapZoom > 14 ? 0 : mapZoom <= 11 ? 1 : mapZoom <= 13 ? 2 : 3;
-
-  // Filtros y búsqueda del mapa. La cartografía se pide por municipio.
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMunicipality, setSelectedMunicipality] = useState<string>("");
-  const availableMunicipalities = MUNICIPIOS_JALISCO;
-
-  // Municipio de quien abrió el mapa, según su alta o la de su equipo.
+  const usuario = useUsuarioActual();
   const municipioUsuario = useMunicipioUsuario();
+  const puedeReportar = Boolean(usuario?.puedeCoordinar);
+  const esAdmin = usuario?.rol === "admin";
 
-  // Municipio inicial, en orden: el de la dirección (?municipio=, para abrir un enlace
-  // compartido donde toca), el de la persona, el último que eligió en este navegador y, si
-  // nada de eso existe, todo Jalisco. Antes arrancaba siempre en Tonalá: quien trabaja en
-  // Zapopan tenía que cambiar el filtro en cada visita. Se resuelve al montar porque en el
-  // servidor no hay URL del cliente ni localStorage; mientras, va vacío y no se descarga
-  // cartografía que no se va a mostrar.
-  useEffect(() => {
-    const desdeUrl = new URLSearchParams(window.location.search).get("municipio");
-    setSelectedMunicipality(
-      desdeUrl === TODO_JALISCO
-        ? TODO_JALISCO
-        : // `resolverMunicipio` acepta lo que no está escrito igual que en el catálogo del INE
-          // ("Tlaquepaque" por "San Pedro Tlaquepaque", "Tonala" sin acento): así escrito en el
-          // enlace o en el equipo de la persona, el mapa abría en todo Jalisco.
-          resolverMunicipio(desdeUrl)
-          ?? resolverMunicipio(municipioUsuario)
-          ?? leerMunicipioPreferido()
-          ?? TODO_JALISCO
-    );
-    // Solo al montar: después manda lo que elija la persona en el selector.
-  }, []);
-  const [activeCategories] = useState<Set<string>>(new Set(Object.keys(CATEGORIES)));
+  const [L, setL] = useState<any>(null);
+  const [mapa, setMapa] = useState<any>(null);
+  const [capas, setCapas] = useState<{ incidencias: any; contactos: any; etiquetas: any; base: any } | null>(null);
+  const marcadorGps = useRef<any>(null);
+  const [zoom, setZoom] = useState(8);
 
-  // Incident Center Specific Filters & Controls
-  const [incidentSearchQuery, setIncidentSearchQuery] = useState("");
-  const [incidentMunicipalityFilter, setIncidentMunicipalityFilter] = useState<string>(TODO_JALISCO);
-  const [incidentCategoryFilter, setIncidentCategoryFilter] = useState<string>("all");
+  const [esMovil, setEsMovil] = useState(false);
+  const [vista, setVista] = useState<"mapa" | "lista">("mapa");
+  const [panel, setPanel] = useState<Panel>("none");
 
-  // New report creation modal & Reverse Geocoding State
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [newReportCoords, setNewReportCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [isGeocodingLoading, setIsGeocodingLoading] = useState(false);
-  const [detectedLocationInfo, setDetectedLocationInfo] = useState<{
-    address?: string | undefined;
-    sectionNum?: number | undefined;
-    sectionId?: string | undefined;
-    municipality?: string | undefined;
-    colony?: string | undefined;
-    postcode?: string | undefined;
-    /** Radio de error que reporta el GPS, en metros. Sin GPS de por medio va vacío. */
-    gpsAccuracy?: number | undefined;
-  } | null>(null);
-  
-  const [reportForm, setReportForm] = useState({ 
-    title: "", 
-    address: "",
-    description: "", 
-    category: "servicios",
-    municipality: "",
-    sectionId: "",
-    assignedToUserId: "",
-    mediaUrls: [] as MediaFile[]
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [reportSuccess, setReportSuccess] = useState(false);
+  // Qué veo y cómo lo veo.
+  const [municipio, setMunicipio] = useState("");
+  const [estilo, setEstilo] = useState<EstiloDeMapa>("osm");
+  const [verIncidencias, setVerIncidencias] = useState(true);
+  const [verContactos, setVerContactos] = useState(false);
+  const [verSecciones, setVerSecciones] = useState(true);
+  const [coloreado, setColoreado] = useState<Coloreado>("municipio");
 
-  // Edit Incident Modal
-  const [editingReport, setEditingReport] = useState<ReportFeature | null>(null);
-  const [editForm, setEditForm] = useState({
-    title: "",
-    description: "",
-    category: "servicios",
-    municipality: "",
-    status: "active",
-    assignedToUserId: ""
-  });
-  const [isEditingSubmitting, setIsEditingSubmitting] = useState(false);
+  // Datos.
+  const [reportes, setReportes] = useState<ReportFeature[]>([]);
+  const [diasDeResueltas, setDiasDeResueltas] = useState(30);
+  const [reportesTruncados, setReportesTruncados] = useState(false);
+  const [contactos, setContactos] = useState<{ features: ContactoDelMapa[]; grupos: GrupoDeContactos[] }>({ features: [], grupos: [] });
+  const [cobertura, setCobertura] = useState<CoberturaContactos | null>(null);
+  const [secciones, setSecciones] = useState<any>(null);
+  const [usuarios, setUsuarios] = useState<UserOption[] | null>(null);
 
-  // Delete / Purge Confirmation Modals
-  const [isPurgeModalOpen, setIsPurgeModalOpen] = useState(false);
-  const [isPurging, setIsPurging] = useState(false);
+  // Selección y acciones.
+  const [seccion, setSeccion] = useState<SectionProperties | null>(null);
+  const [busqueda, setBusqueda] = useState("");
+  const [ubicando, setUbicando] = useState(false);
+  const ultimaUbicacion = useRef<{ lat: number; lng: number; precision: number; en: number } | null>(null);
+  const [puntoDeReporte, setPuntoDeReporte] = useState<PuntoDeReporte | null>(null);
+  const [editando, setEditando] = useState<ReportFeature | null>(null);
+  const [archivar, setArchivar] = useState(false);
+  const [archivando, setArchivando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
-  // Toast feedback
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
-  // Open / Toggle Drawer uniquely without overlapping
-  const toggleDrawer = (drawerName: "search" | "section" | "incidents" | "layers") => {
-    if (activeDrawer === drawerName) {
-      setActiveDrawer("none");
-    } else {
-      setActiveDrawer(drawerName);
-    }
-  };
-
-  // Perform Live Reverse Geocoding with instant 0ms client-side geometry match + Nominatim
-  const triggerIncidentCreation = useCallback(async (lat: number, lng: number, explicitMuni?: string, explicitSectionId?: string, precisionGps?: number) => {
-    setNewReportCoords({ lat, lng });
-    setIsGeocodingLoading(true);
-    setIsReportModalOpen(true);
-
-    // 1. Instant client-side match with loaded sectionsData (0ms instant feedback)
-    let instantSectionNum: number | undefined;
-    let instantSectionId = explicitSectionId;
-    // El municipio sale del punto, nunca del filtro del mapa. Antes arrancaba con el
-    // municipio filtrado: quien trabaja en Zapopan y levantaba una incidencia estando en
-    // Guadalajara la archivaba en Zapopan si la sección no estaba cargada o si
-    // OpenStreetMap no contestaba. Vacío es correcto: el servidor lo deduce del polígono
-    // del INE que contiene el punto.
-    let instantMuni = explicitMuni || "";
-    let instantColony: string | undefined;
-
-    if (sectionsData?.features) {
-      for (const feat of sectionsData.features) {
-        if (feat.geometry) {
-          try {
-            const poly = feat.geometry.type === "Polygon" ? feat.geometry.coordinates[0] : feat.geometry.coordinates?.[0]?.[0];
-            if (poly && poly.length > 2) {
-              let inside = false;
-              for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-                const xi = poly[i][0], yi = poly[i][1];
-                const xj = poly[j][0], yj = poly[j][1];
-                const intersect = ((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
-                if (intersect) inside = !inside;
-              }
-              if (inside) {
-                instantSectionNum = feat.properties?.section_num;
-                instantSectionId = feat.properties?.id;
-                instantMuni = feat.properties?.municipality || instantMuni;
-                instantColony = feat.properties?.colonies?.[0];
-                break;
-              }
-            }
-          } catch {
-            // fallback
-          }
-        }
-      }
-    }
-
-    setDetectedLocationInfo({
-      address: instantMuni ? `Ubicación en ${instantMuni}` : "Ubicando el punto…",
-      sectionNum: instantSectionNum,
-      sectionId: instantSectionId,
-      municipality: instantMuni,
-      colony: instantColony,
-      postcode: "",
-      gpsAccuracy: precisionGps
-    });
-
-    setReportForm({
-      title: instantColony ? `Reporte en ${instantColony}` : instantMuni ? `Reporte en ${instantMuni}` : "Nuevo reporte",
-      address: `Coordenadas: ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-      description: "",
-      category: "servicios",
-      municipality: instantMuni,
-      sectionId: instantSectionId || "",
-      assignedToUserId: "",
-      mediaUrls: []
-    });
-
-    // 2. Fetch live street address and database verified section from API
-    try {
-      const res = await fetch(`/api/map/reverse-geocode?lat=${lat}&lng=${lng}`);
-      if (res.ok) {
-        const data = await res.json();
-        const detectedMuni = explicitMuni || data.municipality || instantMuni;
-        const detectedAddress = data.formattedAddress || data.address || (detectedMuni ? `Ubicación en ${detectedMuni}, Jalisco` : "Ubicación en Jalisco");
-        const detectedSecNum = data.sectionNum || instantSectionNum;
-        const detectedSecId = data.sectionId || instantSectionId;
-        const detectedCol = data.colony || instantColony;
-
-        setDetectedLocationInfo({
-          address: detectedAddress,
-          sectionNum: detectedSecNum,
-          sectionId: detectedSecId,
-          municipality: detectedMuni,
-          colony: detectedCol,
-          postcode: data.postalCode || data.postcode || "",
-          gpsAccuracy: precisionGps
-        });
-
-        setReportForm((prev) => ({
-          ...prev,
-          address: detectedAddress,
-          municipality: detectedMuni,
-          sectionId: detectedSecId || prev.sectionId,
-          title: prev.title || (detectedCol ? `Reporte en ${detectedCol}` : detectedMuni ? `Reporte en ${detectedMuni}` : "Nuevo reporte")
-        }));
-      }
-    } catch (err) {
-      console.error("Reverse geocoding error:", err);
-    } finally {
-      setIsGeocodingLoading(false);
-    }
-  }, [selectedMunicipality, sectionsData]);
-
-  // Abre el formulario de alta cuando se llega con ?crear=incidencia, que es lo
-  // que hace el botón flotante del panel. Intenta primero el GPS del dispositivo
-  // —es lo que quiere quien lo pulsa estando en la calle— y si no hay permiso o
-  // tarda, cae al centro del mapa, igual que el botón "+ Reportar".
-  //
-  // El parámetro se retira de la URL en cuanto se usa: así el formulario no
-  // vuelve a abrirse al recargar, y pulsar el botón otra vez estando ya aquí
-  // cambia la URL y lo dispara de nuevo.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const parametros = new URLSearchParams(window.location.search);
-    if (parametros.get("crear") !== "incidencia") return;
-
-    parametros.delete("crear");
-    const restante = parametros.toString();
-    window.history.replaceState({}, "", window.location.pathname + (restante ? `?${restante}` : ""));
-
-    const conCentroDelMapa = () => {
-      const centro = mapRef ? mapRef.getCenter() : { lat: CENTRO_JALISCO[0], lng: CENTRO_JALISCO[1] };
-      void triggerIncidentCreation(centro.lat, centro.lng);
-    };
-
-    if (!navigator.geolocation) {
-      conCentroDelMapa();
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (posicion) => {
-        const { latitude, longitude, accuracy } = posicion.coords;
-        setNewReportCoords({ lat: latitude, lng: longitude });
-        void triggerIncidentCreation(latitude, longitude, undefined, undefined, accuracy);
-        if (mapRef) mapRef.flyTo([latitude, longitude], 16, { duration: 1.2 });
-      },
-      conCentroDelMapa,
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
-  }, [mapRef, triggerIncidentCreation]);
-
-  // Mobile GPS Geolocation Handler
-  const handleLocateMe = () => {
-    if (!navigator.geolocation) {
-      alert("Tu navegador o dispositivo no soporta geolocalización GPS.");
-      return;
-    }
-
-    setIsLocatingGPS(true);
-    showToast("Obteniendo tu ubicación GPS...");
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        setIsLocatingGPS(false);
-        const { latitude, longitude, accuracy } = position.coords;
-
-        // Auto-detect territory and section
-        setNewReportCoords({ lat: latitude, lng: longitude });
-        triggerIncidentCreation(latitude, longitude, undefined, undefined, accuracy);
-
-        if (mapRef && L) {
-          mapRef.flyTo([latitude, longitude], 16, { duration: 1.2 });
-
-          if (userLocationMarker) userLocationMarker.remove();
-
-          const gpsIcon = L.divIcon({
-            html: `
-              <div style="position:relative; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">
-                <div style="position:absolute; width:30px; height:30px; border-radius:50%; background:rgba(37,99,235,0.35); animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>
-                <div style="width:16px; height:16px; border-radius:50%; background:#2563eb; border:3px solid white; box-shadow:0 3px 8px rgba(0,0,0,0.35);"></div>
-              </div>
-            `,
-            className: "gps-user-marker",
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
-          });
-
-          const marker = L.marker([latitude, longitude], { icon: gpsIcon })
-            .bindPopup(`
-              <div style="font-family:sans-serif; min-width:180px;">
-                <strong style="font-size:13px; color:#0f172a; display:flex; align-items:center; gap:5px;"><span style="color:#2563eb; display:inline-flex;">${SVGS.MapPin.replace('width="18" height="18"', 'width="14" height="14"')}</span> Ubicación GPS Detectada</strong>
-                <p style="margin:4px 0 0 0; font-size:11px; color:#2563eb; font-weight:700;">Precisión: ±${Math.round(accuracy)}m</p>
-                <p style="margin:4px 0 0 0; font-size:10px; color:#64748b;">Municipio y sección detectados automáticamente</p>
-              </div>
-            `)
-            .addTo(mapRef);
-
-          setUserLocationMarker(marker);
-          showToast(`GPS fijado (±${Math.round(accuracy)}m)`);
-        }
-      },
-      (error) => {
-        setIsLocatingGPS(false);
-        console.warn("GPS Error:", error);
-        showToast("No se pudo obtener la señal GPS.");
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
-  // Navigate to Incident on Map
-  const handleFocusOnMap = (r: ReportFeature) => {
-    const [lng, lat] = r.geometry.coordinates;
-    setActiveTab("map");
-    setActiveDrawer("none");
-    setTimeout(() => {
-      if (mapRef) {
-        mapRef.flyTo([lat, lng], 16, { duration: 1.0 });
-        showToast(`Incidencia: ${r.properties.title}`);
-      }
-    }, 150);
-  };
-
-  // 1. Initialize Leaflet Map
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    import("leaflet").then((leaflet) => {
-      const leafletModule = leaflet.default || leaflet;
-      setL(leafletModule);
-
-      const container = document.getElementById("leaflet-map-container");
-      if (!container || (container as any)._leaflet_id) return;
-
-      const map = leafletModule.map(container, {
-        // Arranca en Jalisco completo; el efecto de encuadre lo lleva al municipio elegido en
-        // cuanto se conoce. Antes arrancaba siempre sobre la plaza de Tonalá.
-        center: [CENTRO_JALISCO[0], CENTRO_JALISCO[1]],
-        zoom: 8,
-        zoomControl: false,
-      });
-
-      leafletModule.control.zoom({ position: "bottomright" }).addTo(map);
-
-      // Default base layer: OpenStreetMap (OSM)
-      const initialTiles = leafletModule.tileLayer(TILE_STYLES.osm.url, {
-        attribution: TILE_STYLES.osm.attribution,
-        maxZoom: 19
-      }).addTo(map);
-
-      setTileLayerRef(initialTiles);
-
-      // Incidencias y contactos vivían en el mismo pane (markerPane, z-index 600)
-      // y los contactos se añadían después, así que siempre dibujaban encima:
-      // con 289 contactos y 21 incidencias, las incidencias quedaban sepultadas.
-      // Panes separados fijan el orden por z-index en vez de por orden de alta.
-      map.createPane("contactsPane").style.zIndex = "580";
-      map.createPane("incidentsPane").style.zIndex = "640";
-
-      const layer = leafletModule.layerGroup().addTo(map);
-      const cLayer = leafletModule.layerGroup().addTo(map);
-      const labels = leafletModule.layerGroup().addTo(map);
-      setMarkersLayer(layer);
-      setContactsLayer(cLayer);
-      setLabelsLayer(labels);
-      setMapRef(map);
-      (window as any).__leafletMap = map;
-
-      // Leaflet solo vuelve a medirse cuando cambia la ventana, no su contenedor. Si el mapa
-      // nace sin ancho —pestaña en segundo plano, barra lateral a mitad de animación— se queda
-      // con tamaño cero y todo encuadre posterior sale al zoom máximo sobre un rincón del
-      // municipio. Se le avisa cada vez que su contenedor cambia de tamaño.
-      if (typeof ResizeObserver !== "undefined") {
-        new ResizeObserver(() => map.invalidateSize()).observe(container);
-      }
-
-      map.on("zoomend", () => {
-        setMapZoom(map.getZoom());
-      });
-
-      // Recarga de contactos al terminar de mover o hacer zoom, con retardo para
-      // no lanzar una petición por cada fotograma de la animación.
-      let recargaPendiente: ReturnType<typeof setTimeout> | null = null;
-      const recargarPorVista = () => {
-        if (recargaPendiente) clearTimeout(recargaPendiente);
-        recargaPendiente = setTimeout(() => {
-          void fetchContactsRef.current?.(map);
-        }, 400);
-      };
-      map.on("moveend", recargarPorVista);
-      map.on("zoomend", recargarPorVista);
-
-      setTimeout(() => map.invalidateSize(), 150);
-      setTimeout(() => {
-        map.invalidateSize();
-        // Primera carga de contactos, ya con el recuadro visible. Antes se
-        // pedían todos al montar el componente y, en cuanto el mapa encuadraba
-        // el municipio, se volvían a pedir recortados: dos peticiones, la
-        // primera de ellas con el listado completo que el recorte iba a
-        // descartar de inmediato.
-        recargarPorVista();
-      }, 400);
-
-      const handleResize = () => map.invalidateSize();
-      window.addEventListener("resize", handleResize);
-
-      map.on("dblclick", (e: any) => {
-        void triggerIncidentCreation(e.latlng.lat, e.latlng.lng);
-      });
-
-      map.on("click", () => {
-        // Auto-close open drawer on map tap if empty
-        // so user has uninterrupted view
-      });
-
-      return () => {
-        window.removeEventListener("resize", handleResize);
-      };
-    });
-  }, [triggerIncidentCreation]);
-
-  // Invalidate map size when tab switches back to map
-  useEffect(() => {
-    if (activeTab === "map" && mapRef) {
-      setTimeout(() => mapRef.invalidateSize(), 100);
-      setTimeout(() => mapRef.invalidateSize(), 300);
-    }
-  }, [activeTab, mapRef]);
-
-  const handleChangeTileStyle = (styleKey: string) => {
-    const style = TILE_STYLES[styleKey as keyof typeof TILE_STYLES];
-    if (!style || !mapRef || !L || !tileLayerRef) return;
-
-    setSelectedTileStyle(styleKey);
-    tileLayerRef.setUrl(style.url);
-    tileLayerRef.options.attribution = style.attribution;
-    showToast(`Capa: ${style.name}`);
-  };
-
-  // 2. Fetch Incidents
-  const fetchReports = useCallback(async () => {
-    try {
-      const res = await fetch("/api/map/reports", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setAllReports(data.features || []);
-      }
-    } catch (error) {
-      console.error("Failed to load map reports:", error);
-    }
+  const avisar = useCallback((texto: string) => {
+    setAviso(texto);
+    setTimeout(() => setAviso((actual) => (actual === texto ? null : actual)), 3500);
   }, []);
 
-  // 2b. Fetch Contacts (with PAN Militancy & Network Colors)
-  // El mapa se inicializa una sola vez, así que sus manejadores no pueden
-  // capturar `fetchContacts` directamente: se llega a la versión vigente por
-  // referencia.
-  const fetchContactsRef = useRef<((mapa?: any, intento?: number) => Promise<void>) | null>(null);
-
-  const fetchContacts = useCallback(async (mapa?: any, intento = 0) => {
-    try {
-      // Se pide solo el recuadro visible.
-      let url = "/api/map/contacts";
-      if (mapa) {
-        const b = mapa.getBounds();
-        const ancho = b.getEast() - b.getWest();
-        const alto = b.getNorth() - b.getSouth();
-        if (ancho > 0.0001 && alto > 0.0001) {
-          url += `?bbox=${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`;
-        } else if (intento < 5) {
-          // El contenedor aún no tiene ancho —pestaña en segundo plano, panel
-          // plegado, primer diseño en un móvil lento— y el recuadro saldría
-          // degenerado. Se espera a que lo tenga en vez de pedir el listado
-          // completo, que es lo que ocurría antes sin que nada lo delatara.
-          setTimeout(() => void fetchContactsRef.current?.(mapa, intento + 1), 300);
-          return;
-        }
-        // Agotada la espera se piden todos: más vale el listado entero que un
-        // mapa vacío.
-      }
-      const res = await fetch(url, { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setAllContacts(data.features || []);
-        if (typeof data.cobertura?.ubicables === "number") {
-          setTotalContactos(data.cobertura.ubicables);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load map contacts:", error);
-    }
-  }, []);
-
-  // 3. Fetch Sections GeoJSON on demand strictly for the selected municipality
-  //
-  // Se guarda lo descargado por municipio: volver a uno ya visto (o a todo Jalisco, que pesa
-  // varios MB) lo muestra al instante y solo se refresca en segundo plano si tiene más de un
-  // minuto. Las llamadas sin `usarCache` —las que siguen a crear o editar una incidencia—
-  // siempre piden datos nuevos.
-  const seccionesCache = useRef<Record<string, { en: number; data: any }>>({});
-  const SECCIONES_FRESCAS_MS = 60_000;
-
-  const fetchSections = useCallback(async (muni?: string, usarCache = false) => {
-    const targetMuni = muni || selectedMunicipality || TODO_JALISCO;
-    const clave = targetMuni.toLowerCase();
-    if (usarCache) {
-      const guardado = seccionesCache.current[clave];
-      if (guardado) {
-        setSectionsData(guardado.data);
-        if (Date.now() - guardado.en < SECCIONES_FRESCAS_MS) return;
-      }
-    }
-    try {
-      const res = await fetch(`/api/map/sections/geojson?municipality=${encodeURIComponent(targetMuni)}`, { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        seccionesCache.current[clave] = { en: Date.now(), data };
-        setSectionsData(data);
-      }
-    } catch (error) {
-      console.error("Failed to load sections GeoJSON:", error);
-    }
-  }, [selectedMunicipality]);
-
-  // 4. Fetch Users for Assignment
-  const fetchUsers = useCallback(async () => {
-    try {
-      const res = await fetch("/api/map/users", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setSystemUsers(data.users || []);
-      }
-    } catch (error) {
-      console.error("Failed to load system users:", error);
-    }
-  }, []);
-
+  // ---------------------------------------------------------------------------------------------
+  // Tamaño. El mapa ocupa lo que queda de pantalla debajo de la cabecera y, en el teléfono, encima de
+  // la barra inferior (`.alto-mapa` en globals.css). Aquí se mide lo que tiene encima. Antes restaba
+  // 64 px fijos empezando debajo de una cabecera de ~130: su franja inferior, con la barra de
+  // estadísticas, quedaba bajo la barra de navegación (C13).
+  const contenedor = useRef<HTMLDivElement>(null);
+  const [arriba, setArriba] = useState<number | null>(null);
   useEffect(() => {
-    fetchReports();
-    fetchUsers();
-    // Los contactos no se piden aquí: los pide el mapa en cuanto conoce su
-    // recuadro visible (ver `recargarPorVista`).
-  }, [fetchReports, fetchUsers]);
-
-  // Fetch sections strictly for the selected municipality
-  useEffect(() => {
-    if (selectedMunicipality) {
-      void fetchSections(selectedMunicipality, true);
-    }
-  }, [selectedMunicipality, fetchSections]);
-
-  // La lista de municipios sale del catálogo compartido (lib/municipios-jalisco): ya no
-  // hace falta pedirla aparte ni arrancar con una lista escrita a mano.
-
-  // 5. Toggle Single Report Status
-  const handleToggleReportStatus = useCallback(async (reportId: string, newStatus: string) => {
-    try {
-      const res = await fetch(`/api/map/reports/${reportId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus })
-      });
-
-      if (res.ok) {
-        showToast(newStatus === "resolved" ? "Incidencia marcada como atendida" : "Incidencia reabierta");
-        await fetchReports();
-        await fetchSections();
-        if (mapRef) mapRef.closePopup();
-      } else {
-        alert("Error al actualizar el estado.");
-      }
-    } catch (e) {
-      console.error("Status update error:", e);
-      alert("Error de conexión.");
-    }
-  }, [fetchReports, fetchSections, mapRef]);
-
-  // 6. Delete Single Report
-  const handleDeleteReport = useCallback(async (reportId: string) => {
-    try {
-      const res = await fetch(`/api/map/reports/${reportId}`, { method: "DELETE" });
-      if (res.ok) {
-        showToast("Incidencia eliminada");
-        await fetchReports();
-        await fetchSections();
-        if (mapRef) mapRef.closePopup();
-      } else {
-        alert("Error al eliminar la incidencia.");
-      }
-    } catch (e) {
-      console.error("Delete error:", e);
-      alert("Error de conexión al eliminar.");
-    }
-  }, [fetchReports, fetchSections, mapRef]);
-
-  useEffect(() => {
-    window.__toggleReportStatus = (id: string, newStatus: string) => {
-      void handleToggleReportStatus(id, newStatus);
+    const medir = () => {
+      const el = contenedor.current;
+      if (el) setArriba(Math.max(0, Math.round(el.getBoundingClientRect().top + window.scrollY)));
     };
-    window.__deleteReport = (id: string) => {
-      if (confirm("¿Estás seguro de que deseas eliminar esta incidencia?")) {
-        void handleDeleteReport(id);
-      }
-    };
-    return () => {
-      delete window.__toggleReportStatus;
-      delete window.__deleteReport;
-    };
-  }, [handleToggleReportStatus, handleDeleteReport]);
-
-  // 7. Purge All Resolved Incidents
-  const handlePurgeResolved = async () => {
-    setIsPurging(true);
-    try {
-      const res = await fetch("/api/map/reports/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "purge_resolved",
-          municipality: incidentMunicipalityFilter
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        showToast(`${data.message}`);
-        setIsPurgeModalOpen(false);
-        await fetchReports();
-        await fetchSections();
-      } else {
-        alert("Error al depurar incidencias resueltas.");
-      }
-    } catch (err) {
-      console.error("Purge failed:", err);
-      alert("Error de conexión al purgar.");
-    } finally {
-      setIsPurging(false);
-    }
-  };
-
-  // 7b. Create New Incident with Photos/Videos
-  const handleSubmitReport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newReportCoords) return;
-
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        title: reportForm.title.trim(),
-        description: reportForm.description.trim() ? `${reportForm.description.trim()}\n\nDirección: ${reportForm.address}` : reportForm.address,
-        latitude: newReportCoords.lat,
-        longitude: newReportCoords.lng,
-        category: reportForm.category,
-        municipality: reportForm.municipality,
-        sectionId: reportForm.sectionId || detectedLocationInfo?.sectionId || null,
-        assignedToUserId: reportForm.assignedToUserId || null,
-        mediaUrls: reportForm.mediaUrls || []
-      };
-
-      const res = await fetch("/api/map/reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        setReportSuccess(true);
-        showToast("Incidencia registrada exitosamente");
-        await fetchReports();
-        await fetchSections();
-        setTimeout(() => {
-          setIsReportModalOpen(false);
-          setReportSuccess(false);
-          setNewReportCoords(null);
-          setDetectedLocationInfo(null);
-          setReportForm({
-            title: "",
-            address: "",
-            description: "",
-            category: "servicios",
-            // Vacío: el municipio de la próxima incidencia sale de su punto, no del filtro.
-            municipality: "",
-            sectionId: "",
-            assignedToUserId: "",
-            mediaUrls: []
-          });
-        }, 1500);
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        // El servidor explica el motivo en `message` cuando deniega por permisos
-        // y en `error` en los demás fallos. Antes solo se leía `error`, así que
-        // un "solo el líder puede levantar incidencias" se mostraba como un
-        // genérico "Error al registrar la incidencia".
-        alert(errData.message || errData.error || "Error al registrar la incidencia.");
-      }
-    } catch (err) {
-      console.error("Report submit error:", err);
-      alert("Error de conexión al registrar la incidencia.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // 8. Open Edit Modal
-  const handleOpenEdit = (r: ReportFeature) => {
-    setEditingReport(r);
-    setEditForm({
-      title: r.properties.title,
-      description: r.properties.description,
-      category: r.properties.category,
-      municipality: r.properties.municipality || "",
-      status: r.properties.status,
-      assignedToUserId: r.properties.assignedToUserId || ""
-    });
-  };
-
-  // 9. Save Edited Incident
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingReport) return;
-
-    setIsEditingSubmitting(true);
-    try {
-      const res = await fetch(`/api/map/reports/${editingReport.properties.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: editForm.title,
-          description: editForm.description,
-          category: editForm.category,
-          municipality: editForm.municipality,
-          status: editForm.status,
-          assignedToUserId: editForm.assignedToUserId || null
-        })
-      });
-
-      if (res.ok) {
-        showToast("Incidencia actualizada");
-        setEditingReport(null);
-        await fetchReports();
-        await fetchSections();
-      } else {
-        alert("Error al actualizar la incidencia.");
-      }
-    } catch (err) {
-      console.error("Edit error:", err);
-      alert("Error de red al guardar.");
-    } finally {
-      setIsEditingSubmitting(false);
-    }
-  };
-
-  // 10. Capa de secciones.
-  //
-  // Antes un solo efecto dibujaba y estilaba la capa, y dependía del nivel de información y de
-  // la sección elegida: mover el control a "Electoral" o hacer clic en una sección destruía y
-  // reconstruía todos los polígonos —cientos de rutas SVG, sus tooltips y sus etiquetas— y
-  // costaba cerca de un segundo por cambio con un solo municipio. Ahora se reparte en tres:
-  //   a) construir la capa: solo cuando llegan datos nuevos o se muestra/oculta;
-  //   b) estilarla: al cambiar de nivel o de selección solo se repinta, sin tocar la geometría;
-  //   c) rotular: aparte, y limitado a lo que cabe legible en pantalla.
-  // La capa se dibuja en un solo canvas en vez de una ruta SVG por sección.
-  const densidadRef = useRef(infoDensity);
-  const seleccionRef = useRef<number | null>(null);
-  densidadRef.current = infoDensity;
-  seleccionRef.current = selectedSection?.section_num ?? null;
-
-  const estiloSeccion = useCallback((feature: any) => {
-    const infoDensityActual = densidadRef.current;
-    const mun = feature?.properties?.municipality || "Sin municipio";
-    const theme = MUNICIPALITY_COLORS[mun] || { stroke: "#4f46e5", fill: "#6366f1" };
-    const isSelected = seleccionRef.current === feature?.properties?.section_num;
-    const isLevel1 = infoDensityActual === 1;
-
-    // Nivel "Electoral": el color deja de decir a qué municipio pertenece la sección y pasa a
-    // decir quién ganó ahí, que es la pregunta que se hace en campaña.
-    const atlas: AtlasSeccion | null = feature?.properties?.atlas ?? null;
-    if (infoDensityActual === 2 && atlas) {
-      const resultado = calcularResultado(atlas);
-      const bloque = BLOQUES[resultado.ganador];
-      return {
-        color: isSelected ? "#0f172a" : bloque.borde,
-        weight: isSelected ? 3.5 : 1.4,
-        opacity: isSelected ? 1 : 0.9,
-        fillColor: bloque.color,
-        fillOpacity: isSelected ? 0.75 : opacidadPorMargen(resultado.margen),
-        lineJoin: "round",
-        lineCap: "round"
-      };
-    }
-
-    // Sección sin ficha en el atlas: gris explícito, para que se vea que ahí no hay dato electoral.
-    if (infoDensityActual === 2) {
-      return {
-        color: isSelected ? "#0f172a" : SIN_ATLAS.borde,
-        weight: isSelected ? 3.5 : 1,
-        opacity: isSelected ? 1 : 0.55,
-        fillColor: SIN_ATLAS.color,
-        fillOpacity: isSelected ? 0.5 : 0.12,
-        lineJoin: "round",
-        lineCap: "round"
-      };
-    }
-
-    return {
-      color: isSelected ? "#1e1b4b" : theme.stroke,
-      weight: isSelected ? 3.5 : isLevel1 ? 1.2 : 1.8,
-      opacity: isSelected ? 1.0 : isLevel1 ? 0.6 : 0.85,
-      fillColor: isSelected ? "#312e81" : theme.fill,
-      fillOpacity: isSelected ? 0.40 : isLevel1 ? 0.08 : 0.22,
-      lineJoin: "round",
-      lineCap: "round"
-    };
-  }, []);
-
-  // a) Construcción
-  useEffect(() => {
-    if (!L || !mapRef || !sectionsData) return;
-
-    if (geoJsonLayer) geoJsonLayer.remove();
-
-    if (!showSections) {
-      setGeoJsonLayer(null);
-      return;
-    }
-
-    const layer = L.geoJSON(sectionsData, {
-      renderer: L.canvas({ padding: 0.3 }),
-      style: estiloSeccion,
-      onEachFeature: (feature: any, layerItem: any) => {
-        const p = feature.properties as SectionProperties;
-
-        // El tooltip se arma al pasar el cursor, no al dibujar: con miles de secciones, armar
-        // el HTML de todas de antemano era la mayor parte del coste de construir la capa.
-        layerItem.bindTooltip(
-          () => {
-            const mun = p.municipality || "Sin municipio";
-            // Resumen electoral solo con el nivel al máximo: en los bajos estorbaría.
-            const resumenAtlas = (() => {
-              if (densidadRef.current !== 2 || !p.atlas) return "";
-              const r = calcularResultado(p.atlas);
-              const b = BLOQUES[r.ganador];
-              const pct = r.total > 0 ? Math.round((r.votosGanador / r.total) * 100) : 0;
-              const veredicto = r.empate
-                ? "Empate técnico"
-                : `Gana ${b.corto} · ${pct}% · +${r.margen.toFixed(1)} pts`;
-              return `
-              <div style="margin-top:5px; padding-top:5px; border-top:1px solid #e2e8f0; display:flex; align-items:center; gap:5px;">
-                <span style="width:9px; height:9px; border-radius:50%; background:${b.color}; flex-shrink:0;"></span>
-                <span style="font-size:10px; font-weight:800; color:#0f172a;">${veredicto}</span>
-              </div>
-              <div style="font-size:9px; color:#64748b; margin-top:2px;">Prioridad ${p.atlas.priority} · ${r.total.toLocaleString("es-MX")} votos</div>`;
-            })();
-            return `
-            <div style="font-family:system-ui,sans-serif; padding:4px;">
-              <div style="font-size:12px; font-weight:800; color:#0f172a;">Sección ${p.section_num} <span style="font-weight:600; color:#6366f1;">(${mun})</span></div>
-              <div style="font-size:10px; color:#475569; margin-top:2px;">${p.atlas?.mainColony || p.colonies.slice(0, 3).join(", ") || mun}</div>
-              <div style="display:flex; gap:8px; margin-top:4px; font-size:10px; font-weight:700; color:#1e293b;">
-                <span>${p.contactsCount} simpatizantes</span>
-                <span>${p.visitsCompleted} visitas</span>
-              </div>
-              ${resumenAtlas}
-            </div>
-          `;
-          },
-          { sticky: true, className: "section-map-tooltip" }
-        );
-
-        layerItem.on({
-          mouseover: (e: any) => {
-            e.target.setStyle({ weight: 3.2, fillOpacity: 0.35, opacity: 1.0 });
-          },
-          mouseout: (e: any) => {
-            layer.resetStyle(e.target);
-          },
-          click: (e: any) => {
-            L.DomEvent.stopPropagation(e);
-            setSelectedSection(p);
-            setActiveDrawer("section");
-            mapRef.fitBounds(e.target.getBounds(), { padding: [50, 50], maxZoom: 15 });
-          }
-        });
-      }
-    }).addTo(mapRef);
-
-    layer.bringToBack();
-    setGeoJsonLayer(layer);
-    // Aquí había un auto-encuadre sobre la capa. Sobraba —el encuadre por municipio lo hace el
-    // efecto del recuadro del catálogo— y estorbaba.
-  }, [L, mapRef, sectionsData, showSections, estiloSeccion]);
-
-  // b) Estilo: cambiar de nivel o de selección solo repinta.
-  useEffect(() => {
-    if (!geoJsonLayer) return;
-    geoJsonLayer.setStyle(estiloSeccion);
-  }, [geoJsonLayer, infoDensity, selectedSection, estiloSeccion]);
-
-  // c) Etiquetas de sección. Se dibujaban a cualquier zoom y sobre todas las secciones, así
-  // que alejado se amontonaban por decenas y tapaban el mapa. Ahora solo salen con zoom
-  // suficiente (más alto en "Electoral", donde ya hay color que leer) y, como máximo, un
-  // puñado de las visibles.
-  const [vistaMapa, setVistaMapa] = useState(0);
-  useEffect(() => {
-    if (!mapRef) return;
-    let t: ReturnType<typeof setTimeout> | null = null;
-    const alMover = () => {
-      if (t) clearTimeout(t);
-      t = setTimeout(() => setVistaMapa((v) => v + 1), 150);
-    };
-    mapRef.on("moveend", alMover);
-    return () => {
-      mapRef.off("moveend", alMover);
-      if (t) clearTimeout(t);
-    };
-  }, [mapRef]);
-
-  const MAX_ETIQUETAS = 60;
-  useEffect(() => {
-    if (!L || !mapRef || !labelsLayer) return;
-    labelsLayer.clearLayers();
-    if (!geoJsonLayer || !showSections || !showSectionLabels || infoDensity === 0) return;
-    const zoomMinimo = infoDensity === 2 ? 14 : 13;
-    if (mapRef.getZoom() < zoomMinimo) return;
-
-    const visible = mapRef.getBounds();
-    let puestas = 0;
-    geoJsonLayer.eachLayer((capa: any) => {
-      if (puestas >= MAX_ETIQUETAS) return;
-      const limites = capa.getBounds();
-      if (!visible.intersects(limites)) return;
-      const p = capa.feature.properties as SectionProperties;
-      const icono = L.divIcon({
-        html: `<div style="background:rgba(15,23,42,0.85); color:#ffffff; font-size:10px; font-weight:800; padding:1.5px 5px; border-radius:5px; border:1px solid rgba(255,255,255,0.4); text-align:center; white-space:nowrap; pointer-events:none;">${p.section_num}</div>`,
-        className: "section-centroid-label",
-        iconSize: [28, 16],
-        iconAnchor: [14, 8]
-      });
-      L.marker(limites.getCenter(), { icon: icono, interactive: false }).addTo(labelsLayer);
-      puestas += 1;
-    });
-  }, [L, mapRef, labelsLayer, geoJsonLayer, showSections, showSectionLabels, infoDensity, mapZoom, vistaMapa]);
-
-  const handleMunicipalityChange = (muni: string) => {
-    setSelectedMunicipality(muni);
-    setSelectedSection(null);
-    // Se recuerda en el navegador y en la dirección: antes cada recarga devolvía el mapa a
-    // Tonalá y había que volver a elegir el municipio en cada visita. Con la dirección, un
-    // enlace compartido abre el mapa ya en el municipio que se estaba viendo.
-    guardarMunicipioPreferido(muni);
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set("municipio", muni);
-      window.history.replaceState(window.history.state, "", url);
-    } catch {
-      // Sin acceso a la dirección solo se pierde poder compartir el enlace filtrado.
-    }
-    showToast(muni === TODO_JALISCO ? "Todo Jalisco" : `Municipio: ${muni}`);
-  };
-
-  /**
-   * Encuadra el mapa en el municipio elegido con su recuadro del catálogo.
-   *
-   * Antes el encuadre salía de una tabla de diez municipios del AMG y, para cualquier otro,
-   * el mapa volaba al centro de Tonalá: el selector decía "Puerto Vallarta" y la pantalla
-   * mostraba Tonalá. El catálogo trae el recuadro de los 125 municipios, así que tampoco hay
-   * que esperar a que lleguen los polígonos para mover el mapa.
-   */
-  useEffect(() => {
-    if (!mapRef || !selectedMunicipality) return;
-    const bbox =
-      selectedMunicipality === TODO_JALISCO ? RECUADRO_JALISCO : buscarMunicipio(selectedMunicipality)?.bbox;
-    if (!bbox) return;
-    const encuadrar = () =>
-      mapRef.fitBounds(
-        [
-          [bbox[1], bbox[0]],
-          [bbox[3], bbox[2]]
-        ],
-        { padding: [40, 40], maxZoom: 14 }
-      );
-    const { x, y } = mapRef.getSize();
-    if (x > 0 && y > 0) {
-      encuadrar();
-      return;
-    }
-    // Sin tamaño, fitBounds calcula un zoom inválido y el mapa se queda en el máximo: se
-    // espera a que el contenedor tenga medidas (el ResizeObserver del arranque dispara resize).
-    mapRef.once("resize", encuadrar);
-    return () => {
-      mapRef.off("resize", encuadrar);
-    };
-  }, [mapRef, selectedMunicipality]);
-
-  // 11. Render Incident Markers with Guaranteed Prominence, Radial Dispersion & Zero Overlap
-  useEffect(() => {
-    if (!L || !markersLayer || !mapRef) return;
-
-    markersLayer.clearLayers();
-
-    // Una incidencia con una categoría fuera del catálogo se sigue dibujando.
-    // Antes este filtro la descartaba en silencio: como el catálogo del mapa
-    // tenía 7 categorías y la base admite 14, más de la mitad de los reportes se
-    // guardaban bien y no aparecían nunca. Quien lo levantaba creía haberlo
-    // perdido.
-    const filtered = allReports.filter((r) => {
-      const cat = r.properties.category;
-      return activeCategories.has(cat) || !Object.hasOwn(CATEGORIES, cat);
-    });
-
-    const zoom = mapRef.getZoom();
-    // En el nivel "Electoral" el color de las secciones es lo que hay que leer: las incidencias
-    // pasan a burbujas más chicas y se agrupan sobre una rejilla el doble de gruesa, para que
-    // no tapen el mapa.
-    const compacto = infoDensity === 2;
-    const lado = compacto ? 28 : 38;
-
-    // 1. Group individual reports by proximity (< 0.00018 deg, ~15m) to avoid stacking ("amontonamiento")
-    const proximityGroups: Array<{
-      centerLat: number;
-      centerLng: number;
-      reports: ReportFeature[];
-    }> = [];
-
-    filtered.forEach((report) => {
-      const [lng, lat] = report.geometry.coordinates;
-      let matched = proximityGroups.find((g) => Math.hypot(g.centerLat - lat, g.centerLng - lng) < 0.00018);
-      if (!matched) {
-        matched = { centerLat: lat, centerLng: lng, reports: [] };
-        proximityGroups.push(matched);
-      }
-      matched.reports.push(report);
-    });
-
-    if (enableClustering && zoom <= 14) {
-      const gridSize = (zoom <= 11 ? 0.05 : zoom <= 13 ? 0.02 : 0.008) * (compacto ? 2 : 1);
-      const clusters: Record<string, { reports: ReportFeature[]; latSum: number; lngSum: number }> = {};
-
-      filtered.forEach((report) => {
-        const [lng, lat] = report.geometry.coordinates;
-        const key = `${Math.floor(lat / gridSize)}_${Math.floor(lng / gridSize)}`;
-        if (!clusters[key]) clusters[key] = { reports: [], latSum: 0, lngSum: 0 };
-        clusters[key].reports.push(report);
-        clusters[key].latSum += lat;
-        clusters[key].lngSum += lng;
-      });
-
-      Object.values(clusters).forEach((c) => {
-        const count = c.reports.length;
-        const avgLat = c.latSum / count;
-        const avgLng = c.lngSum / count;
-
-        if (count === 1) {
-          renderSingleMarker(c.reports[0]!, avgLat, avgLng, 0, 1);
-        } else {
-          const hasEmergency = c.reports.some(r => r.properties.category === "emergencia" && r.properties.status === "active");
-          const clusterIcon = L.divIcon({
-            html: `
-              <div style="position:relative; width:${lado}px; height:${lado}px; border-radius:50%; background:${hasEmergency ? '#dc2626' : '#2563eb'}; color:white; display:flex; align-items:center; justify-content:center; font-size:${compacto ? 11 : 13}px; font-weight:800; border:${compacto ? 2 : 3}px solid white; box-shadow:0 4px 14px rgba(0,0,0,0.3); cursor:pointer; ${compacto ? 'opacity:0.88;' : ''}">
-                ${count}
-                ${hasEmergency ? `<div style="position:absolute; inset:-4px; border-radius:50%; border:2px solid #ef4444; animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>` : ''}
-              </div>
-            `,
-            className: "incident-cluster-marker",
-            iconSize: [lado, lado],
-            iconAnchor: [lado / 2, lado / 2]
-          });
-
-          L.marker([avgLat, avgLng], { icon: clusterIcon, pane: "incidentsPane" })
-            .on("click", () => {
-              mapRef.flyTo([avgLat, avgLng], Math.min(zoom + 2, 16), { duration: 0.8 });
-            })
-            .addTo(markersLayer);
-        }
-      });
-    } else {
-      // Disperse coincident markers so they never overlap or hide each other
-      proximityGroups.forEach((group) => {
-        const total = group.reports.length;
-        if (total === 1) {
-          renderSingleMarker(group.reports[0]!, group.centerLat, group.centerLng, 0, 1);
-        } else {
-          // Dynamic zoom-aware dispersion radius (~36-44px visual separation on screen)
-          const metersPerPixel = (156543.03392 * Math.cos((group.centerLat * Math.PI) / 180)) / Math.pow(2, zoom);
-          const pixelOffset = Math.min(48, Math.max(34, 28 + total * 3));
-          const radiusMeters = pixelOffset * metersPerPixel;
-          const radiusLat = radiusMeters / 111139;
-          const radiusLng = radiusMeters / (111139 * Math.cos((group.centerLat * Math.PI) / 180));
-
-          group.reports.forEach((report, idx) => {
-            const angle = (2 * Math.PI * idx) / total;
-            const dispLat = group.centerLat + radiusLat * Math.cos(angle);
-            const dispLng = group.centerLng + radiusLng * Math.sin(angle);
-
-            // Connective spider line
-            L.polyline([[group.centerLat, group.centerLng], [dispLat, dispLng]], {
-              color: "#94a3b8",
-              weight: 2,
-              dashArray: "3, 3",
-              opacity: 0.85
-            }).addTo(markersLayer);
-
-            renderSingleMarker(report, dispLat, dispLng, idx, total);
-          });
-        }
-      });
-    }
-
-    // Incidents layer must ALWAYS be in front of everything
-    if (markersLayer && markersLayer.bringToFront) {
-      markersLayer.bringToFront();
-    }
-
-    function renderSingleMarker(report: ReportFeature, lat: number, lng: number, indexInGroup = 0, totalInGroup = 1) {
-      const cat = CATEGORIES[report.properties.category] ?? {
-        label: report.properties.category,
-        svg: SVGS.AlertCircle,
-        color: "#64748b",
-        bg: "#f8fafc"
-      };
-
-      const isResolved = report.properties.status === "resolved";
-      const isEmergency = report.properties.category === "emergencia" && !isResolved;
-
-      const badgeHtml = totalInGroup > 1 
-        ? `<div style="position:absolute; top:-4px; right:-4px; background:#0f172a; color:white; width:15px; height:15px; border-radius:50%; font-size:9px; font-weight:800; display:flex; align-items:center; justify-content:center; border:1.5px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3);">${indexInGroup + 1}</div>`
-        : isResolved 
-        ? `<div style="position:absolute; bottom:-2px; right:-2px; background:#16a34a; color:white; width:14px; height:14px; border-radius:50%; font-size:10px; display:flex; align-items:center; justify-content:center; border:1.5px solid white;">✓</div>`
-        : '';
-
-      const icon = L.divIcon({
-        html: `
-          <div style="position:relative; width:36px; height:36px; border-radius:50%; background-color:${isResolved ? '#f0fdf4' : cat.bg}; display:flex; align-items:center; justify-content:center; color:${isResolved ? '#16a34a' : cat.color}; border: 2.5px solid ${isResolved ? '#16a34a' : isEmergency ? '#ef4444' : 'white'}; box-shadow: 0 4px 12px rgba(0,0,0,0.28); opacity: ${isResolved ? 0.85 : 1}; cursor: pointer; transform: scale(${compacto ? 0.8 : 1.05});">
-            ${cat.svg}
-            ${badgeHtml}
-            ${isEmergency ? `<div style="position:absolute; inset:-3px; border-radius:50%; border:2px solid #ef4444; animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>` : ''}
-          </div>
-        `,
-        className: "custom-incident-marker",
-        iconSize: [36, 36],
-        iconAnchor: [18, 18],
-        popupAnchor: [0, -20]
-      });
-
-      const date = new Date(report.properties.createdAt).toLocaleString("es-MX", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      });
-
-      const statusBadge = isResolved
-        ? `<span style="background:#dcfce7; color:#15803d; padding:3px 8px; border-radius:9999px; font-size:10px; font-weight:700; text-transform:uppercase;">✓ Atendida</span>`
-        : isEmergency
-        ? `<span style="background:#fee2e2; color:#dc2626; padding:3px 8px; border-radius:9999px; font-size:10px; font-weight:700; text-transform:uppercase;">● Emergencia</span>`
-        : `<span style="background:#fef3c7; color:#b45309; padding:3px 8px; border-radius:9999px; font-size:10px; font-weight:700; text-transform:uppercase;">● Pendiente</span>`;
-
-      const actionButton = isResolved
-        ? `<button onclick="window.__toggleReportStatus('${report.properties.id}', 'active')" style="flex:1; padding:8px 10px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px;">
-            ↺ Reabrir
-          </button>`
-        : `<button onclick="window.__toggleReportStatus('${report.properties.id}', 'resolved')" style="flex:1; padding:8px 10px; background:#16a34a; color:white; border:none; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px; box-shadow:0 2px 6px rgba(22,163,74,0.3);">
-            ✓ Marcar Atendida
-          </button>`;
-
-      const multiBadge = totalInGroup > 1
-        ? `<div style="font-size:10px; font-weight:800; color:#4338ca; background:#eef2ff; padding:3px 8px; border-radius:6px; margin-bottom:8px; display:inline-block; border:1px solid #c7d2fe;">
-            Incidencia ${indexInGroup + 1} de ${totalInGroup} en esta ubicación
-          </div>`
-        : '';
-
-      // Se arma al abrir el popup: al dibujar 200+ incidencias en cada zoom, armarlos todos era coste puro.
-      const popupHtml = () => `
-        <div style="font-family:system-ui,-apple-system,sans-serif; min-width:260px; max-width:320px; padding:6px;">
-          ${multiBadge}
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-            <div style="display:flex; align-items:center; gap:6px;">
-              <div style="width:24px; height:24px; border-radius:6px; background:${cat.bg}; color:${cat.color}; display:flex; align-items:center; justify-content:center;">${cat.svg}</div>
-              <span style="font-size:11px; font-weight:800; color:${cat.color}; text-transform:uppercase;">${cat.label}</span>
-            </div>
-            ${statusBadge}
-          </div>
-
-          <h3 style="margin:0 0 4px; font-size:14px; font-weight:800; color:#0f172a; line-height:1.3;">${report.properties.title}</h3>
-          <p style="margin:0 0 8px; font-size:12px; color:#475569; line-height:1.4;">${report.properties.description}</p>
-          
-          <div style="display:flex; align-items:center; justify-content:space-between; padding-top:6px; border-top:1px solid #f1f5f9; font-size:11px; color:#64748b;">
-            <span>${report.properties.sectionNum ? `Sección #${report.properties.sectionNum}` : `${report.properties.municipality || 'Territorio'}`}</span>
-            <span>${date}</span>
-          </div>
-
-          <div style="display:flex; gap:6px; margin-top:10px;">
-            ${actionButton}
-            <button onclick="window.__deleteReport('${report.properties.id}')" title="Eliminar Incidencia" style="padding:8px 10px; background:#fee2e2; color:#dc2626; border:1px solid #fecaca; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-              ${SVGS.Trash}
-            </button>
-          </div>
-        </div>
-      `;
-
-      L.marker([lat, lng], { icon, pane: "incidentsPane" })
-        .bindPopup(popupHtml, { closeButton: true, maxWidth: 320, offset: [0, -5] })
-        .addTo(markersLayer);
-    }
-  }, [L, markersLayer, mapRef, allReports, activeCategories, enableClustering, mapZoom, infoDensity]);
-
-  // 11b. Render Contacts on Map (with Dynamic Spatial Clustering & PAN Militancy Badges)
-  useEffect(() => {
-    if (!L || !contactsLayer || !mapRef) return;
-
-    contactsLayer.clearLayers();
-    // En el nivel "Electoral" el mapa se lee por el color de las secciones: encima, cientos de
-    // marcadores de contactos lo tapaban y era lo que lo hacía sentir amontonado. Vuelven en
-    // cuanto se baja de nivel (la casilla de contactos conserva su valor).
-    if (!showContacts || infoDensity === 2) return;
-
-    const zoom = mapRef.getZoom();
-
-    if (enableClustering && zoom <= 14) {
-      const gridSize = zoom <= 11 ? 0.04 : zoom <= 13 ? 0.015 : 0.006;
-      const clusters: Record<string, { contacts: any[]; latSum: number; lngSum: number; panCount: number }> = {};
-
-      allContacts.forEach((contact: any) => {
-        const [lng, lat] = contact.geometry.coordinates;
-        const key = `${Math.floor(lat / gridSize)}_${Math.floor(lng / gridSize)}`;
-        if (!clusters[key]) clusters[key] = { contacts: [], latSum: 0, lngSum: 0, panCount: 0 };
-        clusters[key].contacts.push(contact);
-        clusters[key].latSum += lat;
-        clusters[key].lngSum += lng;
-        if (contact.properties?.isPanConfirmed) clusters[key].panCount++;
-      });
-
-      Object.values(clusters).forEach((c) => {
-        const count = c.contacts.length;
-        const avgLat = c.latSum / count;
-        const avgLng = c.lngSum / count;
-
-        if (count === 1) {
-          renderSingleContact(c.contacts[0], avgLat, avgLng);
-        } else {
-          // A este zoom casi todo lo que se ve son clusters, así que si el grupo
-          // entero son ubicaciones aproximadas hay que decirlo aquí: es donde la
-          // gente mira antes de decidir a dónde ir.
-          const todosAprox = c.contacts.every((x: any) => x.properties?.isApproximate);
-          const clusterIcon = L.divIcon({
-            html: `
-              <div title="${count} contactos${todosAprox ? " — ubicación aproximada por sección, sin GPS" : ""}" style="position:relative; width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2.5px ${todosAprox ? "dashed" : "solid"} #ffffff; box-shadow:0 6px 20px rgba(37,99,235,${todosAprox ? "0.25" : "0.45"}); cursor:pointer; font-family:system-ui,-apple-system,sans-serif; transition:all 0.15s ease;">
-                <div style="font-size:13px; font-weight:900; line-height:1; letter-spacing:-0.5px;">${count}</div>
-                ${c.panCount > 0
-                  ? `<div style="font-size:9px; font-weight:800; color:#93c5fd; margin-top:2px; display:flex; align-items:center; gap:2px;">${PAN_BADGE_HTML} ${c.panCount}</div>`
-                  : `<div style="font-size:8px; font-weight:700; color:#bfdbfe; text-transform:uppercase; margin-top:1px;">${todosAprox ? "Aprox" : "Red"}</div>`}
-                <div style="position:absolute; inset:-4px; border-radius:50%; border:1.5px ${todosAprox ? "dashed" : "solid"} rgba(59,130,246,0.35); pointer-events:none;"></div>
-              </div>
-            `,
-            className: "contact-cluster-marker",
-            iconSize: [44, 44],
-            iconAnchor: [22, 22]
-          });
-
-          L.marker([avgLat, avgLng], { icon: clusterIcon, pane: "contactsPane" })
-            .on("click", () => {
-              // Zoom vivo, no el capturado al construir: el efecto ya no se
-              // rehace en cada paso, así que el de la clausura quedaría atrás.
-              mapRef.flyTo([avgLat, avgLng], Math.min(mapRef.getZoom() + 2, 16), { duration: 0.8 });
-            })
-            .addTo(contactsLayer);
-        }
-      });
-    } else {
-      allContacts.forEach((contact: any) => {
-        const [lng, lat] = contact.geometry.coordinates;
-        renderSingleContact(contact, lat, lng);
-      });
-    }
-
-    function renderSingleContact(contact: any, lat: number, lng: number) {
-      const p = contact.properties;
-      const isPan = p.isPanConfirmed;
-      const color = p.networkColor || "#2563eb";
-
-      // Un punto derivado del centroide de la sección no es un domicilio. Se
-      // dibuja con borde punteado y sin sombra para que se lea como "por aquí"
-      // y no como "en esta puerta".
-      const aprox = p.isApproximate === true;
-      const titulo = aprox
-        ? `${p.displayName} — ubicación aproximada${p.sectionNum ? ` (sección ${p.sectionNum})` : ""}, sin GPS`
-        : `${p.displayName} (${isPan ? "PAN Confirmado" : "Contacto"})`;
-
-      const contactIcon = L.divIcon({
-        html: `
-          <div style="position:relative; display:flex; align-items:center; justify-content:center; cursor:pointer;" title="${titulo}">
-            <div style="width:30px; height:30px; border-radius:50%; background:${isPan ? '#2563eb' : '#ffffff'}; color:${isPan ? '#ffffff' : color}; border:2.5px ${aprox ? "dashed" : "solid"} ${isPan ? '#ffffff' : color}; display:flex; align-items:center; justify-content:center; box-shadow:${aprox ? "none" : "0 4px 14px rgba(0,0,0,0.25)"}; opacity:${aprox ? "0.75" : "1"}; font-size:12px; font-weight:900;">
-              ${isPan ? `<span style="color:#fff; font-size:0.85em; font-weight:900; line-height:1;">M</span>` : SVGS.User}
-            </div>
-          </div>
-        `,
-        className: "contact-map-marker",
-        iconSize: [30, 30],
-        iconAnchor: [15, 15],
-        popupAnchor: [0, -16]
-      });
-
-      const popupHtml = `
-        <div style="font-family:system-ui,-apple-system,sans-serif; min-width:220px; padding:6px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
-            <strong style="font-size:14px; font-weight:800; color:#0f172a;">${p.displayName}</strong>
-            ${isPan ? '<span style="background:#2563eb; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:999px;">PAN Confirmado</span>' : ''}
-          </div>
-          <p style="margin:0 0 2px 0; font-size:11px; color:#475569;">${p.colony || 'Colonia por definir'}, ${p.municipality || 'municipio sin registrar'}</p>
-          <p style="margin:0 0 8px 0; font-size:11px; color:#64748b;">Red: <strong style="color:#0f172a;">${p.creatorName || 'Equipo'}</strong></p>
-          <a href="/crm/contacts/${p.id}" style="display:block; text-align:center; padding:7px 12px; background:#2563eb; color:white; border-radius:8px; font-size:11px; font-weight:800; text-decoration:none; box-shadow:0 2px 6px rgba(37,99,235,0.3);">Ver Ficha 360°</a>
-        </div>
-      `;
-
-      L.marker([lat, lng], { icon: contactIcon, pane: "contactsPane" })
-        .bindPopup(popupHtml)
-        .addTo(contactsLayer);
-    }
-  }, [L, contactsLayer, mapRef, allContacts, showContacts, enableClustering, nivelAgrupacion, infoDensity]);
-
-  // Filtered sections for search
-  const filteredSectionsList = useMemo(() => {
-    if (!sectionsData?.features) return [];
-    const query = searchQuery.toLowerCase().trim();
-    
-    const baseList = sectionsData.features.map((f: any) => f.properties as SectionProperties);
-    
-    if (!query) return baseList;
-
-    return baseList.filter((p: SectionProperties) => {
-      const secMatch = String(p.section_num).includes(query);
-      const colMatch = p.colonies?.some((c: string) => c.toLowerCase().includes(query));
-      const munMatch = (p.municipality || "").toLowerCase().includes(query);
-      return secMatch || colMatch || munMatch;
-    });
-  }, [sectionsData, searchQuery, selectedMunicipality]);
-
-  const handleSelectSection = (p: SectionProperties) => {
-    setSelectedSection(p);
-    setActiveDrawer("section");
-    if (infoDensity === 0) {
-      setInfoDensity(1);
-      setShowSections(true);
-      setShowSectionLabels(true);
-    }
-    if (!mapRef) return;
-    
-    if (geoJsonLayer) {
-      geoJsonLayer.eachLayer((layer: any) => {
-        if (layer.feature?.properties?.section_num === p.section_num) {
-          mapRef.fitBounds(layer.getBounds(), { padding: [50, 50], maxZoom: 15 });
-        }
-      });
-    } else if (sectionsData && L) {
-      const feat = sectionsData.features?.find((f: any) => f.properties?.section_num === p.section_num);
-      if (feat) {
-        const tempGeo = L.geoJSON(feat);
-        mapRef.fitBounds(tempGeo.getBounds(), { padding: [50, 50], maxZoom: 15 });
-      }
-    }
-  };
-
-  // Metrics for Incident Operations
-  const activeReportsCount = allReports.filter(r => r.properties.status === "active").length;
-  const resolvedReportsCount = allReports.filter(r => r.properties.status === "resolved").length;
-  const emergencyReportsCount = allReports.filter(r => r.properties.category === "emergencia" && r.properties.status === "active").length;
-  const resolutionRate = allReports.length > 0 ? Math.round((resolvedReportsCount / allReports.length) * 100) : 100;
-
-  // Filtered & Sorted Incidents for the Incident Management Center
-  const displayIncidents = useMemo(() => {
-    let base = [...allReports];
-
-    if (incidentSearchQuery.trim()) {
-      const q = incidentSearchQuery.toLowerCase().trim();
-      base = base.filter((r) => {
-        const titleMatch = r.properties.title.toLowerCase().includes(q);
-        const descMatch = r.properties.description.toLowerCase().includes(q);
-        const secMatch = String(r.properties.sectionNum || "").includes(q);
-        const muniMatch = (r.properties.municipality || "").toLowerCase().includes(q);
-        return titleMatch || descMatch || secMatch || muniMatch;
-      });
-    }
-
-    if (incidentMunicipalityFilter !== "all") {
-      base = base.filter((r) => r.properties.municipality === incidentMunicipalityFilter);
-    }
-
-    if (incidentCategoryFilter !== "all") {
-      base = base.filter((r) => r.properties.category === incidentCategoryFilter);
-    }
-
-    const actives = base.filter(r => r.properties.status === "active");
-    const resolveds = base.filter(r => r.properties.status === "resolved");
-
-    const applySort = (list: ReportFeature[]) => {
-      return list.sort((a, b) => {
-        const aEmerg = a.properties.category === "emergencia" ? 2 : 1;
-        const bEmerg = b.properties.category === "emergencia" ? 2 : 1;
-        if (aEmerg !== bEmerg) return bEmerg - aEmerg;
-        return new Date(b.properties.createdAt).getTime() - new Date(a.properties.createdAt).getTime();
-      });
-    };
-
-    const sortedActives = applySort([...actives]);
-    const sortedResolveds = applySort([...resolveds]);
-
-    if (incidentSubTab === "active") {
-      return sortedActives;
-    } else if (incidentSubTab === "emergency") {
-      return sortedActives.filter(r => r.properties.category === "emergencia");
-    } else if (incidentSubTab === "resolved") {
-      return sortedResolveds;
-    } else {
-      return [...sortedActives, ...sortedResolveds];
-    }
-  }, [allReports, incidentSearchQuery, incidentMunicipalityFilter, incidentCategoryFilter, incidentSubTab]);
-
-  const handleExportCSV = () => {
-    if (displayIncidents.length === 0) {
-      alert("No hay incidencias para exportar con los filtros actuales.");
-      return;
-    }
-
-    const headers = ["ID", "Título", "Categoría", "Estatus", "Municipio", "Sección", "Fecha"];
-    const rows = displayIncidents.map((r) => [
-      r.properties.id,
-      `"${r.properties.title.replace(/"/g, '""')}"`,
-      r.properties.category,
-      r.properties.status,
-      r.properties.municipality || "",
-      r.properties.sectionNum || "",
-      new Date(r.properties.createdAt).toISOString()
-    ]);
-
-    const csvContent = [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `incidencias_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast("CSV exportado");
-  };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [esMovil]);
 
   useEffect(() => {
-    fetchContactsRef.current = fetchContacts;
-  }, [fetchContacts]);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
-    const aplicar = () => {
-      setEsPantallaEstrecha(mq.matches);
-      setBarraAbierta(!mq.matches);
-    };
+    const mq = window.matchMedia("(max-width: 767px)");
+    const aplicar = () => setEsMovil(mq.matches);
     aplicar();
     mq.addEventListener("change", aplicar);
     return () => mq.removeEventListener("change", aplicar);
   }, []);
 
-  return (
-    <div className="alto-mapa" style={{ position: "relative", width: "100%", display: "flex", flexDirection: "column", background: "#0f172a", overflow: "hidden", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
-      
-      {/* Top Floating Command Bar */}
-      <header style={{ position: "absolute", top: "12px", left: "12px", right: "12px", zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "8px 12px", borderRadius: "14px", background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(226, 232, 240, 0.9)", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15)", flexWrap: "wrap" }}>
-        
-        {/* Left: View Tabs */}
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <button
-            onClick={() => {
-              setActiveTab("map");
-              setActiveDrawer("none");
-            }}
-            style={{
-              display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "10px", border: "none",
-              backgroundColor: activeTab === "map" ? "#2563eb" : "#f1f5f9",
-              color: activeTab === "map" ? "#ffffff" : "#475569",
-              fontSize: "12px", fontWeight: "800", cursor: "pointer", transition: "all 0.15s"
-            }}
-          >
-            <Compass size={15} />
-            <span>Mapa Cartográfico</span>
-          </button>
-          
-          <button
-            onClick={() => {
-              setActiveTab("list");
-              setActiveDrawer("none");
-            }}
-            style={{
-              display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "10px", border: "none",
-              backgroundColor: activeTab === "list" ? "#2563eb" : "#f1f5f9",
-              color: activeTab === "list" ? "#ffffff" : "#475569",
-              fontSize: "12px", fontWeight: "800", cursor: "pointer", transition: "all 0.15s"
-            }}
-          >
-            <ListFilter size={15} />
-            <span>Centro de Mando</span>
-            <span style={{ backgroundColor: activeTab === "list" ? "rgba(255,255,255,0.25)" : "#e2e8f0", color: activeTab === "list" ? "white" : "#334155", padding: "1px 6px", borderRadius: "9999px", fontSize: "11px", fontWeight: "800" }}>
-              {activeReportsCount}
+  // ---------------------------------------------------------------------------------------------
+  // Leaflet, una sola vez.
+  const pedirContactosRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    let cancelado = false;
+    void import("leaflet").then((modulo) => {
+      const Lf: any = modulo.default || modulo;
+      const nodo = document.getElementById("leaflet-map-container");
+      if (cancelado || !nodo || (nodo as any)._leaflet_id) return;
+      const m = Lf.map(nodo, { center: [CENTRO_JALISCO[0], CENTRO_JALISCO[1]], zoom: 8, zoomControl: false });
+      // Arriba a la derecha: abajo la tapan el menú del teléfono y el botón flotante.
+      Lf.control.zoom({ position: "topright" }).addTo(m);
+      const base = Lf.tileLayer(TILE_STYLES.osm.url, { attribution: TILE_STYLES.osm.attribution, maxZoom: 19 }).addTo(m);
+      // Panes separados fijan el orden por z-index en vez de por orden de alta: las incidencias,
+      // siempre encima de los contactos. Todo queda dentro del contenedor del mapa (`isolation`).
+      m.createPane("contactsPane").style.zIndex = "580";
+      m.createPane("incidentsPane").style.zIndex = "640";
+      setCapas({ incidencias: Lf.layerGroup().addTo(m), contactos: Lf.layerGroup().addTo(m), etiquetas: Lf.layerGroup().addTo(m), base });
+      (window as any).__leafletMap = m;
+      if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => m.invalidateSize()).observe(nodo);
+      m.on("zoomend", () => setZoom(m.getZoom()));
+      let pendiente: ReturnType<typeof setTimeout> | null = null;
+      m.on("moveend", () => {
+        if (pendiente) clearTimeout(pendiente);
+        pendiente = setTimeout(() => pedirContactosRef.current(), 400);
+      });
+      // El doble clic que abre el alta de incidencia está más abajo (depende de quién puede reportar).
+      setL(Lf);
+      setMapa(m);
+      setZoom(m.getZoom());
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const s = TILE_STYLES[estilo];
+    if (!capas?.base) return;
+    capas.base.setUrl(s.url);
+    capas.base.options.attribution = s.attribution;
+  }, [capas, estilo]);
+
+  // ---------------------------------------------------------------------------------------------
+  // Municipio inicial: el de la dirección (?municipio=), el de la persona, el último que eligió en
+  // este navegador y, si nada de eso existe, todo Jalisco.
+  useEffect(() => {
+    const desdeUrl = new URLSearchParams(window.location.search).get("municipio");
+    setMunicipio(
+      desdeUrl === TODO_JALISCO
+        ? TODO_JALISCO
+        : resolverMunicipio(desdeUrl) ?? resolverMunicipio(municipioUsuario) ?? leerMunicipioPreferido() ?? TODO_JALISCO
+    );
+    // Solo al montar: después manda lo que elija la persona.
+  }, []);
+
+  const cambiarMunicipio = useCallback((m: string) => {
+    setMunicipio(m);
+    setSeccion(null);
+    guardarMunicipioPreferido(m);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("municipio", m);
+      window.history.replaceState(window.history.state, "", url);
+    } catch {
+      // Sin acceso a la dirección solo se pierde poder compartir el enlace filtrado.
+    }
+  }, []);
+
+  // Encuadre con el recuadro del catálogo: no hay que esperar a los polígonos para mover el mapa.
+  useEffect(() => {
+    if (!mapa || !municipio) return;
+    const bbox = municipio === TODO_JALISCO ? RECUADRO_JALISCO : buscarMunicipio(municipio)?.bbox;
+    if (!bbox) return;
+    // En un mapa estrecho (teléfono) 40 px por lado le quitaban un nivel de zoom a todo Jalisco.
+    const encuadrar = () => {
+      const margen = mapa.getSize().x < 500 ? 8 : 40;
+      mapa.fitBounds([[bbox[1], bbox[0]], [bbox[3], bbox[2]]], { padding: [margen, margen], maxZoom: 14 });
+    };
+    const { x, y } = mapa.getSize();
+    if (x > 0 && y > 0) {
+      encuadrar();
+      return;
+    }
+    mapa.once("resize", encuadrar);
+    return () => {
+      mapa.off("resize", encuadrar);
+    };
+  }, [mapa, municipio]);
+
+  // ---------------------------------------------------------------------------------------------
+  // Datos.
+  const pedirReportes = useCallback(async () => {
+    try {
+      const res = await fetch("/api/map/reports", { cache: "no-store" });
+      if (!res.ok) return;
+      const d = await res.json();
+      setReportes(d.features || []);
+      if (typeof d.diasDeResueltas === "number") setDiasDeResueltas(d.diasDeResueltas);
+      setReportesTruncados(Boolean(d.truncado));
+    } catch {
+      // Sin red se queda lo que había; el siguiente cambio vuelve a pedir.
+    }
+  }, []);
+  useEffect(() => {
+    void pedirReportes();
+  }, [pedirReportes]);
+
+  // Secciones del municipio elegido, recordadas por municipio: volver a uno ya visto es instantáneo.
+  // En «todo Jalisco» no se piden: se dibujan los 125 municipios del catálogo (4.5).
+  const seccionesCache = useRef<Record<string, { en: number; data: any }>>({});
+  useEffect(() => {
+    if (!municipio || municipio === TODO_JALISCO) {
+      setSecciones(null);
+      return;
+    }
+    const clave = municipio.toLowerCase();
+    const guardado = seccionesCache.current[clave];
+    if (guardado) {
+      setSecciones(guardado.data);
+      if (Date.now() - guardado.en < SECCIONES_FRESCAS_MS) return;
+    }
+    let vigente = true;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/map/sections/geojson?municipality=${encodeURIComponent(municipio)}`, { cache: "no-store" });
+        if (!res.ok || !vigente) return;
+        const data = await res.json();
+        seccionesCache.current[clave] = { en: Date.now(), data };
+        setSecciones(data);
+      } catch {
+        // Se queda lo cargado, si había.
+      }
+    })();
+    return () => {
+      vigente = false;
+    };
+  }, [municipio]);
+
+  // Contactos. Con la capa apagada solo se piden los números para el rótulo; encendida, el recuadro
+  // visible ya agrupado por el servidor (C10, R6). Una respuesta vieja que llega tarde no pisa a una
+  // más nueva.
+  const verContactosRef = useRef(verContactos);
+  verContactosRef.current = verContactos;
+  // Por referencia: si dependiera de `mapa`, al terminar de cargar Leaflet se repetía la petición.
+  const mapaRef = useRef<any>(null);
+  mapaRef.current = mapa;
+  const ultimaPeticion = useRef(0);
+  const pedirContactos = useCallback(async () => {
+    const ver = verContactosRef.current;
+    const m = mapaRef.current;
+    let url = "/api/map/contacts?solo=conteo";
+    if (ver) {
+      if (!m) return;
+      const b = m.getBounds();
+      if (b.getEast() - b.getWest() < 0.0001 || b.getNorth() - b.getSouth() < 0.0001) return;
+      url = `/api/map/contacts?bbox=${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}&zoom=${Math.round(m.getZoom())}`;
+    }
+    const n = ++ultimaPeticion.current;
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) return;
+      const d = await res.json();
+      if (n !== ultimaPeticion.current) return;
+      setCobertura(d.cobertura ?? null);
+      setContactos(ver ? { features: d.features || [], grupos: d.grupos || [] } : { features: [], grupos: [] });
+    } catch {
+      // Sin red se queda lo que había.
+    }
+  }, []);
+  pedirContactosRef.current = () => {
+    if (verContactosRef.current) void pedirContactos();
+  };
+  useEffect(() => {
+    void pedirContactos();
+  }, [pedirContactos, verContactos]);
+
+  // La lista de personas para asignar solo se descarga al abrir un formulario que la usa.
+  const pedirUsuarios = useCallback(async () => {
+    if (usuarios) return;
+    try {
+      const res = await fetch("/api/map/users", { cache: "no-store" });
+      if (res.ok) setUsuarios((await res.json()).users || []);
+    } catch {
+      // El formulario funciona sin la lista: la asignación queda vacía.
+    }
+  }, [usuarios]);
+
+  // ---------------------------------------------------------------------------------------------
+  // Capas.
+  const alElegirSeccion = useCallback((p: SectionProperties, limites: any) => {
+    setSeccion(p);
+    setPanel("section");
+    if (mapa && limites) mapa.fitBounds(limites, { padding: [50, 50], maxZoom: 15 });
+  }, [mapa]);
+  const capaSecciones = useCapaSecciones({
+    L,
+    mapa,
+    capaEtiquetas: capas?.etiquetas,
+    datos: municipio && municipio !== TODO_JALISCO ? secciones : null,
+    visible: verSecciones,
+    etiquetas: true,
+    coloreado,
+    seleccion: seccion?.section_num ?? null,
+    alElegir: alElegirSeccion,
+    // Doble clic sobre una sección: el alta en el punto exacto del clic, como en el resto del mapa. La
+    // dirección y la sección las detecta el formulario desde ese punto; el polígono no decide nada.
+    alDobleClic: puedeReportar ? (punto) => reportar({}, punto) : null
+  });
+  useCapaMunicipios({ L, mapa, visible: verSecciones && municipio === TODO_JALISCO, alElegir: cambiarMunicipio });
+  useCapaIncidencias({ L, mapa, capa: capas?.incidencias, reportes, agrupar: true, compacto: verSecciones && coloreado === "electoral", zoom, visible: verIncidencias });
+  useCapaContactos({ L, mapa, capa: capas?.contactos, contactos: contactos.features, grupos: contactos.grupos, visible: verContactos });
+
+  // ---------------------------------------------------------------------------------------------
+  // Acciones.
+  const cambiarEstado = useCallback(async (id: string, estado: string) => {
+    try {
+      const res = await fetch(`/api/map/reports/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: estado }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        avisar(d.error || "No se pudo cambiar el estado.");
+        return;
+      }
+      avisar(ESTADOS_INCIDENCIA[estado]?.cerrada ? "Incidencia marcada como atendida." : "Incidencia reabierta.");
+      mapa?.closePopup();
+      // Solo las incidencias: antes también se volvía a descargar toda la cartografía (0,5 a 3,3 MB).
+      await pedirReportes();
+    } catch {
+      avisar("Sin conexión: no se cambió el estado.");
+    }
+  }, [avisar, mapa, pedirReportes]);
+
+  const borrar = useCallback(async (id: string) => {
+    if (!window.confirm("¿Eliminar esta incidencia? No se puede deshacer.")) return;
+    try {
+      const res = await fetch(`/api/map/reports/${id}`, { method: "DELETE" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        avisar(d.error || "No se pudo eliminar.");
+        return;
+      }
+      avisar("Incidencia eliminada.");
+      mapa?.closePopup();
+      await pedirReportes();
+    } catch {
+      avisar("Sin conexión: no se eliminó.");
+    }
+  }, [avisar, mapa, pedirReportes]);
+
+  useEffect(() => {
+    window.__toggleReportStatus = (id, estado) => void cambiarEstado(id, estado);
+    window.__deleteReport = (id) => void borrar(id);
+    return () => {
+      delete window.__toggleReportStatus;
+      delete window.__deleteReport;
+    };
+  }, [cambiarEstado, borrar]);
+
+  /** «Mi ubicación» centra el mapa y marca el punto. Antes también abría el alta de incidencia. */
+  const ubicarme = () => {
+    if (!navigator.geolocation) {
+      avisar("Este teléfono o navegador no da la ubicación GPS.");
+      return;
+    }
+    setUbicando(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUbicando(false);
+        const { latitude, longitude, accuracy } = pos.coords;
+        ultimaUbicacion.current = { lat: latitude, lng: longitude, precision: accuracy, en: Date.now() };
+        if (mapa && L) {
+          mapa.flyTo([latitude, longitude], 16, { duration: 1.2 });
+          marcadorGps.current?.remove();
+          const icono = L.divIcon({ html: ICONO_GPS, className: "gps-user-marker", iconSize: [30, 30], iconAnchor: [15, 15] });
+          marcadorGps.current = L.marker([latitude, longitude], { icon: icono }).bindPopup(globoGps(accuracy)).addTo(mapa);
+        }
+        avisar(`Ubicación fijada (±${Math.round(accuracy)} m)${puedeReportar ? ". «Reportar» usará este punto." : "."}`);
+      },
+      () => {
+        setUbicando(false);
+        avisar("No se pudo obtener la ubicación GPS.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  /** Reportar en la última ubicación GPS si es reciente; si no, en el centro del mapa. */
+  const reportar = useCallback((extra: Partial<PuntoDeReporte> = {}, lugar?: { lat: number; lng: number }) => {
+    void pedirUsuarios();
+    const gps = ultimaUbicacion.current && Date.now() - ultimaUbicacion.current.en < GPS_VIGENTE_MS ? ultimaUbicacion.current : null;
+    const centro = mapa ? mapa.getCenter() : { lat: CENTRO_JALISCO[0], lng: CENTRO_JALISCO[1] };
+    const punto = lugar ?? (gps ? { lat: gps.lat, lng: gps.lng } : { lat: centro.lat, lng: centro.lng });
+    const origen = lugar ? "clic" : gps ? "gps" : "centro";
+    setPuntoDeReporte({ ...punto, origen, ...(gps && !lugar ? { precisionGps: gps.precision } : {}), ...extra });
+  }, [mapa, pedirUsuarios]);
+
+  // Doble clic (o doble toque) en el mapa: levantar una incidencia en ese punto (pedido del dueño,
+  // 2026-09-25). En la etapa 4 se había quitado (M25) porque el doble toque es también el gesto de
+  // acercar, y cada acercamiento abría el formulario. Ahora, a quien puede reportar, el doble clic ya
+  // no acerca —se acerca con la rueda, pellizcando o con los botones—: solo abre el alta. A quien no
+  // puede reportar le sigue acercando. Los controles del mapa van fuera del contenedor de Leaflet, así
+  // que un doble clic sobre ellos no llega aquí.
+  useEffect(() => {
+    if (!mapa || !puedeReportar) return;
+    mapa.doubleClickZoom.disable();
+    const alDobleClic = (e: { latlng: { lat: number; lng: number } }) => reportar({}, { lat: e.latlng.lat, lng: e.latlng.lng });
+    mapa.on("dblclick", alDobleClic);
+    return () => {
+      mapa.off("dblclick", alDobleClic);
+      mapa.doubleClickZoom.enable();
+    };
+  }, [mapa, puedeReportar, reportar]);
+
+  // Llegar con ?crear=incidencia (el botón flotante del panel): GPS del dispositivo y, si no hay
+  // permiso o tarda, el centro del mapa. El parámetro se retira de la dirección en cuanto se usa.
+  useEffect(() => {
+    if (!mapa) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("crear") !== "incidencia") return;
+    params.delete("crear");
+    const resto = params.toString();
+    window.history.replaceState({}, "", window.location.pathname + (resto ? `?${resto}` : ""));
+    if (!puedeReportar) {
+      avisar("Levantar incidencias es del líder de la brigada o de la coordinación.");
+      return;
+    }
+    if (!navigator.geolocation) {
+      reportar();
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        ultimaUbicacion.current = { lat: pos.coords.latitude, lng: pos.coords.longitude, precision: pos.coords.accuracy, en: Date.now() };
+        mapa.flyTo([pos.coords.latitude, pos.coords.longitude], 16, { duration: 1.2 });
+        reportar();
+      },
+      () => reportar(),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }, [mapa, puedeReportar, reportar, avisar]);
+
+  const centrarEn = (r: ReportFeature) => {
+    const [lng, lat] = r.geometry.coordinates;
+    setVista("mapa");
+    setPanel("none");
+    setTimeout(() => mapa?.flyTo([lat, lng], 16, { duration: 1.0 }), 150);
+  };
+
+  const archivarResueltas = async () => {
+    setArchivando(true);
+    try {
+      const res = await fetch("/api/map/reports/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "purge_resolved", municipality: "all" }) });
+      const d = await res.json().catch(() => ({}));
+      avisar(res.ok ? d.message : d.error || "No se pudieron archivar.");
+      if (res.ok) {
+        setArchivar(false);
+        await pedirReportes();
+      }
+    } catch {
+      avisar("Sin conexión: no se archivó nada.");
+    } finally {
+      setArchivando(false);
+    }
+  };
+
+  const exportar = (lista: ReportFeature[]) => {
+    if (lista.length === 0) {
+      avisar("No hay nada que exportar con esos filtros.");
+      return;
+    }
+    // Una celda que empieza con = + - @ la ejecuta la hoja de cálculo como fórmula: se antepone un apóstrofo.
+    const celda = (v: string | number) => {
+      const texto = String(v);
+      return `"${(/^[=+\-@\t\r]/.test(texto) ? `'${texto}` : texto).replace(/"/g, '""')}"`;
+    };
+    const filas = lista.map((r) => [r.properties.id, r.properties.title, r.properties.esActividad ? "actividad" : r.properties.category, ESTADOS_INCIDENCIA[r.properties.status]?.label ?? r.properties.status, r.properties.municipality || "", r.properties.sectionNum || "", new Date(r.properties.createdAt).toISOString()].map(celda).join(","));
+    // Con la marca BOM, Excel lee los acentos como UTF-8 (sin ella, «TÃ­tulo»). Igual que la exportación de contactos.
+    const blob = new Blob(["﻿" + ["ID,Título,Categoría,Estado,Municipio,Sección,Fecha", ...filas].join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `incidencias_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // ---------------------------------------------------------------------------------------------
+  const incidenciasAbiertas = useMemo(() => reportes.filter((r) => abierta(r) && !r.properties.esActividad).length, [reportes]);
+  const incidenciasDeLaSeccion = seccion ? reportes.filter((r) => r.properties.sectionId === seccion.id && abierta(r) && !r.properties.esActividad).length : 0;
+  const listaDeSecciones = useMemo(() => {
+    const todas: SectionProperties[] = (secciones?.features ?? []).map((f: any) => f.properties);
+    const q = busqueda.toLowerCase().trim();
+    if (!q) return todas;
+    return todas.filter((s) => String(s.section_num).includes(q) || s.colonies?.some((c) => c.toLowerCase().includes(q)) || (s.municipality || "").toLowerCase().includes(q));
+  }, [secciones, busqueda]);
+
+  const elegirSeccionDeLaLista = (s: SectionProperties) => {
+    let limites: any = null;
+    capaSecciones?.eachLayer((item: any) => {
+      if (item.feature?.properties?.section_num === s.section_num) limites = item.getBounds();
+    });
+    alElegirSeccion(s, limites);
+  };
+
+  const reportarEnSeccion = (s: SectionProperties) => {
+    let lugar: { lat: number; lng: number } | undefined;
+    capaSecciones?.eachLayer((item: any) => {
+      if (item.feature?.properties?.section_num === s.section_num) {
+        const c = item.getBounds().getCenter();
+        lugar = { lat: c.lat, lng: c.lng };
+      }
+    });
+    // El centro de la sección no es el lugar de nada: el alta lo trata como aproximado y deja ubicarlo
+    // por su dirección.
+    reportar({ municipio: s.municipality, seccionId: s.id, origen: "centro" }, lugar);
+  };
+
+  // Leyenda del coloreado por resultado: un color sin leyenda obliga a adivinar. El atlas no cubre todos
+  // los municipios (hoy, solo Zapopan): sin decirlo, el modo pintaba todo de gris sin explicación.
+  const seccionesConFicha = useMemo(() => (secciones?.features ?? []).filter((f: any) => f.properties?.atlas).length, [secciones]);
+  const totalDeSecciones: number = secciones?.features?.length ?? 0;
+  const leyenda =
+    verSecciones && coloreado === "electoral" && municipio !== TODO_JALISCO && secciones ? (
+      <div className="px-3 py-2 rounded-xl bg-white/95 border border-slate-300 shadow-lg">
+        <div className="text-[9px] font-extrabold text-slate-600 uppercase tracking-wide mb-1.5">Quién ganó la última elección</div>
+        {seccionesConFicha === 0 ? (
+          <div className="text-[11px] font-semibold text-slate-600">Todavía no hay resultados cargados para {municipio}.</div>
+        ) : (
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {(Object.keys(BLOQUES) as BloqueElectoral[]).map((clave) => (
+              <span key={clave} className="flex items-center gap-1 text-[11px] font-bold text-slate-900">
+                <span className="w-[11px] h-[11px] rounded-sm inline-block" style={{ background: BLOQUES[clave].color, border: `1px solid ${BLOQUES[clave].borde}` }} />
+                {BLOQUES[clave].etiqueta}
+              </span>
+            ))}
+            <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-500">
+              <span className="w-[11px] h-[11px] rounded-sm inline-block opacity-50" style={{ background: SIN_ATLAS.color, border: `1px solid ${SIN_ATLAS.borde}` }} /> Sin ficha
+              {seccionesConFicha < totalDeSecciones && ` (${(totalDeSecciones - seccionesConFicha).toLocaleString("es-MX")})`}
             </span>
-          </button>
-        </div>
-
-        {/* Center: Municipality Selector & Information Density Slider */}
-        {activeTab === "map" && barraAbierta && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-            {/* Direct Statewide Municipality Selector */}
-            <div style={{ display: "flex", alignItems: "center", gap: "5px", background: "#f8fafc", padding: "4px 8px", borderRadius: "10px", border: "1px solid #cbd5e1" }}>
-              <MapPin size={14} style={{ color: "#2563eb", flexShrink: 0 }} />
-              <select
-                value={selectedMunicipality}
-                onChange={(e) => handleMunicipalityChange(e.target.value)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  fontSize: "11px",
-                  fontWeight: "800",
-                  color: "#0f172a",
-                  outline: "none",
-                  cursor: "pointer",
-                  maxWidth: "200px"
-                }}
-                title="Seleccionar municipio de Jalisco para enfocar el mapa"
-              >
-                <option value={TODO_JALISCO}>Todo Jalisco ({TOTAL_SECCIONES_JALISCO.toLocaleString("es-MX")} secc.)</option>
-                  {availableMunicipalities.map((m) => (
-                  <option key={m.name} value={m.name}>
-                    {m.name} ({m.count} secc.)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Information Density Slider */}
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f8fafc", padding: "5px 12px", borderRadius: "10px", border: "1px solid #cbd5e1" }}>
-              <span style={{ fontSize: "11px", fontWeight: "800", color: "#475569", display: "flex", alignItems: "center", gap: "4px" }}>
-                <Eye size={13} style={{ color: "#2563eb" }} />
-                <span>Nivel:</span>
-              </span>
-
-              <input
-                type="range"
-                min="0"
-                max="2"
-                step="1"
-                value={infoDensity}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setInfoDensity(val);
-                  if (val === 0) {
-                    setShowSections(false);
-                    setShowSectionLabels(false);
-                    setActiveDrawer("none");
-                    showToast("Modo Limpio: Solo Incidencias & Calles activas");
-                  } else if (val === 1) {
-                    setShowSections(true);
-                    setShowSectionLabels(true);
-                    showToast("Modo Territorial: Incidencias + Secciones sutiles");
-                  } else {
-                    setShowSections(true);
-                    setShowSectionLabels(true);
-                    showToast("Modo Electoral: secciones coloreadas por quién ganó la última elección");
-                  }
-                }}
-                style={{ width: "75px", accentColor: "#2563eb", cursor: "pointer" }}
-                title="Desliza a la derecha para colorear las secciones por resultado electoral"
-              />
-
-              <span style={{ fontSize: "11px", fontWeight: "800", color: infoDensity === 0 ? "#dc2626" : infoDensity === 1 ? "#0284c7" : "#4f46e5", minWidth: "95px" }}>
-                {infoDensity === 0 ? "Limpio" : infoDensity === 1 ? "Territorial" : "Electoral"}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Right: Drawer Triggers and Actions */}
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-          {/* Plegado de la barra. En móvil es la diferencia entre ver el mapa o
-              ver el panel de control. */}
-          {activeTab === "map" && esPantallaEstrecha && (
-            <button
-              onClick={() => setBarraAbierta((v) => !v)}
-              title={barraAbierta ? "Ocultar controles y ver el mapa completo" : "Mostrar controles del mapa"}
-              style={{ display: "flex", alignItems: "center", gap: "5px", padding: "8px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", background: barraAbierta ? "#eff6ff" : "#ffffff", color: barraAbierta ? "#1d4ed8" : "#334155", fontSize: "11px", fontWeight: "800", cursor: "pointer" }}
-            >
-              {barraAbierta ? <Minimize2 size={14} /> : <SlidersHorizontal size={14} />}
-              <span>{barraAbierta ? "Ver mapa" : "Controles"}</span>
-            </button>
-          )}
-
-          {activeTab === "map" && barraAbierta && (
-            <>
-              {/* Quick Tile Style Switcher */}
-              <div style={{ display: "flex", alignItems: "center", background: "#f1f5f9", padding: "2px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
-                {Object.entries(TILE_STYLES).map(([key, style]) => (
-                  <button
-                    key={key}
-                    onClick={() => handleChangeTileStyle(key)}
-                    title={style.name}
-                    style={{
-                      padding: "5px 8px",
-                      borderRadius: "6px",
-                      border: "none",
-                      background: selectedTileStyle === key ? "#2563eb" : "transparent",
-                      color: selectedTileStyle === key ? "#ffffff" : "#475569",
-                      fontSize: "10px",
-                      fontWeight: "800",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "3px",
-                      transition: "all 0.15s"
-                    }}
-                  >
-                    <style.icon size={16} />
-                    <span>{TILE_LABELS[key] ?? style.name}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Contacts Layer Quick Toggle */}
-              <button
-                onClick={() => {
-                  const nextVal = !showContacts;
-                  setShowContacts(nextVal);
-                  showToast(nextVal ? "Capa de Contactos y Red activada" : "Capas de Contactos oculta");
-                }}
-                style={{
-                  display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px",
-                  border: "1px solid",
-                  borderColor: showContacts ? "#93c5fd" : "#cbd5e1",
-                  backgroundColor: showContacts ? "#eff6ff" : "#f8fafc",
-                  color: showContacts ? "#1d4ed8" : "#475569",
-                  fontSize: "11px", fontWeight: "800", cursor: "pointer"
-                }}
-                title="Mostrar/Ocultar simpatizantes y militancia PAN en el mapa"
-              >
-                <Users size={14} style={{ color: showContacts ? "#2563eb" : "#64748b" }} />
-                <span>Contactos ({totalContactos || allContacts.length})</span>
-              </button>
-
-              {/* GPS Button */}
-              <button
-                onClick={handleLocateMe}
-                disabled={isLocatingGPS}
-                title="Centrar en mi ubicación GPS"
-                style={{ display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px", border: "1px solid #bfdbfe", background: "#eff6ff", color: "#1d4ed8", fontSize: "11px", fontWeight: "800", cursor: "pointer" }}
-              >
-                <LocateFixed size={14} className={isLocatingGPS ? "animate-spin" : ""} />
-                <span>GPS</span>
-              </button>
-
-              {/* Search Drawer Button */}
-              <button
-                onClick={() => toggleDrawer("search")}
-                style={{
-                  display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px",
-                  border: "1px solid",
-                  borderColor: activeDrawer === "search" ? "#93c5fd" : "#cbd5e1",
-                  backgroundColor: activeDrawer === "search" ? "#eff6ff" : "#f8fafc",
-                  color: activeDrawer === "search" ? "#1d4ed8" : "#334155",
-                  fontSize: "11px", fontWeight: "800", cursor: "pointer"
-                }}
-              >
-                <Search size={14} />
-                <span>Buscar</span>
-              </button>
-
-              {/* Incidents Drawer Button */}
-              <button
-                onClick={() => toggleDrawer("incidents")}
-                style={{
-                  display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px",
-                  border: "1px solid",
-                  borderColor: activeDrawer === "incidents" ? "#fca5a5" : "#cbd5e1",
-                  backgroundColor: activeDrawer === "incidents" ? "#fef2f2" : "#f8fafc",
-                  color: activeDrawer === "incidents" ? "#b91c1c" : "#334155",
-                  fontSize: "11px", fontWeight: "800", cursor: "pointer"
-                }}
-              >
-                <AlertCircle size={14} style={{ color: activeDrawer === "incidents" ? "#dc2626" : "#64748b" }} />
-                <span>Incidencias ({activeReportsCount})</span>
-              </button>
-
-              {/* Layers Drawer Button */}
-              <button
-                onClick={() => toggleDrawer("layers")}
-                style={{
-                  display: "flex", alignItems: "center", gap: "5px", padding: "7px 10px", borderRadius: "9px",
-                  border: "1px solid",
-                  borderColor: activeDrawer === "layers" ? "#c7d2fe" : "#cbd5e1",
-                  backgroundColor: activeDrawer === "layers" ? "#eef2ff" : "#f8fafc",
-                  color: activeDrawer === "layers" ? "#4338ca" : "#334155",
-                  fontSize: "11px", fontWeight: "800", cursor: "pointer"
-                }}
-              >
-                <SlidersHorizontal size={14} />
-                <span>Capas</span>
-              </button>
-
-              {/* Hide All Drawers Button */}
-              {activeDrawer !== "none" && (
-                <button
-                  onClick={() => setActiveDrawer("none")}
-                  title="Ocultar paneles y ver mapa limpio"
-                  style={{ display: "flex", alignItems: "center", gap: "4px", padding: "7px 10px", borderRadius: "9px", border: "1px solid #e2e8f0", background: "#ffffff", color: "#64748b", fontSize: "11px", fontWeight: "800", cursor: "pointer" }}
-                >
-                  <Minimize2 size={13} />
-                  <span>Ocultar Menú</span>
-                </button>
-              )}
-            </>
-          )}
-
-          {activeTab === "list" && (
-            <>
-              <button
-                onClick={() => setIsPurgeModalOpen(true)}
-                title="Depurar y limpiar incidencias resueltas"
-                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "7px 10px", borderRadius: "9px", border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontSize: "11px", fontWeight: "800", cursor: "pointer" }}
-              >
-                <Trash2 size={14} />
-                <span>Purgar</span>
-              </button>
-
-              <button
-                onClick={handleExportCSV}
-                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "7px 10px", borderRadius: "9px", border: "1px solid #cbd5e1", background: "#f8fafc", color: "#334155", fontSize: "11px", fontWeight: "800", cursor: "pointer" }}
-              >
-                <Download size={14} />
-                <span>Exportar CSV</span>
-              </button>
-            </>
-          )}
-
-          {/* Quick Create Report Button */}
-          <button
-            onClick={() => {
-              const defaultCoords = mapRef ? mapRef.getCenter() : { lat: CENTRO_JALISCO[0], lng: CENTRO_JALISCO[1] };
-              void triggerIncidentCreation(defaultCoords.lat, defaultCoords.lng);
-            }}
-            style={{ display: "flex", alignItems: "center", gap: "4px", padding: "8px 14px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #ef4444, #dc2626)", color: "white", fontSize: "11px", fontWeight: "800", cursor: "pointer", boxShadow: "0 2px 6px rgba(220,38,38,0.35)" }}
-          >
-            <PlusCircle size={15} />
-            <span>+ Reportar</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Main Map Container */}
-      <div style={{ position: "relative", width: "100%", height: "100%", flex: 1, minHeight: "500px" }}>
-        
-        {/* Leaflet Map Canvas */}
-        <div 
-          id="leaflet-map-container" 
-          style={{ 
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            width: "100%", 
-            height: "100%", 
-            minHeight: "500px",
-            zIndex: 1,
-            visibility: activeTab === "map" ? "visible" : "hidden"
-          }} 
-        />
-
-        {/* Floating Live KPI HUD */}
-        {activeTab === "map" && (
-          <div style={{ position: "absolute", bottom: "16px", left: "16px", zIndex: 20, display: "flex", alignItems: "center", gap: "12px", padding: "8px 16px", borderRadius: "14px", background: "rgba(15, 23, 42, 0.88)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(255, 255, 255, 0.15)", boxShadow: "0 10px 25px rgba(0,0,0,0.35)", color: "white", fontSize: "11px", fontWeight: "700", pointerEvents: "auto" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ef4444", display: "inline-block" }}></span>
-              <span style={{ color: "#fca5a5", fontWeight: "900" }}>{activeReportsCount}</span>
-              <span style={{ color: "#94a3b8", fontSize: "10px" }}>Incidencias</span>
-            </div>
-            <div style={{ width: "1px", height: "14px", background: "rgba(255,255,255,0.2)" }}></div>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <Users size={11} style={{ color: "#93c5fd" }} />
-              <span style={{ color: "#93c5fd", fontWeight: "900" }}>{allContacts.length}</span>
-              <span style={{ color: "#94a3b8", fontSize: "10px" }}>Simpatizantes</span>
-            </div>
-            <div style={{ width: "1px", height: "14px", background: "rgba(255,255,255,0.2)" }}></div>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <Vote size={11} style={{ color: "#86efac" }} />
-              <span style={{ color: "#86efac", fontWeight: "900" }}>{sectionsData?.features?.length || 46}</span>
-              <span style={{ color: "#94a3b8", fontSize: "10px" }}>Secciones</span>
-            </div>
-          </div>
-        )}
-
-        {/* Leyenda del coloreado por resultado. Solo con el nivel al máximo, que es cuando
-            las secciones dejan de pintarse por municipio: un color sin leyenda obliga a
-            adivinar, y adivinar sobre un mapa electoral es peor que no colorear. */}
-        {activeTab === "map" && infoDensity === 2 && showSections && (
-          <div style={{ position: "absolute", bottom: "62px", left: "16px", zIndex: 20, padding: "9px 12px", borderRadius: "12px", background: "rgba(255,255,255,0.97)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid #cbd5e1", boxShadow: "0 10px 25px -8px rgba(0,0,0,0.25)", pointerEvents: "auto", maxWidth: "calc(100vw - 32px)" }}>
-            <div style={{ fontSize: "9px", fontWeight: "800", color: "#475569", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "6px" }}>
-              Quién ganó la última elección
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-              {(Object.keys(BLOQUES) as BloqueElectoral[]).map((clave) => (
-                <div key={clave} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                  <span style={{ width: "11px", height: "11px", borderRadius: "3px", background: BLOQUES[clave].color, border: `1px solid ${BLOQUES[clave].borde}`, display: "inline-block" }} />
-                  <span style={{ fontSize: "11px", fontWeight: "700", color: "#0f172a" }}>{BLOQUES[clave].etiqueta}</span>
-                </div>
-              ))}
-              <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                <span style={{ width: "11px", height: "11px", borderRadius: "3px", background: SIN_ATLAS.color, border: `1px solid ${SIN_ATLAS.borde}`, opacity: 0.5, display: "inline-block" }} />
-                <span style={{ fontSize: "11px", fontWeight: "600", color: "#64748b" }}>Sin ficha</span>
-              </div>
-            </div>
-            <div style={{ fontSize: "9px", color: "#64748b", marginTop: "6px", display: "flex", alignItems: "center", gap: "5px" }}>
-              <span style={{ display: "inline-flex", gap: "2px" }}>
-                {[0.22, 0.34, 0.48, 0.62].map((o) => (
-                  <span key={o} style={{ width: "10px", height: "8px", background: "#0f172a", opacity: o, borderRadius: "2px", display: "inline-block" }} />
-                ))}
-              </span>
-              <span>A más intenso, más holgada la ventaja. Clic en una sección para el detalle.</span>
-            </div>
-          </div>
-        )}
-
-        {/* Floating Toast Notification */}
-        {toastMessage && (
-          <div style={{ position: "absolute", top: "72px", left: "50%", transform: "translateX(-50%)", zIndex: 1200, background: "rgba(15, 23, 42, 0.92)", color: "white", padding: "8px 18px", borderRadius: "30px", boxShadow: "0 10px 25px rgba(0,0,0,0.3)", fontSize: "12px", fontWeight: "700", border: "1px solid rgba(255,255,255,0.2)", backdropFilter: "blur(8px)", width: "max-content", maxWidth: "90vw", textAlign: "center" }}>
-            {toastMessage}
-          </div>
-        )}
-
-        {/* =========================================================================
-            UNIFIED SLIDE-OVER DRAWER (NEVER OVERLAPS - HOSTS ONE ACTIVE PANEL)
-            ========================================================================= */}
-        {activeTab === "map" && activeDrawer !== "none" && (
-          <div style={{ position: "absolute", top: "72px", right: "12px", bottom: "calc(64px + env(safe-area-inset-bottom) + 12px)", width: "370px", maxWidth: "calc(100vw - 24px)", background: "rgba(255, 255, 255, 0.98)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderRadius: "16px", border: "1px solid #cbd5e1", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", zIndex: 40, display: "flex", flexDirection: "column", overflow: "hidden", animation: "float-up 0.2s ease" }}>
-            
-            {/* 1. DRAWER HEADER */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc", flexShrink: 0 }}>
-              <h3 style={{ margin: 0, fontWeight: "900", fontSize: "13px", color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" }}>
-                {activeDrawer === "search" && <><Search size={15} style={{ color: "#2563eb" }} /> Buscar Secciones y Territorio</>}
-                {activeDrawer === "section" && <><Layers size={15} style={{ color: "#4f46e5" }} /> Detalle de Sección Electoral</>}
-                {activeDrawer === "incidents" && <><AlertCircle size={15} style={{ color: "#dc2626" }} /> Incidencias Activas ({allReports.length})</>}
-                {activeDrawer === "layers" && <><SlidersHorizontal size={15} style={{ color: "#2563eb" }} /> Configuración de Capas</>}
-              </h3>
-              <button 
-                onClick={() => setActiveDrawer("none")} 
-                style={{ background: "rgba(0,0,0,0.05)", border: "none", color: "#475569", cursor: "pointer", padding: "6px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}
-                title="Cerrar panel"
-              >
-                <X size={17} />
-              </button>
-            </div>
-
-            {/* 2. DRAWER BODY */}
-            <div style={{ flex: 1, padding: "14px 14px 40px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
-              
-              {/* SEARCH PANEL */}
-              {activeDrawer === "search" && (
-                <>
-                  <div>
-                    <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Municipio</label>
-                    <select
-                      value={selectedMunicipality}
-                      onChange={(e) => handleMunicipalityChange(e.target.value)}
-                      style={{ width: "100%", padding: "8px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", color: "#0f172a", outline: "none", cursor: "pointer" }}
-                    >
-                      <option value={TODO_JALISCO}>Todo Jalisco ({TOTAL_SECCIONES_JALISCO.toLocaleString("es-MX")} secciones)</option>
-                  {availableMunicipalities.map((m) => (
-                        <option key={m.name} value={m.name}>
-                          {m.name} ({m.count} secciones)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Búsqueda en Vivo de Calles, Colonias y Secciones</label>
-                    <AddressAutocomplete
-                      value={searchQuery}
-                      onChange={(val) => setSearchQuery(val)}
-                      onSelect={(item) => {
-                        setSearchQuery(item.title);
-                        if (item.sectionNum) {
-                          const sec = sectionsData?.features?.find((f: any) => f.properties?.section_num === item.sectionNum);
-                          if (sec) {
-                            handleSelectSection(sec.properties);
-                            return;
-                          }
-                        }
-                        if (item.lat && item.lng && mapRef) {
-                          mapRef.flyTo([item.lat, item.lng], 16, { duration: 1.0 });
-                          showToast(`Centrado en: ${item.title}`);
-                        }
-                      }}
-                      // "all" viaja tal cual: dice "todo Jalisco" a propósito. Con undefined el
-                      // autocompletado cae al municipio de la sesión y anulaba la elección.
-                      municipality={selectedMunicipality || undefined}
-                      placeholder="Escribe calle, colonia o sección..."
-                    />
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
-                    <div style={{ fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase" }}>
-                      Secciones Encontradas ({filteredSectionsList.length})
-                    </div>
-                    {filteredSectionsList.map((sec: SectionProperties) => (
-                      <button
-                        key={sec.section_num}
-                        onClick={() => handleSelectSection(sec)}
-                        style={{
-                          display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", borderRadius: "8px",
-                          backgroundColor: selectedSection?.section_num === sec.section_num ? "#dbeafe" : "#f8fafc",
-                          border: "1px solid", borderColor: selectedSection?.section_num === sec.section_num ? "#bfdbfe" : "#e2e8f0",
-                          cursor: "pointer", textAlign: "left", width: "100%"
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontSize: "11px", fontWeight: "800", color: "#0f172a" }}>
-                            Sección #{sec.section_num} <span style={{ fontSize: "10px", color: "#2563eb", fontWeight: "600" }}>({sec.municipality || 'Sin municipio'})</span>
-                          </div>
-                          <div style={{ fontSize: "10px", color: "#64748b" }}>{sec.colonies.slice(0, 3).join(", ") || sec.municipality}</div>
-                        </div>
-                        <ChevronRight size={13} style={{ color: "#94a3b8" }} />
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {/* SECTION DETAIL PANEL */}
-              {activeDrawer === "section" && (
-                selectedSection ? (
-                  <>
-                    <div>
-                      <span style={{ display: "inline-block", background: "#dbeafe", color: "#1e40af", fontWeight: "800", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.5px", padding: "2px 6px", borderRadius: "4px", marginBottom: "4px" }}>
-                        {selectedSection.municipality || "Sin municipio"}
-                      </span>
-                      <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "900", color: "#0f172a" }}>
-                        Sección Electoral #{selectedSection.section_num}
-                      </h2>
-                      {selectedSection.atlas?.mainColony ? (
-                        <div style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>
-                          {selectedSection.atlas.mainColony}
-                        </div>
-                      ) : null}
-                    </div>
-
-                    {/* Resultado de la última elección, del atlas de campaña.
-                        Se muestra siempre que la sección tenga ficha, sin depender del nivel
-                        de detalle: quien abrió el panel ya pidió ver esta sección a fondo. */}
-                    {selectedSection.atlas ? (() => {
-                      const atlas = selectedSection.atlas;
-                      const r = calcularResultado(atlas);
-                      const ganador = BLOQUES[r.ganador];
-                      const barras = (Object.keys(BLOQUES) as BloqueElectoral[])
-                        .map((clave) => ({
-                          clave,
-                          votos: atlas.votes[clave],
-                          pct: r.total > 0 ? (atlas.votes[clave] / r.total) * 100 : 0
-                        }))
-                        .sort((a, b) => b.votos - a.votos);
-
-                      const PRIORIDADES: Record<string, { fondo: string; texto: string; leyenda: string }> = {
-                        A: { fondo: "#fee2e2", texto: "#991b1b", leyenda: "máxima" },
-                        B: { fondo: "#ffedd5", texto: "#9a3412", leyenda: "alta" },
-                        C: { fondo: "#fef9c3", texto: "#854d0e", leyenda: "media" },
-                        D: { fondo: "#f1f5f9", texto: "#475569", leyenda: "baja" }
-                      };
-                      const prio = PRIORIDADES[atlas.priority] ?? PRIORIDADES.D!;
-
-                      return (
-                        <div style={{ border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
-                          <div style={{ background: ganador.color, padding: "10px 12px", color: "#ffffff" }}>
-                            <div style={{ fontSize: "9px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.6px", opacity: 0.85 }}>
-                              Última elección
-                            </div>
-                            <div style={{ fontSize: "15px", fontWeight: "900", marginTop: "1px" }}>
-                              {r.empate ? "Empate técnico" : `Ganó ${ganador.etiqueta}`}
-                            </div>
-                            <div style={{ fontSize: "11px", fontWeight: "600", opacity: 0.9, marginTop: "1px" }}>
-                              {r.empate
-                                ? `${r.votosGanador.toLocaleString("es-MX")} votos cada uno`
-                                : `Ventaja de ${r.margen.toFixed(1)} puntos sobre el segundo`}
-                            </div>
-                          </div>
-
-                          <div style={{ padding: "10px 12px", background: "#ffffff" }}>
-                            {barras.map((b) => {
-                              const bloque = BLOQUES[b.clave];
-                              return (
-                                <div key={b.clave} style={{ marginBottom: "7px" }}>
-                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "3px" }}>
-                                    <span style={{ fontWeight: "700", color: "#0f172a" }}>{bloque.etiqueta}</span>
-                                    <span style={{ fontWeight: "800", color: bloque.color }}>
-                                      {b.votos.toLocaleString("es-MX")} · {b.pct.toFixed(1)}%
-                                    </span>
-                                  </div>
-                                  <div style={{ height: "7px", background: "#f1f5f9", borderRadius: "4px", overflow: "hidden" }}>
-                                    <div style={{ width: `${b.pct}%`, height: "100%", background: bloque.color, borderRadius: "4px" }} />
-                                  </div>
-                                </div>
-                              );
-                            })}
-
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px", paddingTop: "9px", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
-                              <span style={{ background: prio.fondo, color: prio.texto, fontSize: "10px", fontWeight: "800", padding: "3px 8px", borderRadius: "6px" }}>
-                                Prioridad {atlas.priority} ({prio.leyenda})
-                              </span>
-                              <span style={{ fontSize: "11px", color: "#475569", fontWeight: "600" }}>
-                                {r.total.toLocaleString("es-MX")} votos totales
-                              </span>
-                            </div>
-
-                            {atlas.pollingPlace ? (
-                              <div style={{ marginTop: "9px", paddingTop: "9px", borderTop: "1px solid #f1f5f9" }}>
-                                <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                                  Casilla de referencia
-                                </div>
-                                <div style={{ fontSize: "11px", color: "#334155", marginTop: "3px", lineHeight: 1.45 }}>
-                                  {atlas.pollingPlace}
-                                </div>
-                              </div>
-                            ) : null}
-
-                            {atlas.source ? (
-                              <div style={{ fontSize: "9px", color: "#94a3b8", marginTop: "8px", fontStyle: "italic" }}>
-                                Fuente: {atlas.source}
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })() : (
-                      <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "10px", padding: "10px 12px", fontSize: "11px", color: "#64748b" }}>
-                        Esta sección no tiene ficha en el atlas de campaña, así que no hay resultado
-                        electoral que mostrar. Las métricas de abajo sí son de esta sección.
-                      </div>
-                    )}
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px" }}>
-                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
-                        <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Simpatizantes</div>
-                        <div style={{ fontSize: "16px", fontWeight: "900", color: "#4f46e5", marginTop: "2px" }}>{selectedSection.contactsCount}</div>
-                      </div>
-
-                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
-                        <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Visitas</div>
-                        <div style={{ fontSize: "16px", fontWeight: "900", color: "#059669", marginTop: "2px" }}>{selectedSection.visitsCompleted}</div>
-                      </div>
-
-                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", textAlign: "center" }}>
-                        <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Incidencias</div>
-                        <div style={{ fontSize: "16px", fontWeight: "900", color: "#d97706", marginTop: "2px" }}>{selectedSection.incidentsActive}</div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div style={{ fontSize: "10px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>
-                        Colonias en esta Sección:
-                      </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", maxHeight: "110px", overflowY: "auto" }}>
-                        {selectedSection.colonies.length > 0 ? (
-                          selectedSection.colonies.map((c) => (
-                            <span key={c} style={{ background: "#f1f5f9", color: "#334155", fontSize: "10px", fontWeight: "600", padding: "3px 6px", borderRadius: "6px" }}>
-                              {c}
-                            </span>
-                          ))
-                        ) : (
-                          <span style={{ fontSize: "11px", color: "#94a3b8", fontStyle: "italic" }}>Colonia principal del municipio</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", gap: "6px", paddingTop: "8px", borderTop: "1px solid #f1f5f9" }}>
-                      <Link
-                        href={`/crm?seccion=${selectedSection.section_num}`}
-                        style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", background: "#2563eb", color: "white", textDecoration: "none", fontWeight: "800", padding: "9px", borderRadius: "8px", fontSize: "11px" }}
-                      >
-                        <Users size={13} />
-                        Ver Contactos CRM
-                      </Link>
-
-                      <button
-                        onClick={() => {
-                          const defaultCoords = mapRef ? mapRef.getCenter() : { lat: CENTRO_JALISCO[0], lng: CENTRO_JALISCO[1] };
-                          void triggerIncidentCreation(defaultCoords.lat, defaultCoords.lng, selectedSection.municipality);
-                        }}
-                        style={{ display: "flex", alignItems: "center", gap: "4px", background: "#dc2626", color: "white", border: "none", fontWeight: "800", padding: "9px 12px", borderRadius: "8px", fontSize: "11px", cursor: "pointer" }}
-                      >
-                        <PlusCircle size={13} />
-                        + Reportar
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ textAlign: "center", padding: "30px 10px", color: "#94a3b8" }}>
-                    <Layers size={28} style={{ margin: "0 auto 8px" }} />
-                    <p style={{ fontSize: "12px", margin: 0 }}>Haz clic en una sección en el mapa para ver sus métricas.</p>
-                  </div>
-                )
-              )}
-
-              {/* INCIDENTS LIST PANEL */}
-              {activeDrawer === "incidents" && (
-                <>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#64748b" }}>Filtro rápido por municipio:</span>
-                    <select
-                      value={selectedMunicipality}
-                      onChange={(e) => handleMunicipalityChange(e.target.value)}
-                      style={{ padding: "4px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "10px", fontWeight: "700", outline: "none" }}
-                    >
-                      <option value={TODO_JALISCO}>Todo Jalisco</option>
-                      {availableMunicipalities.map((m) => (
-                        <option key={m.name} value={m.name}>{m.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {allReports.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "30px 10px", color: "#94a3b8" }}>
-                      <CheckCircle2 size={28} style={{ margin: "0 auto 8px", color: "#16a34a" }} />
-                      <p style={{ fontSize: "12px", margin: 0 }}>No hay incidencias pendientes en este momento.</p>
-                    </div>
-                  ) : (
-                    allReports.map((r) => {
-                      const cat = CATEGORIES[r.properties.category] ?? { label: r.properties.category, color: "#64748b", bg: "#f8fafc", svg: SVGS.AlertCircle };
-                      const isResolved = r.properties.status === "resolved";
-                      return (
-                        <div key={r.properties.id} style={{ background: "#f8fafc", padding: "10px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "3px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: "800", textTransform: "uppercase", padding: "2px 5px", borderRadius: "4px", color: cat.color, background: cat.bg }}>
-                              {cat.label}
-                            </span>
-                            <span style={{ fontSize: "10px", fontWeight: "700", color: isResolved ? "#16a34a" : "#dc2626" }}>
-                              {isResolved ? "✓ Atendida" : "● Pendiente"}
-                            </span>
-                          </div>
-                          <h4 style={{ margin: "0 0 2px", fontWeight: "800", fontSize: "12px", color: "#0f172a" }}>{r.properties.title}</h4>
-                          <p style={{ margin: "0 0 6px", fontSize: "11px", color: "#475569", lineHeight: "1.3" }}>{r.properties.description}</p>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #e2e8f0", paddingTop: "6px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: "700", color: "#1d4ed8", display: "inline-flex", alignItems: "center", gap: "3px" }}><MapPin size={10} /> {r.properties.municipality || "Sin municipio"}</span>
-                            <button
-                              onClick={() => handleFocusOnMap(r)}
-                              style={{ display: "flex", alignItems: "center", gap: "3px", background: "#2563eb", color: "white", border: "none", fontWeight: "700", padding: "4px 8px", borderRadius: "6px", fontSize: "10px", cursor: "pointer" }}
-                            >
-                              <MapPin size={10} />
-                              Centrar Mapa
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </>
-              )}
-
-              {/* LAYERS & CONTROLS PANEL */}
-              {activeDrawer === "layers" && (
-                <>
-                  <div>
-                    <span style={{ fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
-                      Estilo de Mapa Base
-                    </span>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
-                      {Object.entries(TILE_STYLES).map(([key, style]) => (
-                        <button
-                          key={key}
-                          onClick={() => handleChangeTileStyle(key)}
-                          style={{
-                            display: "flex", alignItems: "center", gap: "6px", padding: "8px", borderRadius: "8px", border: "1px solid",
-                            borderColor: selectedTileStyle === key ? "#2563eb" : "#e2e8f0",
-                            backgroundColor: selectedTileStyle === key ? "#eff6ff" : "#f8fafc",
-                            color: selectedTileStyle === key ? "#1d4ed8" : "#334155",
-                            fontSize: "11px", fontWeight: "700", cursor: "pointer"
-                          }}
-                        >
-                          <style.icon size={16} />
-                          <span>{style.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingTop: "10px", borderTop: "1px solid #f1f5f9", fontSize: "11px", fontWeight: "600", color: "#334155" }}>
-                    <span style={{ fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase" }}>
-                      Capas y Elementos
-                    </span>
-                    
-                    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", background: "#f8fafc", padding: "8px", borderRadius: "8px" }}>
-                      <span>Polígonos Seccionales</span>
-                      <input type="checkbox" checked={showSections} onChange={(e) => setShowSections(e.target.checked)} style={{ accentColor: "#2563eb" }} />
-                    </label>
-
-                    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", background: "#f8fafc", padding: "8px", borderRadius: "8px" }}>
-                      <span>Números de Sección</span>
-                      <input type="checkbox" checked={showSectionLabels} onChange={(e) => setShowSectionLabels(e.target.checked)} style={{ accentColor: "#2563eb" }} />
-                    </label>
-
-                    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", background: "#f8fafc", padding: "8px", borderRadius: "8px" }}>
-                      <span>Agrupamiento Inteligente (Clusters)</span>
-                      <input type="checkbox" checked={enableClustering} onChange={(e) => setEnableClustering(e.target.checked)} style={{ accentColor: "#2563eb" }} />
-                    </label>
-                  </div>
-                </>
-              )}
-
-            </div>
-          </div>
-        )}
-
-        {/* Tab 2: Incident Operations Management Center */}
-        {activeTab === "list" && (
-          <div style={{ position: "absolute", inset: 0, background: "#f8fafc", zIndex: 20, padding: "20px", overflowY: "auto" }}>
-            <div style={{ maxWidth: "1100px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "16px" }}>
-              
-              {/* Header */}
-              <div>
-                <h1 style={{ margin: 0, fontSize: "22px", fontWeight: "900", color: "#0f172a" }}>
-                  Centro de Mando e Incidencias Territoriales
-                </h1>
-                <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "12px" }}>
-                  Control operativo, seguimiento y resolución de reportes de campo en tiempo real.
-                </p>
-              </div>
-
-              {/* KPI Cards Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px" }}>
-                <div style={{ background: "white", border: "1px solid #fde68a", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                  <div style={{ fontSize: "11px", fontWeight: "800", color: "#92400e", textTransform: "uppercase" }}>Por Atender</div>
-                  <div style={{ fontSize: "24px", fontWeight: "900", color: "#78350f", marginTop: "2px" }}>{activeReportsCount}</div>
-                </div>
-
-                <div style={{ background: "white", border: "1px solid #fecaca", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                  <div style={{ fontSize: "11px", fontWeight: "800", color: "#991b1b", textTransform: "uppercase" }}>Emergencias Críticas</div>
-                  <div style={{ fontSize: "24px", fontWeight: "900", color: "#b91c1c", marginTop: "2px" }}>{emergencyReportsCount}</div>
-                </div>
-
-                <div style={{ background: "white", border: "1px solid #bbf7d0", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                  <div style={{ fontSize: "11px", fontWeight: "800", color: "#166534", textTransform: "uppercase" }}>Resueltas</div>
-                  <div style={{ fontSize: "24px", fontWeight: "900", color: "#15803d", marginTop: "2px" }}>{resolvedReportsCount}</div>
-                </div>
-
-                <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                  <div style={{ fontSize: "11px", fontWeight: "800", color: "#64748b", textTransform: "uppercase" }}>Efectividad</div>
-                  <div style={{ fontSize: "24px", fontWeight: "900", color: "#2563eb", marginTop: "2px" }}>{resolutionRate}%</div>
-                </div>
-              </div>
-
-              {/* Filters & SubTabs */}
-              <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "14px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px", borderBottom: "1px solid #f1f5f9", paddingBottom: "8px" }}>
-                  {[
-                    { key: "active", label: `Pendientes (${activeReportsCount})`, icon: Flame },
-                    { key: "emergency", label: `Emergencias (${emergencyReportsCount})`, icon: ShieldAlert },
-                    { key: "resolved", label: `Resueltas (${resolvedReportsCount})`, icon: CheckCircle2 },
-                    { key: "all", label: `Todas (${allReports.length})`, icon: ListFilter },
-                  ].map((tab) => {
-                    const Icon = tab.icon;
-                    const isActive = incidentSubTab === tab.key;
-                    return (
-                      <button
-                        key={tab.key}
-                        onClick={() => setIncidentSubTab(tab.key as any)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "8px", border: "none",
-                          backgroundColor: isActive ? "#0f172a" : "#f1f5f9",
-                          color: isActive ? "#ffffff" : "#475569",
-                          fontSize: "11px", fontWeight: "800", cursor: "pointer"
-                        }}
-                      >
-                        <Icon size={13} />
-                        {tab.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "8px" }}>
-                  <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                    <Search size={14} style={{ position: "absolute", left: "9px", color: "#94a3b8" }} />
-                    <input
-                      type="text"
-                      value={incidentSearchQuery}
-                      onChange={(e) => setIncidentSearchQuery(e.target.value)}
-                      placeholder="Buscar por texto o colonia..."
-                      style={{ width: "100%", padding: "7px 10px 7px 30px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
-                    />
-                  </div>
-
-                  <select
-                    value={incidentMunicipalityFilter}
-                    onChange={(e) => setIncidentMunicipalityFilter(e.target.value)}
-                    style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none", cursor: "pointer" }}
-                  >
-                    <option value={TODO_JALISCO}>Todos los municipios</option>
-                    {availableMunicipalities.map((m) => (
-                      <option key={m.name} value={m.name}>{m.name}</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={incidentCategoryFilter}
-                    onChange={(e) => setIncidentCategoryFilter(e.target.value)}
-                    style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "700", outline: "none", cursor: "pointer" }}
-                  >
-                    <option value="all">Todas las Categorías</option>
-                    {Object.entries(CATEGORIES).map(([k, v]) => (
-                      <option key={k} value={k}>{v.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Incidents Cards List */}
-              {displayIncidents.length === 0 ? (
-                <div style={{ background: "white", padding: "40px 20px", borderRadius: "14px", textAlign: "center", border: "1px solid #e2e8f0" }}>
-                  <AlertCircle size={32} style={{ color: "#94a3b8", margin: "0 auto 8px" }} />
-                  <h3 style={{ margin: 0, fontSize: "13px", fontWeight: "700", color: "#0f172a" }}>No hay incidencias que coincidan con los filtros</h3>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {displayIncidents.map((r) => {
-                    const cat = CATEGORIES[r.properties.category] ?? { label: r.properties.category, color: "#64748b", bg: "#f8fafc", svg: SVGS.AlertCircle };
-                    const isResolved = r.properties.status === "resolved";
-                    const isEmergency = r.properties.category === "emergencia" && !isResolved;
-                    const date = new Date(r.properties.createdAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
-
-                    return (
-                      <div 
-                        key={r.properties.id}
-                        style={{
-                          background: isResolved ? "#fafdfb" : "white",
-                          padding: "14px",
-                          borderRadius: "12px",
-                          border: "1px solid",
-                          borderColor: isEmergency ? "#fca5a5" : isResolved ? "#bbf7d0" : "#e2e8f0",
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.04)"
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-                          <span style={{ fontSize: "10px", fontWeight: "800", textTransform: "uppercase", padding: "2px 6px", borderRadius: "4px", color: cat.color, background: cat.bg }}>
-                            {cat.label}
-                          </span>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                            <span style={{ fontSize: "11px", color: "#94a3b8" }}>{date}</span>
-                            <span style={{ fontSize: "11px", fontWeight: "800", color: isResolved ? "#16a34a" : isEmergency ? "#dc2626" : "#d97706" }}>
-                              {isResolved ? "✓ Atendida" : isEmergency ? "● Emergencia" : "● Pendiente"}
-                            </span>
-                          </div>
-                        </div>
-
-                        <h3 style={{ margin: "0 0 3px", fontSize: "14px", fontWeight: "800", color: "#0f172a" }}>
-                          {r.properties.title}
-                        </h3>
-
-                        <p style={{ margin: "0 0 8px", fontSize: "12px", color: "#475569", lineHeight: "1.4" }}>
-                          {r.properties.description}
-                        </p>
-
-                        {/* Attached Photos / Videos */}
-                        {r.properties.mediaUrls && r.properties.mediaUrls.length > 0 && (
-                          <div style={{ marginBottom: "10px" }}>
-                            <MediaGallery media={r.properties.mediaUrls} title="Evidencias Adjuntas" />
-                          </div>
-                        )}
-
-                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #f1f5f9", paddingTop: "8px", gap: "6px" }}>
-                          <span style={{ fontSize: "11px", fontWeight: "700", color: "#1d4ed8", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                            <MapPin size={10} /> {r.properties.municipality || "Sin municipio"} {r.properties.sectionNum ? `· Sección #${r.properties.sectionNum}` : ""}
-                          </span>
-
-                          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                            <button
-                              onClick={() => handleFocusOnMap(r)}
-                              style={{ display: "flex", alignItems: "center", gap: "4px", background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1", fontWeight: "700", padding: "5px 10px", borderRadius: "8px", fontSize: "11px", cursor: "pointer" }}
-                            >
-                              <MapPin size={12} />
-                              Ver en Mapa
-                            </button>
-
-                            <button
-                              onClick={() => handleOpenEdit(r)}
-                              style={{ background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: "8px", padding: "5px 8px", cursor: "pointer" }}
-                              title="Editar o Reasignar"
-                            >
-                              <Edit3 size={13} />
-                            </button>
-
-                            {isResolved ? (
-                              <button
-                                onClick={() => handleToggleReportStatus(r.properties.id, "active")}
-                                style={{ background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1", fontWeight: "700", padding: "5px 10px", borderRadius: "8px", fontSize: "11px", cursor: "pointer" }}
-                              >
-                                Reabrir
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleToggleReportStatus(r.properties.id, "resolved")}
-                                style={{ display: "flex", alignItems: "center", gap: "4px", background: "#16a34a", color: "white", border: "none", fontWeight: "700", padding: "5px 12px", borderRadius: "8px", fontSize: "11px", cursor: "pointer" }}
-                              >
-                                <Check size={13} />
-                                Resolver
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
           </div>
         )}
       </div>
+    ) : null;
 
-      {/* EDIT MODAL */}
-      {editingReport && (
-        <div onClick={() => setEditingReport(null)} style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "12px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "18px", width: "100%", maxWidth: "480px", maxHeight: "88dvh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc", flexShrink: 0 }}>
-              <h3 style={{ margin: 0, fontWeight: "900", fontSize: "15px", color: "#0f172a" }}>Administrar Incidencia</h3>
-              <button 
-                onClick={() => setEditingReport(null)} 
-                style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#f1f5f9", border: "none", color: "#475569", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                title="Cerrar ventana"
-              >
-                <X size={18} />
-              </button>
-            </div>
+  // Lo que no cabe se dice: antes el mapa recortaba en silencio.
+  const avisosDeTope =
+    reportesTruncados || (verContactos && cobertura?.truncado) ? (
+      <div role="status" className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-bold shadow space-y-0.5">
+        {reportesTruncados && <div>Solo se muestran las 2 000 incidencias más recientes; el resto está en la lista de Incidencias.</div>}
+        {verContactos && cobertura?.truncado && <div>Hay más contactos de los que caben en esta vista: acércate para verlos todos.</div>}
+      </div>
+    ) : null;
 
-            <form onSubmit={handleSaveEdit} style={{ padding: "16px 18px 40px", display: "flex", flexDirection: "column", gap: "12px", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", flex: 1 }}>
-              <div>
-                <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Título *</label>
-                <input
-                  type="text"
-                  required
-                  value={editForm.title}
-                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                  style={{ width: "100%", padding: "8px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "12px", fontWeight: "600", outline: "none" }}
-                />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                <div>
-                  <PredictiveCombobox
-                    label="Municipio"
-                    required
-                    allowCustom={false}
-                    value={editForm.municipality}
-                    onChange={(val) => setEditForm({ ...editForm, municipality: val })}
-                    options={availableMunicipalities.map((m) => ({
-                      value: m.name,
-                      label: m.name,
-                      badge: `${m.count} secc.`
-                    }))}
-                  />
-                </div>
-
-                <div>
-                  <PredictiveCombobox
-                    label="Categoría"
-                    required
-                    allowCustom={false}
-                    value={editForm.category}
-                    onChange={(val) => setEditForm({ ...editForm, category: val })}
-                    options={Object.entries(CATEGORIES).map(([key, cat]) => ({
-                      value: key,
-                      label: cat.label,
-                      badge: "Categoría"
-                    }))}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                <div>
-                  <PredictiveCombobox
-                    label="Estatus"
-                    required
-                    allowCustom={false}
-                    value={editForm.status}
-                    onChange={(val) => setEditForm({ ...editForm, status: val })}
-                    options={[
-                      { value: "active", label: "● Pendiente", badge: "Pendiente" },
-                      { value: "resolved", label: "✓ Resuelta", badge: "Resuelta" }
-                    ]}
-                  />
-                </div>
-
-                <div>
-                  <PredictiveCombobox
-                    label="Asignar Responsable"
-                    allowCustom={false}
-                    placeholder="Buscar operador..."
-                    value={editForm.assignedToUserId}
-                    onChange={(val) => setEditForm({ ...editForm, assignedToUserId: val })}
-                    options={systemUsers.map((u) => ({
-                      value: u.id,
-                      label: u.displayName,
-                      badge: "Operador"
-                    }))}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Descripción / Seguimiento *</label>
-                <textarea
-                  required
-                  rows={3}
-                  value={editForm.description}
-                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  style={{ width: "100%", padding: "8px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "12px", outline: "none", resize: "none" }}
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: "8px", paddingTop: "8px", borderTop: "1px solid #f1f5f9" }}>
-                <button
-                  type="button"
-                  onClick={() => setEditingReport(null)}
-                  style={{ flex: 1, padding: "9px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isEditingSubmitting}
-                  style={{ flex: 1, padding: "9px", background: "#2563eb", color: "white", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "800", cursor: "pointer" }}
-                >
-                  {isEditingSubmitting ? "Guardando..." : "Guardar Cambios"}
-                </button>
-              </div>
-            </form>
+  // Escritorio: al pie de la columna del menú, que así nunca los tapa.
+  const pie = (
+    <div className="space-y-1.5">
+      {avisosDeTope}
+      {leyenda}
+      <div className="grid grid-cols-3 gap-1 px-3 py-2 rounded-2xl bg-slate-900/90 border border-white/15 shadow-xl text-white">
+        {(
+          [
+            [incidenciasAbiertas.toLocaleString("es-MX"), "abiertas", "text-red-300"],
+            [(cobertura?.ubicables ?? 0).toLocaleString("es-MX"), "contactos en el mapa", "text-blue-300"],
+            municipio === TODO_JALISCO ? ["125", "municipios", "text-green-300"] : [secciones?.features?.length?.toLocaleString("es-MX") ?? "…", "secciones", "text-green-300"]
+          ] as const
+        ).map(([cifra, texto, color]) => (
+          <div key={texto} className="text-center leading-tight">
+            <div className={`text-[14px] font-black ${color}`}>{cifra}</div>
+            <div className="text-[9.5px] font-bold text-slate-400">{texto}</div>
           </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      ref={contenedor}
+      className="alto-mapa"
+      style={{
+        position: "relative",
+        width: "100%",
+        background: "#0f172a",
+        overflow: "hidden",
+        ...(arriba !== null ? ({ "--arriba-del-mapa": `${arriba}px` } as React.CSSProperties) : {})
+      }}
+    >
+      {/* `isolation`: los z-index propios de Leaflet (panes de 400 a 700, controles en 1000) quedan
+          dentro del mapa y no compiten con la interfaz (C12). */}
+      <div id="leaflet-map-container" style={{ position: "absolute", inset: 0, isolation: "isolate", zIndex: 0, visibility: vista === "mapa" ? "visible" : "hidden" }} />
+
+      {vista === "mapa" && !(esMovil && panel !== "none") && (
+        <ControlesDelMapa
+          // Se abre plegado en el teléfono y desplegado en escritorio: al saber cuál es, arranca de nuevo.
+          key={esMovil ? "movil" : "escritorio"}
+          esMovil={esMovil}
+          municipio={municipio || TODO_JALISCO}
+          onMunicipio={(m) => {
+            cambiarMunicipio(m);
+            avisar(m === TODO_JALISCO ? "Todo Jalisco" : `Municipio: ${m}`);
+          }}
+          estilo={estilo}
+          onEstilo={setEstilo}
+          verIncidencias={verIncidencias}
+          onVerIncidencias={setVerIncidencias}
+          incidenciasAbiertas={incidenciasAbiertas}
+          verContactos={verContactos}
+          onVerContactos={setVerContactos}
+          cobertura={cobertura}
+          verSecciones={verSecciones}
+          onVerSecciones={setVerSecciones}
+          coloreado={coloreado}
+          onColoreado={setColoreado}
+          ubicando={ubicando}
+          onUbicarme={ubicarme}
+          onBuscar={() => setPanel("search")}
+          puedeReportar={puedeReportar}
+          onReportar={() => reportar()}
+          onLista={() => {
+            setPanel("none");
+            setVista("lista");
+          }}
+          pie={pie}
+        />
+      )}
+
+      {vista === "mapa" && (
+        <PanelDelMapa
+          esMovil={esMovil}
+          panel={panel}
+          onCerrar={() => setPanel("none")}
+          municipio={municipio || TODO_JALISCO}
+          busqueda={busqueda}
+          onBusqueda={setBusqueda}
+          onElegirResultado={(item) => {
+            setBusqueda(item.title);
+            if (item.sectionNum) {
+              const f = secciones?.features?.find((x: any) => x.properties?.section_num === item.sectionNum);
+              if (f) {
+                elegirSeccionDeLaLista(f.properties);
+                return;
+              }
+            }
+            if (item.lat && item.lng && mapa) {
+              mapa.flyTo([item.lat, item.lng], 16, { duration: 1.0 });
+              if (esMovil) setPanel("none");
+            }
+          }}
+          secciones={listaDeSecciones}
+          onElegirSeccion={elegirSeccionDeLaLista}
+          seccion={seccion}
+          incidenciasDeLaSeccion={incidenciasDeLaSeccion}
+          puedeReportar={puedeReportar}
+          onReportarEnSeccion={reportarEnSeccion}
+          reportes={reportes}
+          onCentrar={centrarEn}
+        />
+      )}
+
+      {/* Teléfono: la leyenda y los avisos de tope arriba; el resumen lo dice la barra del menú. */}
+      {vista === "mapa" && esMovil && panel === "none" && (leyenda || avisosDeTope) && (
+        <div className="absolute top-3 left-3 right-14 z-30 space-y-1.5">
+          {leyenda}
+          {avisosDeTope}
         </div>
       )}
 
-      {/* PURGE MODAL */}
-      {isPurgeModalOpen && (
-        <div onClick={() => setIsPurgeModalOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "18px", width: "100%", maxWidth: "380px", maxHeight: "88dvh", overflowY: "auto", overscrollBehavior: "contain", padding: "20px", textAlign: "center", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
-            <div style={{ width: "44px", height: "44px", borderRadius: "50%", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
-              <Trash2 size={22} />
-            </div>
-            <h3 style={{ margin: "0 0 4px", fontSize: "16px", fontWeight: "900", color: "#0f172a" }}>¿Depurar Incidencias Resueltas?</h3>
-            <p style={{ margin: "0 0 14px", fontSize: "12px", color: "#64748b", lineHeight: "1.4" }}>
-              Se eliminarán de forma definitiva todas las incidencias marcadas como atendidas.
-            </p>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={() => setIsPurgeModalOpen(false)} style={{ flex: 1, padding: "8px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
-                Cancelar
-              </button>
-              <button onClick={handlePurgeResolved} disabled={isPurging} style={{ flex: 1, padding: "8px", background: "#dc2626", color: "white", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "800", cursor: "pointer" }}>
-                {isPurging ? "Purgando..." : "Sí, Purgar"}
-              </button>
-            </div>
-          </div>
+      {aviso && (
+        <div role="status" className="absolute top-16 left-1/2 -translate-x-1/2 z-[1200] bg-slate-900/95 text-white px-4 py-2 rounded-full shadow-xl text-[12px] font-bold border border-white/20 w-max max-w-[90%] text-center">
+          {aviso}
         </div>
       )}
 
-      {/* NEW REPORT MODAL - A PRUEBA DE ERRORES */}
-      {isReportModalOpen && (
-        <div onClick={() => {
-          setIsReportModalOpen(false);
-          setNewReportCoords(null);
-          setDetectedLocationInfo(null);
-        }} style={{ position: "fixed", inset: 0, zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "12px", backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "18px", width: "100%", maxWidth: "480px", maxHeight: "88dvh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.35)", border: "1px solid #e2e8f0" }}>
-            
-            {/* Modal Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc", flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <AlertCircle size={18} />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontWeight: "900", fontSize: "15px", color: "#0f172a" }}>Registrar Incidencia</h3>
-                  <div style={{ fontSize: "10px", fontWeight: "700", color: "#64748b" }}>
-                    {newReportCoords ? `Coordenadas: ${newReportCoords.lat.toFixed(5)}, ${newReportCoords.lng.toFixed(5)}` : "Punto territorial"}
-                  </div>
-                </div>
-              </div>
-              <button 
-                onClick={() => {
-                  setIsReportModalOpen(false);
-                  setNewReportCoords(null);
-                  setDetectedLocationInfo(null);
-                }}
-                style={{ background: "#f1f5f9", border: "none", color: "#475569", cursor: "pointer", width: "32px", height: "32px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}
-                title="Cerrar ventana"
-              >
-                <X size={17} />
-              </button>
-            </div>
-
-            {reportSuccess ? (
-              <div style={{ textAlign: "center", padding: "36px 20px", color: "#16a34a" }}>
-                <CheckCircle2 size={42} style={{ margin: "0 auto 10px" }} />
-                <div style={{ fontWeight: "900", fontSize: "16px", color: "#0f172a" }}>¡Incidencia Registrada con Éxito!</div>
-                <p style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
-                  Se ha georreferenciado y asignado a la sección electoral correspondiente.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmitReport} style={{ padding: "16px 18px 40px", display: "flex", flexDirection: "column", gap: "11px", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", flex: 1 }}>
-                
-                {/* 1. Location Detection & Section Match Box */}
-                <div style={{ background: isGeocodingLoading ? "#eff6ff" : "#f0fdf4", border: `1px solid ${isGeocodingLoading ? "#bfdbfe" : "#bbf7d0"}`, borderRadius: "10px", padding: "10px" }}>
-                  {isGeocodingLoading ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#2563eb", fontSize: "11px", fontWeight: "700" }}>
-                      <Loader2 size={15} className="animate-spin" />
-                      <span>Detectando dirección exacta y sección electoral en mapa...</span>
-                    </div>
-                  ) : (
-                    <div>
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
-                        <MapPin size={15} style={{ color: "#16a34a", marginTop: "1px", flexShrink: 0 }} />
-                        <div style={{ fontSize: "11px", fontWeight: "800", color: "#0f172a", lineHeight: "1.3" }}>
-                          {reportForm.address || "Ubicación en Territorio"}
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
-                        <span style={{ background: "#dbeafe", color: "#1e40af", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                          <Landmark size={10} /> {reportForm.municipality || "Municipio por confirmar"}
-                        </span>
-                        {/* Un GPS con 300 m de error no ubica una banqueta: se dice, en vez de
-                            presentar la dirección como si estuviera medida al metro. */}
-                        {typeof detectedLocationInfo?.gpsAccuracy === "number" && detectedLocationInfo.gpsAccuracy > 50 ? (
-                          <span style={{ background: "#fef3c7", color: "#b45309", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                            <AlertTriangle size={10} /> GPS ±{Math.round(detectedLocationInfo.gpsAccuracy)} m: confirma el punto
-                          </span>
-                        ) : null}
-                        {detectedLocationInfo?.sectionNum ? (
-                          <span style={{ background: "#dcfce7", color: "#15803d", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px", border: "1px solid #86efac" }}>
-                            Sección Electoral #{detectedLocationInfo.sectionNum} (Confirmada)
-                          </span>
-                        ) : (
-                          <span style={{ background: "#fef3c7", color: "#b45309", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "5px", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                            <AlertTriangle size={10} /> Selecciona la sección manualmente
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. Quick Category & Title Pills (One-Click Helpers) */}
-                <div>
-                  <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Plantillas Rápidas (1 Clic)</label>
-                  <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
-                    {([
-                      { cat: "emergencia", icon: ShieldAlert, label: "Emergencia", title: "Emergencia en territorio" },
-                      { cat: "alumbrado", icon: Lightbulb, label: "Alumbrado", title: "Falla de luminaria / alumbrado público" },
-                      { cat: "bache", icon: Construction, label: "Bacheo", title: "Bacheo necesario en pavimento" },
-                      { cat: "fuga_agua", icon: Droplets, label: "Fuga Agua", title: "Fuga de agua potable" },
-                      { cat: "basura", icon: Trash2, label: "Basura", title: "Acumulación de basura o escombros" },
-                      { cat: "seguridad", icon: ShieldCheck, label: "Seguridad", title: "Solicitud de patrullaje / vigilancia" },
-                      { cat: "brigada", icon: Users, label: "Brigada", title: "Solicitud de apoyo con brigada" },
-                    ] as Array<{ cat: string; icon: MapIconType; label: string; title: string }>).map((pill) => (
-                      <button
-                        key={pill.cat}
-                        type="button"
-                        onClick={() => {
-                          const colStr = detectedLocationInfo?.colony
-                            ? ` en Col. ${detectedLocationInfo.colony}`
-                            : reportForm.municipality ? ` en ${reportForm.municipality}` : "";
-                          setReportForm((prev) => ({
-                            ...prev,
-                            category: pill.cat,
-                            title: `${pill.title}${colStr}`
-                          }));
-                        }}
-                        style={{
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                          border: `1px solid ${reportForm.category === pill.cat ? "#2563eb" : "#e2e8f0"}`,
-                          background: reportForm.category === pill.cat ? "#eff6ff" : "#f8fafc",
-                          color: reportForm.category === pill.cat ? "#1d4ed8" : "#475569",
-                          fontSize: "10px",
-                          fontWeight: "700",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "3px"
-                        }}
-                      >
-                        <pill.icon size={12} />
-                        <span>{pill.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 3. Address and Colony Autocomplete with Real-Time Data */}
-                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "8px" }}>
-                  <div>
-                    <AddressAutocomplete
-                      value={reportForm.address}
-                      onChange={(val) => setReportForm((prev) => ({ ...prev, address: val }))}
-                      onSelect={(item: AutocompleteItem) => {
-                        const newMuni = item.municipality || reportForm.municipality;
-                        const newCol = item.colony || detectedLocationInfo?.colony || "";
-                        const newSecNum = item.sectionNum || detectedLocationInfo?.sectionNum;
-                        const newSecId = item.sectionId || detectedLocationInfo?.sectionId;
-
-                        setReportForm((prev) => ({
-                          ...prev,
-                          address: item.address || item.title,
-                          colony: newCol,
-                          municipality: newMuni,
-                          sectionId: newSecId || prev.sectionId,
-                          title: prev.title || (newCol ? `Reporte en ${newCol}` : newMuni ? `Reporte en ${newMuni}` : "Nuevo reporte")
-                        }));
-
-                        setDetectedLocationInfo({
-                          address: item.address || item.title,
-                          sectionNum: newSecNum,
-                          sectionId: newSecId,
-                          municipality: newMuni,
-                          colony: newCol,
-                          postcode: item.postcode || ""
-                        });
-
-                        if (item.lat && item.lng && mapRef) {
-                          setNewReportCoords({ lat: item.lat, lng: item.lng });
-                          mapRef.flyTo([item.lat, item.lng], 16, { duration: 1.0 });
-                          showToast(`Ubicación seleccionada: ${item.title}`);
-                        }
-                      }}
-                      // Se busca alrededor del municipio del punto; sin él, en todo Jalisco. No
-                      // se hereda el filtro del mapa ni el municipio de quien reporta.
-                      municipality={reportForm.municipality || TODO_JALISCO}
-                      label="Dirección / Calle y Número *"
-                      placeholder="Escribe calle o lugar..."
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Colonia / Barrio</label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Loma Dorada, Centro..."
-                      value={detectedLocationInfo?.colony || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setDetectedLocationInfo((prev: any) => prev ? { ...prev, colony: val } : { colony: val });
-                        setReportForm((prev) => ({
-                          ...prev,
-                          colony: val,
-                          // La colonia corregida tiene que quedar en el domicilio, que es lo que se
-                          // guarda. Si el domicilio no traía "Col." —el servidor la omite cuando es
-                          // dudosa— se inserta antes del CP o del municipio en vez de perderse.
-                          address: (() => {
-                            const dir = prev.address || "";
-                            if (!dir) return dir;
-                            if (/Col\.\s*[^,]+/i.test(dir)) {
-                              return val ? dir.replace(/Col\.\s*[^,]+/i, `Col. ${val}`) : dir.replace(/,?\s*Col\.\s*[^,]+/i, "");
-                            }
-                            if (!val) return dir;
-                            const partes = dir.split(", ");
-                            const corte = partes.findIndex((p) => /^CP \d/.test(p));
-                            const posicion = corte >= 0 ? corte : Math.max(partes.length - 1, 1);
-                            partes.splice(posicion, 0, `Col. ${val}`);
-                            return partes.join(", ");
-                          })()
-                        }));
-                      }}
-                      style={{ width: "100%", padding: "8px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "12px", fontWeight: "600", outline: "none" }}
-                    />
-                  </div>
-                </div>
-
-                {/* 4. Municipality & Section Electoral Controls */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                  <div>
-                    <PredictiveCombobox
-                      label="Municipio"
-                      allowCustom={false}
-                      value={reportForm.municipality}
-                      onChange={(val) => setReportForm({ ...reportForm, municipality: val })}
-                      options={availableMunicipalities.map((m) => ({
-                        value: m.name,
-                        label: m.name,
-                        badge: `${m.count} secc.`
-                      }))}
-                    />
-                  </div>
-
-                  <div>
-                    <PredictiveCombobox
-                      label="Sección Electoral"
-                      placeholder="Buscar sección (ej. 2704)..."
-                      allowCustom={false}
-                      value={reportForm.sectionId || detectedLocationInfo?.sectionId || ""}
-                      onChange={(val) => {
-                        const matchedFeat = sectionsData?.features?.find((f: any) => f.properties?.id === val);
-                        setReportForm((prev) => ({
-                          ...prev,
-                          sectionId: val,
-                          municipality: matchedFeat?.properties?.municipality || prev.municipality
-                        }));
-                      }}
-                      options={[
-                        // La sección del punto va primero aunque no esté cargada en el mapa:
-                        // con GPS en otro municipio, sus secciones no se han descargado y el
-                        // selector mostraba el identificador crudo, sin manera de corregirlo.
-                        ...(detectedLocationInfo?.sectionId &&
-                        !(sectionsData?.features || []).some((f: any) => f.properties?.id === detectedLocationInfo.sectionId)
-                          ? [{
-                              value: detectedLocationInfo.sectionId,
-                              label: `Sección #${detectedLocationInfo.sectionNum ?? "?"}`,
-                              sublabel: `${detectedLocationInfo.municipality || "Sin municipio"} · detectada en el punto`,
-                              badge: "GPS"
-                            }]
-                          : []),
-                        ...(sectionsData?.features || []).map((f: any) => ({
-                        value: f.properties.id,
-                        label: `Sección #${f.properties.section_num}`,
-                        sublabel: f.properties.municipality || "Sin municipio",
-                        badge: `Sección ${f.properties.section_num}`
-                        }))
-                      ]}
-                    />
-                  </div>
-                </div>
-
-                {/* 5. Category & Assigned User */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                  <div>
-                    <PredictiveCombobox
-                      label="Categoría"
-                      required
-                      allowCustom={false}
-                      value={reportForm.category}
-                      onChange={(val) => setReportForm({ ...reportForm, category: val })}
-                      options={Object.entries(CATEGORIES).map(([key, cat]) => ({
-                        value: key,
-                        label: cat.label,
-                        badge: "Categoría"
-                      }))}
-                    />
-                  </div>
-
-                  <div>
-                    <PredictiveCombobox
-                      label="Asignar Responsable"
-                      allowCustom={false}
-                      placeholder="Buscar operador..."
-                      value={reportForm.assignedToUserId}
-                      onChange={(val) => setReportForm({ ...reportForm, assignedToUserId: val })}
-                      options={systemUsers.map((u) => ({
-                        value: u.id,
-                        label: u.displayName,
-                        badge: "Operador"
-                      }))}
-                    />
-                  </div>
-                </div>
-
-                {/* 6. Title */}
-                <div>
-                  <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Título del Reporte *</label>
-                  <input
-                    type="text"
-                    required
-                    value={reportForm.title}
-                    onChange={(e) => setReportForm({ ...reportForm, title: e.target.value })}
-                    placeholder="Ej. Falla de alumbrado / Bache peligroso en esquina"
-                    style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", fontWeight: "600", outline: "none" }}
-                  />
-                </div>
-
-                {/* 7. Field Description */}
-                <div>
-                  <label style={{ display: "block", fontSize: "10px", fontWeight: "800", color: "#475569", textTransform: "uppercase", marginBottom: "3px" }}>Descripción de Campo *</label>
-                  <textarea
-                    required
-                    rows={2}
-                    value={reportForm.description}
-                    onChange={(e) => setReportForm({ ...reportForm, description: e.target.value })}
-                    placeholder="Detalles sobre lo observado en el territorio, referencias físicas..."
-                    style={{ width: "100%", padding: "7px 10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "11px", outline: "none", resize: "none" }}
-                  />
-                </div>
-
-                {/* 8. Media Uploader (Fotos y Videos) */}
-                <div>
-                  <MediaUploader
-                    value={reportForm.mediaUrls}
-                    onChange={(files) => setReportForm((prev) => ({ ...prev, mediaUrls: files }))}
-                    label="Evidencia Fotográfica / Video"
-                    helperText="Toma fotos o videos del suceso (hasta 60 MB)"
-                  />
-                </div>
-
-                {/* Modal Footer Buttons */}
-                <div style={{ display: "flex", gap: "8px", paddingTop: "8px", borderTop: "1px solid #f1f5f9", marginTop: "2px" }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsReportModalOpen(false);
-                      setNewReportCoords(null);
-                      setDetectedLocationInfo(null);
-                    }}
-                    style={{ flex: 1, padding: "9px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || isGeocodingLoading}
-                    style={{ flex: 1.5, padding: "9px", background: "#dc2626", color: "white", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "800", cursor: "pointer", boxShadow: "0 2px 8px rgba(220,38,38,0.3)" }}
-                  >
-                    {isSubmitting ? "Guardando..." : "Registrar Incidencia"}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
+      {vista === "lista" && (
+        <CentroDeMando
+          reportes={reportes}
+          diasDeResueltas={diasDeResueltas}
+          esAdmin={esAdmin}
+          onVolver={() => {
+            setVista("mapa");
+            setTimeout(() => mapa?.invalidateSize(), 100);
+          }}
+          onCentrar={centrarEn}
+          onEditar={(r) => {
+            void pedirUsuarios();
+            setEditando(r);
+          }}
+          onCambiarEstado={(id, estado) => void cambiarEstado(id, estado)}
+          onArchivarResueltas={() => setArchivar(true)}
+          onExportar={exportar}
+        />
       )}
+
+      <ModalNuevaIncidencia
+        punto={puntoDeReporte}
+        secciones={secciones}
+        usuarios={usuarios ?? []}
+        usuarioActualId={usuario?.id ?? null}
+        onCerrar={() => setPuntoDeReporte(null)}
+        onGuardada={(texto) => {
+          avisar(texto);
+          void pedirReportes();
+        }}
+        onMoverMapa={(lat, lng) => mapa?.flyTo([lat, lng], 16, { duration: 1.0 })}
+      />
+      <ModalEditarIncidencia
+        reporte={editando}
+        usuarios={usuarios ?? []}
+        onCerrar={() => setEditando(null)}
+        onGuardada={() => {
+          setEditando(null);
+          avisar("Incidencia actualizada.");
+          void pedirReportes();
+        }}
+      />
+      <ModalArchivarResueltas abierto={archivar} ocupado={archivando} onCerrar={() => setArchivar(false)} onConfirmar={() => void archivarResueltas()} />
     </div>
   );
 }

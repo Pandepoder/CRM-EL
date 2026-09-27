@@ -1,14 +1,14 @@
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
 import AnalyticsClient from "./AnalyticsClient";
-import { requirePageRole } from "@/lib/authorization";
+import { requirePageAccess } from "@/lib/authorization";
 import { getServerSession } from "@/lib/session-server";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
+import { contactosVisibles, contactIdRestriction } from "@/lib/contact-visibility";
 import { and, eq } from "drizzle-orm";
 
 export default async function AnalyticsPage() {
-  await requirePageRole("admin", "direction");
+  await requirePageAccess("/analytics");
   const session = await getServerSession();
 
   const db = getDatabaseClient();
@@ -19,7 +19,7 @@ export default async function AnalyticsPage() {
   // completa del padrón y los conteos incluían registros dados de baja.
   const alcance = await resolveUserNetworkScope(session.userId);
   // Los mismos contactos que el directorio (equipo y territorio), no solo los creados por el equipo.
-  const restriccion = contactIdRestriction(await visibleContactIds(alcance));
+  const restriccion = contactIdRestriction(await contactosVisibles(alcance));
 
   const contacts = await db
     .select()

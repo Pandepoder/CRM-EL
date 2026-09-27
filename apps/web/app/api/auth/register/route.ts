@@ -8,6 +8,9 @@ import { randomUUID } from "crypto";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { safeErrorMessage } from "@/lib/safe-error";
 import { buscarMunicipio } from "@/lib/municipios-jalisco";
+import { registrar, registrarError } from "@/lib/registro";
+import { esViolacionUnica } from "@/lib/idempotencia";
+import { validarDomicilioDePersona } from "@/lib/domicilio-persona";
 
 export async function POST(request: Request) {
   try {
@@ -21,6 +24,9 @@ export async function POST(request: Request) {
       password?: string;
       phone?: string;
       municipality?: string;
+      homeAddress?: string;
+      homeColony?: string;
+      homeMunicipality?: string;
     };
     const displayName = body.displayName?.trim() ?? "";
     const email = body.email?.trim().toLowerCase() ?? "";
@@ -35,6 +41,18 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Un correo mal escrito («juan», «juan@») quedaba como cuenta y nadie podía entrar con él.
+    if (email.length > 160 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ code: "validation_error", message: "Revisa el correo: no es válido." }, { status: 400 });
+    }
+    if (displayName.length > 120) {
+      return NextResponse.json({ code: "validation_error", message: "El nombre puede tener hasta 120 caracteres." }, { status: 400 });
+    }
+
+    // Su domicilio (0025, decisión del dueño 2026-09-26), con la misma validación que el QR de brigada.
+    const domicilio = validarDomicilioDePersona(body);
+    if (!domicilio.ok) return NextResponse.json({ code: "validation_error", message: domicilio.error, campo: domicilio.campo }, { status: 400 });
 
     if (password.length < 6) {
       return NextResponse.json(
@@ -80,7 +98,7 @@ export async function POST(request: Request) {
     // formulario público. Vale más rechazar el alta y que se arregle el catálogo.
     const rolBrigadista = roles[0];
     if (!rolBrigadista) {
-      console.error("Catálogo de roles sin 'visit_responsible': registro rechazado.");
+      registrar("error", "Catálogo de roles sin 'visit_responsible': registro rechazado.");
       return NextResponse.json(
         { code: "internal_error", message: "Error interno: Catálogo de roles no inicializado." },
         { status: 500 }
@@ -101,6 +119,7 @@ export async function POST(request: Request) {
       roleId,
       personalSlug,
       ...(municipality ? { municipality } : {}),
+      ...domicilio.domicilio,
       status: "pending",
       version: 1
     });
@@ -111,7 +130,15 @@ export async function POST(request: Request) {
       message: "¡Solicitud enviada con éxito! Tu cuenta está registrada y el Administrador revisará tu solicitud para activar tus privilegios."
     });
   } catch (error: unknown) {
-    console.error("Register route error:", error);
+    // Dos toques a «Enviar» a la vez: los dos pasan la búsqueda del correo y el segundo choca con el
+    // índice único. Antes era un 500; ya hay una solicitud con ese correo.
+    if (esViolacionUnica(error, "user_profiles_email_unique") || esViolacionUnica(error, "user_profiles_email_lower_unique")) {
+      return NextResponse.json(
+        { code: "email_pending", message: "Ya existe una solicitud pendiente con este correo. Espera la autorización del Administrador." },
+        { status: 400 }
+      );
+    }
+    registrarError("Register route error", error);
     const message = safeErrorMessage(error, "Error al procesar el registro.");
     return NextResponse.json({ code: "registration_failed", message }, { status: 500 });
   }

@@ -698,7 +698,7 @@ export default function ResumenClient({
                           <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded">PAN</span>
                         )}
                         <span className="text-[11px] text-gray-400 font-medium tabular-nums">
-                          {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(c.createdAt).toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         <Link href={`/crm/contacts/${c.id}`} className="text-blue-600 hover:text-blue-700">
                           <ChevronRight size={14} />
@@ -741,7 +741,7 @@ export default function ResumenClient({
 
       {/* ─── 6. PROMOTION MODAL ─── */}
       {promotingUser && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setPromotingUser(null)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setPromotingUser(null)}>
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-200 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             <div
               className="px-5 py-4 flex justify-between items-center shrink-0"

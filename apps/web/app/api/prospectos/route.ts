@@ -5,6 +5,7 @@ import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { crearProspecto, listarProspectos } from "@/lib/prospectos-servicio";
 import { safeErrorMessage } from "@/lib/safe-error";
+import { registrarError } from "@/lib/registro";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function GET(req: Request) {
     });
     return NextResponse.json(r);
   } catch (error: unknown) {
-    console.error("Error in GET /api/prospectos:", error);
+    registrarError("Error in GET /api/prospectos", error);
     return NextResponse.json({ error: safeErrorMessage(error, "Error al obtener prospectos.") }, { status: 500 });
   }
 }
@@ -45,7 +46,9 @@ const cuerpoProspecto = z.object({
   commitments: z.string().nullish(),
   privateNotes: z.string().nullish(),
   nextStep: z.string().nullish(),
-  nextStepAt: z.string().nullish()
+  nextStepAt: z.string().nullish(),
+  // Clave del formulario: un reintento devuelve el prospecto ya creado (R16).
+  clientRequestId: z.string().uuid("La clave de la solicitud no es válida.").nullish()
 });
 
 export async function POST(req: Request) {
@@ -59,11 +62,12 @@ export async function POST(req: Request) {
     const a = cuerpoProspecto.safeParse(cuerpo);
     if (!a.success) return NextResponse.json({ error: a.error.issues[0]?.message ?? "Datos no válidos." }, { status: 400 });
 
-    const r = await crearProspecto(actor, a.data);
+    const { clientRequestId, ...entrada } = a.data;
+    const r = await crearProspecto(actor, entrada, clientRequestId);
     if (!r.ok) return NextResponse.json({ error: r.message, code: r.code }, { status: r.status });
-    return NextResponse.json({ success: true, item: r.prospecto }, { status: 201 });
+    return NextResponse.json({ success: true, item: r.prospecto, repetido: r.repetido }, { status: r.repetido ? 200 : 201 });
   } catch (error: unknown) {
-    console.error("Error in POST /api/prospectos:", error);
+    registrarError("Error in POST /api/prospectos", error);
     return NextResponse.json({ error: safeErrorMessage(error, "Error al registrar prospecto.") }, { status: 500 });
   }
 }

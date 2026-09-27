@@ -9,6 +9,10 @@ import { MARCA } from "@/lib/marca";
 function LoginForm() {
   const searchParams = useSearchParams();
   const from = searchParams.get("from");
+  // Llega aquí desde /api/auth/salir: la sesión estaba abierta, pero la cuenta ya no está activa.
+  // Antes no llegaba nunca: se quedaba en un bucle de redirecciones sin ningún mensaje.
+  const cuentaInactiva = searchParams.get("motivo") === "cuenta-inactiva";
+  const sesionCerrada = searchParams.get("motivo") === "sesion-cerrada";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,6 +59,18 @@ function LoginForm() {
 
   return (
     <form aria-busy={loading} onSubmit={(e) => { void onSubmit(e); }}>
+      {cuentaInactiva && !error ? (
+        <div role="status" className="login-error" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <AlertCircle size={18} aria-hidden="true" />
+          Se cerró tu sesión porque tu cuenta ya no está activa. Si crees que es un error, habla con quien coordina tu equipo.
+        </div>
+      ) : null}
+      {sesionCerrada && !error ? (
+        <div role="status" className="login-error" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <AlertCircle size={18} aria-hidden="true" />
+          Se cerró tu sesión porque cambiaron tu acceso (tu rol, tu municipio o tu contraseña). Vuelve a entrar.
+        </div>
+      ) : null}
       {error ? (
         <div id="login-error-message" role="alert" className="login-error" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <AlertCircle size={18} aria-hidden="true" />

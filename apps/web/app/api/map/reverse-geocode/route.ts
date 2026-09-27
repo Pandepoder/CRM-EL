@@ -7,6 +7,7 @@ import { ubicarEnSeccion } from "@/lib/sections-geo-cache";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { resolverMunicipio } from "@/lib/municipios-jalisco";
 import { sql } from "drizzle-orm";
+import { registrarError } from "@/lib/registro";
 
 /**
  * GET /api/map/reverse-geocode?lat=20.624&lng=-103.235
@@ -98,7 +99,7 @@ export async function GET(request: Request) {
       sectionColonies = colRes.rows.map((r) => r.name).filter(Boolean);
     }
   } catch (err) {
-    console.error("Section lookup error:", err);
+    registrarError("Section lookup error", err);
   }
 
   // 2. Domicilio real desde OpenStreetMap.

@@ -146,10 +146,13 @@ async function cleanProductionDatabase() {
     // Delete existing non-admin profiles to ensure clean slate
     await pool.query("DELETE FROM user_profiles;");
 
+    // Es el administrador maestro (etapa 6, migración 0023): gobierna los 125 municipios y es el único
+    // que crea administradores. Sin la marca, la base lo rechazaría: un administrador activo necesita
+    // municipio, y el maestro está en General.
     await pool.query(
       `
-        INSERT INTO user_profiles (email, display_name, role_id, password_hash)
-        SELECT $1, $2, roles.id, $3
+        INSERT INTO user_profiles (email, display_name, role_id, password_hash, is_master_admin)
+        SELECT $1, $2, roles.id, $3, true
         FROM roles
         WHERE roles.key = 'admin'
       `,

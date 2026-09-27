@@ -6,9 +6,12 @@ export const revalidate = 0;
 import { getDatabaseClient } from "@/lib/db-client";
 import { requireActorPermission, requireActorRoles, Permission } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { visibleContactIds, sqlRestriccionContactos } from "@/lib/contact-visibility";
+import { contactosVisibles, sqlRestriccionContactos } from "@/lib/contact-visibility";
+import { sqlRestriccionPersonas } from "@/lib/alcance-municipal";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
+import { Role } from "@tonala/shared/auth";
+import { registrarError } from "@/lib/registro";
 
 const importSectionsSchema = z.object({
   sections: z.array(
@@ -32,10 +35,10 @@ export async function GET() {
   // cada sección delataba el trabajo de las demás direcciones, que es justo lo que el alcance
   // protege en el resto del sistema. Se acotan igual que en /api/electoral/sections.
   const alcance = await resolveUserNetworkScope(actor.actorId);
-  const filtroContactos = sqlRestriccionContactos(sql.raw("cont.id"), await visibleContactIds(alcance));
-  // allowedUserIds es null solo para administración; con la lista vacía el fragmento queda en
-  // `AND false` y no en una consulta sin filtro.
-  const filtroRepresentantes = sqlRestriccionContactos(sql.raw("erep.user_id"), alcance.allowedUserIds);
+  const filtroContactos = sqlRestriccionContactos(sql.raw("cont.id"), await contactosVisibles(alcance));
+  // Las personas del alcance: el maestro, todas; un administrador municipal, su gente; el resto, su
+  // estructura. Con la lista vacía el fragmento queda en `AND false` y no en una consulta sin filtro.
+  const filtroRepresentantes = sqlRestriccionPersonas(sql.raw("erep.user_id"), alcance);
 
   const db = getDatabaseClient();
 
@@ -75,7 +78,7 @@ export async function GET() {
       }))
     });
   } catch (error) {
-    console.error("Failed to list sections:", error);
+    registrarError("Failed to list sections", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
@@ -88,7 +91,9 @@ export async function POST(request: Request) {
   // Importar cartografía reescribe las secciones de todo Jalisco de una vez, sin comprobar de
   // quién es cada una, así que queda reservado a administración —igual que /api/map/reports/bulk—.
   // Antes bastaba el permiso de lectura del tablero, que dirección también tiene.
-  const actor = await requireActorRoles("admin");
+  // Y desde la etapa 6, al administrador maestro: un administrador municipal reescribiría la
+  // cartografía de los demás municipios.
+  const actor = await requireActorRoles(Role.MasterAdmin);
   if (actor instanceof NextResponse) return actor;
 
   try {
@@ -180,7 +185,7 @@ export async function POST(request: Request) {
       sectionId: lastSectionId
     });
   } catch (error) {
-    console.error("Failed to import electoral sections:", error);
+    registrarError("Failed to import electoral sections", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

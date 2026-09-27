@@ -22,6 +22,8 @@ export type ExtendedContactInput = Readonly<{
   maternalLastName?: string | null;
   referredByUserId?: string | null;
   birthDate?: Date | null;
+  /** `false` si no se capturó el año: `birthDate` lleva el 2000 y no es un dato (D4). */
+  birthYearKnown?: boolean;
   phone?: string | null;
   email?: string | null;
   address?: string | null;
@@ -36,6 +38,39 @@ export type ExtendedContactInput = Readonly<{
   pastSupport?: string | null;
   municipality?: string | null;
   sectionId?: string | null;
+  // Datos de la ficha de campo. Antes se escribían con un UPDATE aparte, fuera de la transacción del
+  // alta: si fallaba, quedaba un ciudadano a medias, y con la idempotencia de la etapa 3 el
+  // reintento lo daba por bueno. Ahora todo entra en la misma transacción.
+  origin?: string | null;
+  actualContactUserId?: string | null;
+  firstContactDate?: Date | null;
+  preferredContactMethod?: string | null;
+  preferredContactTime?: string | null;
+  panMilitancy?: string | null;
+  panMilitancyVerifiedAt?: Date | null;
+  knowMeBetter?: string | null;
+  bardaPhotoUrl?: string | null;
+  exactLatitude?: number | null;
+  exactLongitude?: number | null;
+  /** Clave del formulario: un reintento no crea otro ciudadano (índice único en la base). */
+  clientRequestId?: string | null;
+  /** Primera nota de la ficha, a nombre de quien registra. */
+  initialNote?: string | null;
+  survey?: ExtendedContactSurvey | null;
+}>;
+
+export type ExtendedContactSurvey = Readonly<{
+  colonyPriorityNeed?: string | null | undefined;
+  colonyPriorityOther?: string | null | undefined;
+  tonalaValues?: string | null | undefined;
+  tonalaValuesOther?: string | null | undefined;
+  servicesRating?: number | null | undefined;
+  servicesRatingWhy?: string | null | undefined;
+  projectExpectations?: string | null | undefined;
+  projectExpectationsOther?: string | null | undefined;
+  participationForm?: string | null | undefined;
+  participationFormOther?: string | null | undefined;
+  openProposal?: string | null | undefined;
 }>;
 
 export interface ExtendedContactRepository {

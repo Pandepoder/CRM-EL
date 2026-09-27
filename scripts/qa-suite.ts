@@ -93,7 +93,8 @@ async function runQA() {
     });
     if (!res.ok) throw new Error(`Status ${res.status}`);
     const data = await res.json();
-    if (typeof data.contacts !== "number" || typeof data.usersActive !== "number") {
+    // Los mismos números que la pantalla /resumen (ver apps/web/src/lib/resumen-kpis.ts).
+    if (typeof data.totalContacts !== "number" || typeof data.totalActivities !== "number") {
       throw new Error(`Invalid summary structure: ${JSON.stringify(data)}`);
     }
   });

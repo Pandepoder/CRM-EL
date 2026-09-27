@@ -1,60 +1,120 @@
 "use client";
 
-import { useState } from "react";
-import { 
+import { useEffect, useState } from "react";
+import {
   User, Phone, Mail, Calendar, MapPin, CheckCircle, Sparkles, ArrowRight, Briefcase, ChevronDown, ChevronUp, AlertCircle,
-  MessageSquare, ClipboardList
+  MessageSquare, ClipboardList, CloudOff, UserPlus, Users
 } from "lucide-react";
+
+import { EnviosPendientes } from "@/components/EnviosPendientes";
+import { enviarOEncolar, nuevaClave, TEXTO_DE_ESPERA } from "@/lib/cola-de-envios";
+import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
+
+/** Lo que el modo evento recuerda en este teléfono mientras dura el evento. */
+type Evento = { municipio: string; seccion: string; registrados: number };
+
+const encuestaVacia = () => ({
+  colonyPriorityNeed: "",
+  colonyPriorityOther: "",
+  tonalaValues: "",
+  tonalaValuesOther: "",
+  servicesRating: "",
+  servicesRatingWhy: "",
+  projectExpectations: "",
+  projectExpectationsOther: "",
+  participationForm: "",
+  participationFormOther: "",
+  openProposal: ""
+});
+
+const formularioVacio = (municipio: string, seccion: string) => ({
+  firstName: "",
+  lastName: "",
+  maternalLastName: "",
+  phone: "",
+  email: "",
+  birthDay: "",
+  birthMonth: "",
+  birthYear: "",
+  address: "",
+  colony: "",
+  municipality: municipio,
+  sectionNum: seccion,
+  profession: "",
+  preferredContactMethod: "whatsapp",
+  preferredContactTime: "indiferente",
+  participatingArea: "General",
+  knowMeBetter: ""
+});
 
 export default function PublicRegistrationClient({
   hostUser,
   slug,
-  coloniesList
+  modoEvento = false,
+  municipioSugerido = null
 }: {
-  hostUser: { id: string; displayName: string; accessType: string };
+  hostUser: { id: string; displayName: string };
   slug: string;
-  coloniesList: string[];
+  /** Modo evento (kiosco, 3.1): una persona tras otra en el mismo teléfono. */
+  modoEvento?: boolean;
+  /** El municipio de quien comparte el enlace: sale elegido y la persona lo cambia si hace falta. */
+  municipioSugerido?: string | null;
 }) {
-  // Form State
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    maternalLastName: "",
-    phone: "",
-    email: "",
-    birthDay: "",
-    birthMonth: "",
-    birthYear: "",
-    address: "",
-    colony: "",
-    municipality: "",
-    sectionNum: "",
-    profession: "",
-    preferredContactMethod: "whatsapp",
-    preferredContactTime: "indiferente",
-    participatingArea: "General",
-    knowMeBetter: ""
-  });
+  // Modo evento: municipio y sección fijados para todo el evento, recordados en este teléfono.
+  const llaveEvento = `registro-evento:${slug.toLowerCase()}`;
+  const [evento, setEvento] = useState<Evento | null>(null);
+  const [configurandoEvento, setConfigurandoEvento] = useState(modoEvento);
+  const [borradorEvento, setBorradorEvento] = useState({ municipio: municipioSugerido ?? "", seccion: "" });
+  const [formData, setFormData] = useState(() => formularioVacio(municipioSugerido ?? "", ""));
+
+  useEffect(() => {
+    if (!modoEvento) return;
+    try {
+      const guardado = JSON.parse(localStorage.getItem(llaveEvento) ?? "null") as Evento | null;
+      if (guardado?.municipio) {
+        setEvento(guardado);
+        setConfigurandoEvento(false);
+        setFormData(formularioVacio(guardado.municipio, guardado.seccion));
+      }
+    } catch {
+      // Sin almacenamiento (modo privado): se configura el evento en cada visita.
+    }
+  }, [modoEvento, llaveEvento]);
+
+  function guardarEvento(siguiente: Evento | null) {
+    setEvento(siguiente);
+    try {
+      if (siguiente) localStorage.setItem(llaveEvento, JSON.stringify(siguiente));
+      else localStorage.removeItem(llaveEvento);
+    } catch {
+      // Sin almacenamiento: el evento dura lo que la pestaña abierta.
+    }
+  }
 
   // Survey State
   const [showSurvey, setShowSurvey] = useState(false);
-  const [survey, setSurvey] = useState({
-    colonyPriorityNeed: "",
-    colonyPriorityOther: "",
-    tonalaValues: "",
-    tonalaValuesOther: "",
-    servicesRating: "",
-    servicesRatingWhy: "",
-    projectExpectations: "",
-    projectExpectationsOther: "",
-    participationForm: "",
-    participationFormOther: "",
-    openProposal: ""
-  });
+  const [survey, setSurvey] = useState(encuestaVacia);
 
+  // Clave del registro (R16): si la señal se corta después de que el servidor lo guardó, el reenvío
+  // devuelve el mismo registro en vez de rechazarlo como «teléfono ya registrado».
+  const [clave, setClave] = useState(() => nuevaClave());
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  /** Guardado en este teléfono, esperando señal. */
+  const [enEspera, setEnEspera] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+
+  /** «Registrar a otra persona»: campos limpios; en modo evento, con municipio y sección del evento. */
+  function registrarOtra() {
+    setFormData(formularioVacio(evento?.municipio ?? municipioSugerido ?? "", evento?.seccion ?? ""));
+    setSurvey(encuestaVacia());
+    setShowSurvey(false);
+    setClave(nuevaClave());
+    setSubmitted(false);
+    setEnEspera(null);
+    setErrorMessage("");
+    window.scrollTo({ top: 0 });
+  }
 
   const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
   const months = [
@@ -87,49 +147,131 @@ export default function PublicRegistrationClient({
     }
 
     setLoading(true);
-    try {
-      const res = await fetch("/api/public/registro", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug,
-          ...formData,
-          survey: showSurvey ? survey : null
-        })
-      });
+    const r = await enviarOEncolar({
+      clave,
+      tipo: "registro-publico",
+      url: "/api/public/registro",
+      cuerpo: {
+        slug,
+        ...formData,
+        survey: showSurvey ? survey : null,
+        clientRequestId: clave,
+        ...(modoEvento ? { modo: "evento" } : {})
+      },
+      descripcion: `Registro: ${[formData.firstName, formData.lastName].map((x) => x.trim()).filter(Boolean).join(" ")}`,
+      // Sin dueño: el registro público no lleva sesión, y se reenvía desde esta misma página.
+      usuarioId: null
+    });
+    setLoading(false);
 
-      const data = await res.json();
-      if (res.ok) {
-        setSubmitted(true);
-      } else {
-        setErrorMessage(data.error || "Ocurrió un error al procesar tu registro.");
-      }
-    } catch {
-      setErrorMessage("Error de conexión. Intenta de nuevo.");
-    } finally {
-      setLoading(false);
+    if (r.estado === "enviado" || r.estado === "encolado") {
+      if (r.estado === "encolado") setEnEspera(TEXTO_DE_ESPERA[r.motivo]);
+      if (evento) guardarEvento({ ...evento, registrados: evento.registrados + 1 });
+      setSubmitted(true);
+      window.scrollTo({ top: 0 });
+      return;
     }
+    setErrorMessage(r.error);
+    const campo = r.estado === "rechazado" && r.campo ? document.querySelector<HTMLElement>(`[data-campo="${r.campo}"]`) : null;
+    if (campo) campo.focus();
+    else window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  const estiloCampo = "w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500";
+
+  // Modo evento, antes de empezar: quien opera el teléfono fija municipio y sección una sola vez.
+  if (modoEvento && configurandoEvento) {
+    const listo = Boolean(borradorEvento.municipio);
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-blue-950 to-slate-900 flex items-center justify-center p-4">
+        <form
+          className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!listo) return;
+            const siguiente = { municipio: borradorEvento.municipio, seccion: borradorEvento.seccion.trim(), registrados: evento?.registrados ?? 0 };
+            guardarEvento(siguiente);
+            setFormData(formularioVacio(siguiente.municipio, siguiente.seccion));
+            setConfigurandoEvento(false);
+          }}
+        >
+          <div className="space-y-1">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 rounded-full text-xs font-bold text-blue-800 border border-blue-100">
+              <Users size={13} /> Modo evento
+            </span>
+            <h1 className="text-xl font-black text-blue-950">¿Dónde es el evento?</h1>
+            <p className="text-xs font-medium text-gray-600">
+              Se llena una vez. Cada registro saldrá con este municipio y esta sección ya puestos; quien sea de otro lugar lo cambia en su registro. Registros a nombre de <strong>{hostUser.displayName}</strong>.
+            </p>
+          </div>
+          <div>
+            <label htmlFor="evento-municipio" className="block text-[11px] font-extrabold text-gray-600 uppercase mb-1">Municipio *</label>
+            <select id="evento-municipio" required value={borradorEvento.municipio} onChange={(e) => setBorradorEvento({ ...borradorEvento, municipio: e.target.value })} className={estiloCampo}>
+              <option value="">Selecciona el municipio…</option>
+              {MUNICIPIOS_JALISCO.map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="evento-seccion" className="block text-[11px] font-extrabold text-gray-600 uppercase mb-1">Sección electoral (opcional)</label>
+            <input id="evento-seccion" inputMode="numeric" pattern="[0-9]*" placeholder="Si casi todos son de la misma sección" value={borradorEvento.seccion} onChange={(e) => setBorradorEvento({ ...borradorEvento, seccion: e.target.value.replace(/\D/g, "") })} className={estiloCampo} />
+          </div>
+          <button type="submit" disabled={!listo} className="w-full py-4 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-sm rounded-2xl disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
+            Empezar a registrar <ArrowRight size={16} />
+          </button>
+        </form>
+      </div>
+    );
   }
 
   if (submitted) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-2xl space-y-5 animate-in fade-in zoom-in duration-300">
-          <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
-            <CheckCircle size={44} />
-          </div>
+          {enEspera ? (
+            <>
+              <div className="w-20 h-20 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                <CloudOff size={40} />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-black text-blue-950">Registro guardado</h2>
+                <p className="text-sm font-medium text-gray-600">{enEspera}</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                <CheckCircle size={44} />
+              </div>
 
-          <div className="space-y-2">
-            <h2 className="text-2xl font-black text-blue-950">¡Muchas Gracias!</h2>
-            <p className="text-sm font-medium text-gray-600">
-              Tus datos han sido registrados correctamente en la red de <strong>{hostUser.displayName}</strong>.
+              <div className="space-y-2">
+                <h2 className="text-2xl font-black text-blue-950">¡Muchas Gracias!</h2>
+                <p className="text-sm font-medium text-gray-600">
+                  Tus datos han sido registrados correctamente en la red de <strong>{hostUser.displayName}</strong>.
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* Antes esta pantalla no ofrecía nada: para la siguiente persona había que recargar a mano (C18). */}
+          <button
+            type="button"
+            onClick={registrarOtra}
+            className={`w-full py-4 rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2 cursor-pointer ${modoEvento ? "bg-blue-700 hover:bg-blue-800 text-white shadow-lg" : "bg-white border border-gray-200 text-blue-900 hover:bg-gray-50"}`}
+          >
+            <UserPlus size={18} /> Registrar a otra persona
+          </button>
+
+          {modoEvento && evento ? (
+            <p className="text-xs font-bold text-gray-500">
+              {evento.registrados === 1 ? "1 registro" : `${evento.registrados} registros`} en este teléfono · {evento.municipio}{evento.seccion ? ` · Sección ${evento.seccion}` : ""}
             </p>
-          </div>
-
-          <div className="p-4 bg-blue-50/80 rounded-2xl border border-blue-100 text-xs text-blue-900 font-semibold space-y-1">
-            <p className="flex items-center justify-center gap-1.5"><Sparkles size={13} /> Estamos construyendo un proyecto cercano, ordenado y con visión para tu municipio.</p>
-            <p className="text-gray-500">Nos pondremos en contacto contigo pronto.</p>
-          </div>
+          ) : (
+            <div className="p-4 bg-blue-50/80 rounded-2xl border border-blue-100 text-xs text-blue-900 font-semibold space-y-1">
+              <p className="flex items-center justify-center gap-1.5"><Sparkles size={13} /> Estamos construyendo un proyecto cercano, ordenado y con visión para tu municipio.</p>
+              <p className="text-gray-500">Nos pondremos en contacto contigo pronto.</p>
+            </div>
+          )}
+          <EnviosPendientes usuarioId={null} />
         </div>
       </div>
     );
@@ -138,6 +280,17 @@ export default function PublicRegistrationClient({
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-blue-950 to-slate-900 text-gray-800 py-6 sm:py-8 px-3 sm:px-4 pb-24 flex justify-center">
       <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200/20">
+        {modoEvento && evento && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 bg-blue-50 border-b border-blue-100 text-xs font-bold text-blue-900">
+            <span className="flex items-center gap-1.5">
+              <Users size={14} /> Modo evento · {evento.municipio}{evento.seccion ? ` · Sección ${evento.seccion}` : ""} · {evento.registrados === 1 ? "1 registro" : `${evento.registrados} registros`}
+            </span>
+            <button type="button" onClick={() => { setBorradorEvento({ municipio: evento.municipio, seccion: evento.seccion }); setConfigurandoEvento(true); }} className="underline cursor-pointer">
+              Cambiar
+            </button>
+          </div>
+        )}
+        <EnviosPendientes usuarioId={null} />
         {/* HERO BANNER */}
         <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-blue-950 p-6 md:p-8 text-white text-center relative overflow-hidden">
           <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 bg-cyan-400/10 rounded-full blur-2xl" />
@@ -178,7 +331,7 @@ export default function PublicRegistrationClient({
                   type="text"
                   required
                   placeholder="Tu nombre completo"
-                  value={formData.firstName}
+                  data-campo="firstName" value={formData.firstName}
                   onChange={e => setFormData({ ...formData, firstName: e.target.value })}
                   className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
                 />
@@ -214,7 +367,7 @@ export default function PublicRegistrationClient({
                     type="tel"
                     required
                     placeholder="10 dígitos (ej. 3312345678)"
-                    value={formData.phone}
+                    data-campo="phone" value={formData.phone}
                     onChange={e => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full pl-9 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
                   />
@@ -228,7 +381,7 @@ export default function PublicRegistrationClient({
                   <input
                     type="email"
                     placeholder="correo@ejemplo.com"
-                    value={formData.email}
+                    data-campo="email" value={formData.email}
                     onChange={e => setFormData({ ...formData, email: e.target.value })}
                     className="w-full pl-9 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
                   />
@@ -245,7 +398,7 @@ export default function PublicRegistrationClient({
               <div className="grid grid-cols-3 gap-2">
                 <select
                   required
-                  value={formData.birthDay}
+                  data-campo="birthDay" value={formData.birthDay}
                   onChange={e => setFormData({ ...formData, birthDay: e.target.value })}
                   className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
                 >
@@ -287,9 +440,13 @@ export default function PublicRegistrationClient({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-[11px] font-extrabold text-gray-600 uppercase mb-1">Colonia</label>
+                <label htmlFor="registro-colonia" className="block text-[11px] font-extrabold text-gray-600 uppercase mb-1">Colonia *</label>
                 <input
+                  id="registro-colonia"
                   type="text"
+                  data-campo="colony"
+                  required
+                  maxLength={150}
                   placeholder="Escribe tu colonia o fraccionamiento"
                   value={formData.colony}
                   onChange={e => setFormData({ ...formData, colony: e.target.value })}
@@ -298,14 +455,38 @@ export default function PublicRegistrationClient({
               </div>
 
               <div>
-                <label className="block text-[11px] font-extrabold text-gray-600 uppercase mb-1">Municipio</label>
-                <input
-                  type="text"
+                {/* Era un texto libre: se guardaba «Tonala Jal.», «zapopan» o cualquier cosa (C18, D1).
+                    Ahora es la lista de los 125 municipios de Jalisco, la misma del alta interna. */}
+                <label htmlFor="registro-municipio" className="block text-[11px] font-extrabold text-gray-600 uppercase mb-1">Municipio donde vives *</label>
+                {/* Obligatorio desde la etapa 5: ningún registro sin municipio. */}
+                <select
+                  id="registro-municipio"
+                  data-campo="municipality"
+                  required
                   value={formData.municipality}
                   onChange={e => setFormData({ ...formData, municipality: e.target.value })}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white"
-                />
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Selecciona tu municipio…</option>
+                  {MUNICIPIOS_JALISCO.map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}
+                </select>
               </div>
+
+              {modoEvento && (
+                <div>
+                  <label htmlFor="registro-seccion" className="block text-[11px] font-extrabold text-gray-600 uppercase mb-1">Sección electoral</label>
+                  <input
+                    id="registro-seccion"
+                    data-campo="sectionNum"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="Viene en la credencial INE"
+                    value={formData.sectionNum}
+                    onChange={e => setFormData({ ...formData, sectionNum: e.target.value.replace(/\D/g, "") })}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
 
               <div className="sm:col-span-2">
                 <label className="block text-[11px] font-extrabold text-gray-600 uppercase mb-1">Calle y Número (Opcional)</label>

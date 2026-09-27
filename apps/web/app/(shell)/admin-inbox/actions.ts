@@ -40,7 +40,7 @@ export async function markAsProcessedAction(messageId: string) {
     const alcance = await resolveUserNetworkScope(actor.actorId);
     const asignadaA = conversacion.asignadaA;
     const enAlcance =
-      alcance.isGlobal ||
+      alcance.isMaster ||
       (asignadaA !== null && (alcance.allowedUserIds ?? []).includes(asignadaA));
     if (!enAlcance) {
       return {

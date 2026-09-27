@@ -4,8 +4,9 @@ import { useState } from "react";
 import { Users, Plus, Shield, ArrowLeft, Trash, Trash2, User, Search, MapPin, ArrowRight, UserPlus, CheckCircle, X, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { AvatarPersona } from "@/components/AvatarPersona";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
-import { deleteContactAction } from "../../crm/actions";
+import { darDeBajaCiudadanoAction } from "../../crm/actions";
 
 type Team = {
   id: string;
@@ -20,6 +21,7 @@ type Team = {
 type Member = {
   userId: string;
   displayName: string;
+  photoUrl?: string | null;
   roleName: string | null;
   joinedAt: string | Date;
 };
@@ -48,7 +50,7 @@ type Props = {
   contacts: ContactItem[];
   availableUsers: UserProfile[];
   canManage?: boolean;
-  /** Borrar ciudadanos: solo administración, aunque el líder gestione a sus integrantes. */
+  /** Dar de baja ciudadanos: solo administración, aunque el líder gestione a sus integrantes. */
   canDeleteContacts?: boolean;
   currentUserId?: string;
 };
@@ -72,13 +74,17 @@ export default function TeamDetailClient({
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null);
 
   async function handleDeleteContact(contactId: string, displayName: string) {
-    if (!confirm(`¿Deseas eliminar a "${displayName}" de los registros de este equipo?`)) return;
+    if (!confirm(`¿Dar de baja a "${displayName}"? Deja de aparecer en el directorio, el mapa y los conteos. Su historial de visitas y notas se conserva.`)) return;
     setDeletingContactId(contactId);
     try {
-      await deleteContactAction(contactId);
+      const resultado = await darDeBajaCiudadanoAction(contactId);
+      if (!resultado.ok) {
+        alert(resultado.error);
+        return;
+      }
       router.refresh();
-    } catch (err: any) {
-      alert(err?.message || "Error al eliminar ciudadano");
+    } catch {
+      alert("No se pudo dar de baja. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setDeletingContactId(null);
     }
@@ -360,7 +366,7 @@ export default function TeamDetailClient({
                                 type="button"
                                 onClick={() => handleDeleteContact(c.id, c.displayName)}
                                 disabled={deletingContactId === c.id}
-                                title="Eliminar ciudadano de este equipo"
+                                title="Dar de baja del padrón"
                                 className="p-1 bg-gray-50 hover:bg-rose-50 text-gray-400 hover:text-rose-600 rounded-lg border border-gray-200 hover:border-rose-200 transition-all cursor-pointer disabled:opacity-50"
                               >
                                 {deletingContactId === c.id ? (
@@ -416,9 +422,7 @@ export default function TeamDetailClient({
                   {members.map((m) => (
                     <tr key={m.userId} className="hover:bg-gray-50/50 transition-colors">
                       <td className="p-4 pl-6 font-bold text-gray-900 flex items-center gap-3">
-                        <div className="w-8 h-8 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center">
-                          <User size={15} />
-                        </div>
+                        <AvatarPersona nombre={m.displayName} fotoUrl={m.photoUrl} tamano={32} />
                         <Link
                           href={`/perfil/${m.userId}`}
                           className="hover:text-blue-600 hover:underline transition-colors flex items-center gap-1.5"
@@ -461,7 +465,7 @@ export default function TeamDetailClient({
 
       {/* MODAL AGREGAR INTEGRANTE */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowModal(false)}>
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-indigo-900 to-blue-900 text-white flex justify-between items-center shrink-0">
               <div>

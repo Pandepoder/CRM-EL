@@ -4,6 +4,7 @@ import { z } from "zod";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { editarProspecto } from "@/lib/prospectos-servicio";
 import { safeErrorMessage } from "@/lib/safe-error";
+import { registrarError } from "@/lib/registro";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!r.ok) return NextResponse.json({ error: r.message, code: r.code }, { status: r.status });
     return NextResponse.json({ success: true, item: r.prospecto });
   } catch (error: unknown) {
-    console.error("Error in PATCH /api/prospectos/[id]:", error);
+    registrarError("Error in PATCH /api/prospectos/[id]", error);
     return NextResponse.json({ error: safeErrorMessage(error, "Error al guardar el prospecto.") }, { status: 500 });
   }
 }

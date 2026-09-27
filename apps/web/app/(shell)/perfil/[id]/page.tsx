@@ -2,11 +2,15 @@ import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema, decryptData } from "@tonala/shared/database";
 import { and, eq, or, desc, sql } from "drizzle-orm";
-import { requirePageSession } from "@/lib/authorization";
+import { requirePageAccess } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
+import { cuentaGobernada, esDelMunicipio } from "@/lib/alcance-municipal";
+import { registrarConsultaDelMaestro } from "@/lib/auditoria";
+import { actorFromSession } from "@/lib/api-helpers";
+import { contactosVisibles, contactIdRestriction } from "@/lib/contact-visibility";
 import { incidentScopeCondition } from "@/lib/incident-visibility";
 import { notFound } from "next/navigation";
+import { esUuid } from "@/lib/ids";
 import LeaderProfileClient from "./LeaderProfileClient";
 
 export default async function LeaderProfilePage({
@@ -16,9 +20,12 @@ export default async function LeaderProfilePage({
 }) {
   // Ningún rol queda fuera de esta pantalla de entrada: quién puede ver el perfil
   // de quién se decide más abajo por alcance, no por rol.
-  await requirePageSession();
+  await requirePageAccess("/perfil");
   const session = await getServerSession();
   const { id: targetUserId } = await params;
+  // Un id que no es UUID no existe: sin esto la base lo rechazaba y la pantalla caía en la
+  // frontera de error («algo falló») en vez de decir que no hay tal perfil. Ver `ids.ts`.
+  if (!esUuid(targetUserId)) return notFound();
 
   const db = getDatabaseClient();
 
@@ -29,6 +36,10 @@ export default async function LeaderProfilePage({
       displayName: schema.userProfiles.displayName,
       email: schema.userProfiles.email,
       status: schema.userProfiles.status,
+      photoUrl: schema.userProfiles.photoUrl,
+      homeAddress: schema.userProfiles.homeAddress,
+      homeColony: schema.userProfiles.homeColony,
+      homeMunicipality: schema.userProfiles.homeMunicipality,
       createdAt: schema.userProfiles.createdAt,
       roleKey: schema.roles.key,
       roleName: schema.roles.name
@@ -46,16 +57,29 @@ export default async function LeaderProfilePage({
   // otherwise contact PII and activity registered by the target user would
   // leak across unrelated brigades.
   const viewerScope = await resolveUserNetworkScope(session.userId);
+  // Su domicilio (0025) lo ven la propia persona y la administración que la gobierna: el maestro, o la
+  // de su municipio. Sus compañeros de brigada ven su perfil, pero no dónde vive.
+  let veDomicilio = session.userId === targetUserId || viewerScope.isMaster;
   if (session.userId !== targetUserId) {
-    const canView = viewerScope.isGlobal || viewerScope.teammateUserIds.includes(targetUserId);
+    // El maestro, a cualquiera; un administrador municipal, a su gente aunque ya no esté activa
+    // (Control de usuarios enlaza aquí a todas sus cuentas); el resto, a su estructura.
+    const canView =
+      viewerScope.isMaster ||
+      viewerScope.teammateUserIds.includes(targetUserId) ||
+      (viewerScope.adminMunicipalityId !== null && (await esDelMunicipio(targetUserId, viewerScope.adminMunicipalityId)));
     if (!canView) {
       return notFound();
     }
+    // «La que la gobierna»: la cuenta está en su municipio y no es de administración (A2).
+    if (!veDomicilio && viewerScope.isAdmin) veDomicilio = (await cuentaGobernada(viewerScope, targetUserId)) !== null;
+    // El maestro ve el perfil de cualquiera; cada uno que abre queda en la auditoría (etapa 6).
+    const actor = await actorFromSession();
+    if (actor) await registrarConsultaDelMaestro(actor, viewerScope, "user_profile", targetUserId);
   }
 
   // Entrar al perfil de alguien de tu alcance no amplía lo que ves: el mismo recorte del
   // directorio se aplica a cada apartado que enseña ciudadanos.
-  const restriccionContactos = contactIdRestriction(await visibleContactIds(viewerScope));
+  const restriccionContactos = contactIdRestriction(await contactosVisibles(viewerScope));
 
   // 2. Fetch Team
   const teamRows = await db
@@ -242,13 +266,15 @@ export default async function LeaderProfilePage({
         status: targetUser.status,
         createdAt: (targetUser.createdAt instanceof Date ? targetUser.createdAt : new Date(targetUser.createdAt)).toISOString(),
         roleKey: targetUser.roleKey || "capturist",
-        roleName: targetUser.roleName || "Operador Territorial"
+        roleName: targetUser.roleName || "Operador Territorial",
+        photoUrl: targetUser.photoUrl
       }}
       team={team}
       contacts={contacts}
       activities={activities}
       topColonies={topColonies}
       topSections={topSections}
+      domicilio={veDomicilio ? { calle: targetUser.homeAddress, colonia: targetUser.homeColony, municipio: targetUser.homeMunicipality } : null}
       isCurrentUser={session.userId === targetUserId}
       currentUserId={session.userId}
       currentUserRole={session.roleKey || ""}

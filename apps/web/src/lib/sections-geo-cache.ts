@@ -27,6 +27,12 @@ export type SeccionGeo = Readonly<{
   geomJson: unknown;
   /** [minLng, minLat, maxLng, maxLat] */
   bounds: readonly [number, number, number, number];
+  /**
+   * [lng, lat]: promedio de los vértices del anillo exterior. No es el centroide de área exacto,
+   * pero ubica «en algún lugar de esta sección» a un contacto sin GPS, y es el mismo cálculo que
+   * hacía antes la consulta de contactos del mapa en Postgres.
+   */
+  centro: readonly [number, number] | null;
 }>;
 
 type Entrada = { cargadoEn: number; filas: SeccionGeo[] };
@@ -67,6 +73,25 @@ function calcularBounds(geom: unknown): [number, number, number, number] | null 
   return Number.isFinite(minLng) ? [minLng, minLat, maxLng, maxLat] : null;
 }
 
+/** Promedio de los vértices del anillo exterior (del primer polígono si es multipolígono). */
+export function centroDeGeometria(geom: unknown): [number, number] | null {
+  const g = geom as { type?: string; coordinates?: unknown } | null;
+  const anillo = (g?.type === "MultiPolygon"
+    ? (g.coordinates as number[][][][] | undefined)?.[0]?.[0]
+    : (g?.coordinates as number[][][] | undefined)?.[0]) as unknown;
+  if (!Array.isArray(anillo) || anillo.length === 0) return null;
+  let lng = 0;
+  let lat = 0;
+  let n = 0;
+  for (const punto of anillo) {
+    if (!Array.isArray(punto) || !Number.isFinite(punto[0]) || !Number.isFinite(punto[1])) continue;
+    lng += punto[0] as number;
+    lat += punto[1] as number;
+    n++;
+  }
+  return n > 0 ? [lng / n, lat / n] : null;
+}
+
 /** Devuelve todas las secciones con geometría, desde caché si sigue vigente. */
 export async function getSeccionesGeo(): Promise<SeccionGeo[]> {
   const cache = globalThis.__tonalaSectionsGeo;
@@ -93,7 +118,8 @@ export async function getSeccionesGeo(): Promise<SeccionGeo[]> {
       sectionNum: r.section_num,
       municipality: r.municipality,
       geomJson: r.geom_json,
-      bounds
+      bounds,
+      centro: centroDeGeometria(r.geom_json)
     });
   }
 

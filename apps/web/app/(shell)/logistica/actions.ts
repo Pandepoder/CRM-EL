@@ -1,54 +1,78 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getDatabaseClient } from "@/lib/db-client";
-import { schema } from "@tonala/shared/database";
+
 import { actorFromSession } from "@/lib/api-helpers";
-import { randomUUID } from "crypto";
+import { esUuid } from "@/lib/ids";
+import { crearAlmacen, crearArticulo, registrarMovimiento, type Resultado } from "@/lib/logistica";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
-export async function createInventoryItemAction(formData: FormData) {
+/**
+ * Logística: administración y dirección, cada quien en los almacenes de su municipio (etapa 6, ver
+ * `lib/logistica.ts`). Devuelven el resultado en vez de lanzar: en producción Next oculta el mensaje
+ * de lo que lanza una acción, y la pantalla no podría decir qué pasó.
+ */
+
+const ROLES = new Set(["admin", "direction"]);
+const texto = (valor: FormDataEntryValue | null): string => (typeof valor === "string" ? valor : "");
+
+async function sesion() {
   const actor = await actorFromSession();
-  if (!actor || (!actor.roles.includes("admin") && !actor.roles.includes("direction"))) {
-    throw new Error("Unauthorized");
-  }
+  if (!actor || !actor.roles.some((r) => ROLES.has(r))) return null;
+  return { actor, alcance: await resolveUserNetworkScope(actor.actorId) };
+}
 
-  const name = formData.get("name") as string;
-  const sku = formData.get("sku") as string;
-  const category = formData.get("category") as string;
-  const description = formData.get("description") as string;
-  const imageUrl = formData.get("imageUrl") as string;
+const SIN_PERMISO: Resultado = { ok: false, error: "Logística la llevan administración y dirección." };
 
-  if (!name || !sku || !category) {
-    throw new Error("Missing required fields");
-  }
+function responder(r: Resultado): Resultado {
+  if (r.ok) revalidatePath("/logistica");
+  return r;
+}
 
-  const db = getDatabaseClient();
-  const id = randomUUID();
+export async function createWarehouseAction(formData: FormData): Promise<Resultado> {
+  const s = await sesion();
+  if (!s) return SIN_PERMISO;
+  return responder(
+    await crearAlmacen(s.actor, s.alcance, {
+      nombre: texto(formData.get("name")),
+      ubicacion: texto(formData.get("location")),
+      municipio: texto(formData.get("municipality"))
+    })
+  );
+}
 
-  // Find or create a default warehouse since warehouseId is required
-  let warehouseId = "";
-  const existingWarehouses = await db.query.warehouses.findMany({ limit: 1 });
-  if (existingWarehouses.length > 0) {
-    warehouseId = existingWarehouses[0]!.id;
-  } else {
-    warehouseId = randomUUID();
-    await db.insert(schema.warehouses).values({
-      id: warehouseId,
-      name: "Almacén Principal",
-      location: "Sede"
-    });
-  }
+export async function createInventoryItemAction(formData: FormData): Promise<Resultado> {
+  const s = await sesion();
+  if (!s) return SIN_PERMISO;
+  const warehouseId = formData.get("warehouseId");
+  if (!esUuid(warehouseId)) return { ok: false, error: "Elige el almacén del artículo." };
+  return responder(
+    await crearArticulo(s.alcance, {
+      warehouseId,
+      nombre: texto(formData.get("name")),
+      sku: texto(formData.get("sku")),
+      categoria: texto(formData.get("category")),
+      descripcion: texto(formData.get("description")),
+      imagen: texto(formData.get("imageUrl"))
+    })
+  );
+}
 
-  await db.insert(schema.inventoryItems).values({
-    id,
-    warehouseId,
-    sku,
-    name,
-    category,
-    description,
-    imageUrl,
-    quantity: 0
-  });
-
-  revalidatePath("/logistica");
+export async function registerMovementAction(formData: FormData): Promise<Resultado> {
+  const s = await sesion();
+  if (!s) return SIN_PERMISO;
+  const itemId = formData.get("itemId");
+  if (!esUuid(itemId)) return { ok: false, error: "Elige un artículo del inventario." };
+  const responsable = formData.get("assignedToUserId");
+  if (responsable && !esUuid(responsable)) return { ok: false, error: "Elige al responsable de la lista." };
+  const tipo = texto(formData.get("type")) === "in" ? "in" : "out";
+  return responder(
+    await registrarMovimiento(s.actor, s.alcance, {
+      itemId,
+      cantidad: Number(texto(formData.get("quantity"))),
+      tipo,
+      responsableId: typeof responsable === "string" && responsable ? responsable : null,
+      notas: texto(formData.get("notes"))
+    })
+  );
 }

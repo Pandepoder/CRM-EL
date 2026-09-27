@@ -134,6 +134,55 @@
       "when": 1789500000000,
       "tag": "0018_prospectos_seguimiento_y_perfiles",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789600000000,
+      "tag": "0019_huella_telefono_y_correo_sin_mayusculas",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789700000000,
+      "tag": "0020_nombre_de_rol_capturista",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789800000000,
+      "tag": "0021_evento_fotos_e_idempotencia",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789900000000,
+      "tag": "0022_municipio_como_llave",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790000000000,
+      "tag": "0023_administrador_maestro",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790100000000,
+      "tag": "0024_anio_de_nacimiento_conocido",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790200000000,
+      "tag": "0025_domicilio_de_la_persona",
+      "breakpoints": true
     }
   ]
 }

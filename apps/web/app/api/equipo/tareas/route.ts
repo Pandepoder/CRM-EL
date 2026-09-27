@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireLiderParaIncidencias } from "@/lib/authorization";
 import { crearActividad } from "@/lib/actividades-servicio";
+import { registrarError } from "@/lib/registro";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ const cuerpoCrear = z.object({
 export async function POST(req: Request) {
   // Esta ruta también da de alta incidencias en el mapa, así que exige lo mismo que
   // /api/map/reports: solo quien lidera puede levantarlas.
-  const actor = await requireLiderParaIncidencias();
+  const actor = await requireLiderParaIncidencias("actividades");
   if (actor instanceof NextResponse) return actor;
 
   let cuerpo: unknown;
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
       { status: r.duplicada ? 200 : 201 }
     );
   } catch (error) {
-    console.error("Error creating operational task:", error);
+    registrarError("Error creating operational task", error);
     return NextResponse.json({ error: "Error interno al registrar la actividad." }, { status: 500 });
   }
 }

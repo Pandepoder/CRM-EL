@@ -6,6 +6,7 @@ import { getHomePathForRole } from "@tonala/ui";
 import { saveServerSession } from "@/lib/session-server";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { safeErrorMessage } from "@/lib/safe-error";
+import { registrarError } from "@/lib/registro";
 
 export async function POST(request: Request) {
   try {
@@ -54,15 +55,18 @@ export async function POST(request: Request) {
       displayName: user.displayName,
       roleKey: user.roleKey,
       roleName: user.roleName,
-      isLoggedIn: true
+      isLoggedIn: true,
+      sessionVersion: user.sessionVersion
     });
+    // «Última entrada», para el panel del administrador maestro (0023). No toca nada que cierre sesiones.
+    await pool.query("UPDATE user_profiles SET last_login_at = now() WHERE id = $1", [user.id]);
 
     return NextResponse.json({
       ok: true,
       redirectTo: getHomePathForRole(user.roleKey)
     });
   } catch (error: unknown) {
-    console.error("Login route error:", error);
+    registrarError("Login route error", error);
     const message = safeErrorMessage(error, "Error al iniciar sesión.");
     return NextResponse.json({ code: "login_failed", message }, { status: 500 });
   }

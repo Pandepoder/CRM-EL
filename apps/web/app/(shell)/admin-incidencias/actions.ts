@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { actorFromSession } from "@/lib/api-helpers";
-import { esEstadoValido } from "@/lib/estados-incidencia";
-import { incidentScopeCondition } from "@/lib/incident-visibility";
+import { ESTADOS_INCIDENCIA, esEstadoValido } from "@/lib/estados-incidencia";
+import { incidenciasQuePuedeTrabajar } from "@/lib/incident-visibility";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export async function updateReportStatusAction(reportId: string, newStatus: string) {
@@ -27,18 +27,26 @@ export async function updateReportStatusAction(reportId: string, newStatus: stri
   // incidencia, así que un coordinador que conociera el id cerraba la de otra dirección. El
   // alcance va dentro del WHERE para que no haya hueco entre comprobar y escribir.
   //
-  // Aquí manda el alcance y no puedeSobreIncidencia (lib/permisos-incidencias): esa regla dice
-  // quién *trabaja* una incidencia —su autor, quien la tiene asignada o su brigada— y dejaría a
-  // dirección sin poder aceptar lo que levanta su cadena de mando, que es para lo que existe
-  // esta pantalla.
+  // La regla de quién *trabaja* una incidencia (`incidenciasQuePuedeTrabajar`, la de
+  // puedeSobreIncidencia en SQL): su autor, quien la tiene asignada, su equipo o quien manda sobre
+  // ellos —así dirección acepta lo que levanta su cadena de mando, que es para lo que existe esta
+  // pantalla—. Antes bastaba con verla, y quien solo es compañero de equipo (dos líderes de la misma
+  // coordinación) le cambiaba el estado a lo del otro.
   const alcance = await resolveUserNetworkScope(actor.actorId);
 
   const db = getDatabaseClient();
   try {
     const [actualizada] = await db
       .update(schema.eventReports)
-      .set({ status: newStatus })
-      .where(and(eq(schema.eventReports.id, reportId), incidentScopeCondition(alcance)))
+      // Cuándo y quién la cerró: ver la misma nota en `api/map/reports/[id]`.
+      .set({
+        status: newStatus,
+        updatedAt: new Date(),
+        closedAt: ESTADOS_INCIDENCIA[newStatus]?.cerrada ? new Date() : null,
+        closedByUserId: ESTADOS_INCIDENCIA[newStatus]?.cerrada ? actor.actorId : null
+      })
+      // Solo incidencias: una actividad de la bitácora se cierra en la Agenda, con su resultado.
+      .where(and(eq(schema.eventReports.id, reportId), isNull(schema.eventReports.activityTypeId), incidenciasQuePuedeTrabajar(alcance)))
       .returning({ id: schema.eventReports.id });
 
     if (!actualizada) {

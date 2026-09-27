@@ -46,7 +46,6 @@ class SequenceIdGenerator implements IdGenerator {
 
 function dependencies(overrides: Partial<{
   contact: null | { readonly status: "active" };
-  territory: null | { readonly status: "confirmed" | "pending" };
   user: null | UserDirectoryView;
   repository: ContactAssignmentRepository;
 }> = {}) {
@@ -64,19 +63,6 @@ function dependencies(overrides: Partial<{
           : { contactId, status: "active" as const, version: 1 }),
         listContacts: () => Promise.resolve({ items: [], total: 0 }),
         getContactDetail: () => Promise.resolve(null)
-      },
-      territoryReader: {
-        getContactTerritory: () => Promise.resolve(overrides.territory === null
-          ? null
-          : {
-            contactId,
-            colonyId: createEntityId("00000000-0000-0000-0000-000000000301"),
-            territoryStatus: overrides.territory?.status ?? "confirmed",
-            linkedAt: "2026-07-29T00:00:00.000Z",
-            version: 1
-          }),
-        listActiveColonies: () => Promise.resolve([]),
-        getSectionStats: () => Promise.resolve(null)
       },
       userDirectoryReader: {
         getUserCapability: (userId: typeof firstUserId) => Promise.resolve(overrides.user === null
@@ -155,24 +141,16 @@ describe("assignResponsible", () => {
     expect(setup.events).toHaveLength(0);
   });
 
-  it("rejects missing contact, territory and invalid territory status", async () => {
+  it("rejects a missing contact; does not require a territory (the visit does)", async () => {
     const missingContact = await assignResponsible(actor, { contactId, assignedUserId: firstUserId }, dependencies({
       contact: null
     }).deps);
     expect(missingContact.ok).toBe(false);
     if (!missingContact.ok) expect(missingContact.error.code).toBe("contact_not_found");
 
-    const missingTerritory = await assignResponsible(actor, { contactId, assignedUserId: firstUserId }, dependencies({
-      territory: null
-    }).deps);
-    expect(missingTerritory.ok).toBe(false);
-    if (!missingTerritory.ok) expect(missingTerritory.error.code).toBe("contact_territory_not_found");
-
-    const pendingTerritory = await assignResponsible(actor, { contactId, assignedUserId: firstUserId }, dependencies({
-      territory: { status: "pending" }
-    }).deps);
-    expect(pendingTerritory.ok).toBe(false);
-    if (!pendingTerritory.ok) expect(pendingTerritory.error.code).toBe("contact_territory_not_confirmed");
+    // Decisión del dueño (2026-09-25): un ciudadano registrado por QR, sin colonia, se puede repartir.
+    const withoutTerritory = await assignResponsible(actor, { contactId, assignedUserId: firstUserId }, dependencies().deps);
+    expect(withoutTerritory.ok).toBe(true);
   });
 
   it("rejects missing, inactive or non-operational user", async () => {

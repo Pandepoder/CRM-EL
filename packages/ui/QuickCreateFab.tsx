@@ -23,39 +23,38 @@ type Opcion = Readonly<{
   ayuda: string;
   icono: typeof AlertTriangle;
   color: string;
-  /** Roles a los que se les ofrece. Tiene que decir lo mismo que la guarda del destino. */
-  roles: readonly string[];
 }>;
 
-/** Levantar incidencias es cosa de quien coordina: la API rechaza el alta de un brigadista. */
-const ROLES_DE_MANDO = ["admin", "direction", "territorial_coordinator"] as const;
-
+/**
+ * Las dos opciones las puede usar la misma gente: quien coordina (administración o quien lidera
+ * un equipo). Es la condición con que la API acepta una incidencia y con que la Agenda deja crear
+ * una actividad, y la calcula el servidor. Antes cada opción llevaba su lista de roles: «Evento o
+ * actividad» se ofrecía también a capturista y brigadista, que llegaban a la Agenda y no se abría
+ * nada, sin ningún mensaje (C7). Y una lista de roles se equivoca con quien lidera un equipo sin
+ * tener rol de mando.
+ */
 const OPCIONES: readonly Opcion[] = [
   {
     href: "/mapa?crear=incidencia",
     etiqueta: "Incidencia",
     ayuda: "Bache, fuga, alumbrado, emergencia…",
     icono: AlertTriangle,
-    color: "#dc2626",
-    roles: ROLES_DE_MANDO
+    color: "#dc2626"
   },
   {
     href: "/equipo?crear=evento",
     etiqueta: "Evento o actividad",
     ayuda: "Mitin, plática, brigada, visita…",
     icono: CalendarPlus,
-    color: "#2563eb",
-    roles: ["admin", "direction", "territorial_coordinator", "capturist", "visit_responsible"]
+    color: "#2563eb"
   }
 ];
 
-export function QuickCreateFab({ userRoleKey }: Readonly<{ userRoleKey: string }>) {
+export function QuickCreateFab({ puedeCoordinar }: Readonly<{ puedeCoordinar: boolean }>) {
   const [abierto, setAbierto] = useState(false);
   const contenedor = useRef<HTMLDivElement | null>(null);
 
-  // El botón ofrecía "Incidencia" a todo el mundo y el brigadista acababa en un formulario que
-  // la API le rechaza al guardar, igual que pasaba con "Alta de Reportes" en el menú.
-  const opciones = OPCIONES.filter((opcion) => opcion.roles.includes(userRoleKey));
+  const opciones = puedeCoordinar ? OPCIONES : [];
 
   useEffect(() => {
     if (!abierto) return;

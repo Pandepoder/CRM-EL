@@ -208,7 +208,7 @@ export function IncidentSectionAssigner({
 
       {/* Modal Dialog */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setIsOpen(false)}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setIsOpen(false)}>
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 flex flex-col max-h-[88dvh] overflow-hidden animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             
             {/* Header */}

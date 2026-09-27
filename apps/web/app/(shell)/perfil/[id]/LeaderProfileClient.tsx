@@ -8,6 +8,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AvatarPersona } from "@/components/AvatarPersona";
+import { FotoDePerfilEditable } from "@/components/FotoDePerfilEditable";
+import { DomicilioDeLaCuenta, type Domicilio } from "@/components/DomicilioDeLaCuenta";
 
 export type LeaderUser = {
   id: string;
@@ -17,6 +20,8 @@ export type LeaderUser = {
   createdAt: string;
   roleKey: string;
   roleName: string;
+  /** Foto de perfil (3.6); sin ella, iniciales. */
+  photoUrl: string | null;
 };
 
 export type LeaderContact = {
@@ -58,6 +63,7 @@ export default function LeaderProfileClient({
   activities,
   topColonies,
   topSections,
+  domicilio = null,
   isCurrentUser,
   currentUserId,
   currentUserRole
@@ -68,6 +74,8 @@ export default function LeaderProfileClient({
   activities: LeaderActivity[];
   topColonies: { name: string; count: number }[];
   topSections: { name: string; count: number }[];
+  /** `null`: quien mira no puede ver dónde vive esta persona. */
+  domicilio?: Domicilio | null;
   isCurrentUser: boolean;
   currentUserId: string;
   currentUserRole: string;
@@ -219,10 +227,12 @@ export default function LeaderProfileClient({
         
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start gap-4">
-            {/* Avatar */}
-            <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-400 text-white font-black text-2xl md:text-3xl flex items-center justify-center shadow-lg shrink-0 border-2 border-white/20">
-              {user.displayName.slice(0, 2).toUpperCase()}
-            </div>
+            {/* Foto de perfil: la propia se cambia desde aquí; la de los demás solo se ve. */}
+            {isCurrentUser ? (
+              <FotoDePerfilEditable nombre={user.displayName} fotoUrl={user.photoUrl} tamano={80} />
+            ) : (
+              <AvatarPersona nombre={user.displayName} fotoUrl={user.photoUrl} tamano={80} className="border-2 border-white/20 shadow-lg" />
+            )}
 
             {/* User Info */}
             <div className="space-y-1.5">
@@ -282,6 +292,8 @@ export default function LeaderProfileClient({
           </div>
         </div>
       </div>
+
+      {domicilio && <DomicilioDeLaCuenta domicilio={domicilio} editable={isCurrentUser} />}
 
       {/* 2. KPI METRICS CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

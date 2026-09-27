@@ -8,6 +8,8 @@ import { aValorLocal } from "@/lib/actividades";
 import type { OpcionSelector } from "@/lib/bitacora-tipos";
 import { CLAVES_DISPOSICION, DISPOSICIONES, ETIQUETA_NOTAS_INTERNAS, type PosibleContacto, type ProspectoItem } from "@/lib/prospectos";
 
+import { enviarOEncolar, nuevaClave, TEXTO_DE_ESPERA } from "@/lib/cola-de-envios";
+
 import { llamar } from "./api";
 import { buscarCatalogo, crearEnCatalogo } from "./buscadores";
 import { formatearFecha, formatearFechaHora } from "./presentacion";
@@ -28,7 +30,7 @@ const vacio = (): Borrador => ({
 const campo = "w-full p-2.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none";
 const etiqueta = "block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1";
 
-export function Prospectos({ esAdmin, puedeConvertir }: { esAdmin: boolean; puedeConvertir: boolean }) {
+export function Prospectos({ esAdmin, puedeConvertir, usuarioActualId }: { esAdmin: boolean; puedeConvertir: boolean; usuarioActualId: string }) {
   const [datos, setDatos] = useState<Pagina | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -159,14 +161,17 @@ export function Prospectos({ esAdmin, puedeConvertir }: { esAdmin: boolean; pued
         </nav>
       )}
 
-      {formulario && <FormularioProspecto id={formulario.id} inicial={formulario.borrador} esAdmin={esAdmin} onCerrar={() => setFormulario(null)} onGuardado={(m) => { setFormulario(null); setAviso(m); void cargar(); }} />}
+      {formulario && <FormularioProspecto id={formulario.id} inicial={formulario.borrador} esAdmin={esAdmin} usuarioActualId={usuarioActualId} onCerrar={() => setFormulario(null)} onGuardado={(m) => { setFormulario(null); setAviso(m); void cargar(); }} />}
       {conversion && <DialogoConversion p={conversion.prospecto} posibles={conversion.posibles} onCerrar={() => setConversion(null)} onListo={(m) => { setConversion(null); setAviso(m); void cargar(); }} />}
     </div>
   );
 }
 
-function FormularioProspecto({ id, inicial, esAdmin, onCerrar, onGuardado }: { id: string | null; inicial: Borrador; esAdmin: boolean; onCerrar: () => void; onGuardado: (mensaje: string) => void }) {
+function FormularioProspecto({ id, inicial, esAdmin, usuarioActualId, onCerrar, onGuardado }: { id: string | null; inicial: Borrador; esAdmin: boolean; usuarioActualId: string; onCerrar: () => void; onGuardado: (mensaje: string) => void }) {
   const [f, setF] = useState(inicial);
+  // Clave del alta: un doble toque o el reenvío desde la cola del teléfono no crean otro prospecto
+  // (R16). Vive lo que vive el formulario abierto.
+  const [clave] = useState(() => nuevaClave());
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const poner = <K extends keyof Borrador>(k: K, v: Borrador[K]) => setF((p) => ({ ...p, [k]: v }));
@@ -188,10 +193,25 @@ function FormularioProspecto({ id, inicial, esAdmin, onCerrar, onGuardado }: { i
       locationText: f.locationText || null, commitments: f.commitments || null, privateNotes: f.privateNotes || null,
       nextStep: f.nextStep || null, nextStepAt: f.nextStepAt ? new Date(f.nextStepAt).toISOString() : null
     };
-    const r = await llamar(id ? `/api/prospectos/${id}` : "/api/prospectos", { method: id ? "PATCH" : "POST", cuerpo });
+    if (id) {
+      const r = await llamar(`/api/prospectos/${id}`, { method: "PATCH", cuerpo });
+      setGuardando(false);
+      if (!r.ok) { setError(r.error); return; }
+      onGuardado("Prospecto actualizado.");
+      return;
+    }
+    // El alta, sin señal, queda en la cola del teléfono y se envía sola (3.4).
+    const r = await enviarOEncolar({
+      clave,
+      tipo: "prospecto",
+      url: "/api/prospectos",
+      cuerpo: { ...cuerpo, clientRequestId: clave },
+      descripcion: `Prospecto: ${f.prospectName.trim()}`,
+      usuarioId: usuarioActualId
+    });
     setGuardando(false);
-    if (!r.ok) { setError(r.error); return; }
-    onGuardado(id ? "Prospecto actualizado." : "Prospecto registrado.");
+    if (r.estado === "rechazado" || r.estado === "sin-cola") { setError(r.error); return; }
+    onGuardado(r.estado === "encolado" ? TEXTO_DE_ESPERA[r.motivo] : r.datos.repetido ? "Ese prospecto ya estaba registrado." : "Prospecto registrado.");
   }
 
   return (

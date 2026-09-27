@@ -10,13 +10,18 @@ import type { LocationValue } from "@/components/LocationPicker";
 import { LocationPicker } from "@/components/LocationPicker";
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 import { useMunicipioUsuario } from "@/lib/municipio-contexto";
+import { enviarOEncolar, nuevaClave, TEXTO_DE_ESPERA } from "@/lib/cola-de-envios";
 
-export default function ReportesClient({ sections, users, teams = [] }: { sections: any[], users: any[], teams?: any[] }) {
+export default function ReportesClient({ sections, users, teams = [], usuarioActualId }: { sections: any[], users: any[], teams?: any[], usuarioActualId: string }) {
   // El selector de punto abre en el municipio de quien reporta, no en todo Jalisco.
   const municipioUsuario = useMunicipioUsuario();
   const [error, setError] = useState("");
   const [locationKey, setLocationKey] = useState(0);
   const [success, setSuccess] = useState(false);
+  // Sin señal el reporte queda en el teléfono: se dice así, no como «registrado».
+  const [enEspera, setEnEspera] = useState<string | null>(null);
+  // Clave del alta (R16): el doble toque o el reenvío desde la cola no levantan otra incidencia.
+  const [clave, setClave] = useState(() => nuevaClave());
   const [saving, setSaving] = useState(false);
   const [sectionsList, setSectionsList] = useState<any[]>(sections || []);
   const [showNewSectionModal, setShowNewSectionModal] = useState(false);
@@ -46,8 +51,10 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
 
   const handleLocationChange = (loc: LocationValue) => {
     setForm(prev => {
-      let matchedSectionId = prev.sectionId;
-      if (loc.sectionNum && !matchedSectionId) {
+      // La sección es la del punto: la del punto anterior no vale (antes se quedaba si el nuevo caía fuera
+      // de la cartografía, y la incidencia se guardaba con una sección de otro lugar).
+      let matchedSectionId = loc.sectionId || "";
+      if (!matchedSectionId && loc.sectionNum) {
         const found = sectionsList.find(s => String(s.sectionNum) === String(loc.sectionNum));
         if (found) matchedSectionId = found.id;
       }
@@ -57,7 +64,7 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
         longitude: loc.longitude ?? prev.longitude,
         locationText: loc.address || loc.locationText || prev.locationText,
         municipality: loc.municipality || prev.municipality,
-        sectionId: loc.sectionId || matchedSectionId || prev.sectionId
+        sectionId: matchedSectionId
       };
     });
   };
@@ -106,6 +113,7 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
     if (saving) return;
     setError("");
     setSuccess(false);
+    setEnEspera(null);
     if (!categoryOptions.some(option => option.value === form.category)) {
       setError("Selecciona una categoría de la lista.");
       return;
@@ -117,10 +125,14 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
 
     setSaving(true);
     try {
-      const res = await fetch("/api/map/reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const r = await enviarOEncolar({
+        clave,
+        tipo: "incidencia",
+        url: "/api/map/reports",
+        descripcion: `Incidencia: ${form.title.trim() || "sin título"}`,
+        usuarioId: usuarioActualId,
+        cuerpo: {
+          clientRequestId: clave,
           title: form.title,
           description: form.description,
           category: form.category,
@@ -132,11 +144,13 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
           assignedToUserId: form.assignedToUserId || undefined,
           assignedTeamId: form.assignedTeamId || undefined,
           eventDate: form.eventDate || undefined
-        })
+        }
       });
 
-      if (res.ok) {
-        setSuccess(true);
+      if (r.estado === "enviado" || r.estado === "encolado") {
+        if (r.estado === "enviado") setSuccess(true);
+        else setEnEspera(TEXTO_DE_ESPERA[r.motivo]);
+        setClave(nuevaClave());
         setLocationKey(key => key + 1);
         setForm({
           title: "",
@@ -157,11 +171,8 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
         // Se muestra el motivo que da el servidor —por ejemplo, que levantar
         // incidencias corresponde al líder de la brigada— en vez de un mensaje
         // genérico que deja a quien reporta sin saber qué hacer.
-        const errData = await res.json().catch(() => ({}));
-        setError(errData.message || errData.error || "No se pudo guardar. Tus datos siguen aquí; intenta de nuevo.");
+        setError(`${r.error} Tus datos siguen aquí.`);
       }
-    } catch {
-      setError("No hay conexión. Tus datos siguen aquí; vuelve a intentar cuando tengas señal.");
     } finally {
       setSaving(false);
     }
@@ -213,6 +224,15 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
         </div>
       </div>
 
+      {enEspera && (
+        <div role="status" className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl flex items-center gap-3">
+          <AlertTriangle className="text-amber-600 shrink-0" size={20} />
+          <div>
+            <p className="font-bold">El reporte está a salvo en este teléfono</p>
+            <p className="text-sm">{enEspera}</p>
+          </div>
+        </div>
+      )}
       {success && (
         <div role="status" className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center gap-3 animate-in fade-in">
           <CheckCircle className="text-emerald-600 shrink-0" size={20} />
@@ -368,7 +388,7 @@ export default function ReportesClient({ sections, users, teams = [] }: { sectio
 
       {/* Modal: Registrar Nueva Sección Electoral */}
       {showNewSectionModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowNewSectionModal(false)}>
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowNewSectionModal(false)}>
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
               <h2 className="text-lg font-bold text-blue-950 flex items-center gap-2">

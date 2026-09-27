@@ -1,18 +1,15 @@
-import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
-import { incidentScopeCondition } from "@/lib/incident-visibility";
+import { kpisDelResumen, restriccionesDelResumen } from "@/lib/resumen-kpis";
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq, count, gte, desc, and, or, inArray, sql } from "drizzle-orm";
-import { redirect } from "next/navigation";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import ResumenClient from "./ResumenClient";
-import { requirePageRole } from "@/lib/authorization";
+import { requirePageAccess } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export default async function ResumenPage() {
-  await requirePageRole("admin", "direction", "territorial_coordinator");
+  await requirePageAccess("/resumen");
   const session = await getServerSession();
-  if (!session.isLoggedIn || !session.userId) redirect("/login");
 
   const db = getDatabaseClient();
 
@@ -41,67 +38,14 @@ export default async function ResumenPage() {
   // performance data here — otherwise this page becomes a cross-team leaderboard
   // that fuels comparison/rivalry between unrelated coordinators.
   const networkScope = await resolveUserNetworkScope(session.userId);
-  const scopedUserIds = networkScope.isGlobal ? null : networkScope.teammateUserIds;
+  // El maestro ve a todas; un administrador municipal, a las personas activas de su municipio (etapa 6).
+  const scopedUserIds = networkScope.isMaster ? null : networkScope.teammateUserIds;
 
-  const visibleIds = await visibleContactIds(networkScope);
-  const contactRestriction = contactIdRestriction(visibleIds);
-  // Una actividad y la visita que agendó son UN registro: la visita vinculada a una actividad no se
-  // cuenta aparte (la actividad ya cuenta), igual que en la bitácora (lib/bitacora-consulta).
-  const sinVisitaVinculada = sql`NOT EXISTS (SELECT 1 FROM event_reports x WHERE x.visit_id = ${schema.visits.id})`;
-  const visitRestriction = visibleIds === null ? sinVisitaVinculada : and(inArray(schema.visits.contactId, visibleIds), sinVisitaVinculada);
-  // Misma regla de incidencias que el mapa y la gestión (ver incident-visibility.ts). Antes solo
-  // contaban las asignadas a un equipo: quedaban fuera las que la persona había levantado.
-  const eventRestriction = incidentScopeCondition(networkScope);
-  // La escucha social se cuenta como la enseña su propia pantalla: lo que registró la gente del
-  // alcance más lo que está ligado a un ciudadano visible. Contando solo lo segundo se perdía lo
-  // propio cuando el reporte se levantó sin ciudadano ligado, que es lo más común en campo.
-  const listeningRestriction =
-    visibleIds === null
-      ? undefined
-      : or(
-          inArray(schema.socialListening.contactId, visibleIds),
-          inArray(schema.socialListening.createdByUserId, networkScope.allowedUserIds ?? [])
-        );
-
-  // Start of today for daily pulse
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  // 2. Global & Today KPIs
-  const [contactsCountRow] = await db
-    .select({ count: count() })
-    .from(schema.contacts)
-    .where(and(eq(schema.contacts.status, "active"), contactRestriction));
-
-  const [todayContactsRow] = await db
-    .select({ count: count() })
-    .from(schema.contacts)
-    .where(and(gte(schema.contacts.createdAt, startOfDay), contactRestriction));
-
-  const [panContactsCountRow] = await db
-    .select({ count: count() })
-    .from(schema.contacts)
-    .where(and(eq(schema.contacts.panMilitancy, "confirmada"), contactRestriction));
-
-  const [visitsCountRow] = await db
-    .select({ count: count() })
-    .from(schema.visits).where(visitRestriction);
-
-  const [todayVisitsRow] = await db
-    .select({ count: count() })
-    .from(schema.visits)
-    .where(and(gte(schema.visits.createdAt, startOfDay), visitRestriction));
-
-  const [eventsCountRow] = await db
-    .select({ count: count() })
-    .from(schema.eventReports).where(eventRestriction);
-
-  const [socialListeningCountRow] = await db
-    .select({ count: count() })
-    .from(schema.socialListening).where(listeningRestriction);
-
-  const totalActivities = (visitsCountRow?.count || 0) + (eventsCountRow?.count || 0);
-  const todayActivities = (todayVisitsRow?.count || 0);
+  // Los números de cabecera y las condiciones de alcance salen de `resumen-kpis.ts`, la misma fuente
+  // que `/api/resumen` (M4). El tablero de abajo usa esas mismas condiciones.
+  const restricciones = await restriccionesDelResumen(networkScope);
+  const { contactos: contactRestriction, visitas: visitRestriction, incidencias: eventRestriction } = restricciones;
+  const kpis = await kpisDelResumen(networkScope, { restricciones });
 
   // 3. Recent registrations feed (last 6)
   const recentContactsRows = await db
@@ -118,7 +62,7 @@ export default async function ResumenPage() {
     })
     .from(schema.contacts)
     .leftJoin(schema.electoralSections, eq(schema.contacts.sectionId, schema.electoralSections.id))
-    .where(and(eq(schema.contacts.status, "active"), contactRestriction))
+    .where(contactRestriction)
     .orderBy(desc(schema.contacts.createdAt))
     .limit(6);
 
@@ -161,11 +105,10 @@ export default async function ResumenPage() {
   const userContacts = await db
     .select({
       createdByUserId: schema.contacts.createdByUserId,
-      panMilitancy: schema.contacts.panMilitancy,
-      colony: schema.contacts.colony
+      panMilitancy: schema.contacts.panMilitancy
     })
     .from(schema.contacts)
-    .where(and(eq(schema.contacts.status, "active"), contactRestriction));
+    .where(contactRestriction);
 
   const userVisits = await db
     .select({
@@ -209,21 +152,14 @@ export default async function ResumenPage() {
 
   return (
     <ResumenClient
-      canManageSensitive={networkScope.isGlobal}
+      canManageSensitive={networkScope.isAdmin}
       currentUser={{
         id: currentUser.id,
         displayName: currentUser.displayName,
         accessType: currentUser.accessType || "conexion",
         personalSlug: currentUser.personalSlug || null
       }}
-      kpis={{
-        totalContacts: contactsCountRow?.count || 0,
-        todayContacts: todayContactsRow?.count || 0,
-        panConfirmedContacts: panContactsCountRow?.count || 0,
-        totalActivities,
-        todayActivities,
-        totalSocialListening: socialListeningCountRow?.count || 0
-      }}
+      kpis={kpis}
       recentContacts={recentContacts}
       leaderboard={leaderboard}
     />

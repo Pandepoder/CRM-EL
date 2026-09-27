@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { schema } from "@tonala/shared/database";
 
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
-import { esAdministracion } from "@/lib/permisos-incidencias";
 import { crearOpcion, listarOpciones, type TipoOpcion } from "@/lib/catalogo-actividades";
 import { getDatabaseClient } from "@/lib/db-client";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
@@ -46,7 +45,7 @@ export async function POST(req: Request) {
 
   // Crear opciones para los demás es cosa de quien coordina, no de cada integrante.
   const alcance = await resolveUserNetworkScope(actor.actorId);
-  if (!alcance.isGlobal && !alcance.isLeader) {
+  if (!alcance.isAdmin && !alcance.isLeader) {
     return NextResponse.json(
       { error: "Solo quien lidera un equipo y la administración pueden crear opciones nuevas. Pídeselo a tu líder." },
       { status: 403 }
@@ -63,8 +62,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Indica el tipo de opción y su nombre." }, { status: 400 });
   }
 
-  const esAdmin = esAdministracion(actor.roles);
-  const resultado = await crearOpcion({ actorId: actor.actorId, esAdmin }, alcance, {
+  const resultado = await crearOpcion(alcance, {
     kind: cuerpo.kind,
     name: cuerpo.name,
     description: typeof cuerpo.description === "string" ? cuerpo.description : null,

@@ -6,6 +6,7 @@ import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { schema } from "@tonala/shared/database";
 import { and, eq, inArray } from "drizzle-orm";
+import { registrarError } from "@/lib/registro";
 
 export async function GET(_request: Request) {
   // Antes solo administración y dirección podían pedir esta lista, y devolvía
@@ -18,7 +19,7 @@ export async function GET(_request: Request) {
 
   try {
     const alcance = await resolveUserNetworkScope(actor.actorId);
-    const enAlcance = alcance.isGlobal ? null : (alcance.allowedUserIds ?? [actor.actorId]);
+    const enAlcance = alcance.isMaster ? null : (alcance.allowedUserIds ?? [actor.actorId]);
     const users = await db
       .select({
         id: schema.userProfiles.id,
@@ -36,7 +37,7 @@ export async function GET(_request: Request) {
 
     return NextResponse.json({ users });
   } catch (error) {
-    console.error("Error fetching map users:", error);
+    registrarError("Error fetching map users", error);
     return NextResponse.json({ users: [] });
   }
 }

@@ -8,6 +8,7 @@ import { buscarMunicipio, resolverMunicipio } from "@/lib/municipios-jalisco";
 import { buscarDireccion } from "@/lib/osm-search";
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { sql } from "drizzle-orm";
+import { registrarError } from "@/lib/registro";
 
 
 export interface AutocompleteResult {
@@ -113,7 +114,7 @@ export async function GET(req: Request) {
         seenKeys.add(`sec-${row.section_num}`);
       }
     } catch (err) {
-      console.error("Section search error:", err);
+      registrarError("Section search error", err);
     }
   }
 
@@ -164,7 +165,7 @@ export async function GET(req: Request) {
       }
     }
   } catch (err) {
-    console.error("Colony search error:", err);
+    registrarError("Colony search error", err);
   }
 
   // 3. OPENSTREETMAP NOMINATIM SEARCH: Live Street / Place Geocoding Bounded to Jalisco

@@ -140,21 +140,34 @@ export async function seedDatabase(connectionString: string): Promise<SeedResult
     // mantendría el lock de BD durante ~200ms por usuario.
     const passwordHash = await argon2.hash(userPassword, { type: argon2.argon2id });
 
+    // Etapa 6: una cuenta de administración activa es el maestro o tiene municipio (la base lo exige,
+    // migración 0023). La de pruebas es el maestro si todavía no hay uno —así una base recién sembrada,
+    // la de CI o una desechable, tiene quien lo vea todo—; si ya lo hay, es administradora de Tonalá.
+    const { rows: [otroMaestro] } = await pool.query<{ email: string }>(
+      "SELECT email FROM user_profiles WHERE is_master_admin AND lower(email) <> ALL($1::text[])",
+      [userSeeds.filter((u) => u.roleKey === "admin").map((u) => u.email.toLowerCase())]
+    );
+
     for (const user of userSeeds) {
+      const esAdministracion = user.roleKey === "admin";
+      const maestro = esAdministracion && !otroMaestro;
+      const municipio = esAdministracion && !maestro ? "Tonalá" : null;
       await pool.query(
         `
-          INSERT INTO user_profiles (email, display_name, role_id, password_hash)
-          SELECT $1, $2, roles.id, $4
+          INSERT INTO user_profiles (email, display_name, role_id, password_hash, municipality, is_master_admin)
+          SELECT $1, $2, roles.id, $4, $5, $6
           FROM roles
           WHERE roles.key = $3
           ON CONFLICT (email) DO UPDATE
           SET display_name    = EXCLUDED.display_name,
               role_id         = EXCLUDED.role_id,
               password_hash   = EXCLUDED.password_hash,
+              municipality    = CASE WHEN $7 THEN EXCLUDED.municipality ELSE user_profiles.municipality END,
+              is_master_admin = EXCLUDED.is_master_admin,
               updated_at      = now(),
               version         = user_profiles.version + 1
         `,
-        [user.email, user.displayName, user.roleKey, passwordHash]
+        [user.email, user.displayName, user.roleKey, passwordHash, municipio, maestro, esAdministracion]
       );
     }
 

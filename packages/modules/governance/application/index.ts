@@ -7,7 +7,8 @@ export function createUsersReader(db: Database): UsersReader {
   return new DrizzleUsersReader(db);
 }
 
-export { changeUserRole } from "./change-user-role.js";
-export type { ChangeUserRoleDependencies, ChangeUserRoleInput } from "./change-user-role.js";
+// `changeUserRole` se retiró en la etapa 6: bastaba ser administración para cambiar cualquier rol,
+// también el de otro administrador (A2). Las reglas viven ahora en apps/web/src/lib/gobierno-de-cuentas.ts,
+// que sabe de municipios.
 
 export const governanceApplicationName = "governance-application";

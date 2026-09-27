@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
+import { registrarError } from "@/lib/registro";
+import { getDatabaseClient } from "@/lib/db-client";
+import { urlDeArchivo } from "@/lib/archivos";
+import { schema } from "@tonala/shared/database";
 
 const MAX_IMAGE_SIZE = 15 * 1024 * 1024; // 15 MB
 const MAX_VIDEO_SIZE = 60 * 1024 * 1024; // 60 MB
@@ -63,11 +67,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No se enviaron archivos para subir." }, { status: 400 });
     }
 
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
-    await mkdir(uploadDir, { recursive: true });
-
-    const uploadedFiles: UploadedFileResponse[] = [];
-
+    // Primero se revisan TODOS los archivos y después se escribe: antes, si el segundo de dos
+    // archivos no pasaba la revisión, el primero ya estaba en disco y quedaba huérfano.
+    const aceptados: { file: File; ext: string; tipo: "image" | "video" }[] = [];
     for (const file of files) {
       if (!(file instanceof File) || file.size === 0) continue;
 
@@ -77,24 +79,22 @@ export async function POST(req: Request) {
       const mimeType = file.type.toLowerCase().split(";")[0]?.trim() ?? "";
       const imageExt = IMAGE_TYPE_TO_EXT[mimeType];
       const videoExt = VIDEO_TYPE_TO_EXT[mimeType];
-      const isImage = Boolean(imageExt);
-      const isVideo = Boolean(videoExt);
 
-      if (!isImage && !isVideo) {
+      if (!imageExt && !videoExt) {
         return NextResponse.json(
           { error: `Tipo de archivo no soportado: ${file.name} (${file.type}). Solo se permiten fotos y videos.` },
           { status: 400 }
         );
       }
 
-      if (isImage && file.size > MAX_IMAGE_SIZE) {
+      if (imageExt && file.size > MAX_IMAGE_SIZE) {
         return NextResponse.json(
           { error: `La imagen ${file.name} excede el límite máximo de 15 MB.` },
           { status: 400 }
         );
       }
 
-      if (isVideo && file.size > MAX_VIDEO_SIZE) {
+      if (videoExt && file.size > MAX_VIDEO_SIZE) {
         return NextResponse.json(
           { error: `El video ${file.name} excede el límite máximo de 60 MB.` },
           { status: 400 }
@@ -104,21 +104,42 @@ export async function POST(req: Request) {
       // La extension sale del tipo validado, no de `file.name`: el nombre lo
       // elige quien sube el archivo y era la via para dejar un .html en
       // public/uploads.
-      const safeExt = imageExt ?? videoExt ?? ".bin";
-      const uniqueFilename = `${Date.now()}-${randomUUID()}${safeExt}`;
-      const filePath = path.join(uploadDir, uniqueFilename);
+      aceptados.push({ file, ext: imageExt ?? videoExt ?? ".bin", tipo: videoExt ? "video" : "image" });
+    }
 
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      await writeFile(filePath, buffer);
+    if (aceptados.length === 0) {
+      return NextResponse.json({ error: "No se enviaron archivos para subir." }, { status: 400 });
+    }
 
-      const fileType: "image" | "video" = isVideo ? "video" : "image";
-      uploadedFiles.push({
-        url: `/api/uploads/${uniqueFilename}`,
-        type: fileType,
-        name: file.name,
-        size: file.size
-      });
+    const uploadDir = path.join(process.cwd(), "public", "uploads");
+    await mkdir(uploadDir, { recursive: true });
+
+    const uploadedFiles: UploadedFileResponse[] = [];
+    const escritos: string[] = [];
+    try {
+      for (const { file, ext, tipo } of aceptados) {
+        const uniqueFilename = `${Date.now()}-${randomUUID()}${ext}`;
+        const filePath = path.join(uploadDir, uniqueFilename);
+        await writeFile(filePath, Buffer.from(await file.arrayBuffer()));
+        escritos.push(filePath);
+        uploadedFiles.push({ url: urlDeArchivo(uniqueFilename), type: tipo, name: file.name, size: file.size });
+      }
+
+      // Quién subió cada archivo: decide quién puede verlo mientras el registro que lo usará todavía
+      // no existe, y que nadie adjunte como propia la foto de otra persona. Ver `lib/archivos.ts`.
+      await getDatabaseClient()
+        .insert(schema.uploadedFiles)
+        .values(uploadedFiles.map((f) => ({
+          fileName: f.url.split("/").pop()!,
+          uploadedByUserId: actor.actorId,
+          mediaType: f.type,
+          sizeBytes: f.size
+        })));
+    } catch (error) {
+      // Un archivo sin dueño registrado solo lo vería quien pudiera ver el registro que lo usa, y
+      // ese registro nunca llegará a existir: se borra en vez de dejarlo en disco.
+      await Promise.all(escritos.map((f) => unlink(f).catch(() => undefined)));
+      throw error;
     }
 
     return NextResponse.json({
@@ -127,7 +148,7 @@ export async function POST(req: Request) {
       file: uploadedFiles[0] // convenient shortcut for single upload
     });
   } catch (error: any) {
-    console.error("Upload error:", error);
+    registrarError("Upload error", error);
     return NextResponse.json(
       { error: "Error al procesar y guardar los archivos multimedia." },
       { status: 500 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { visibleContactIds } from "./contact-visibility";
+import { veCiudadano } from "./contact-visibility";
 
+import { esUuid } from "@/lib/ids";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 /**
@@ -17,16 +18,18 @@ import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
  * El criterio es el mismo que gobierna el directorio y la ficha, para que las
  * tres superficies no puedan volver a contradecirse: el contacto es tuyo si lo
  * registró, lo refirió o lo atiende alguien de tu alcance, o si está asignado a
- * alguien de tu alcance. Administración lo ve todo.
+ * alguien de tu alcance. El administrador maestro lo ve todo; un administrador municipal, su
+ * municipio y lo de su gente (etapa 6).
  */
 export async function puedeVerContacto(
   contactId: string,
   actorId: string,
   _roles: readonly string[]
 ): Promise<boolean> {
-  const scope = await resolveUserNetworkScope(actorId);
-  const ids = await visibleContactIds(scope, contactId);
-  return ids === null || ids.includes(contactId);
+  // Un id que no es UUID no es de nadie. El maestro lo ve todo, así que el id mal formado pasaba la
+  // guarda y la base lo rechazaba con un 500 en cada ruta de la ficha. Ver `ids.ts`.
+  if (!esUuid(contactId)) return false;
+  return veCiudadano(await resolveUserNetworkScope(actorId), contactId);
 }
 
 /**

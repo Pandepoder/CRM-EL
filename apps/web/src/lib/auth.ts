@@ -7,6 +7,7 @@ export type AuthenticatedUser = Readonly<{
   displayName: string;
   roleKey: string;
   roleName: string;
+  sessionVersion: number;
 }>;
 
 export type AuthResult =
@@ -21,6 +22,7 @@ type UserRow = {
   readonly role_name: string;
   readonly password_hash: string | null;
   readonly status: string;
+  readonly session_version: number;
 };
 
 /**
@@ -41,6 +43,7 @@ export async function authenticateUserDetailed(
         user_profiles.display_name,
         user_profiles.password_hash,
         user_profiles.status,
+        user_profiles.session_version,
         roles.key  AS role_key,
         roles.name AS role_name
       FROM user_profiles
@@ -78,7 +81,8 @@ export async function authenticateUserDetailed(
       email: row.email,
       displayName: row.display_name,
       roleKey: row.role_key,
-      roleName: row.role_name
+      roleName: row.role_name,
+      sessionVersion: row.session_version
     }
   };
 }

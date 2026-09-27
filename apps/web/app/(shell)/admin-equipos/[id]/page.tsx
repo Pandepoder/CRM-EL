@@ -1,4 +1,5 @@
-import { visibleContactIds, contactIdRestriction } from "@/lib/contact-visibility";
+import { contactosVisibles, contactIdRestriction } from "@/lib/contact-visibility";
+import { puedeEditarEquipo } from "@/lib/permisos-equipos";
 import { headers } from "next/headers";
 import { getServerSession } from "@/lib/session-server";
 import { getDatabaseClient } from "@/lib/db-client";
@@ -7,14 +8,18 @@ import { redirect } from "next/navigation";
 import { eq, inArray, or, and } from "drizzle-orm";
 import TeamDetailClient from "./TeamDetailClient";
 import { EnlaceBrigada, SolicitudesPendientes } from "./SolicitudesPendientes";
-import { requirePageRole } from "@/lib/authorization";
+import { requirePageAccess } from "@/lib/authorization";
+import { esUuid } from "@/lib/ids";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export default async function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requirePageRole("admin", "direction", "territorial_coordinator");
+  await requirePageAccess("/admin-equipos");
   const session = await getServerSession();
 
   const { id } = await params;
+  // Un id que no es UUID no es un equipo: se trata como uno inexistente. Antes la base lo
+  // rechazaba y la pantalla caía en la frontera de error. Ver `ids.ts`.
+  if (!esUuid(id)) redirect("/admin-equipos");
   const db = getDatabaseClient();
 
   // 1. Fetch team
@@ -42,8 +47,10 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
   // cascada de mando, así que una dirección entra a las brigadas que cuelgan de su coordinación;
   // antes había que figurar como líder o integrante y esas brigadas quedaban cerradas.
   const networkScope = await resolveUserNetworkScope(session.userId);
-  const isGlobalAdmin = networkScope.isGlobal;
-  if (!isGlobalAdmin && !networkScope.teamIds.includes(id)) {
+  // Administración que gobierna este equipo: el maestro, cualquiera; un administrador municipal, los
+  // de su municipio (etapa 6).
+  const administraElEquipo = networkScope.isAdmin && puedeEditarEquipo(networkScope, id);
+  if (!networkScope.isMaster && !networkScope.teamIds.includes(id)) {
     redirect("/admin-equipos");
   }
 
@@ -53,6 +60,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
       userId: schema.teamMembers.userId,
       joinedAt: schema.teamMembers.joinedAt,
       displayName: schema.userProfiles.displayName,
+      photoUrl: schema.userProfiles.photoUrl,
       roleName: schema.roles.name,
       // Quien llegó por el QR queda apuntado al equipo con la cuenta en
       // `pending`: aparece como solicitud, no como integrante.
@@ -71,13 +79,14 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
       userId: team.leaderId,
       joinedAt: new Date().toISOString() as any,
       displayName: team.leaderName,
+      photoUrl: null,
       roleName: "Líder del Equipo",
       status: "active",
       invitedByUserId: null
     });
   }
 
-  const contactRestriction = contactIdRestriction(await visibleContactIds(networkScope));
+  const contactRestriction = contactIdRestriction(await contactosVisibles(networkScope));
 
   // 3. Fetch ALL contacts / citizens registered by this team (leader + members)
   const teamMemberIds = Array.from(new Set([team.leaderId, ...members.map(m => m.userId)].filter(Boolean)));
@@ -139,17 +148,20 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
       displayName: schema.userProfiles.displayName
     })
     .from(schema.userProfiles)
-    // Administración elige entre todas las personas activas. El líder, solo entre las que él
-    // invitó: no recorre el padrón completo ni suma gente de otra estructura.
+    // El maestro elige entre todas las personas activas; un administrador municipal, entre las de su
+    // municipio. El líder, solo entre las que él invitó: no recorre el padrón completo ni suma gente de
+    // otra estructura.
     .where(and(
       eq(schema.userProfiles.status, "active"),
-      isGlobalAdmin
+      networkScope.isMaster
         ? undefined
-        : or(eq(schema.userProfiles.invitedByUserId, session.userId), eq(schema.userProfiles.parentEnlaceId, session.userId))
+        : administraElEquipo
+          ? inArray(schema.userProfiles.id, networkScope.allowedUserIds ?? [session.userId])
+          : or(eq(schema.userProfiles.invitedByUserId, session.userId), eq(schema.userProfiles.parentEnlaceId, session.userId))
     ));
 
   const esLiderDelEquipo = team.leaderId === session.userId;
-  const availableUsers = isGlobalAdmin || esLiderDelEquipo ? await availableUsersQuery : [];
+  const availableUsers = administraElEquipo || esLiderDelEquipo ? await availableUsersQuery : [];
   const filteredUsers = availableUsers.filter(u => !memberUserIds.includes(u.id));
 
   // Las solicitudes se muestran aparte y arriba: son las únicas que piden una
@@ -171,7 +183,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
 
   // Integrantes, solicitudes del QR y el enlace de la brigada: administración o el líder de este
   // equipo. Borrar ciudadanos sigue siendo solo de administración.
-  const puedeGestionar = isGlobalAdmin || esLiderDelEquipo;
+  const puedeGestionar = administraElEquipo || esLiderDelEquipo;
 
   // El enlace del QR es el de quien está mirando: así lo que se registre queda a
   // su nombre, no al de un tercero.
@@ -201,7 +213,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
       contacts={teamContacts}
       availableUsers={filteredUsers}
       canManage={puedeGestionar}
-      canDeleteContacts={isGlobalAdmin}
+      canDeleteContacts={networkScope.isAdmin}
       currentUserId={session.userId}
     />
     </>

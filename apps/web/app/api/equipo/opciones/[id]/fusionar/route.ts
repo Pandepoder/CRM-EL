@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { actorFromSession, unauthorized } from "@/lib/api-helpers";
 import { fusionarOpciones } from "@/lib/catalogo-actividades";
-import { esAdministracion } from "@/lib/permisos-incidencias";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 export const dynamic = "force-dynamic";
 
@@ -27,15 +27,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Indica una opción de origen y destino válidas." }, { status: 400 });
   }
 
-  const esAdmin = esAdministracion(actor.roles);
+  const alcance = await resolveUserNetworkScope(actor.actorId);
   const resultado = await fusionarOpciones(
-    { actorId: actor.actorId, esAdmin },
+    alcance,
     id,
     cuerpo.destinoId,
     cuerpo.aplicar === true
   );
   if (!resultado.ok) {
-    return NextResponse.json({ error: resultado.motivo }, { status: esAdmin ? 400 : 403 });
+    return NextResponse.json({ error: resultado.motivo }, { status: alcance.isAdmin ? 400 : 403 });
   }
   return NextResponse.json(resultado);
 }

@@ -1,4 +1,4 @@
-import { Permission, requirePermission, type ActorContext } from "@tonala/shared/auth";
+import { Permission, Role, requirePermission, type ActorContext } from "@tonala/shared/auth";
 import { type TonalaOsError } from "@tonala/shared/errors";
 import { createEntityId, err, ok } from "@tonala/shared/kernel";
 import { measureOperation } from "@tonala/shared/observability";
@@ -14,6 +14,8 @@ export type ListContactsInput = Readonly<{
    */
   scopedUserIds?: readonly string[];
   scopedContactIds?: readonly string[];
+  /** Un administrador municipal: su municipio (o `null` si sigue sin uno). Ver `ScopedAdministration`. */
+  scopedAdministration?: Readonly<{ municipalityId: string | null }>;
   q?: string;
   page?: number;
   pageSize?: number;
@@ -39,10 +41,12 @@ export async function listContacts(
       }
 
       try {
-        // Solo administración ve todo. Dirección dejó de ser global: ve los
-        // equipos que le asignaron, y ese conjunto llega en `scopedUserIds`.
-        const isGlobalViewer = actor.roles.includes("admin") || actor.isSystem;
-        const scopedUserIds = isGlobalViewer
+        // Solo el administrador maestro ve todo (etapa 6). Un administrador municipal llega con
+        // `scopedAdministration`; el resto, con `scopedUserIds`, que calcula la capa web con la
+        // cascada de mando. Sin ninguno de los dos, solo lo propio.
+        const isGlobalViewer = actor.roles.includes(Role.MasterAdmin) || actor.isSystem;
+        const administracion = isGlobalViewer ? undefined : input.scopedAdministration;
+        const scopedUserIds = isGlobalViewer || administracion
           ? undefined
           : (input.scopedUserIds && input.scopedUserIds.length > 0
               ? input.scopedUserIds
@@ -52,6 +56,7 @@ export async function listContacts(
         const result = await dependencies.contactsReader.listContacts({
           ...(input.scopedContactIds !== undefined ? { scopedContactIds: input.scopedContactIds.map(createEntityId) } : {}),
           ...(scopedUserIds !== undefined ? { scopedUserIds } : {}),
+          ...(administracion ? { scopedAdministration: { municipalityId: administracion.municipalityId, actorId: actor.actorId } } : {}),
           ...(input.assignedUserId !== undefined ? { assignedUserId: createEntityId(input.assignedUserId) } : {}),
           ...(input.q !== undefined ? { q: input.q } : {}),
           ...(input.page !== undefined ? { page: input.page } : {}),

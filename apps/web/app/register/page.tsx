@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { UserPlus, CheckCircle2, ArrowLeft, Loader2, ShieldCheck, Mail, Lock, User, MapPin } from "lucide-react";
+import { UserPlus, CheckCircle2, ArrowLeft, Loader2, ShieldCheck, Mail, Lock, User, MapPin, Home } from "lucide-react";
 
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 
@@ -12,6 +12,11 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   // Municipio donde va a trabajar: con él se arma la marca que verá y el mapa con el que entra.
   const [municipality, setMunicipality] = useState("");
+  // Su domicilio (decisión del dueño, 2026-09-26). El municipio donde vive arranca en el de trabajo, que
+  // casi siempre es el mismo, pero se puede cambiar: no decide nada de lo que ve la cuenta.
+  const [homeAddress, setHomeAddress] = useState("");
+  const [homeColony, setHomeColony] = useState("");
+  const [homeMunicipality, setHomeMunicipality] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -25,7 +30,7 @@ export default function RegisterPage() {
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ displayName, email, password, municipality })
+        body: JSON.stringify({ displayName, email, password, municipality, homeAddress, homeColony, homeMunicipality: homeMunicipality || municipality })
       });
       const data = (await response.json()) as { message?: string; pending?: boolean; ok?: boolean };
       if (!response.ok) {
@@ -168,6 +173,55 @@ export default function RegisterPage() {
               required
               value={municipality}
               onChange={(e) => setMunicipality(e.target.value)}
+              className="modern-input"
+            >
+              <option value="" disabled>Selecciona tu municipio</option>
+              {MUNICIPIOS_JALISCO.map((m) => (
+                <option key={m.name} value={m.name}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="modern-input-wrapper">
+            <label htmlFor="homeAddress">Tu calle y número</label>
+            <Home size={18} className="modern-input-icon" />
+            <input
+              id="homeAddress"
+              name="homeAddress"
+              autoComplete="street-address"
+              required
+              maxLength={300}
+              value={homeAddress}
+              onChange={(e) => setHomeAddress(e.target.value)}
+              placeholder="Av. Tonaltecas #120"
+              className="modern-input"
+            />
+          </div>
+
+          <div className="modern-input-wrapper">
+            <label htmlFor="homeColony">Tu colonia</label>
+            <MapPin size={18} className="modern-input-icon" />
+            <input
+              id="homeColony"
+              name="homeColony"
+              required
+              maxLength={150}
+              value={homeColony}
+              onChange={(e) => setHomeColony(e.target.value)}
+              placeholder="Centro"
+              className="modern-input"
+            />
+          </div>
+
+          <div className="modern-input-wrapper">
+            <label htmlFor="homeMunicipality">Municipio donde vives</label>
+            <MapPin size={18} className="modern-input-icon" />
+            <select
+              id="homeMunicipality"
+              name="homeMunicipality"
+              required
+              value={homeMunicipality || municipality}
+              onChange={(e) => setHomeMunicipality(e.target.value)}
               className="modern-input"
             >
               <option value="" disabled>Selecciona tu municipio</option>

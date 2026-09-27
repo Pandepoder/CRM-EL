@@ -115,7 +115,7 @@ export default function AgendaClient({
       {pestana === "agenda" && pagina && (
         <ListaActividades pagina={pagina} filtros={filtros} usuarios={usuarios} tipos={tipos} etiquetas={etiquetas} puedeAsignar={puedeAsignar} contactoNombre={contactoNombre} onAbrir={(a) => setFichaId(a.id)} />
       )}
-      {pestana === "prospectos" && <Prospectos esAdmin={esAdmin} puedeConvertir={puedeConvertir} />}
+      {pestana === "prospectos" && <Prospectos esAdmin={esAdmin} puedeConvertir={puedeConvertir} usuarioActualId={usuarioActualId} />}
       {pestana === "resumen" && resumen && <ResumenEquipo resumen={resumen} usuarioActualId={usuarioActualId} />}
 
       <FormularioActividad

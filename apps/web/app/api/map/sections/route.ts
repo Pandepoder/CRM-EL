@@ -7,7 +7,7 @@ import { createTerritoryMutationsDependencies } from "@/lib/crm-deps";
 import { getDatabaseClient } from "@/lib/db-client";
 import { actorFromSession, permissionChecker, unauthorized } from "@/lib/api-helpers";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { visibleContactIds, sqlRestriccionContactos } from "@/lib/contact-visibility";
+import { contactosVisibles, sqlRestriccionContactos, type ContactosVisibles } from "@/lib/contact-visibility";
 
 export async function GET(request: Request) {
   const actor = await actorFromSession();
@@ -46,10 +46,10 @@ export async function GET(request: Request) {
   // colonias sí son cartografía pública y se conservan; los números se recalculan sobre los
   // contactos del alcance de quien pregunta.
   const alcance = await resolveUserNetworkScope(actor.actorId);
-  const contactosVisibles = await visibleContactIds(alcance);
-  if (contactosVisibles === null) return NextResponse.json(result.value);
+  const visibles = await contactosVisibles(alcance);
+  if ("todos" in visibles) return NextResponse.json(result.value);
 
-  return NextResponse.json({ ...result.value, ...(await conteosDeSeccion(sectionNum, contactosVisibles)) });
+  return NextResponse.json({ ...result.value, ...(await conteosDeSeccion(sectionNum, visibles)) });
 }
 
 /**
@@ -57,8 +57,8 @@ export async function GET(request: Request) {
  * Se repiten aquí porque el lector vive en packages/modules y su firma no recibe esa lista;
  * cuando la reciba, esta consulta sobra.
  */
-async function conteosDeSeccion(sectionNum: number, contactosVisibles: string[]) {
-  const filtro = sqlRestriccionContactos(sql.raw("ct.contact_id"), contactosVisibles);
+async function conteosDeSeccion(sectionNum: number, visibles: ContactosVisibles) {
+  const filtro = sqlRestriccionContactos(sql.raw("ct.contact_id"), visibles);
   const resultado = await getDatabaseClient().execute<{
     contact_count: string;
     visit_scheduled_count: string;

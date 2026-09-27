@@ -34,7 +34,12 @@ export const Role = {
   Direction: "direction",
   TerritorialCoordinator: "territorial_coordinator",
   Capturist: "capturist",
-  VisitResponsible: "visit_responsible"
+  VisitResponsible: "visit_responsible",
+  /**
+   * No es un rol de la tabla `roles`: es la marca del administrador maestro (`is_master_admin`, 0023),
+   * que va en `actor.roles` después de su rol, `admin`. Gobierna los 125 municipios.
+   */
+  MasterAdmin: "master_admin"
 } as const;
 
 export type Role = (typeof Role)[keyof typeof Role];

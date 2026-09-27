@@ -1,6 +1,5 @@
 import { type ActorContext, type PermissionChecker } from "@tonala/shared/auth";
 import { type ContactsReader } from "@tonala/modules/contacts/contracts";
-import { type TerritoryReader } from "@tonala/modules/territory/contracts";
 import { type TonalaOsError } from "@tonala/shared/errors";
 import { type Clock, type EntityId, type Result } from "@tonala/shared/kernel";
 import { type Logger } from "@tonala/shared/observability";
@@ -60,7 +59,6 @@ export interface IdGenerator {
 
 export type AssignResponsibleDependencies = Readonly<{
   contactsReader: ContactsReader;
-  territoryReader: TerritoryReader;
   userDirectoryReader: UserDirectoryReader;
   contactAssignmentRepository: ContactAssignmentRepository;
   transactionManager: TransactionManager;

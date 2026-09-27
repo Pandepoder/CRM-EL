@@ -5,17 +5,17 @@ import { and, eq, inArray } from "drizzle-orm";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import EstructuraClient from "./EstructuraClient";
 
-import { requirePageRole } from "@/lib/authorization";
+import { requirePageAccess } from "@/lib/authorization";
 
 export default async function EstructuraPage() {
-  await requirePageRole("admin", "direction", "territorial_coordinator");
+  await requirePageAccess("/estructura-electoral");
   const session = await getServerSession();
 
   const db = getDatabaseClient();
   // Dirección y coordinación ven y asignan a gente de sus equipos. Antes esta pantalla listaba a
   // todas las personas activas y a todos los representantes del sistema.
   const alcance = await resolveUserNetworkScope(session.userId);
-  const personasDelAlcance = alcance.isGlobal ? undefined : inArray(schema.userProfiles.id, alcance.teammateUserIds);
+  const personasDelAlcance = alcance.isMaster ? undefined : inArray(schema.userProfiles.id, alcance.teammateUserIds);
 
   // Try to query electoralRepresentatives if the table exists (graceful degradation)
   let representatives: any[] = [];

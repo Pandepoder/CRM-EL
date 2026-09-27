@@ -6,6 +6,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
 import { BienvenidaConoceme } from "@/components/BienvenidaConoceme";
 import UnirmeForm from "./UnirmeForm";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
 import { MARCA } from "@/lib/marca";
 
 /**
@@ -103,7 +104,7 @@ export default async function UnirmePage({ params }: { params: Promise<{ slug: s
             className="rounded-2xl p-5 sm:p-6"
             style={{ background: "#fff", border: "1px solid #e6eaf2", boxShadow: "0 18px 40px -30px rgba(11,31,58,.5)" }}
           >
-            <UnirmeForm slug={slug} anfitrion={anfitrion.displayName} equipo={equipo} />
+            <UnirmeForm slug={slug} anfitrion={anfitrion.displayName} equipo={equipo} municipioSugerido={buscarMunicipio(anfitrion.municipality)?.name ?? null} />
           </div>
 
           <p className="text-center text-sm mt-6" style={{ color: "#5b6780" }}>

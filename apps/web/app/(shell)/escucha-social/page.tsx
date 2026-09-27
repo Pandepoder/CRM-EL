@@ -1,34 +1,25 @@
 import { getDatabaseClient } from "@/lib/db-client";
 import { getServerSession } from "@/lib/session-server";
-import { redirect } from "next/navigation";
+import { requirePageAccess } from "@/lib/authorization";
 import { schema } from "@tonala/shared/database";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
+import { condicionParaTrabajarPorAutor, condicionPorAutor } from "@/lib/alcance-municipal";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import EscuchaSocialClient from "./EscuchaSocialClient";
 
 export default async function EscuchaSocialPage() {
+  // La guarda común, como el resto del panel (M9): antes esta pantalla solo miraba la cookie y
+  // redirigía a mano, sin comprobar que la cuenta siguiera activa ni su rol.
+  await requirePageAccess("/escucha-social");
   const session = await getServerSession();
-  if (!session.isLoggedIn || !session.userId) redirect("/login");
 
   const db = getDatabaseClient();
-
-  const userRows = await db
-    .select({
-      id: schema.userProfiles.id,
-      accessType: schema.userProfiles.accessType,
-      roleKey: schema.roles.key
-    })
-    .from(schema.userProfiles)
-    .leftJoin(schema.roles, eq(schema.userProfiles.roleId, schema.roles.id))
-    .where(eq(schema.userProfiles.id, session.userId))
-    .limit(1);
-
-  const currentUser = userRows[0];
-  const accessType = currentUser?.accessType || "conexion";
-  // Solo administración coordina de forma global; dirección y accessType ya no conceden eso.
-  const isCoordinacion = currentUser?.roleKey === "admin";
-
-  const networkScope = await resolveUserNetworkScope(session.userId, accessType);
+  const networkScope = await resolveUserNetworkScope(session.userId);
+  // Aprueba gestiones formales administración (el maestro o la municipal, sobre lo que ve); dirección
+  // y accessType no conceden eso.
+  const isCoordinacion = networkScope.isAdmin;
+  // Ver no es trabajar (A20): lo que se ve pero no se atiende sale como «solo consulta».
+  const trabajable = condicionParaTrabajarPorAutor(networkScope, schema.socialListening.municipalityId, schema.socialListening.createdByUserId);
 
   let query = db
     .select({
@@ -47,16 +38,16 @@ export default async function EscuchaSocialPage() {
       resolutionNotes: schema.socialListening.resolutionNotes,
       createdByUserId: schema.socialListening.createdByUserId,
       createdByName: schema.userProfiles.displayName,
-      createdAt: schema.socialListening.createdAt
+      createdAt: schema.socialListening.createdAt,
+      puedeTrabajar: trabajable ? sql<boolean>`coalesce(${trabajable}, false)` : sql<boolean>`true`
     })
     .from(schema.socialListening)
     .leftJoin(schema.userProfiles, eq(schema.socialListening.createdByUserId, schema.userProfiles.id))
     .$dynamic();
 
   // Sin alcance no se ve nada: la guarda vieja exigía una lista no vacía y, vacía, mostraba todo.
-  if (!networkScope.isGlobal) {
-    query = query.where(inArray(schema.socialListening.createdByUserId, networkScope.allowedUserIds ?? []));
-  }
+  const visibles = condicionPorAutor(networkScope, schema.socialListening.municipalityId, schema.socialListening.createdByUserId);
+  if (visibles) query = query.where(visibles);
 
   const items = await query.orderBy(desc(schema.socialListening.createdAt));
 
