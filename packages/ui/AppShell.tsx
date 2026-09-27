@@ -181,8 +181,8 @@ export function AppShell({
         <div className="brand" style={{ padding: "24px 20px 16px" }}>
           <div className="brand-mark" style={{ borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <img
-              src="/brand/monograma-blanco.svg"
-              alt="Jalisco OS"
+              src="/brand/el-monograma-blanco.png"
+              alt="EL"
               width={26}
               height={26}
               style={{ objectFit: "contain" }}
@@ -276,8 +276,8 @@ export function AppShell({
               <div className="brand" style={{ padding: "0", border: "none" }}>
                 <div className="brand-mark" style={{ borderRadius: "8px", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <img
-                    src="/brand/monograma-blanco.svg"
-                    alt="Jalisco OS"
+                    src="/brand/el-monograma-blanco.png"
+                    alt="EL"
                     width={21}
                     height={21}
                     style={{ objectFit: "contain" }}

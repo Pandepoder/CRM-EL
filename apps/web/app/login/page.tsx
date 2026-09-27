@@ -4,7 +4,7 @@ import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ShieldCheck, Mail, Lock, ArrowRight, ArrowLeft, Loader2, Eye, EyeOff, AlertCircle } from "lucide-react";
-import { MARCA } from "@/lib/marca";
+import { ESLOGAN_EN_TEXTO, MARCA } from "@/lib/marca";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -198,13 +198,17 @@ export default function LoginPage() {
     <main className="login-premium">
       <header className="login-topbar">
         <Link href="/conoceme" className="login-back"><ArrowLeft size={17} /><span>Volver a la bienvenida</span></Link>
-        <span className="login-wordmark"><img src="/brand/monograma-blanco.svg" alt="" width={28} height={28} /> {MARCA.sistema}</span>
+        <span className="login-wordmark"><img src={MARCA.monograma.blanco} alt="" width={28} height={28} /> {MARCA.firma}</span>
       </header>
       <div className="login-composition">
-        <section className="login-brand" aria-label={`${MARCA.sistema}, Jalisco`}>
+        <section className="login-brand" aria-label={`${MARCA.firma}, Jalisco`}>
           <div className="login-halo" aria-hidden="true"><i /><i /></div>
           <p className="login-eyeline">JALISCO</p>
-          <h2>¿Y si <span>sí?</span></h2>
+          <h2 aria-label={ESLOGAN_EN_TEXTO}>
+            {MARCA.eslogan.comillas ? "“" : ""}
+            {MARCA.eslogan.inicio ? <>{MARCA.eslogan.inicio}<br /></> : null}
+            <span>{MARCA.eslogan.suave} {MARCA.eslogan.acento}{MARCA.eslogan.comillas ? "”" : ""}</span>
+          </h2>
           {MARCA.retrato ? <div className="login-portrait"><img src={MARCA.retrato} alt={MARCA.referente.nombre} width={300} height={330} /><span>{MARCA.referente.corto.toUpperCase()}</span></div> : null}
           <div className="login-brand-bottom"><span>{MARCA.lema}</span><Redes tono="claro" /></div>
         </section>

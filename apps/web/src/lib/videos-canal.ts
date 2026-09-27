@@ -33,8 +33,8 @@ import { unstable_cache } from "next/cache";
  * quitarlo de YouTube.
  */
 
-/** Canal de Omar Borboa: youtube.com/channel/UC4ACrnzVpjepmv3p-t1orMw. Sin canal no se lee nada. */
-const CANAL_POR_OMISION = "UC4ACrnzVpjepmv3p-t1orMw";
+/** Canal de Edgar López: youtube.com/@edgarlopezj. Sin canal no se lee nada. */
+const CANAL_POR_OMISION = "UCPLZp6cBPcMYWbX7uuarkbw";
 
 /** Una hora: el canal publica varias veces por semana, no varias veces por minuto. */
 const SEGUNDOS_DE_CACHE = 3600;
