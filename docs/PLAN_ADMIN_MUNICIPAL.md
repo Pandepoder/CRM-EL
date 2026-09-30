@@ -1,7 +1,7 @@
 # Plan de mejora e implementación — Jalisco OS
 
 **Fecha:** 2026-09-22 · **Rama:** `claude/municipal-admin-improvement-04c080`
-**Base del análisis:** `pnpm typecheck` ✅ · 205 pruebas unitarias ✅ · aplicación levantada contra la base local (177 usuarios, 3 385 ciudadanos, 19 equipos, 612 incidencias, 3 791 secciones)
+**Base del análisis:** `pnpm typecheck` (correcto) · 205 pruebas unitarias (correcto) · aplicación levantada contra la base local (177 usuarios, 3 385 ciudadanos, 19 equipos, 612 incidencias, 3 791 secciones)
 
 Este documento es el registro completo. Contiene **147 entradas** en la tabla del §3. Cinco pares son
 el mismo defecto visto desde el código y desde la aplicación corriendo (van marcadas con «Ver»); una
@@ -535,14 +535,14 @@ su llave— aunque sea de otro municipio: lo mismo que ya ve el líder de esa br
 
 | acción | MOM | Admin municipal | resto |
 | :--- | :-: | :-: | :-: |
-| Ver todo de todos los municipios | ✅ | ❌ | ❌ |
-| Ver todo su municipio y lo de su gente | ✅ | ✅ | ❌ (cascada) |
-| Crear, editar, mover o borrar **administradores** | ✅ | ❌ | ❌ |
-| Cambiar el municipio de una persona | ✅ | ❌ | ❌ |
-| Eliminar una cuenta | ✅ (solo sin datos) | ❌ | ❌ |
-| Alta, aprobación, baja, rol y contraseña de su gente | ✅ | ✅ (su municipio, por debajo de admin) | líder, admisiones de su equipo |
-| Crear equipos | ✅ | ✅ (en su municipio) | dirección y líder (etapa 2) |
-| Ajustes, «Sin municipio», auditoría, panel por municipio | ✅ | ❌ | ❌ |
+| Ver todo de todos los municipios | Sí | No | No |
+| Ver todo su municipio y lo de su gente | Sí | Sí | No (cascada) |
+| Crear, editar, mover o borrar **administradores** | Sí | No | No |
+| Cambiar el municipio de una persona | Sí | No | No |
+| Eliminar una cuenta | Sí (solo sin datos) | No | No |
+| Alta, aprobación, baja, rol y contraseña de su gente | Sí | Sí (su municipio, por debajo de admin) | líder, admisiones de su equipo |
+| Crear equipos | Sí | Sí (en su municipio) | dirección y líder (etapa 2) |
+| Ajustes, «Sin municipio», auditoría, panel por municipio | Sí | No | No |
 | Su propia cuenta de maestro | consola del servidor | — | — |
 
 **Recuperación de acceso**, en tres niveles: el panel del maestro (6.7); `session_version`, que hace
@@ -636,8 +636,8 @@ evento y pantalla de inicio») y la revisión de fondo antes del commit (ver «R
 commit»). La etapa 7 (colaboraciones) se retiró del plan.
 **Nada commiteado todavía.**
 
-**Línea base fijada antes de tocar nada:** `typecheck` ✅ · `tsc -p apps/web` ✅ · `lint` 0 errores
-(17 avisos preexistentes) ✅ · 205 pruebas ✅.
+**Línea base fijada antes de tocar nada:** `typecheck` (correcto) · `tsc -p apps/web` (correcto) · `lint` 0 errores
+(17 avisos preexistentes) (correcto) · 205 pruebas (correcto).
 
 | entregable | estado | cómo se comprobó |
 | :--- | :--- | :--- |
@@ -647,7 +647,7 @@ commit»). La etapa 7 (colaboraciones) se retiró del plan.
 | **1.7** pool: manejador de error y límites | **terminado** | Con el pool real: límites aplicados en la conexión, sentencia larga cortada por el servidor, proceso vivo tras reiniciar la base. 4 pruebas de configuración |
 | **1.9** caducidad de sesión explícita | **terminado** | `Max-Age = 604740` en la cookie (7 días − 60 s). 6 pruebas |
 | **1.12** login uniforme | **descartado** | M12 era un falso positivo: comprobado en vivo |
-| **1.1** migración 0019 | **terminado** | Sobre dos copias de la base antes de la real: idempotente (2ª corrida no cambia nada); las 3 384 huellas recalculadas con una implementación independiente, todas correctas; con un correo repetido la migración termina bien, avisa, y crea el índice único al corregirlo. Instalación desde cero: `applies migrations from an empty database` ✅ |
+| **1.1** migración 0019 | **terminado** | Sobre dos copias de la base antes de la real: idempotente (2ª corrida no cambia nada); las 3 384 huellas recalculadas con una implementación independiente, todas correctas; con un correo repetido la migración termina bien, avisa, y crea el índice único al corregirlo. Instalación desde cero: `applies migrations from an empty database` (correcto) |
 | **1.2** alta pública por huella | **terminado** | 7 comprobaciones funcionales, incluida la red de seguridad para filas sin huella. Carga: 50 a la vez p95 **820 ms** (antes p50 2 542 ms). A 50 000 filas, `Index Scan` en 0,068 ms frente al `Seq Scan` de antes |
 | **1.8** todas las guardas releen la cuenta | **terminado** | Con cuentas dadas de baja y su cookie abierta, cinco operaciones. Antes: quitar integrante y renombrar equipo, **200**; cambiar contraseña y promover pasaban la guarda (400 y 404, más adelante); crear equipo, 403. Ahora las cinco dan **401**. Seguido salto a salto: `/crm/contacts`, `/mapa`, `/perfil` y `/escucha-social` terminan en `/login?motivo=cuenta-inactiva`, sin bucle. Una cuenta activa no se ve afectada, y `/api/auth/salir` no cierra la sesión de una cuenta activa |
 | **1.4** esquema y salud | **terminado** | Contrato público de `/api/health` compatible (`status`, `degradado`, `timestamp`; el detalle, solo para administración). Quitando a propósito el registro de la última migración: 503 y aviso `[arranque] ESQUEMA DESACTUALIZADO` al arrancar; la fila se restauró idéntica (id 21, `created_at` 1789600000000). 6 pruebas, entre ellas una que falla si el journal y los `.sql` no cuadran. **Sin probar:** el paso de salud del flujo `deploy` dentro del VPS (el YAML se validó; el `docker compose exec` no se ejecutó en un servidor) |
@@ -736,9 +736,9 @@ se podrían dejar como estaban.
 | **3.8** barda | Subida por un capturista: la ve su líder y no otro; una ajena, 400 con el campo |
 | **3.10** colonias | La página pública ya no las consulta; con eso se va el aviso de lint de `coloniesList` (16 avisos, uno menos que la línea base) |
 
-**Comprobaciones completas al cerrar la etapa:** `pnpm validate:unit` ✅ —tipos, lint con 0 errores
-y 16 avisos, fronteras de módulos, 319 pruebas en 37 archivos— · `pnpm test:integration` ✅ (129
-pruebas en 18 archivos, con la de carga) · `pnpm web:build` ✅ · las 38 comprobaciones por HTTP
+**Comprobaciones completas al cerrar la etapa:** `pnpm validate:unit` (correcto) —tipos, lint con 0 errores
+y 16 avisos, fronteras de módulos, 319 pruebas en 37 archivos— · `pnpm test:integration` (correcto) (129
+pruebas en 18 archivos, con la de carga) · `pnpm web:build` (correcto) · las 38 comprobaciones por HTTP
 dieron lo mismo contra el servidor de desarrollo que contra `next start`, sin errores en su registro.
 
 **Sin comprobar en esta etapa:** las pantallas con sesión —alta interna, perfil, Escucha Social, el
@@ -778,9 +778,9 @@ encimaban; en escritorio la leyenda y el resumen podían quedar bajo el menú; l
 se pedían dos veces al cargar; y el formulario de incidencia, a dos columnas en 375 px, montaba sus
 etiquetas.
 
-**Comprobaciones completas al cerrar la etapa:** `pnpm validate` ✅ —tipos de las dos
+**Comprobaciones completas al cerrar la etapa:** `pnpm validate` (correcto) —tipos de las dos
 configuraciones, lint con 0 errores y los mismos 16 avisos de antes, fronteras de módulos, **473
-pruebas en 57 archivos**, unitarias y de integración— · `pnpm web:build` ✅.
+pruebas en 57 archivos**, unitarias y de integración— · `pnpm web:build` (correcto).
 
 **Decisiones que se apartan del plan:**
 
@@ -812,9 +812,9 @@ previo. Scripts en `scripts/local/` (`sin-ubicacion.mts`, `sin-municipio-acceso.
 | **5.9** General a la vista | Ficha, Directorio, Control de usuarios y equipos marcan «General» (leído en el HTML con sesión) |
 | menús | `verificar-menus-por-rol.mjs`: todas las pantallas del menú abren para los cinco roles |
 
-**Comprobaciones completas al cerrar la etapa:** `pnpm validate` ✅ —tipos de las dos
+**Comprobaciones completas al cerrar la etapa:** `pnpm validate` (correcto) —tipos de las dos
 configuraciones, lint con 0 errores y los mismos 16 avisos (ahora también sobre `api/public/*`),
-fronteras de módulos, **483 pruebas en 58 archivos**— · `pnpm web:build` ✅.
+fronteras de módulos, **483 pruebas en 58 archivos**— · `pnpm web:build` (correcto).
 
 **Decisiones que se apartan del plan:**
 
@@ -860,9 +860,9 @@ después a la base local, con un respaldo previo. Scripts en `scripts/local/` (`
 | **6.10 a 6.13** | Catálogo y cartografía en la prueba y por HTTP (`all`: 400 a Tonalá, 200 al maestro). Las cuatro pantallas del maestro: 200 a él, redirección a un administrador municipal. `capacidades.test.ts`: solo las abre `master_admin` |
 | menús | `verificar-menus-por-rol.mjs`: todo abre para los cinco roles. El administrador de escenario, que sigue sin municipio, recibe 403 al crear un equipo por la API —el botón ya no se le ofrece— con el motivo en claro, y ve el aviso de 6.14 |
 
-**Comprobaciones completas al cerrar la etapa:** `pnpm validate` ✅ —tipos de las dos
+**Comprobaciones completas al cerrar la etapa:** `pnpm validate` (correcto) —tipos de las dos
 configuraciones, lint con 0 errores y los mismos 16 avisos, fronteras de módulos, **505 pruebas en 60
-archivos**— · `pnpm web:build` ✅. Rotas a propósito, cuatro protecciones hacen fallar
+archivos**— · `pnpm web:build` (correcto). Rotas a propósito, cuatro protecciones hacen fallar
 `administracion-municipal.test.ts`: que administración vea todos los ciudadanos (2 pruebas), que un
 administrador gobierne a otro (4), que cualquiera nombre administradores (4) y que administración vea
 todas las incidencias (1).
@@ -1051,7 +1051,7 @@ punto o auditar—: cada una rompe una prueba. En Chrome sin ventana, escritorio
 producción y la copia del simulacro (`scripts/local/domicilio-y-mapa.mts`, 10 comprobaciones cada uno): el
 punto guardado es exactamente el del pin, sin redondear; otro punto cambia la calle del mapa y respeta la
 escrita; la ficha abre el mapa en su punto y guarda el nuevo; la incidencia se queda en el punto del doble
-clic aunque se elija una sugerencia. `pnpm validate`: **558 pruebas**, 0 errores de lint; `pnpm web:build` ✅.
+clic aunque se elija una sugerencia. `pnpm validate`: **558 pruebas**, 0 errores de lint; `pnpm web:build` (correcto).
 
 **Vista de celular** (`scripts/local/revision-movil.mts`): **93 pantallas** a 375 × 812 con emulación de
 teléfono —las públicas y todas las que abre cada rol: maestro, administración, dirección, líder, capturista
@@ -1108,7 +1108,7 @@ en UTC). Ningún dato se mueve: todas las columnas de fecha son `timestamptz` (c
 nacimientos se guardan y leen en UTC. «Hoy» del Resumen usa el día de Jalisco con o sin esa variable.
 
 `pnpm validate`: **561 pruebas** (dos nuevas; quitar cada arreglo rompe la suya), 0 errores de lint; las 561
-pasan también con `TZ=UTC`, como en CI. `pnpm web:build` ✅. Una corrida completa se cortó con código 127 sin
+pasan también con `TZ=UTC`, como en CI. `pnpm web:build` (correcto). Una corrida completa se cortó con código 127 sin
 que fallara ninguna prueba; repetida, pasó entera.
 
 **En el servidor, con los datos reales:** `scripts/ops/ensayo-despliegue.sh`. Construye la versión nueva,
@@ -1154,16 +1154,16 @@ código, junto a lo que afectan, para que nadie los tome por resueltos:
 ### Estado de las comprobaciones
 
 - **CI reproducido en local**, con sus mismas variables y un Postgres 16 vacío en un contenedor
-  desechable: `pnpm db:migrate` → `pnpm db:seed` → `pnpm validate` ✅. Tipos de las dos
+  desechable: `pnpm db:migrate` → `pnpm db:seed` → `pnpm validate` (correcto). Tipos de las dos
   configuraciones, lint con **0 errores** (los mismos 17 avisos de la línea base), fronteras de
-  módulos y **374 pruebas en 47 archivos**, unitarias y de integración. `pnpm web:build` ✅.
+  módulos y **374 pruebas en 47 archivos**, unitarias y de integración. `pnpm web:build` (correcto).
 - **Una corrida se cayó sin que fallara ninguna prueba.** De cinco ejecuciones completas de
   `vitest run` contra esa base, la primera abortó con `ERR_IPC_CHANNEL_CLOSED`: se cerró el canal
   entre vitest y uno de sus procesos de trabajo. Las otras cuatro pasaron 47/47. No se volvió a
   reproducir y **no se determinó la causa**. Si aparece en CI, se relanza; si se repite, hay que
   investigarlo. *(Resuelto el 2026-09-26, R32: es una falla de tinypool en vitest 3.2; las pruebas
   corren ahora en hilos.)*
-- Contra la base local: `pnpm validate:unit` ✅ y `pnpm test:integration` ✅ (16 archivos). La
+- Contra la base local: `pnpm validate:unit` (correcto) y `pnpm test:integration` (correcto) (16 archivos). La
   base quedó idéntica: 3 385 ciudadanos, 177 usuarios, 19 equipos.
 
 ### Qué se tocó del entorno en este bloque
