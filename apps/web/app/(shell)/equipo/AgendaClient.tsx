@@ -6,12 +6,15 @@ import { useRouter } from "next/navigation";
 import { Activity, BarChart3, Calendar, Plus, Settings2, Sparkles } from "lucide-react";
 
 import type { ActividadItem, FiltrosBitacora, PaginaBitacora, ResumenBitacora } from "@/lib/bitacora-tipos";
+import type { Recordatorios } from "@/lib/recordatorios";
+import { pedirActualizarRecordatorios } from "@/lib/recordatorios-cliente";
 
 import { AdministrarOpciones } from "./componentes/AdministrarOpciones";
 import { FichaActividad } from "./componentes/FichaActividad";
 import { FormularioActividad, type UsuarioOpcion } from "./componentes/FormularioActividad";
 import { ListaActividades, type OpcionFiltro } from "./componentes/ListaActividades";
 import { Prospectos } from "./componentes/Prospectos";
+import { RecordatoriosAgenda } from "./componentes/Recordatorios";
 import { ResumenEquipo } from "./componentes/ResumenEquipo";
 
 type Pestana = "agenda" | "prospectos" | "resumen";
@@ -29,7 +32,7 @@ const PESTANAS: ReadonlyArray<{ clave: Pestana; etiqueta: string; href: string; 
  */
 export default function AgendaClient({
   pestana, pagina, filtros, resumen, usuarios, tipos, etiquetas, contactoNombre, usuarioActualId,
-  puedeAsignar, puedeCrear, esAdmin, puedeConvertir
+  puedeAsignar, puedeCrear, esAdmin, puedeConvertir, recordatorios = null
 }: {
   pestana: Pestana;
   pagina: PaginaBitacora | null;
@@ -44,6 +47,8 @@ export default function AgendaClient({
   puedeCrear: boolean;
   esAdmin: boolean;
   puedeConvertir: boolean;
+  /** Lo vencido y lo próximo de la agenda propia; solo en la pestaña de actividades. */
+  recordatorios?: Recordatorios | null;
 }) {
   const router = useRouter();
   const [formularioAbierto, setFormularioAbierto] = useState(false);
@@ -62,6 +67,23 @@ export default function AgendaClient({
     window.history.replaceState({}, "", window.location.pathname + (restante ? `?${restante}` : ""));
     setFormularioAbierto(true);
   }, [puedeCrear]);
+
+  // Un aviso del navegador llega con ?actividad=<id>: se abre su ficha y se retira el parámetro.
+  useEffect(() => {
+    const parametros = new URLSearchParams(window.location.search);
+    const id = parametros.get("actividad");
+    if (!id) return;
+    parametros.delete("actividad");
+    const restante = parametros.toString();
+    window.history.replaceState({}, "", window.location.pathname + (restante ? `?${restante}` : ""));
+    setFichaId(id);
+  }, []);
+
+  // Tras guardar, cerrar o reprogramar algo: la página y el contador del menú se ponen al día.
+  const alCambiar = () => {
+    router.refresh();
+    pedirActualizarRecordatorios();
+  };
 
   useEffect(() => {
     if (!mensaje) return;
@@ -112,6 +134,8 @@ export default function AgendaClient({
 
       {mensaje && <div role="status" className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-800">{mensaje}</div>}
 
+      {pestana === "agenda" && recordatorios && <RecordatoriosAgenda datos={recordatorios} onAbrir={setFichaId} />}
+
       {pestana === "agenda" && pagina && (
         <ListaActividades pagina={pagina} filtros={filtros} usuarios={usuarios} tipos={tipos} etiquetas={etiquetas} puedeAsignar={puedeAsignar} contactoNombre={contactoNombre} onAbrir={(a) => setFichaId(a.id)} />
       )}
@@ -121,12 +145,12 @@ export default function AgendaClient({
       <FormularioActividad
         abierto={formularioAbierto && puedeCrear} plantilla={plantilla} usuarios={usuarios} usuarioActualId={usuarioActualId} puedeAsignar={puedeAsignar} esAdmin={esAdmin}
         onCerrar={() => { setFormularioAbierto(false); setPlantilla(null); }}
-        onGuardada={(m) => { setMensaje(m); router.refresh(); }}
+        onGuardada={(m) => { setMensaje(m); alCambiar(); }}
       />
       {fichaId && (
         <FichaActividad
           id={fichaId} usuarios={usuarios} usuarioActualId={usuarioActualId} esAdmin={esAdmin}
-          onCerrar={() => setFichaId(null)} onCambio={() => router.refresh()}
+          onCerrar={() => setFichaId(null)} onCambio={alCambiar}
           onDuplicar={(a) => { setFichaId(null); setPlantilla(a); setFormularioAbierto(true); }}
         />
       )}

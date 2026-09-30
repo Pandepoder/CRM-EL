@@ -60,6 +60,11 @@ export type AppShellProps = Readonly<{
   /** Nombre de respaldo mientras la persona no tenga municipio asignado. */
   appName?: string | undefined;
   logoutAction?: string;
+  /**
+   * Número junto a una entrada del menú, por su clave (`equipo`: recordatorios de la agenda). Sin
+   * número, o en cero, no se enseña nada.
+   */
+  insignias?: Readonly<Record<string, number>> | undefined;
 }>;
 
 const getIconForNavKey = (key: string, size = 18) => {
@@ -88,7 +93,10 @@ const getIconForNavKey = (key: string, size = 18) => {
   }
 };
 
-type ElementoNav = NavItemConfig & { active: boolean };
+type ElementoNav = NavItemConfig & { active: boolean; insignia: number };
+
+/** «3», o «99+» cuando no cabe. */
+const textoInsignia = (n: number) => (n > 99 ? "99+" : String(n));
 
 /** Iniciales para el avatar de quien todavía no tiene foto de perfil. */
 function iniciales(nombre: string): string {
@@ -110,6 +118,9 @@ function EnlaceNav({ item, alNavegar }: { item: ElementoNav; alNavegar?: () => v
     >
       <span className="nav-icono">{getIconForNavKey(item.key)}</span>
       <span className="nav-texto">{item.label}</span>
+      {item.insignia > 0 && (
+        <span className="nav-insignia" aria-label={`${item.insignia} pendientes`}>{textoInsignia(item.insignia)}</span>
+      )}
     </a>
   );
 }
@@ -152,7 +163,8 @@ export function AppShell({
   activeNavKey,
   municipality,
   appName,
-  logoutAction = "/api/auth/logout"
+  logoutAction = "/api/auth/logout",
+  insignias
 }: AppShellProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const cerrarCajon = () => setIsDrawerOpen(false);
@@ -163,7 +175,8 @@ export function AppShell({
       .filter((item) => item.allowedRoles.some((rol) => rolesQueAbren.includes(rol)))
       .map(item => ({
         ...item,
-        active: item.key === activeNavKey
+        active: item.key === activeNavKey,
+        insignia: insignias?.[item.key] ?? 0
       }));
   };
 
@@ -325,6 +338,9 @@ export function AppShell({
           >
             <span className="mobile-nav-marca" aria-hidden="true" />
             {getIconForNavKey(item.key, 21)}
+            {item.insignia > 0 && (
+              <span className="mobile-nav-insignia" aria-label={`${item.insignia} pendientes`}>{textoInsignia(item.insignia)}</span>
+            )}
             {/* Nombre corto: "Directorio Ciudadano" no cabe en un quinto de pantalla y se partía
                 en tres renglones ilegibles. */}
             <span className="mobile-nav-texto">{item.corto ?? item.label}</span>

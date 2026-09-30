@@ -261,7 +261,9 @@ export default async function AdminIncidenciasPage({
                 <th className="px-4 py-3 md:px-6 md:py-4 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Ubicación & Coordenadas</th>
                 <th className="px-4 py-3 md:px-6 md:py-4 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Sección Electoral (Autoselector)</th>
                 <th className="px-4 py-3 md:px-6 md:py-4 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Fecha</th>
-                <th className="px-4 py-3 md:px-6 md:py-4 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider text-right whitespace-nowrap">Estatus</th>
+                {/* Fija a la derecha: con la tabla más ancha que la pantalla (una laptop de 1366 px) la columna de
+                    las acciones quedaba fuera de la vista, y aceptar o resolver pedía desplazar la tabla a ciegas. */}
+                <th className="sticky right-0 z-10 bg-gray-50 shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.12)] px-4 py-3 md:px-6 md:py-4 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider text-right whitespace-nowrap">Estatus</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -270,7 +272,7 @@ export default async function AdminIncidenciasPage({
                   
                   {/* Title & Category */}
                   <td className="px-4 py-3 md:px-6 md:py-4">
-                    <div className="font-bold text-gray-900 text-sm whitespace-nowrap">{r.title}</div>
+                    <div className="font-bold text-gray-900 text-sm min-w-[14rem] max-w-[20rem]">{r.title}</div>
                     {r.description && (
                       <div className="text-xs text-gray-500 mt-0.5 max-w-xs truncate" title={r.description}>
                         {r.description}
@@ -331,7 +333,7 @@ export default async function AdminIncidenciasPage({
                   </td>
 
                   {/* Status */}
-                  <td className="px-4 py-3 md:px-6 md:py-4 text-right whitespace-nowrap">
+                  <td className="sticky right-0 bg-white shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.12)] px-4 py-3 md:px-6 md:py-4 text-right whitespace-nowrap">
                     {r.puedeTrabajar ? (
                       <StatusSelector reportId={r.id} currentStatus={r.status || "active"} />
                     ) : (

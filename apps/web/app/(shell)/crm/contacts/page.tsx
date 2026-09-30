@@ -5,6 +5,7 @@ import { schema, huellasParaBuscarTelefono, patronDeBusqueda, sinAcentosSql } fr
 import { and, count, eq, or, desc, inArray, sql, type SQL } from "drizzle-orm";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { contactoSinUbicacionEnMapa } from "@/lib/ubicacion-contacto";
+import { asegurarEnlacePersonal } from "@/lib/personal-slug";
 import DirectorioClient from "./DirectorioClient";
 
 const PAGE_SIZE = 25;
@@ -144,7 +145,7 @@ export default async function ContactsPage({
       soloAsignados={soloAsignados}
       militancia={militancia}
       sinUbicacion={sinUbicacion}
-      userSlug={currentUser?.personalSlug || ""}
+      userSlug={(currentUser ? await asegurarEnlacePersonal(currentUser.id, currentUser.displayName, currentUser.personalSlug) : null) || ""}
       userName={currentUser?.displayName || "Mi Usuario"}
       userAccessType={networkScope.isAdmin ? "coordinacion" : networkScope.isLeader ? "enlace" : "conexion"}
     />

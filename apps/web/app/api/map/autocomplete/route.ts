@@ -49,9 +49,13 @@ export async function GET(req: Request) {
   const seenKeys = new Set<string>();
 
   // 1. DATABASE SEARCH: Real Official Electoral Sections (e.g. "2704" or "Sección 2687")
-  const numericMatch = q.match(/\b\d{3,4}\b/);
+  //
+  // Solo cuando lo escrito es una sección: el número solo, o con «sección», «secc» o «#». Antes
+  // bastaba cualquier número de 3 o 4 cifras, así que «Av. Tonaltecas 120» proponía primero la
+  // sección 120 de San Ignacio Cerro Gordo, por encima de la calle que se buscaba.
+  const numericMatch = q.match(/^\s*(?:secci[oó]n|secc?\.?|#)?\s*#?\s*(\d{1,4})\s*$/i);
   if (numericMatch) {
-    const secNum = parseInt(numericMatch[0], 10);
+    const secNum = parseInt(numericMatch[1]!, 10);
     try {
       const secRows = await db.execute<{
         id: string;

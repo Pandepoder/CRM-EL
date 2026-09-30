@@ -200,6 +200,22 @@ button {
   color: #ffffff;
 }
 
+/* Número de pendientes junto a una entrada del menú (recordatorios de la agenda). */
+.nav-insignia {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
 .sidebar-note {
   margin-top: auto;
   border: 1px solid var(--blue-100);
@@ -430,6 +446,27 @@ button {
 .mobile-nav-button.is-active svg {
   transform: translateY(-2px) scale(1.15);
   filter: drop-shadow(0 4px 6px rgba(40, 120, 199, 0.25));
+}
+
+.mobile-nav-button {
+  position: relative;
+}
+
+.mobile-nav-insignia {
+  position: absolute;
+  top: 6px;
+  left: calc(50% + 6px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #ffffff;
 }
 
 /* ==========================================================================

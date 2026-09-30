@@ -11,6 +11,8 @@ import { condicionDeEquipos } from "@/lib/alcance-municipal";
 import { getDatabaseClient } from "@/lib/db-client";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { permissionsForRole } from "@/lib/permissions";
+import { recordatoriosDe } from "@/lib/recordatorios";
+import type { Recordatorios } from "@/lib/recordatorios";
 import { getServerSession } from "@/lib/session-server";
 
 import AgendaClient from "./AgendaClient";
@@ -57,16 +59,19 @@ export default async function EquipoMiDiaPage({
   let tipos: Array<{ id: string; nombre: string }> = [];
   let etiquetas: Array<{ id: string; nombre: string }> = [];
   let contactoNombre: string | null = null;
+  let recordatorios: Recordatorios | null = null;
 
   if (pestana === "agenda") {
     // Solo la página que se ve: la entrada a la bitácora ya no carga todo el historial.
-    const [pag, opcTipos, opcEtiquetas] = await Promise.all([
+    const [pag, opcTipos, opcEtiquetas, avisos] = await Promise.all([
       consultarBitacora(ctx, filtros),
       // Con archivadas: una opción archivada sigue siendo filtro válido para lo ya registrado.
       listarOpciones(alcance, { kind: "type", incluirArchivadas: true, limite: 200 }),
-      listarOpciones(alcance, { kind: "tag", incluirArchivadas: true, limite: 200 })
+      listarOpciones(alcance, { kind: "tag", incluirArchivadas: true, limite: 200 }),
+      recordatoriosDe(alcance)
     ]);
     pagina = pag;
+    recordatorios = avisos;
     tipos = opcTipos.map((o) => ({ id: o.id, nombre: o.archived ? `${o.name} (archivado)` : o.name }));
     etiquetas = opcEtiquetas.map((o) => ({ id: o.id, nombre: o.archived ? `${o.name} (archivada)` : o.name }));
 
@@ -104,6 +109,7 @@ export default async function EquipoMiDiaPage({
       puedeCrear={ctx.esAdministracion || alcance.isLeader}
       esAdmin={ctx.esAdministracion}
       puedeConvertir={permissionsForRole(rol).includes(Permission.ContactsCreate)}
+      recordatorios={recordatorios}
     />
   );
 }

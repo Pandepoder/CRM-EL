@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 
-import { estadoDelCifrado } from "@tonala/shared/database";
+import { encryptData, estadoDelCifrado } from "@tonala/shared/database";
 
 import { getDatabaseClient } from "@/lib/db-client";
 import { registrar } from "@/lib/registro";
@@ -185,6 +185,24 @@ export async function revisarSistema(): Promise<EstadoDelSistema> {
  * de forma imposible de pasar por alto, que es lo que faltó con C1.
  */
 export async function revisarAlArrancar(): Promise<void> {
+  // La llave de cifrado se valida al cifrar el primer dato, no al arrancar: con la de ejemplo de
+  // `.env.example` el servidor arrancaba sin queja y cada alta de ciudadano o de cuenta respondía
+  // 500. Se prueba aquí para que el aviso salga al arrancar, antes de que alguien intente registrar.
+  try {
+    encryptData("prueba-de-arranque");
+  } catch (error) {
+    console.error(
+      [
+        "",
+        "=".repeat(78),
+        "[arranque] LLAVE DE CIFRADO INVÁLIDA: no se podrá guardar ningún ciudadano ni cuenta nueva.",
+        `           ${error instanceof Error ? error.message : String(error)}`,
+        "           Genera una con `openssl rand -hex 16`, ponla en DATABASE_ENCRYPTION_KEY y reinicia.",
+        "=".repeat(78),
+        ""
+      ].join("\n")
+    );
+  }
   try {
     const { pendientes, esperadas } = await revisarMigraciones();
     if (pendientes.length === 0) {

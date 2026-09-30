@@ -1,6 +1,8 @@
 import { getDatabaseClient } from "@/lib/db-client";
 import { schema } from "@tonala/shared/database";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
+
+import { esViolacionUnica } from "@/lib/idempotencia";
 
 // Unicode combining diacritical marks (U+0300-U+036F), written as explicit
 // escapes on purpose — a literal accent character in source is fragile across
@@ -46,4 +48,39 @@ export async function generateUniquePersonalSlug(displayName: string): Promise<s
   }
 
   return `${base}-${Date.now().toString(36)}`;
+}
+
+/**
+ * El enlace de una cuenta que se creó sin él, asignado la primera vez que hace falta.
+ *
+ * Las altas desde la aplicación ya lo generan, pero las cuentas que nacen por script no: el
+ * administrador maestro de `pnpm db:clean` y los usuarios de `pnpm db:seed` quedaban sin enlace,
+ * y el botón «Mi enlace» compartía `/registro/<id>`, que responde 404. Así, quien comparte su
+ * enlace o su QR siempre comparte uno que funciona.
+ */
+export async function asegurarEnlacePersonal(userId: string, displayName: string, actual: string | null | undefined): Promise<string | null> {
+  if (actual) return actual;
+  const db = getDatabaseClient();
+  for (let intento = 0; intento < 3; intento++) {
+    const candidato = await generateUniquePersonalSlug(displayName);
+    try {
+      // Solo si sigue vacío: dos pestañas abiertas a la vez no se pisan el enlace.
+      const [fila] = await db
+        .update(schema.userProfiles)
+        .set({ personalSlug: candidato })
+        .where(and(eq(schema.userProfiles.id, userId), isNull(schema.userProfiles.personalSlug)))
+        .returning({ personalSlug: schema.userProfiles.personalSlug });
+      if (fila?.personalSlug) return fila.personalSlug;
+      const [ya] = await db
+        .select({ personalSlug: schema.userProfiles.personalSlug })
+        .from(schema.userProfiles)
+        .where(eq(schema.userProfiles.id, userId))
+        .limit(1);
+      return ya?.personalSlug ?? null;
+    } catch (error) {
+      // Otra cuenta tomó el mismo enlace entre la búsqueda y la escritura: se intenta con el siguiente.
+      if (!esViolacionUnica(error, "user_profiles_slug_unique")) throw error;
+    }
+  }
+  return null;
 }

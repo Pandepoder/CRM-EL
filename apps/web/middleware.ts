@@ -63,6 +63,9 @@ export async function middleware(request: NextRequest) {
     // se queda con el icono genérico en todas las páginas públicas.
     pathname === "/icon.png" ||
     pathname === "/apple-icon.png" ||
+    // El service worker de los avisos de la agenda: el navegador lo vuelve a pedir por su cuenta
+    // para actualizarlo, también cuando la sesión ya venció.
+    pathname === "/avisos-sw.js" ||
     pathname.startsWith("/_next")
   ) {
     return seguir();

@@ -11,6 +11,7 @@ import { EnlaceBrigada, SolicitudesPendientes } from "./SolicitudesPendientes";
 import { requirePageAccess } from "@/lib/authorization";
 import { esUuid } from "@/lib/ids";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { asegurarEnlacePersonal } from "@/lib/personal-slug";
 
 export default async function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePageAccess("/admin-equipos");
@@ -188,11 +189,11 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
   // El enlace del QR es el de quien está mirando: así lo que se registre queda a
   // su nombre, no al de un tercero.
   const yo = await db
-    .select({ personalSlug: schema.userProfiles.personalSlug })
+    .select({ personalSlug: schema.userProfiles.personalSlug, displayName: schema.userProfiles.displayName })
     .from(schema.userProfiles)
     .where(eq(schema.userProfiles.id, session.userId))
     .limit(1);
-  const miSlug = yo[0]?.personalSlug ?? null;
+  const miSlug = yo[0] ? await asegurarEnlacePersonal(session.userId, yo[0].displayName, yo[0].personalSlug) : null;
 
   const cabeceras = await headers();
   const host = cabeceras.get("host") ?? "";
