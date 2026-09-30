@@ -55,7 +55,8 @@ export async function createUserAction(formData: FormData): Promise<Respuesta> {
       email: texto(formData.get("email")),
       password: texto(formData.get("password")),
       roleId: texto(formData.get("roleId")),
-      municipio: municipio || null
+      municipio: municipio || null,
+      telefono: texto(formData.get("phone"))
     })
   );
 }

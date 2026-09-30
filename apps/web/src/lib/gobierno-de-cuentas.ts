@@ -12,6 +12,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { buscarMunicipio } from "@/lib/municipios-jalisco";
 import { type UserNetworkScope } from "@/lib/network-hierarchy";
 import { generateUniquePersonalSlug } from "@/lib/personal-slug";
+import { validarTelefonoOpcional } from "@/lib/telefono-persona";
 
 /**
  * Gobierno de cuentas (etapa 6): quién crea, aprueba, cambia de rol, da de baja o restablece a quién.
@@ -122,7 +123,7 @@ async function gobernada(alcance: UserNetworkScope, userId: string): Promise<Cue
 export async function crearCuenta(
   actor: ActorContext,
   alcance: UserNetworkScope,
-  datos: { displayName: string; email: string; password: string; roleId: string; municipio: string | null }
+  datos: { displayName: string; email: string; password: string; roleId: string; municipio: string | null; telefono?: string | null }
 ): Promise<Resultado> {
   if (!alcance.isAdmin) return { ok: false, status: 403, error: "No tienes permisos para crear usuarios." };
   const displayName = datos.displayName.trim();
@@ -132,6 +133,8 @@ export async function crearCuenta(
   // Con un correo mal escrito la cuenta quedaba creada y nadie podía entrar con ella.
   if (email.length > 160 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, status: 400, error: "Revisa el correo: no es válido." };
   if (displayName.length > 120) return { ok: false, status: 400, error: "El nombre puede tener hasta 120 caracteres." };
+  const telefono = validarTelefonoOpcional(datos.telefono);
+  if (!telefono.ok) return { ok: false, status: 400, error: telefono.error };
 
   const rol = await rolPorId(datos.roleId);
   if (!rol) return { ok: false, status: 400, error: "Ese rol no existe." };
@@ -167,6 +170,7 @@ export async function crearCuenta(
         id,
         email,
         displayName,
+        phone: telefono.telefono,
         passwordHash,
         roleId: rol.id,
         personalSlug,

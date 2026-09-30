@@ -9,7 +9,7 @@ import { getEdgeSession } from "@/lib/session-server";
 // la puerta de una casa, así que tiene que verse sin cuenta.
 // Los avisos legales también: el login obliga a aceptarlos y los enlaza, y sin sesión rebotaban al
 // propio login (C8), así que nadie podía leer lo que se le pedía aceptar.
-const publicPaths = new Set(["/", "/login", "/register", "/conoceme", "/terminos", "/privacidad"]);
+const publicPaths = new Set(["/", "/login", "/conoceme", "/terminos", "/privacidad"]);
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -105,9 +105,9 @@ export default function UnirmeForm({
 
       <div>
         <label htmlFor="tel" className="block text-xs font-bold uppercase mb-1.5" style={{ letterSpacing: ".08em", color: "#5b6780" }}>
-          Tu teléfono
+          Tu teléfono (opcional)
         </label>
-        <input id="tel" required type="tel" inputMode="tel" value={datos.phone} onChange={cambiar("phone")}
+        <input id="tel" type="tel" inputMode="tel" value={datos.phone} onChange={cambiar("phone")}
           autoComplete="tel" placeholder="33 1122 3344" style={campo} />
       </div>
 

@@ -24,7 +24,6 @@ Esta guía describe cómo desplegar Tonalá OS en un VPS de Hostinger utilizando
    Asegúrate de configurar en el entorno (o en `.env` en la misma carpeta):
    - `DOMAIN=tudominio.com` (Para que Caddy genere los certificados SSL)
    - `DATABASE_URL=postgres://tonala:LA_MISMA_DE_ARRIBA@db:5432/tonala_os`
-   - `ALLOW_PUBLIC_REGISTRATION=true`
    - Claves de autenticación como `SESSION_SECRET`
 
 3. **Levantar los Servicios**

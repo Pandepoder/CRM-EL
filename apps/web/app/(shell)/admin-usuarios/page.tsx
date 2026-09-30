@@ -106,7 +106,9 @@ export default async function AdminUsuariosPage({
         // Dónde vive (0025): quien decide la solicitud lo ve; la lista general de cuentas no lo lleva.
         homeAddress: userProfiles.homeAddress,
         homeColony: userProfiles.homeColony,
-        homeMunicipality: userProfiles.homeMunicipality
+        homeMunicipality: userProfiles.homeMunicipality,
+        // Opcional desde 2026-09-30: si lo dejó, quien decide la solicitud puede llamarle.
+        phone: userProfiles.phone
       })
       .from(userProfiles)
       .where(and(eq(userProfiles.status, "pending"), visibles, gobernable))

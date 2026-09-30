@@ -37,7 +37,6 @@ const territorio = await import("../app/api/crm/contacts/[id]/territory/route");
 const asignacion = await import("../app/api/crm/contacts/[id]/assignment/route");
 const registroPublico = await import("../app/api/public/registro/route");
 const unirme = await import("../app/api/public/unirme/route");
-const autoRegistro = await import("../app/api/auth/register/route");
 const perfil = await import("../app/api/auth/profile/route");
 const { getDatabaseClient } = await import("@/lib/db-client");
 
@@ -151,18 +150,27 @@ describe("el domicilio de quien se suma a la estructura", () => {
     expect(String(enLaBase!.home_colony)).not.toContain("Centro");
   });
 
-  it("el auto-registro también", async () => {
+  it("el teléfono del QR de brigada es opcional, pero si se escribe tiene que servir", async () => {
     sesion.actor = null;
-    const correo = `zz-registro-dom-${id().slice(0, 6)}@prueba.local`;
-    const cuerpo = { displayName: "zz-Solicitante", email: correo, password: "clave-segura", municipality: "Zapopan" };
-    const sin = await leer(await autoRegistro.POST(pedir("/api/auth/register", "POST", cuerpo)));
-    expect(sin.status).toBe(400);
-    expect(sin.cuerpo.campo).toBe("homeAddress");
-    const r = await leer(await autoRegistro.POST(pedir("/api/auth/register", "POST", { ...cuerpo, ...completo })));
+    const base = { slug: SLUG, displayName: "zz-Sin Teléfono", password: "clave-segura", ...completo };
+    const malo = await leer(await unirme.POST(pedir("/api/public/unirme", "POST", { ...base, email: `zz-tel-malo-${id().slice(0, 6)}@prueba.local`, phone: "123" })));
+    expect(malo.status).toBe(400);
+    expect(malo.cuerpo.campo).toBe("phone");
+    const correo = `zz-sin-tel-${id().slice(0, 6)}@prueba.local`;
+    const r = await leer(await unirme.POST(pedir("/api/public/unirme", "POST", { ...base, email: correo })));
     expect(r.status).toBe(200);
     const [cuenta] = await db().select().from(schema.userProfiles).where(eq(schema.userProfiles.email, correo));
-    // Donde vive no es donde trabaja: el municipio de la cuenta sigue siendo el que eligió para trabajar.
-    expect(cuenta).toMatchObject({ homeMunicipality: "Tonalá", municipality: "Zapopan" });
+    expect(cuenta).toMatchObject({ phone: null, status: "pending" });
+  });
+
+  it("un correo ya registrado no se vuelve a dar de alta, escrito con otras mayúsculas", async () => {
+    sesion.actor = null;
+    const correo = `zz-repetido-${id().slice(0, 6)}@prueba.local`;
+    const cuerpo = { slug: SLUG, displayName: "zz-Repetida", password: "clave-segura", ...completo };
+    expect((await leer(await unirme.POST(pedir("/api/public/unirme", "POST", { ...cuerpo, email: correo })))).status).toBe(200);
+    const otra = await leer(await unirme.POST(pedir("/api/public/unirme", "POST", { ...cuerpo, email: correo.toUpperCase() })));
+    expect(otra.status).toBe(400);
+    expect((await crudo(sql`SELECT count(*)::int AS n FROM user_profiles WHERE lower(email) = ${correo}`))[0]!.n).toBe(1);
   });
 
   it("cada quien lo corrige en su perfil, completo", async () => {

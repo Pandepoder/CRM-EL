@@ -12,6 +12,7 @@ interface PendingUser {
   homeAddress?: string | null;
   homeColony?: string | null;
   homeMunicipality?: string | null;
+  phone?: string | null;
 }
 
 interface RoleOption {
@@ -107,7 +108,7 @@ export function PendingUsersCard({
                 <div className="font-bold text-gray-900 text-sm flex items-center gap-2">
                   {u.displayName}
                 </div>
-                <div className="text-xs text-gray-500">{u.email}</div>
+                <div className="text-xs text-gray-500">{u.email}{u.phone ? ` · Tel. ${u.phone}` : ""}</div>
                 <div className="text-xs text-gray-500">
                   Vive en: {[u.homeAddress, u.homeColony ? `Col. ${u.homeColony}` : null, u.homeMunicipality].filter(Boolean).join(", ") || "sin domicilio registrado"}
                 </div>

@@ -14,6 +14,7 @@ import { esViolacionUnica } from "@/lib/idempotencia";
 import { buscarMunicipio } from "@/lib/municipios-jalisco";
 import { registrar, registrarError } from "@/lib/registro";
 import { validarDomicilioDePersona } from "@/lib/domicilio-persona";
+import { validarTelefonoOpcional } from "@/lib/telefono-persona";
 
 /**
  * Alta de brigadista desde el QR de una brigada.
@@ -35,7 +36,8 @@ import { validarDomicilioDePersona } from "@/lib/domicilio-persona";
 const esquema = z.object({
   slug: z.string().trim().min(1).max(80),
   displayName: z.string().trim().min(3).max(120),
-  phone: z.string().trim().min(7).max(20),
+  // Opcional (decisión del dueño, 2026-09-30); si se escribe, se valida abajo.
+  phone: z.string().optional(),
   email: z.string().trim().max(160).email(),
   password: z.string().min(6).max(200),
   // Su domicilio (0025, decisión del dueño 2026-09-26): se valida abajo con el mismo criterio que el
@@ -64,8 +66,10 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const { slug, displayName, phone, email, password } = parsed.data;
+    const { slug, displayName, email, password } = parsed.data;
     const correo = email.toLowerCase();
+    const telefono = validarTelefonoOpcional(parsed.data.phone);
+    if (!telefono.ok) return NextResponse.json({ error: telefono.error, campo: "phone" }, { status: 400 });
     const domicilio = validarDomicilioDePersona(parsed.data);
     if (!domicilio.ok) return NextResponse.json({ error: domicilio.error, campo: domicilio.campo }, { status: 400 });
 
@@ -163,7 +167,7 @@ export async function POST(request: Request) {
           id: userId,
           email: correo,
           displayName,
-          phone,
+          phone: telefono.telefono,
           passwordHash,
           roleId: rolBrigadista.id,
           personalSlug,

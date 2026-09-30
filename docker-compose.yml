@@ -108,7 +108,6 @@ services:
       # columnas de fecha son todas `timestamptz` y los nacimientos se guardan y leen en UTC.
       # Jalisco no tiene horario de verano desde 2022.
       - TZ=America/Mexico_City
-      - ALLOW_PUBLIC_REGISTRATION=${ALLOW_PUBLIC_REGISTRATION:-false}
       - SESSION_SECRET=${SESSION_SECRET}
       - DATABASE_ENCRYPTION_KEY=${DATABASE_ENCRYPTION_KEY}
       # Sin valor por omisión: la identidad del Administrador Maestro debe venir del .env
