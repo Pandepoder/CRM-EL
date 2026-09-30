@@ -1,4 +1,4 @@
-# 🇲🇽 Tonalá OS - Suite Integral de Gestión Territorial y Electoral
+# Tonalá OS - Suite Integral de Gestión Territorial y Electoral
 
 ![Version](https://img.shields.io/badge/version-1.3.0--production-blue.svg)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)
@@ -13,44 +13,45 @@
 
 ---
 
-## 📑 Tabla de Contenidos
-- [Características Principales](#-características-principales)
-- [Stack Tecnológico](#-stack-tecnológico)
-- [Requisitos Previos](#-requisitos-previos)
-- [Instalación Local Rápida](#-instalación-local-rápida-3-minutos)
-- [Limpieza y Preparación de Base de Datos para Producción](#-limpieza-y-preparación-de-base-de-datos-para-producción)
-- [Despliegue en Producción (VPS / Hostinger / Cloud)](#-despliegue-en-producción-vps--hostinger--cloud)
-- [Scripts Disponibles](#-scripts-disponibles-en-el-proyecto)
-- [Arquitectura y Seguridad](#-arquitectura-y-seguridad)
+## Tabla de Contenidos
+- [Características Principales](#características-principales)
+- [Stack Tecnológico](#stack-tecnológico)
+- [Requisitos Previos](#requisitos-previos)
+- [Instalación Local Rápida](#instalación-local-rápida-3-minutos)
+- [Limpieza y Preparación de Base de Datos para Producción](#limpieza-y-preparación-de-base-de-datos-para-producción)
+- [Despliegue en Producción (VPS / Hostinger / Cloud)](#despliegue-en-producción-vps--hostinger--cloud)
+- [Respaldos y Restauración](#respaldos-y-restauración)
+- [Scripts Disponibles](#scripts-disponibles-en-el-proyecto)
+- [Arquitectura y Seguridad](#arquitectura-y-seguridad)
 
 ---
 
-## 🌟 Características Principales
+## Características Principales
 
-### 1. 🗺️ Cartografía Inteligente Metropolitano (AMG) y GPS en Campo
+### 1. Cartografía Inteligente Metropolitano (AMG) y GPS en Campo
 - **Polígonos Oficiales INE:** Cobertura de secciones electorales en Tonalá (46 secciones clave), Guadalajara, Zapopan, San Pedro Tlaquepaque, Tlajomulco, El Salto y Zapotlanejo.
 - **Geocodificación Inversa Automática:** Detección de calle, colonia, código postal y municipio en tiempo real con OpenStreetMap y algoritmos geoespaciales Turf.js.
-- **Geolocalización GPS Móvil (`📍 Mi GPS`):** Marcador pulsante en tiempo real con zoom asistido para brigadistas operando en la calle.
+- **Geolocalización GPS Móvil (`Mi GPS`):** Marcador pulsante en tiempo real con zoom asistido para brigadistas operando en la calle.
 - **Agrupamiento Inteligente (Clustering):** Manejo fluido de miles de marcadores territoriales con colores diferenciados por prioridad y estatus.
 
-### 2. 🚨 Centro Integral de Administración y Despacho de Incidencias
+### 2. Centro Integral de Administración y Despacho de Incidencias
 - **4 Pestañas Operacionales:** *Pendientes por Atender*, *Emergencias Críticas*, *Historial de Resueltas* y *Todas las Incidencias* (con envío estricto de resueltas al final).
 - **Herramientas Masivas:** Selección múltiple para resolver, reabrir, reasignar o purgar reportes en lote.
 - **Exportación CSV & Hoja de Despacho Imprimible:** Generación de órdenes de trabajo listas para brigadas en campo.
 
-### 3. 👥 Directorio Ciudadano y CRM
+### 3. Directorio Ciudadano y CRM
 - Captura de simpatizantes con validación de CURP, clave electoral, sección y geolocalización.
 - Historial de visitas territoriales, registro de compromisos y asignación a coordinadores.
 - Exportación segura en formato CSV UTF-8.
 
-### 4. 🛡️ Estructura Electoral y Brigadas
+### 4. Estructura Electoral y Brigadas
 - Control de Representantes Generales (RG) y Representantes de Casilla (RC) por sección.
 - Organización de cuadrillas y asignación de líderes de equipo con auditoría de movimientos.
 - Trazabilidad y control de inventario/propaganda en almacenes territoriales.
 
 ---
 
-## 🛠️ Stack Tecnológico
+## Stack Tecnológico
 
 | Capa | Tecnología |
 | :--- | :--- |
@@ -63,17 +64,17 @@
 
 ---
 
-## 💻 Requisitos Previos
+## Requisitos Previos
 
 Asegúrate de tener instalado en tu computadora o servidor:
-- **Node.js:** Versión 20.x o superior (recomendado v22 LTS o v24).
+- **Node.js:** Versión 24 o superior (la misma que usan el `Dockerfile` y la CI).
 - **pnpm:** Versión 9.x, 10.x o 11.x (`corepack enable` o `npm i -g pnpm`).
 - **Docker & Docker Compose:** (Para la base de datos PostgreSQL local o despliegue en servidor).
 - **Git**
 
 ---
 
-## 🚀 Instalación Local Rápida (3 minutos)
+## Instalación Local Rápida (3 minutos)
 
 ### 1. Clonar el Repositorio
 ```bash
@@ -122,6 +123,10 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
+En una base recién creada, `pnpm db:migrate` imprime el aviso `NO HAY ADMINISTRADOR
+MAESTRO`. En desarrollo es esperado: todavía no existe ningún usuario. Después de
+`pnpm db:seed`, la cuenta `admin@pruebas.local` queda como administrador maestro.
+
 ### 5. Iniciar Servidor de Desarrollo
 ```bash
 pnpm web:dev
@@ -148,7 +153,7 @@ Abre tu navegador en [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## 🧹 Limpieza y Preparación de Base de Datos para Producción
+## Limpieza y Preparación de Base de Datos para Producción
 
 Antes de lanzar el sistema en una campaña real o servidor de producción, debes vaciar todos los datos ficticios y sembrar únicamente la estructura limpia:
 
@@ -164,7 +169,7 @@ pnpm db:clean
 
 ---
 
-## 🌐 Despliegue en Producción (VPS / Hostinger / Cloud)
+## Despliegue en Producción (VPS / Hostinger / Cloud)
 
 El proyecto incluye soporte nativo con **Docker Compose y servidor web Caddy** para emisión automática de certificados SSL (HTTPS gratuito).
 
@@ -213,7 +218,7 @@ Tu CRM estará en línea con HTTPS seguro configurado automáticamente.
 
 ---
 
-## 💾 Respaldos y Restauración
+## Respaldos y Restauración
 
 `docker compose up -d` levanta también el servicio `backup`, que vuelca la base
 una vez al día a un `pg_dump` comprimido en el volumen `tonala_os_backups` y poda
@@ -311,7 +316,7 @@ Qué garantiza el servicio `backup`:
   anteriores se conservan todos hasta que alguien lo arregle. Revisa el registro
   de vez en cuando: `docker compose logs --tail 20 backup`.
 
-> 🔑 **Un respaldo sin la llave de cifrado no sirve.** Nombres, teléfonos,
+> **Importante: un respaldo sin la llave de cifrado no sirve.** Nombres, teléfonos,
 > correos, domicilios, colonias, municipio y notas de los ciudadanos se guardan
 > cifrados con `DATABASE_ENCRYPTION_KEY`, y así salen en el volcado. Guarda esa
 > llave **fuera del servidor y separada de los respaldos** (en un gestor de
@@ -320,7 +325,7 @@ Qué garantiza el servicio `backup`:
 > conserva también la anterior: los respaldos hechos antes de la rotación la siguen
 > necesitando.
 
-> ⚠️ **Falta la copia fuera del servidor.** Estos respaldos viven en un volumen
+> **Pendiente: falta la copia fuera del servidor.** Estos respaldos viven en un volumen
 > del mismo VPS: sirven ante un borrado accidental de datos, no ante la pérdida
 > del disco o del servidor. Hay que elegir un destino (otro servidor, S3, Backblaze
 > B2, Google Drive…) y replicar ahí `/backups` y el volumen de adjuntos. Nunca
@@ -338,7 +343,7 @@ docker run --rm -v tonala_os_uploads:/data -v "$PWD":/out alpine tar czf /out/up
 
 ---
 
-## 📜 Scripts Disponibles en el Proyecto
+## Scripts Disponibles en el Proyecto
 
 | Comando | Descripción |
 | :--- | :--- |
@@ -355,7 +360,7 @@ docker run --rm -v tonala_os_uploads:/data -v "$PWD":/out alpine tar czf /out/up
 
 ---
 
-## 🔒 Arquitectura y Seguridad
+## Arquitectura y Seguridad
 
 - **Cifrado de Contraseñas:** Hashes resistentes con `argon2id` (configuración recomendada por OWASP).
 - **Gestión de Sesiones:** Cookies HTTP-Only firmadas y selladas mediante `iron-session` (AES-256-GCM).
@@ -364,5 +369,5 @@ docker run --rm -v tonala_os_uploads:/data -v "$PWD":/out alpine tar czf /out/up
 
 ---
 
-## 📄 Licencia
+## Licencia
 Propiedad de **Tonalá OS / CRM Territorial**. Todos los derechos reservados.

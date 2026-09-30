@@ -1,10 +1,10 @@
 # Walkthrough - Implementación Completa "Primera Etapa de Mejoras ElApp" (Agosto 2026)
 
-Se ha completado con éxito la ejecución del **Plan Maestro de Implementación** para la plataforma **ElApp / Tonalá OS**, cubriendo en su totalidad los requerimientos de estructura de red de 3 niveles, enlace personal y registro ciudadano vía QR, formulario social unificado de 7 secciones, módulo de escucha social, nuestra bitácora operativa con registros rápidos de conversación, mapa de presencia social con distintivos PAN (`Ⓜ️`), panel general con sugerencias de ascenso y auditoría, barrido global de nomenclatura y pruebas automatizadas.
+Se ha completado con éxito la ejecución del **Plan Maestro de Implementación** para la plataforma **ElApp / Tonalá OS**, cubriendo en su totalidad los requerimientos de estructura de red de 3 niveles, enlace personal y registro ciudadano vía QR, formulario social unificado de 7 secciones, módulo de escucha social, nuestra bitácora operativa con registros rápidos de conversación, mapa de presencia social con distintivos PAN (distintivo «M»), panel general con sugerencias de ascenso y auditoría, barrido global de nomenclatura y pruebas automatizadas.
 
 ---
 
-## 🏛️ Resumen de las 9 Fases Implementadas
+## Resumen de las 9 Fases Implementadas
 
 ```mermaid
 graph TD
@@ -55,10 +55,10 @@ graph TD
   - **B. Datos Personales**: Nombre, cumpleaños con día y mes, WhatsApp y horario preferido.
   - **C. Información Territorial**: Municipio, selector predictivo de colonia, sección INE y `LocationPicker` multimodal.
   - **D. Participación & Ocupación**: Profesión, intereses, autorización de barda/lona con URL de fotografía.
-  - **E. Vinculación y Militancia PAN**: Declarada / Confirmada con distintivo `Ⓜ️`.
+  - **E. Vinculación y Militancia PAN**: Declarada / Confirmada con distintivo «M».
   - **F. Conóceme Mejor**: Gustos personales y nota fechada inicial.
   - **G. Encuesta Ciudadana Opcional**: 6 preguntas de diagnóstico comunitario.
-- **Directorio General** ([`DirectorioClient.tsx`](file:///c:/Users/gino_/Desktop/EL%20V1.3/CRM-EL/apps/web/app/%28shell%29/crm/contacts/DirectorioClient.tsx)): Badges `Ⓜ️ PAN Confirmado`, filtro de red y botón "Mi Enlace y QR".
+- **Directorio General** ([`DirectorioClient.tsx`](file:///c:/Users/gino_/Desktop/EL%20V1.3/CRM-EL/apps/web/app/%28shell%29/crm/contacts/DirectorioClient.tsx)): Badges `PAN Confirmado`, filtro de red y botón "Mi Enlace y QR".
 - **Ficha 360°** ([`crm/contacts/[id]/page.tsx`](file:///c:/Users/gino_/Desktop/EL%20V1.3/CRM-EL/apps/web/app/%28shell%29/crm/contacts/%5Bid%5D/page.tsx)): Línea de tiempo de notas fechadas con autor y respuestas completas de encuesta.
 
 ---
@@ -74,7 +74,7 @@ graph TD
 ## 6. Fase 6: Nuestra Bitácora & Registros Rápidos de Conversación
 - Actualización de [`apps/web/app/(shell)/equipo/`](file:///c:/Users/gino_/Desktop/EL%20V1.3/CRM-EL/apps/web/app/%28shell%29/equipo/):
   - 3 alcances de visualización: *Mi Bitácora Personal*, *Bitácora de Mi Red*, *Bitácora General*.
-  - Pestaña **"⚡ Registros Rápidos de Conversación"** para capturar prospectos clave antes del registro formal.
+  - Pestaña **"Registros Rápidos de Conversación"** para capturar prospectos clave antes del registro formal.
   - **Conversión en 1 Clic**: `POST /api/prospectos/[id]/convertir` crea el contacto en el padrón y preserva acuerdos y notas privadas.
 
 ---
@@ -82,7 +82,7 @@ graph TD
 ## 7. Fase 7: Mapa de Presencia Social & Radiografía Territorial
 - Endpoint GeoJSON [`apps/web/app/api/map/contacts/route.ts`](file:///c:/Users/gino_/Desktop/EL%20V1.3/CRM-EL/apps/web/app/api/map/contacts/route.ts).
 - Integración en [`apps/web/app/(shell)/mapa/page.tsx`](file:///c:/Users/gino_/Desktop/EL%20V1.3/CRM-EL/apps/web/app/%28shell%29/mapa/page.tsx):
-  - Marcadores de contactos con distintivo `Ⓜ️` para militancia PAN confirmada.
+  - Marcadores de contactos con distintivo «M» para militancia PAN confirmada.
   - Anillo perimetral codificado por el color de la red/Enlace asignado.
   - Popup con acceso directo a la Ficha 360°.
 
@@ -90,7 +90,7 @@ graph TD
 
 ## 8. Fase 8: Panel General y Tabla de Reconocimiento
 - [`apps/web/app/(shell)/resumen/`](file:///c:/Users/gino_/Desktop/EL%20V1.3/CRM-EL/apps/web/app/%28shell%29/resumen/):
-  - KPIs: Registros Sociales, Militancia PAN (`Ⓜ️`), Bitácora Operativa y Escucha Social.
+  - KPIs: Registros Sociales, Militancia PAN (distintivo «M»), Bitácora Operativa y Escucha Social.
   - **Tabla Interna de Participación y Reconocimiento**: Productividad por integrante, red de pertenencia y jerarquía.
   - **Sugerencias Automáticas de Promoción**: Identificación de integrantes en nivel Conexión listos para ascender a Enlace, con modal de auditoría integrado.
 
@@ -122,7 +122,7 @@ Se implementó un pipeline automatizado de captura y validación visual con Pupp
 
 ---
 
-## 📊 Tabla de Validación de Rutas y Menús en Vivo
+## Tabla de Validación de Rutas y Menús en Vivo
 
 | Ruta | Nombre Oficial ElApp | Estado HTTP | Contraste y Usabilidad |
 | :--- | :--- | :---: | :---: |
@@ -147,23 +147,23 @@ Se rediseñó completamente la experiencia visual, de rendimiento y cartográfic
 
 1. **Eliminación del Bloque de Marcadores Superpuestos**:
    - Se reemplazó el renderizado plano de más de 300 pines individuales por un motor de **Clusterización Espacial Dinámica** adaptada al nivel de zoom (`mapZoom <= 14`).
-   - Los ciudadanos ahora se agrupan en burbujas con gradiente azul real y badges de militancia PAN (`🔵 14 RED`, `Ⓜ️ 4`). Al hacer clic o hacer zoom in (zoom ≥ 15), se dispersan en micropines individuales con ficha técnica 360°.
+   - Los ciudadanos ahora se agrupan en burbujas con gradiente azul real y badges de militancia PAN (por ejemplo `14 RED` y `M 4`). Al hacer clic o hacer zoom in (zoom ≥ 15), se dispersan en micropines individuales con ficha técnica 360°.
 
 2. **Capa Base Cartográfica HD y Libre de Marcas de Agua**:
    - Se implementó **Esri World Street Map HD** como capa principal predeterminada, ofreciendo nitidez en nombres de colonias, avenidas, límites y puntos de interés sin marcas de agua ni requerimientos de API key.
    - Selector rápido de estilos en barra superior con 1 clic:
-     - 🗺️ **Calles HD (Color)**
-     - 🌙 **Táctico Nocturno (Dark Mode con neón)**
-     - 🏙️ **OpenStreetMap**
-     - 🛰️ **Satélite HD**
+     - **Calles HD (Color)**
+     - **Táctico Nocturno (Dark Mode con neón)**
+     - **OpenStreetMap**
+     - **Satélite HD**
 
 3. **Barra de Control Flotante y Widget HUD de Métricas en Vivo**:
    - Barra superior flotante glassmórfica (`backdrop-filter: blur(16px)`) con chips directos para alternar **Mapa vs Centro de Mando**, **Nivel de Información (LOD)**, **Contactos**, **GPS**, **Buscar Secciones**, **Incidencias Activas** y **+ Reportar**.
-   - Widget flotante inferior izquierdo con telemetría en tiempo real: `🔴 Incidencias Activas`, `👥 Simpatizantes`, `🗳️ Secciones Electorales`.
+   - Widget flotante inferior izquierdo con telemetría en tiempo real: `Incidencias Activas`, `Simpatizantes`, `Secciones Electorales`.
 
 ---
 
-## ✅ Resumen de Certificación para Producción
+## Resumen de Certificación para Producción
 
 - **Boundary Checker:** 0 violaciones arquitectónicas.
 - **TypeScript Typecheck:** 0 errores de compilación (`tsc --noEmit`).
