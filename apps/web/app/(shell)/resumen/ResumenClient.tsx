@@ -83,7 +83,12 @@ export default function ResumenClient({
 
   // Share or Copy Personal Registration Link
   const handleShareLink = async () => {
-    const slug = currentUser.personalSlug || currentUser.id;
+    // Sin enlace no se comparte nada: `/registro/<id>` respondía 404 a quien lo abría.
+    const slug = currentUser.personalSlug;
+    if (!slug) {
+      showToast("error", "Tu enlace personal no está listo. Recarga la página e inténtalo otra vez.");
+      return;
+    }
     const origin = typeof window !== "undefined" ? window.location.origin : "https://elapp.com.mx";
     const shareUrl = `${origin}/registro/${slug}`;
 

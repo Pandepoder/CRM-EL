@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { UserPlus, CheckCircle2, ArrowLeft, Loader2, ShieldCheck, Mail, Lock, User, MapPin, Home } from "lucide-react";
+import { UserPlus, CheckCircle2, ArrowLeft, Loader2, ShieldCheck, Mail, Lock, User, MapPin, Home, Phone } from "lucide-react";
 
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 
@@ -10,6 +10,8 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Opcional: sin él, quien aprueba la solicitud no tenía cómo contactar a la persona.
+  const [phone, setPhone] = useState("");
   // Municipio donde va a trabajar: con él se arma la marca que verá y el mapa con el que entra.
   const [municipality, setMunicipality] = useState("");
   // Su domicilio (decisión del dueño, 2026-09-26). El municipio donde vive arranca en el de trabajo, que
@@ -30,7 +32,7 @@ export default function RegisterPage() {
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ displayName, email, password, municipality, homeAddress, homeColony, homeMunicipality: homeMunicipality || municipality })
+        body: JSON.stringify({ displayName, email, password, phone, municipality, homeAddress, homeColony, homeMunicipality: homeMunicipality || municipality })
       });
       const data = (await response.json()) as { message?: string; pending?: boolean; ok?: boolean };
       if (!response.ok) {
@@ -143,6 +145,23 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="correo@ejemplo.com"
+              className="modern-input"
+            />
+          </div>
+
+          <div className="modern-input-wrapper">
+            <label htmlFor="phone">Teléfono (opcional)</label>
+            <Phone size={18} className="modern-input-icon" />
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              maxLength={20}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="33 1122 3344"
               className="modern-input"
             />
           </div>

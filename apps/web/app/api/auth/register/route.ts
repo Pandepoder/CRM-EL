@@ -11,11 +11,14 @@ import { buscarMunicipio } from "@/lib/municipios-jalisco";
 import { registrar, registrarError } from "@/lib/registro";
 import { esViolacionUnica } from "@/lib/idempotencia";
 import { validarDomicilioDePersona } from "@/lib/domicilio-persona";
+import { validarTelefonoOpcional } from "@/lib/telefono-persona";
 
 export async function POST(request: Request) {
   try {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
-    const rl = checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000); // 5 intentos por hora
+    // 30 por hora y red. Eran 5: detrás de una IP compartida (la WiFi de un evento, o la de la compañía
+    // celular) la sexta persona de la hora no podía pedir acceso. El mismo tope que el QR de brigada.
+    const rl = checkRateLimit(`register:${ip}`, 30, 60 * 60 * 1000);
     if (!rl.allowed) return rateLimitResponse(rl);
 
     const body = (await request.json()) as { 
@@ -53,6 +56,10 @@ export async function POST(request: Request) {
     // Su domicilio (0025, decisión del dueño 2026-09-26), con la misma validación que el QR de brigada.
     const domicilio = validarDomicilioDePersona(body);
     if (!domicilio.ok) return NextResponse.json({ code: "validation_error", message: domicilio.error, campo: domicilio.campo }, { status: 400 });
+
+    // Opcional (decisión del dueño, 2026-09-30): sin él la solicitud llegaba sin forma de contactar a la persona.
+    const telefono = validarTelefonoOpcional(body.phone);
+    if (!telefono.ok) return NextResponse.json({ code: "validation_error", message: telefono.error, campo: "phone" }, { status: 400 });
 
     if (password.length < 6) {
       return NextResponse.json(
@@ -115,6 +122,7 @@ export async function POST(request: Request) {
       id: userId,
       email,
       displayName,
+      phone: telefono.telefono,
       passwordHash,
       roleId,
       personalSlug,

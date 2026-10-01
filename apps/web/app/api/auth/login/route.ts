@@ -11,12 +11,21 @@ import { registrarError } from "@/lib/registro";
 export async function POST(request: Request) {
   try {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
-    const rl = checkRateLimit(`login:${ip}`, 10, 15 * 60 * 1000); // 10 intentos por 15 minutos
-    if (!rl.allowed) return rateLimitResponse(rl);
 
     const body = (await request.json()) as { email?: string; password?: string };
     const email = body.email?.trim() ?? "";
     const password = body.password ?? "";
+
+    // Dos límites. Antes era uno solo, de 10 intentos por IP, y contaba también las entradas
+    // correctas: detrás de la misma IP —la WiFi de un evento, o la de la compañía celular, que
+    // comparte una IP pública entre muchos teléfonos— la persona 11 que entraba en 15 minutos
+    // recibía «demasiados intentos». El mismo problema que el alta pública ya resolvió (R25).
+    // Ahora los 10 intentos son por cuenta y por IP, que es lo que frena adivinar una contraseña,
+    // y la IP sola tiene un tope amplio que frena probar muchas cuentas desde un mismo lugar.
+    const rlIp = checkRateLimit(`login:${ip}`, 300, 15 * 60 * 1000);
+    if (!rlIp.allowed) return rateLimitResponse(rlIp);
+    const rlCuenta = checkRateLimit(`login:${ip}:${email.toLowerCase()}`, 10, 15 * 60 * 1000);
+    if (!rlCuenta.allowed) return rateLimitResponse(rlCuenta);
 
     if (!email || !password) {
       return NextResponse.json(

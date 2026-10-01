@@ -109,9 +109,13 @@ export async function seedDatabase(connectionString: string): Promise<SeedResult
         `
           INSERT INTO electoral_sections (section_num, municipality, geom_json)
           VALUES ($1, $2, $3)
-          ON CONFLICT (section_num) DO UPDATE 
-          SET municipality = EXCLUDED.municipality,
-              geom_json = EXCLUDED.geom_json
+          ON CONFLICT (section_num) DO UPDATE
+          -- El municipio y la geometría de estas semillas son aproximados. Si la sección ya los
+          -- tiene (los oficiales que pone «pnpm db:load-jalisco», por clave del INE), se conservan:
+          -- antes cada «pnpm db:seed» los sustituía, y las incidencias caían en secciones y
+          -- municipios equivocados.
+          SET municipality = COALESCE(electoral_sections.municipality, EXCLUDED.municipality),
+              geom_json = COALESCE(electoral_sections.geom_json, EXCLUDED.geom_json)
           RETURNING id
         `,
         [section.sectionNum, section.municipality, JSON.stringify(section.geom)]

@@ -6,6 +6,7 @@ import { eq, desc, and, inArray } from "drizzle-orm";
 import ResumenClient from "./ResumenClient";
 import { requirePageAccess } from "@/lib/authorization";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { asegurarEnlacePersonal } from "@/lib/personal-slug";
 
 export default async function ResumenPage() {
   await requirePageAccess("/resumen");
@@ -157,7 +158,7 @@ export default async function ResumenPage() {
         id: currentUser.id,
         displayName: currentUser.displayName,
         accessType: currentUser.accessType || "conexion",
-        personalSlug: currentUser.personalSlug || null
+        personalSlug: await asegurarEnlacePersonal(currentUser.id, currentUser.displayName, currentUser.personalSlug)
       }}
       kpis={kpis}
       recentContacts={recentContacts}

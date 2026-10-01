@@ -5,6 +5,7 @@ import { AppShell } from "@tonala/ui";
 
 import { EnviosPendientes } from "@/components/EnviosPendientes";
 import { MunicipioUsuarioProvider } from "@/lib/municipio-contexto";
+import { useRecordatorios } from "@/lib/recordatorios-cliente";
 import { UsuarioActualProvider } from "@/lib/usuario-contexto";
 
 export type ShellWrapperProps = Readonly<{
@@ -32,6 +33,9 @@ export type ShellWrapperProps = Readonly<{
 
 export function ShellWrapper({ children, userId, userDisplayName, userPhotoUrl, userRoleLabel, userRoleKey, esMaestro = false, puedeCoordinar, municipality, appName }: ShellWrapperProps) {
   const pathname = usePathname();
+  // Lo vencido y lo que toca en las próximas horas: el número junto a «Agenda Operativa».
+  const recordatorios = useRecordatorios();
+  const pendientesDeAgenda = recordatorios ? recordatorios.totalVencidas + recordatorios.totalProximas : 0;
   
   let activeNavKey = "resumen";
   if (pathname === "/crm/nuevo") {
@@ -71,6 +75,7 @@ export function ShellWrapper({ children, userId, userDisplayName, userPhotoUrl, 
       puedeCoordinar={puedeCoordinar}
       municipality={municipality}
       {...(appName ? { appName } : {})}
+      insignias={{ equipo: pendientesDeAgenda }}
     >
       {/* El municipio queda disponible para las pantallas de cliente —el mapa, los
           formularios— que hoy no tenían forma de saber dónde trabaja quien las abre. */}

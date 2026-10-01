@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus, X, Loader2, KeyRound, Mail, User, ShieldCheck, MapPin } from "lucide-react";
+import { UserPlus, X, Loader2, KeyRound, Mail, Phone, User, ShieldCheck, MapPin } from "lucide-react";
 import { createUserAction } from "./actions";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
@@ -109,6 +109,23 @@ export function CreateUserModal({ roles, municipioFijo = null }: { roles: RoleOp
                     name="email"
                     required
                     placeholder="correo@ejemplo.com"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                  Teléfono (opcional)
+                </label>
+                <div className="relative">
+                  <Phone size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="tel"
+                    name="phone"
+                    inputMode="tel"
+                    maxLength={20}
+                    placeholder="33 1122 3344"
                     className="w-full pl-10 pr-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                   />
                 </div>

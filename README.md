@@ -31,7 +31,7 @@
 ### 1. Cartografía Inteligente Metropolitano (AMG) y GPS en Campo
 - **Polígonos Oficiales INE:** Cobertura de secciones electorales en Tonalá (46 secciones clave), Guadalajara, Zapopan, San Pedro Tlaquepaque, Tlajomulco, El Salto y Zapotlanejo.
 - **Geocodificación Inversa Automática:** Detección de calle, colonia, código postal y municipio en tiempo real con OpenStreetMap y algoritmos geoespaciales Turf.js.
-- **Geolocalización GPS Móvil (`Mi GPS`):** Marcador pulsante en tiempo real con zoom asistido para brigadistas operando en la calle.
+- **Geolocalización GPS Móvil (`Mi ubicación`):** Marcador pulsante en tiempo real con zoom asistido para brigadistas operando en la calle.
 - **Agrupamiento Inteligente (Clustering):** Manejo fluido de miles de marcadores territoriales con colores diferenciados por prioridad y estatus.
 
 ### 2. Centro Integral de Administración y Despacho de Incidencias
@@ -93,6 +93,15 @@ Copia la plantilla de configuración:
 cp .env.example .env
 ```
 
+Genera las dos llaves secretas. Los valores que trae `.env.example` son de ejemplo y la
+aplicación los rechaza: con la llave de cifrado de ejemplo el servidor arranca, pero no puede
+guardar ningún ciudadano ni ninguna cuenta nueva (cada alta responde 500).
+```bash
+sed -i "s|^SESSION_SECRET=.*|SESSION_SECRET=$(openssl rand -base64 32)|" .env
+sed -i "s|^DATABASE_ENCRYPTION_KEY=.*|DATABASE_ENCRYPTION_KEY=$(openssl rand -hex 16)|" .env
+```
+En macOS, `sed -i` necesita un argumento vacío: `sed -i '' "s|...|...|" .env`.
+
 Copia además el mismo archivo dentro de `apps/web/`:
 ```bash
 cp .env apps/web/.env
@@ -119,9 +128,16 @@ pnpm db:start
 # Aplicar migraciones del esquema:
 pnpm db:migrate
 
-# Sembrar usuarios de prueba y polígonos base:
+# Cargar la cartografía oficial del INE (3,787 secciones de Jalisco):
+pnpm db:load-jalisco
+
+# Sembrar usuarios de prueba y catálogos base:
 pnpm db:seed
 ```
+
+`pnpm db:load-jalisco` no es opcional. Con él, cada incidencia, actividad y ciudadano queda en
+la sección electoral que realmente contiene su punto. Sin él, la base solo tiene contornos
+aproximados de unas cuantas secciones y los registros caen en secciones equivocadas.
 
 En una base recién creada, `pnpm db:migrate` imprime el aviso `NO HAY ADMINISTRADOR
 MAESTRO`. En desarrollo es esperado: todavía no existe ningún usuario. Después de
@@ -205,14 +221,16 @@ Esto levanta la base de datos, aplica las migraciones pendientes automáticament
 worker que procesa el outbox transaccional en segundo plano (`outbox-worker`) y
 finalmente arranca `web` y `caddy`. Ya no es necesario correr `db:migrate` a mano.
 
-### 4. Limpiar la Base de Datos para Producción:
+### 4. Preparar la Base de Datos para Producción:
 ```bash
-docker compose exec web pnpm db:clean
+docker compose run --rm migrate pnpm db:bootstrap
 ```
-Este paso sigue siendo manual y a propósito: borra los datos de prueba y siembra
-los catálogos oficiales + la cuenta de Administrador Maestro. Si tu base de datos
-no está en `localhost`, te pedirá confirmar escribiendo el nombre de la base de
-datos antes de continuar.
+Este paso sigue siendo manual y a propósito. Corre en el contenedor `migrate`, que trae
+todas las herramientas de base de datos, y en una base nueva hace, en orden: las
+migraciones, los catálogos oficiales con la cuenta de Administrador Maestro (lo mismo
+que `pnpm db:clean`, con `ADMIN_EMAIL` y `ADMIN_PASSWORD` del `.env`) y la cartografía
+oficial del INE. Sobre una base que ya tiene usuarios solo migra y no borra nada. Los
+detalles están en `docs/deployment-hostinger.md`.
 
 Tu CRM estará en línea con HTTPS seguro configurado automáticamente.
 
