@@ -139,10 +139,10 @@ function LoginForm() {
 
       <div style={{ textAlign: "center", marginTop: "20px", paddingTop: "14px", borderTop: "1px solid #f1f5f9" }}>
         <p style={{ fontSize: "14px", color: "#64748b", margin: 0 }}>
-          {/* El registro abierto se cerró (decisión del dueño, 2026-09-30): se entra por el QR de una
-              brigada, que deja la solicitud a nombre de quien invita, o con una cuenta que crea
-              administración. */}
-          ¿Eres nuevo? Pide a tu líder de brigada su código QR para sumarte.
+          ¿Eres nuevo brigadista u operador?{" "}
+          <Link href="/register" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "none" }}>
+            Solicitar Acceso
+          </Link>
         </p>
       </div>
     </form>

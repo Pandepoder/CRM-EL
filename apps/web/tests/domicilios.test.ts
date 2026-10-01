@@ -37,6 +37,7 @@ const territorio = await import("../app/api/crm/contacts/[id]/territory/route");
 const asignacion = await import("../app/api/crm/contacts/[id]/assignment/route");
 const registroPublico = await import("../app/api/public/registro/route");
 const unirme = await import("../app/api/public/unirme/route");
+const autoRegistro = await import("../app/api/auth/register/route");
 const perfil = await import("../app/api/auth/profile/route");
 const { getDatabaseClient } = await import("@/lib/db-client");
 
@@ -171,6 +172,25 @@ describe("el domicilio de quien se suma a la estructura", () => {
     const otra = await leer(await unirme.POST(pedir("/api/public/unirme", "POST", { ...cuerpo, email: correo.toUpperCase() })));
     expect(otra.status).toBe(400);
     expect((await crudo(sql`SELECT count(*)::int AS n FROM user_profiles WHERE lower(email) = ${correo}`))[0]!.n).toBe(1);
+  });
+
+  it("el auto-registro también, con teléfono opcional", async () => {
+    sesion.actor = null;
+    const correo = `zz-registro-dom-${id().slice(0, 6)}@prueba.local`;
+    const cuerpo = { displayName: "zz-Solicitante", email: correo, password: "clave-segura", municipality: "Zapopan" };
+    const sin = await leer(await autoRegistro.POST(pedir("/api/auth/register", "POST", cuerpo)));
+    expect(sin.status).toBe(400);
+    expect(sin.cuerpo.campo).toBe("homeAddress");
+    const telMalo = await leer(await autoRegistro.POST(pedir("/api/auth/register", "POST", { ...cuerpo, ...completo, phone: "12" })));
+    expect(telMalo.status).toBe(400);
+    expect(telMalo.cuerpo.campo).toBe("phone");
+    const r = await leer(await autoRegistro.POST(pedir("/api/auth/register", "POST", { ...cuerpo, ...completo, phone: "33 1234 5678" })));
+    expect(r.status).toBe(200);
+    const [cuenta] = await db().select().from(schema.userProfiles).where(eq(schema.userProfiles.email, correo));
+    // Donde vive no es donde trabaja: el municipio de la cuenta sigue siendo el que eligió para trabajar.
+    expect(cuenta).toMatchObject({ homeMunicipality: "Tonalá", municipality: "Zapopan", phone: "33 1234 5678", status: "pending" });
+    const repetido = await leer(await autoRegistro.POST(pedir("/api/auth/register", "POST", { ...cuerpo, ...completo, email: correo.toUpperCase() })));
+    expect(repetido.status).toBe(400);
   });
 
   it("cada quien lo corrige en su perfil, completo", async () => {

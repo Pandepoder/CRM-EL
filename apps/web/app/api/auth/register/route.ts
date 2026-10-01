@@ -1,0 +1,154 @@
+import { NextResponse } from "next/server";
+import { hashPassword } from "@/lib/auth";
+import { generateUniquePersonalSlug } from "@/lib/personal-slug";
+import { getDatabaseClient } from "@/lib/db-client";
+import { schema } from "@tonala/shared/database";
+import { eq } from "drizzle-orm";
+import { randomUUID } from "crypto";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { safeErrorMessage } from "@/lib/safe-error";
+import { buscarMunicipio } from "@/lib/municipios-jalisco";
+import { registrar, registrarError } from "@/lib/registro";
+import { esViolacionUnica } from "@/lib/idempotencia";
+import { validarDomicilioDePersona } from "@/lib/domicilio-persona";
+import { validarTelefonoOpcional } from "@/lib/telefono-persona";
+
+export async function POST(request: Request) {
+  try {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+    // 30 por hora y red. Eran 5: detrás de una IP compartida (la WiFi de un evento, o la de la compañía
+    // celular) la sexta persona de la hora no podía pedir acceso. El mismo tope que el QR de brigada.
+    const rl = checkRateLimit(`register:${ip}`, 30, 60 * 60 * 1000);
+    if (!rl.allowed) return rateLimitResponse(rl);
+
+    const body = (await request.json()) as { 
+      displayName?: string; 
+      email?: string; 
+      password?: string;
+      phone?: string;
+      municipality?: string;
+      homeAddress?: string;
+      homeColony?: string;
+      homeMunicipality?: string;
+    };
+    const displayName = body.displayName?.trim() ?? "";
+    const email = body.email?.trim().toLowerCase() ?? "";
+    const password = body.password ?? "";
+    // Municipio donde va a trabajar. Sin él la persona nacía sin territorio: al aprobarla veía
+    // la aplicación sin municipio y el mapa en todo Jalisco. Solo se acepta uno de los 125.
+    const municipality = buscarMunicipio(body.municipality)?.name ?? null;
+
+    if (!displayName || !email || !password) {
+      return NextResponse.json(
+        { code: "validation_error", message: "Todos los campos obligatorios deben completarse." },
+        { status: 400 }
+      );
+    }
+
+    // Un correo mal escrito («juan», «juan@») quedaba como cuenta y nadie podía entrar con él.
+    if (email.length > 160 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ code: "validation_error", message: "Revisa el correo: no es válido." }, { status: 400 });
+    }
+    if (displayName.length > 120) {
+      return NextResponse.json({ code: "validation_error", message: "El nombre puede tener hasta 120 caracteres." }, { status: 400 });
+    }
+
+    // Su domicilio (0025, decisión del dueño 2026-09-26), con la misma validación que el QR de brigada.
+    const domicilio = validarDomicilioDePersona(body);
+    if (!domicilio.ok) return NextResponse.json({ code: "validation_error", message: domicilio.error, campo: domicilio.campo }, { status: 400 });
+
+    // Opcional (decisión del dueño, 2026-09-30): sin él la solicitud llegaba sin forma de contactar a la persona.
+    const telefono = validarTelefonoOpcional(body.phone);
+    if (!telefono.ok) return NextResponse.json({ code: "validation_error", message: telefono.error, campo: "phone" }, { status: 400 });
+
+    if (password.length < 6) {
+      return NextResponse.json(
+        { code: "validation_error", message: "La contraseña debe tener al menos 6 caracteres." },
+        { status: 400 }
+      );
+    }
+
+    const db = getDatabaseClient();
+
+    // Check if email already exists
+    const existing = await db
+      .select({ id: schema.userProfiles.id, status: schema.userProfiles.status })
+      .from(schema.userProfiles)
+      .where(eq(schema.userProfiles.email, email))
+      .limit(1);
+
+    if (existing.length > 0) {
+      if (existing[0]?.status === "pending") {
+        return NextResponse.json(
+          { code: "email_pending", message: "Ya existe una solicitud pendiente con este correo. Espera la autorización del Administrador." },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { code: "email_taken", message: "Este correo ya está registrado en el sistema." },
+        { status: 400 }
+      );
+    }
+
+    // Default role for new registration requests: 'visit_responsible' (Brigadista/Organizador)
+    const roles = await db
+      .select()
+      .from(schema.roles)
+      .where(eq(schema.roles.key, "visit_responsible"))
+      .limit(1);
+
+    // Sin el rol de brigadista el alta no sigue adelante.
+    //
+    // Antes se echaba mano de `SELECT ... FROM roles LIMIT 1`, es decir, un rol
+    // cualquiera del catálogo, que podría ser el de administrador: un fallo de
+    // configuración se convertía en una escalada de privilegios abierta al
+    // formulario público. Vale más rechazar el alta y que se arregle el catálogo.
+    const rolBrigadista = roles[0];
+    if (!rolBrigadista) {
+      registrar("error", "Catálogo de roles sin 'visit_responsible': registro rechazado.");
+      return NextResponse.json(
+        { code: "internal_error", message: "Error interno: Catálogo de roles no inicializado." },
+        { status: 500 }
+      );
+    }
+    const roleId = rolBrigadista.id;
+
+    const passwordHash = await hashPassword(password);
+    const userId = randomUUID();
+    const personalSlug = await generateUniquePersonalSlug(displayName);
+
+    // Insert user with status 'pending'
+    await db.insert(schema.userProfiles).values({
+      id: userId,
+      email,
+      displayName,
+      phone: telefono.telefono,
+      passwordHash,
+      roleId,
+      personalSlug,
+      ...(municipality ? { municipality } : {}),
+      ...domicilio.domicilio,
+      status: "pending",
+      version: 1
+    });
+
+    return NextResponse.json({
+      ok: true,
+      pending: true,
+      message: "¡Solicitud enviada con éxito! Tu cuenta está registrada y el Administrador revisará tu solicitud para activar tus privilegios."
+    });
+  } catch (error: unknown) {
+    // Dos toques a «Enviar» a la vez: los dos pasan la búsqueda del correo y el segundo choca con el
+    // índice único. Antes era un 500; ya hay una solicitud con ese correo.
+    if (esViolacionUnica(error, "user_profiles_email_unique") || esViolacionUnica(error, "user_profiles_email_lower_unique")) {
+      return NextResponse.json(
+        { code: "email_pending", message: "Ya existe una solicitud pendiente con este correo. Espera la autorización del Administrador." },
+        { status: 400 }
+      );
+    }
+    registrarError("Register route error", error);
+    const message = safeErrorMessage(error, "Error al procesar el registro.");
+    return NextResponse.json({ code: "registration_failed", message }, { status: 500 });
+  }
+}
+
