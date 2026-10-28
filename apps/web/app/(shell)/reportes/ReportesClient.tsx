@@ -3,16 +3,16 @@
 import { OPCIONES_CATEGORIA } from "@/lib/categorias-incidencia";
 
 import { useState } from "react";
-// @ts-ignore
-import { AlertTriangle, CheckCircle, ChevronRight, FileText, X, Landmark, Check, Loader2, Sparkles, Building2, Hash, UserCheck, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle, ChevronRight, FileText, Sparkles, Building2, UserCheck, Users } from "lucide-react";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
+import { SeccionBuscable } from "@/components/SeccionBuscable";
+import type { OpcionSelector } from "@/lib/bitacora-tipos";
 import type { LocationValue } from "@/components/LocationPicker";
 import { LocationPicker } from "@/components/LocationPicker";
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 import { useMunicipioUsuario } from "@/lib/municipio-contexto";
 import { enviarOEncolar, nuevaClave, TEXTO_DE_ESPERA } from "@/lib/cola-de-envios";
-
-export default function ReportesClient({ sections, users, teams = [], usuarioActualId }: { sections: any[], users: any[], teams?: any[], usuarioActualId: string }) {
+export default function ReportesClient({ users, teams = [], usuarioActualId }: { users: any[], teams?: any[], usuarioActualId: string }) {
   // El selector de punto abre en el municipio de quien reporta, no en todo Jalisco.
   const municipioUsuario = useMunicipioUsuario();
   const [error, setError] = useState("");
@@ -23,10 +23,8 @@ export default function ReportesClient({ sections, users, teams = [], usuarioAct
   // Clave del alta (R16): el doble toque o el reenvío desde la cola no levantan otra incidencia.
   const [clave, setClave] = useState(() => nuevaClave());
   const [saving, setSaving] = useState(false);
-  const [sectionsList, setSectionsList] = useState<any[]>(sections || []);
-  const [showNewSectionModal, setShowNewSectionModal] = useState(false);
-  const [newSectionForm, setNewSectionForm] = useState({ sectionNum: "", municipality: "", colony: "" });
-  const [creatingSection, setCreatingSection] = useState(false);
+  // La sección elegida a mano, o la que dio el punto. Si queda vacía, el servidor la saca del punto.
+  const [seccion, setSeccion] = useState<OpcionSelector | null>(null);
 
   const [form, setForm] = useState({
     title: "",
@@ -50,14 +48,12 @@ export default function ReportesClient({ sections, users, teams = [], usuarioAct
   });
 
   const handleLocationChange = (loc: LocationValue) => {
+    // La sección es la del punto: la del punto anterior no vale (antes se quedaba si el nuevo caía fuera
+    // de la cartografía, y la incidencia se guardaba con una sección de otro lugar). Sin ella, el servidor
+    // ubica el punto en su sección.
+    const matchedSectionId = loc.sectionId || "";
+    setSeccion(matchedSectionId ? { id: matchedSectionId, nombre: loc.sectionNum ? `Sección ${loc.sectionNum}` : "Sección del punto" } : null);
     setForm(prev => {
-      // La sección es la del punto: la del punto anterior no vale (antes se quedaba si el nuevo caía fuera
-      // de la cartografía, y la incidencia se guardaba con una sección de otro lugar).
-      let matchedSectionId = loc.sectionId || "";
-      if (!matchedSectionId && loc.sectionNum) {
-        const found = sectionsList.find(s => String(s.sectionNum) === String(loc.sectionNum));
-        if (found) matchedSectionId = found.id;
-      }
       return {
         ...prev,
         latitude: loc.latitude ?? prev.latitude,
@@ -67,45 +63,6 @@ export default function ReportesClient({ sections, users, teams = [], usuarioAct
         sectionId: matchedSectionId
       };
     });
-  };
-
-  const handleCreateNewSection = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const num = parseInt(newSectionForm.sectionNum, 10);
-    if (isNaN(num) || num <= 0) {
-      alert("Ingresa un número de sección válido.");
-      return;
-    }
-
-    setCreatingSection(true);
-    try {
-      const res = await fetch("/api/electoral/sections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sectionNum: num,
-          municipality: newSectionForm.municipality,
-          colony: newSectionForm.colony || undefined
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const created = data.section || data;
-        setSectionsList(prev => [created, ...prev]);
-        setForm(prev => ({ ...prev, sectionId: created.id }));
-        setShowNewSectionModal(false);
-        setNewSectionForm({ sectionNum: "", municipality: "", colony: "" });
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.error || "Error al crear la sección.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Error de conexión al crear sección.");
-    } finally {
-      setCreatingSection(false);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -151,6 +108,7 @@ export default function ReportesClient({ sections, users, teams = [], usuarioAct
         if (r.estado === "enviado") setSuccess(true);
         else setEnEspera(TEXTO_DE_ESPERA[r.motivo]);
         setClave(nuevaClave());
+        setSeccion(null);
         setLocationKey(key => key + 1);
         setForm({
           title: "",
@@ -184,13 +142,6 @@ export default function ReportesClient({ sections, users, teams = [], usuarioAct
   const categoryOptions = OPCIONES_CATEGORIA.map((o) => ({ value: o.value, label: o.label, badge: "" }));
 
   const municipalityOptions = MUNICIPIOS_JALISCO.map((m) => ({ value: m.name, label: m.name, badge: `${m.count} secc.` }));
-
-  const sectionOptions = sectionsList.map((s) => ({
-    value: s.id,
-    label: `Sección #${s.sectionNum}`,
-    sublabel: s.municipality || "Sin municipio",
-    badge: `Sección ${s.sectionNum}`
-  }));
 
   const userOptions = users.map((u) => ({
     value: u.id,
@@ -324,24 +275,14 @@ export default function ReportesClient({ sections, users, teams = [], usuarioAct
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="block text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1">
-                    <Hash size={13} className="text-red-500" /> Sección Electoral
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowNewSectionModal(true)}
-                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800"
-                  >
-                    + Registrar Nueva
-                  </button>
-                </div>
-                <PredictiveCombobox
-                  placeholder="Escribe para buscar sección (ej. 2704)..."
-                  allowCustom={false}
-                  value={form.sectionId}
-                  onChange={(val) => setForm({ ...form, sectionId: val })}
-                  options={sectionOptions}
+                <SeccionBuscable
+                  municipio={form.municipality || municipioUsuario || null}
+                  valor={seccion}
+                  onCambiar={(s) => {
+                    setSeccion(s);
+                    setForm({ ...form, sectionId: s?.id ?? "" });
+                  }}
+                  ayuda="Si la dejas vacía, se toma la del punto en el mapa."
                 />
               </div>
 
@@ -360,9 +301,9 @@ export default function ReportesClient({ sections, users, teams = [], usuarioAct
 
               <div className="md:col-span-2">
                 <PredictiveCombobox
-                  label="Delegar Operador Responsable"
+                  label="¿Quién la atiende?"
                   allowCustom={false}
-                  placeholder="Buscar operador o brigadista..."
+                  placeholder="Busca por nombre…"
                   value={form.assignedToUserId}
                   onChange={(val) => setForm({ ...form, assignedToUserId: val })}
                   options={userOptions}
@@ -386,91 +327,6 @@ export default function ReportesClient({ sections, users, teams = [], usuarioAct
         </form>
       </div>
 
-      {/* Modal: Registrar Nueva Sección Electoral */}
-      {showNewSectionModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowNewSectionModal(false)}>
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
-              <h2 className="text-lg font-bold text-blue-950 flex items-center gap-2">
-                <Landmark size={20} className="text-indigo-600" /> Registrar Sección Electoral
-              </h2>
-              <button
-                type="button"
-                onClick={() => setShowNewSectionModal(false)}
-                className="text-gray-500 hover:text-gray-800 w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/60 transition-colors cursor-pointer"
-                title="Cerrar ventana"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateNewSection} className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Número de Sección Electoral *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  max="9999"
-                  placeholder="Ej. 2800"
-                  value={newSectionForm.sectionNum}
-                  onChange={e => setNewSectionForm({...newSectionForm, sectionNum: e.target.value})}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Municipio *
-                </label>
-                <select
-                  value={newSectionForm.municipality}
-                  onChange={e => setNewSectionForm({...newSectionForm, municipality: e.target.value})}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
-                >
-                  <option value="" disabled>Selecciona un municipio…</option>
-                          {MUNICIPIOS_JALISCO.map((m) => (
-                            <option key={m.name} value={m.name}>{m.name}</option>
-                          ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Colonia Principal (Opcional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej. Loma Dorada"
-                  value={newSectionForm.colony}
-                  onChange={e => setNewSectionForm({...newSectionForm, colony: e.target.value})}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowNewSectionModal(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={creatingSection}
-                  className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md"
-                >
-                  {creatingSection ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                  <span>Guardar Sección</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

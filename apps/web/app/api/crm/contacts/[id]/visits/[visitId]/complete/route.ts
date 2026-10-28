@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { DevelopmentLogger } from "@tonala/shared/observability";
 import { completeVisit } from "@tonala/modules/visits/application";
 
+import { and, eq } from "drizzle-orm";
+import { schema } from "@tonala/shared/database";
+
 import { esUuid } from "@/lib/ids";
 
 import { createVisitsMutationsDependencies } from "@/lib/crm-deps";
@@ -24,8 +27,32 @@ export async function POST(
   if (vetado) return vetado;
   if (!esUuid(visitId)) return NextResponse.json({ error: "La visita no existe." }, { status: 404 });
 
-  const body = (await request.json()) as { structuredOutcome: string; summary?: string };
+  let body: { structuredOutcome: string; summary?: string };
+  try {
+    body = (await request.json()) as { structuredOutcome: string; summary?: string };
+  } catch {
+    return NextResponse.json({ error: "Datos no válidos." }, { status: 400 });
+  }
   const db = getDatabaseClient();
+
+  // El mismo cierre que llega otra vez —la cola del teléfono lo reenvía porque la señal se cortó después de
+  // que el servidor lo guardara— responde lo ya hecho en vez de «la visita ya está completada». Solo si lo
+  // cerró la misma persona con el mismo resultado y el mismo resumen; cualquier otro cierre sigue siendo
+  // un conflicto (lo decide el caso de uso).
+  const [previo] = await db
+    .select({ status: schema.visits.status, completedBy: schema.visits.completedByUserId, outcome: schema.visitResults.structuredOutcome, summary: schema.visitResults.summary })
+    .from(schema.visits)
+    .leftJoin(schema.visitResults, eq(schema.visitResults.visitId, schema.visits.id))
+    .where(and(eq(schema.visits.id, visitId), eq(schema.visits.contactId, id)))
+    .limit(1);
+  if (
+    previo?.status === "completed" &&
+    previo.completedBy === actor.actorId &&
+    previo.outcome === body.structuredOutcome &&
+    (previo.summary ?? "").trim() === (body.summary ?? "").trim()
+  ) {
+    return NextResponse.json({ visitId, status: "completed", repetido: true });
+  }
   const deps = await createVisitsMutationsDependencies(db);
 
   // El contacto de la dirección se comprueba arriba, pero la visita se tomaba del

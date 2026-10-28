@@ -96,11 +96,17 @@ describe("globoIncidencia", () => {
     expect(html).not.toContain("no-es-un-uuid");
   });
 
-  it("una actividad de la bitácora lleva a la Agenda, no se cierra ni se borra aquí", () => {
+  it("una actividad de la bitácora lleva a su ficha en la Agenda, no se cierra ni se borra aquí", () => {
     const html = globoIncidencia(incidencia({ esActividad: true, puedeActualizar: true, puedeBorrar: true }), 0, 1);
-    expect(html).toContain(`href="/equipo"`);
+    expect(html).toContain(`href="/equipo?actividad=${UUID}"`);
     expect(html).not.toContain("__toggleReportStatus");
     expect(html).not.toContain("__deleteReport");
+  });
+
+  it("una actividad sin identificador válido lleva a la Agenda a secas", () => {
+    const html = globoIncidencia(incidencia({ id: "no-es-un-uuid", esActividad: true }), 0, 1);
+    expect(html).toContain(`href="/equipo"`);
+    expect(html).not.toContain("no-es-un-uuid");
   });
 });
 

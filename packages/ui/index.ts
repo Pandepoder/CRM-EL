@@ -1,4 +1,4 @@
-export { AppShell, type AppShellProps } from "./AppShell.js";
+export { AppShell, type AppShellProps, type ComponenteEnlace } from "./AppShell.js";
 export { QuickCreateFab } from "./QuickCreateFab.js";
 export {
   ACCESO_A_PANTALLAS,

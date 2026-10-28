@@ -1,68 +1,61 @@
-import { getDatabaseClient } from "@/lib/db-client";
-import { getServerSession } from "@/lib/session-server";
-import { requirePageAccess } from "@/lib/authorization";
+import { eq } from "drizzle-orm";
+
 import { schema } from "@tonala/shared/database";
-import { eq, desc, sql } from "drizzle-orm";
-import { condicionParaTrabajarPorAutor, condicionPorAutor } from "@/lib/alcance-municipal";
+
+import { requirePageAccess } from "@/lib/authorization";
+import { veCiudadano } from "@/lib/contact-visibility";
+import { getDatabaseClient } from "@/lib/db-client";
+import { leerFiltrosDePeticiones } from "@/lib/escucha-social";
+import { listarPeticiones, obtenerPeticion } from "@/lib/escucha-social-servicio";
+import { esUuid } from "@/lib/ids";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { getServerSession } from "@/lib/session-server";
+
 import EscuchaSocialClient from "./EscuchaSocialClient";
 
-export default async function EscuchaSocialPage() {
-  // La guarda común, como el resto del panel (M9): antes esta pantalla solo miraba la cookie y
-  // redirigía a mano, sin comprobar que la cuenta siguiera activa ni su rol.
+export const dynamic = "force-dynamic";
+
+/**
+ * Escucha Social (plan de auditoría de menús, fase 3): lo que pide o propone un vecino, ligado a él.
+ *
+ * - `?nueva=1` abre el formulario (el «+»); con `&contacto=<id>` llega con el vecino elegido (la ficha).
+ * - `?peticion=<id>` abre esa petición (el globo del mapa, la ficha).
+ * - Quien coordina abre en «Pendientes» (lo que hay que atender); el resto, en «Las que anoté» (F3.6).
+ */
+export default async function EscuchaSocialPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  // La guarda común, como el resto del panel (M9).
   await requirePageAccess("/escucha-social");
   const session = await getServerSession();
+  const alcance = await resolveUserNetworkScope(session.userId);
+  const sp = await searchParams;
+  const uno = (k: string) => (Array.isArray(sp[k]) ? sp[k][0] : sp[k]);
 
-  const db = getDatabaseClient();
-  const networkScope = await resolveUserNetworkScope(session.userId);
-  // Aprueba gestiones formales administración (el maestro o la municipal, sobre lo que ve); dirección
-  // y accessType no conceden eso.
-  const isCoordinacion = networkScope.isAdmin;
-  // Ver no es trabajar (A20): lo que se ve pero no se atiende sale como «solo consulta».
-  const trabajable = condicionParaTrabajarPorAutor(networkScope, schema.socialListening.municipalityId, schema.socialListening.createdByUserId);
+  const coordina = alcance.isAdmin || alcance.isLeader;
+  const hayFiltrosEnLaDireccion = ["vista", "estado", "mias", "page", "pagina"].some((k) => uno(k) !== undefined);
+  const porOmision = hayFiltrosEnLaDireccion ? {} : coordina ? { estado: "pendiente" as const } : { mias: true };
+  const filtros = { ...leerFiltrosDePeticiones(sp), q: "", ...porOmision };
 
-  let query = db
-    .select({
-      id: schema.socialListening.id,
-      contactId: schema.socialListening.contactId,
-      categories: schema.socialListening.categories,
-      title: schema.socialListening.title,
-      description: schema.socialListening.description,
-      photoUrls: schema.socialListening.photoUrls,
-      latitude: schema.socialListening.latitude,
-      longitude: schema.socialListening.longitude,
-      locationText: schema.socialListening.locationText,
-      status: schema.socialListening.status,
-      isFormalGestion: schema.socialListening.isFormalGestion,
-      approvedByUserId: schema.socialListening.approvedByUserId,
-      resolutionNotes: schema.socialListening.resolutionNotes,
-      createdByUserId: schema.socialListening.createdByUserId,
-      createdByName: schema.userProfiles.displayName,
-      createdAt: schema.socialListening.createdAt,
-      puedeTrabajar: trabajable ? sql<boolean>`coalesce(${trabajable}, false)` : sql<boolean>`true`
-    })
-    .from(schema.socialListening)
-    .leftJoin(schema.userProfiles, eq(schema.socialListening.createdByUserId, schema.userProfiles.id))
-    .$dynamic();
-
-  // Sin alcance no se ve nada: la guarda vieja exigía una lista no vacía y, vacía, mostraba todo.
-  const visibles = condicionPorAutor(networkScope, schema.socialListening.municipalityId, schema.socialListening.createdByUserId);
-  if (visibles) query = query.where(visibles);
-
-  const items = await query.orderBy(desc(schema.socialListening.createdAt));
-
-  const serialized = items.map(item => ({
-    ...item,
-    categories: Array.isArray(item.categories) ? item.categories as string[] : [String(item.categories)],
-    photoUrls: Array.isArray(item.photoUrls) ? item.photoUrls as string[] : [],
-    createdAt: item.createdAt ? item.createdAt.toISOString() : new Date().toISOString()
-  }));
+  // El vecino que llega elegido desde su ficha: solo si quien entra lo puede ver.
+  const contactoId = uno("contacto");
+  let vecino: { id: string; nombre: string } | null = null;
+  if (contactoId && esUuid(contactoId) && (await veCiudadano(alcance, contactoId))) {
+    const [c] = await getDatabaseClient().select({ nombre: schema.contacts.displayName }).from(schema.contacts).where(eq(schema.contacts.id, contactoId)).limit(1);
+    if (c) vecino = { id: contactoId, nombre: c.nombre };
+  }
+  const peticionId = uno("peticion");
+  const peticion = peticionId ? await obtenerPeticion(alcance, peticionId) : null;
 
   return (
     <EscuchaSocialClient
-      initialItems={serialized}
-      isCoordinacion={isCoordinacion}
-      currentUserId={session.userId}
+      inicial={await listarPeticiones(alcance, filtros)}
+      filtrosIniciales={filtros}
+      abrirNueva={uno("nueva") === "1"}
+      vecinoInicial={vecino}
+      peticionInicial={peticion}
+      peticionNoEncontrada={Boolean(peticionId) && !peticion}
+      esAdministracion={alcance.isAdmin}
+      coordina={coordina}
+      usuarioId={session.userId}
     />
   );
 }

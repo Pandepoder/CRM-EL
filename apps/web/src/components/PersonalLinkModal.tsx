@@ -43,7 +43,7 @@ export function PersonalLinkModal({
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 sm:p-6 flex justify-between items-center relative overflow-hidden shrink-0">
           <div>
-            <span className="text-[10px] font-black uppercase tracking-wider bg-white/10 px-2.5 py-0.5 rounded-full text-blue-200 border border-white/15">
+            <span className="text-[11px] font-black uppercase tracking-wider bg-white/10 px-2.5 py-0.5 rounded-full text-blue-200 border border-white/15">
               Enlace Personal & QR
             </span>
             <h3 className="text-lg sm:text-xl font-black mt-1 text-white">Tu Enlace para Registrar Ciudadanos</h3>
@@ -52,7 +52,7 @@ export function PersonalLinkModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-11 h-11 shrink-0 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
             title="Cerrar ventana"
           >
             <X size={18} />
@@ -64,12 +64,12 @@ export function PersonalLinkModal({
           {/* QR Code */}
           <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 inline-block shadow-inner">
             <QrImagen valor={fullUrl} tamano={192} alt={`Código QR de ${userName}`} color="#0f172a" className="w-48 h-48 mx-auto rounded-xl shadow-sm" />
-            <p className="text-[10px] text-gray-500 font-bold mt-2">Escanea con tu celular o WhatsApp</p>
+            <p className="text-[11px] text-gray-500 font-bold mt-2">Escanea con tu celular o WhatsApp</p>
           </div>
 
           {/* URL Input with Copy */}
           <div className="space-y-1.5 text-left">
-            <label className="text-[10px] font-black uppercase tracking-wider text-gray-500">
+            <label className="text-[11px] font-black uppercase tracking-wider text-gray-500">
               URL Personal para Compartir
             </label>
             <div className="flex items-center gap-2">
@@ -117,7 +117,7 @@ export function PersonalLinkModal({
             <span>Registrar en un evento desde este teléfono</span>
           </a>
 
-          <p className="text-[10px] text-gray-400 font-medium flex items-start gap-1">
+          <p className="text-[11px] text-gray-400 font-medium flex items-start gap-1">
             <Lightbulb size={12} className="shrink-0 mt-0.5" /> Cuando alguien se registre con este enlace o código QR, quedará en tu red como contacto. Para sumar brigadistas, usa el QR de tu brigada en Equipos.
           </p>
         </div>

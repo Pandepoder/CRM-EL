@@ -94,7 +94,7 @@ export async function GET(req: Request) {
               centerLng = sLng / coords.length;
               centerLat = sLat / coords.length;
             }
-          } catch (_parseErr) {
+          } catch {
             // Geometry parse fallback
           }
         }
@@ -232,7 +232,7 @@ export async function GET(req: Request) {
         sectionId: matchedSecId
       });
     }
-  } catch (_e) {
+  } catch {
     // OpenStreetMap timed out or network error
   }
 

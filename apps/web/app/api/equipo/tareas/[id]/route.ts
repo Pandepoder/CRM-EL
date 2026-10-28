@@ -21,6 +21,7 @@ import { getDatabaseClient } from "@/lib/db-client";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import {
   MOTIVO_BORRAR,
+  MOTIVO_BORRAR_AVISO,
   cargarContextoIncidencia,
   puedeSobreIncidencia
 } from "@/lib/permisos-incidencias";
@@ -165,9 +166,13 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!UUID.test(id)) return NO_ENCONTRADA();
   try {
     const actorId = actor.actorId;
-    const { incidencia, esAdmin, equipos, personas } = await cargarContextoIncidencia(id, actorId);
+    const { incidencia, esAdmin, equipos, personas, coordina } = await cargarContextoIncidencia(id, actorId);
     if (!incidencia) {
       return NextResponse.json({ error: "Incidencia no encontrada" }, { status: 404 });
+    }
+    // Un aviso de campo (D9) no se borra: se retira. Solo incidencias; las actividades siguen su regla.
+    if (!coordina && !incidencia.activityTypeId) {
+      return NextResponse.json({ error: MOTIVO_BORRAR_AVISO }, { status: 403 });
     }
     if (!puedeSobreIncidencia("borrar", incidencia, actorId, esAdmin, equipos, personas)) {
       return NextResponse.json({ error: MOTIVO_BORRAR }, { status: 403 });

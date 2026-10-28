@@ -111,7 +111,7 @@ export function EditarDomicilio({
             type="button"
             onClick={onCerrar}
             disabled={guardando}
-            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center cursor-pointer transition-colors"
+            className="w-11 h-11 shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center cursor-pointer transition-colors"
             title="Cerrar ventana"
           >
             <X size={16} />

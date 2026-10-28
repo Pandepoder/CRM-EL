@@ -19,11 +19,6 @@ export default async function ReportesPage() {
   // correo, y todos los equipos del sistema.
   const alcance = await resolveUserNetworkScope(session.userId);
 
-  const sections = await db.select({
-    id: schema.electoralSections.id,
-    sectionNum: schema.electoralSections.sectionNum,
-  }).from(schema.electoralSections);
-
   const users = await db.select({
     id: schema.userProfiles.id,
     displayName: schema.userProfiles.displayName,
@@ -44,5 +39,6 @@ export default async function ReportesPage() {
     .where(condicionDeEquipos(alcance))
     .orderBy(schema.teams.name);
 
-  return <ReportesClient sections={sections} users={users} teams={teams} usuarioActualId={session.userId} />;
+  // Las secciones ya no viajan todas (3,791, 341 KB): el formulario las busca por número (C6).
+  return <ReportesClient users={users} teams={teams} usuarioActualId={session.userId} />;
 }

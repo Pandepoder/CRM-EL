@@ -5,6 +5,7 @@ import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { z } from "zod";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { mensajeDeCampo } from "@/lib/mensajes-de-validacion";
 import { safeErrorMessage } from "@/lib/safe-error";
 import { registrarError } from "@/lib/registro";
 import { actorFromSession } from "@/lib/api-helpers";
@@ -111,7 +112,8 @@ export async function POST(req: NextRequest) {
       if (!rl.allowed) return rateLimitResponse(rl);
       const problema = parsed.error.issues[0];
       return NextResponse.json(
-        { error: "Datos de registro inválidos.", campo: problema?.path[0]?.toString(), details: parsed.error.issues },
+        // Por campo y en palabras de la persona (F6); antes solo «Datos de registro inválidos.».
+        { error: mensajeDeCampo(problema?.path[0]?.toString()), campo: problema?.path[0]?.toString(), details: parsed.error.issues },
         { status: 400 }
       );
     }

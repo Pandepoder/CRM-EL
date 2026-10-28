@@ -114,7 +114,7 @@ export function PanelDelMapa(p: {
       <div role="dialog" aria-label="Panel del mapa" className={`${marco} bg-white/95 backdrop-blur border border-slate-200 shadow-2xl flex flex-col overflow-hidden`}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
           <h3 className="m-0 font-black text-[13px] text-slate-900 flex items-center gap-1.5">{titulo}</h3>
-          <button type="button" onClick={p.onCerrar} className="p-1.5 rounded-lg bg-black/5 text-slate-600 cursor-pointer" aria-label="Cerrar panel" title="Cerrar panel">
+          <button type="button" onClick={p.onCerrar} className="w-11 h-11 shrink-0 grid place-items-center rounded-lg bg-black/5 text-slate-600 cursor-pointer" aria-label="Cerrar panel" title="Cerrar panel">
             <X size={17} />
           </button>
         </div>

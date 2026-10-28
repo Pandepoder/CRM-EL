@@ -139,6 +139,15 @@ export { Permission, permissionChecker };
  * que devolvía la comprobación genérica: quien se topa con esto en campo
  * necesita saber si le falta un permiso o si está haciendo algo que no le toca.
  */
+/**
+ * Quién puede avisar de una incidencia sin coordinar (plan de auditoría de menús, D9): capturista y
+ * brigadista. Su aviso entra «por aceptar», sin equipo ni responsable (ver `POST /api/map/reports` y
+ * `motivoSiAvisoPorAceptar`). La pantalla `/avisar-incidencia` sale de la misma lista.
+ */
+export function puedeLevantarComoAviso(roles: readonly string[]): boolean {
+  return roles.some((r) => (rolesDePantalla("/avisar-incidencia") as readonly string[]).includes(r));
+}
+
 export async function requireLiderParaIncidencias(
   // La misma regla guarda el alta de actividades (`/api/equipo/tareas`); el mensaje decía
   // «levantar incidencias» también ahí, a quien intentaba registrar una actividad.

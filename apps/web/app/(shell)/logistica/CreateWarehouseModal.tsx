@@ -35,7 +35,7 @@ export function CreateWarehouseModal({ eligeMunicipio }: { eligeMunicipio: boole
     <>
       <button
         onClick={() => { setError(""); setAbierto(true); }}
-        className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 transition-colors"
+        className="min-h-[44px] bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 transition-colors"
       >
         <Warehouse className="h-5 w-5" />
         Nuevo almacén

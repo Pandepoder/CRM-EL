@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
-  AlertCircle, ChevronDown, ChevronUp, Eye, ListFilter, LocateFixed, MapPin, PlusCircle, Search, SlidersHorizontal, Users, Vote, X
+  AlertCircle, ChevronDown, ChevronUp, Eye, ListFilter, LocateFixed, MapPin, MessageSquare, PlusCircle, Search, SlidersHorizontal, Users, Vote, X
 } from "lucide-react";
 
 import { MUNICIPIOS_JALISCO, TODO_JALISCO, TOTAL_SECCIONES_JALISCO } from "@/lib/municipios-jalisco";
@@ -35,6 +35,10 @@ export type PropsControles = {
   verContactos: boolean;
   onVerContactos: (v: boolean) => void;
   cobertura: CoberturaContactos | null;
+  /** Peticiones de Escucha Social con ubicación (plan de auditoría de menús, F3.3). `null`: aún no se piden. */
+  verPeticiones: boolean;
+  onVerPeticiones: (v: boolean) => void;
+  peticionesEnMapa: number | null;
   verSecciones: boolean;
   onVerSecciones: (v: boolean) => void;
   coloreado: Coloreado;
@@ -93,6 +97,13 @@ function QueVeo(p: PropsControles) {
           {sinUbicacion.toLocaleString("es-MX")} {sinUbicacion === 1 ? "ciudadano sin ubicación no aparece" : "ciudadanos sin ubicación no aparecen"} en el mapa · corregir →
         </Link>
       )}
+      <Interruptor
+        activo={p.verPeticiones}
+        onCambio={p.onVerPeticiones}
+        etiqueta="Peticiones"
+        detalle={p.peticionesEnMapa === null ? "Lo que piden los vecinos" : `${p.peticionesEnMapa.toLocaleString("es-MX")} con ubicación`}
+        icono={<MessageSquare size={17} />}
+      />
       <Interruptor activo={p.verSecciones} onCambio={p.onVerSecciones} etiqueta={p.municipio === TODO_JALISCO ? "Municipios" : "Secciones electorales"} icono={<MapPin size={17} />} />
     </section>
   );

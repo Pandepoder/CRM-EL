@@ -9,6 +9,7 @@ import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 import { MarcaMunicipio } from "@/components/MarcaMunicipio";
 import type { Tablero } from "@/lib/integrantes-equipo";
 import TableroEquipos from "./TableroEquipos";
+import { avisar } from "@/lib/avisos";
 
 type Team = {
   id: string;
@@ -148,7 +149,7 @@ export default function TeamsClient({ teams, users, esAdministracion = false, mu
         router.refresh();
       } else {
         const datos = await res.json().catch(() => null);
-        alert(datos?.error || "No se pudo eliminar el equipo.");
+        avisar(datos?.error || "No se pudo eliminar el equipo.");
       }
     } finally {
       setDeletingId(null);
@@ -174,10 +175,10 @@ export default function TeamsClient({ teams, users, esAdministracion = false, mu
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-md">
-              Estructura & Redes de Trabajo
+              Estructura y redes de trabajo
             </span>
           </div>
-          <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight">Gestión de Equipos y Redes</h1>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-blue-950 tracking-tight">Equipos y redes</h1>
           <p className="text-gray-500 mt-1">
             Cada usuario cuenta con su propio equipo y concentra los ciudadanos que da de alta en campo.
           </p>
@@ -260,25 +261,25 @@ export default function TeamsClient({ teams, users, esAdministracion = false, mu
               }`}
             >
               <div className="p-6 space-y-4">
+                {/* En el teléfono el nombre, la marca y las secciones se apretaban en una columna angosta junto
+                    al avatar: ahora el nombre va a lo ancho y las secciones en su propio renglón. */}
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
                     <div className="w-12 h-12 bg-indigo-50 text-indigo-700 rounded-2xl flex items-center justify-center shrink-0 shadow-sm font-bold text-lg">
                       {t.name.charAt(0).toUpperCase()}
                     </div>
-                    <div>
-                      <h3 className="text-base font-bold text-gray-900 leading-snug flex items-center gap-1.5">
-                        {t.name}
-                        {t.isMyTeam && (
-                          <span className="bg-blue-100 text-blue-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                            Mi Equipo
-                          </span>
-                        )}
-                      </h3>
-                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                        <MapPin size={12} className="text-rose-500" />
+                    <div className="min-w-0">
+                      <h3 className="text-base font-bold text-gray-900 leading-snug">{t.name}</h3>
+                      {t.isMyTeam && (
+                        <span className="inline-block mt-1 bg-blue-100 text-blue-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                          Mi equipo
+                        </span>
+                      )}
+                      <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                        <MapPin size={12} className="text-rose-500 shrink-0" />
                         {t.municipio ? <MarcaMunicipio nombre={t.municipio.nombre} esGeneral={t.municipio.esGeneral} /> : t.municipality || "Sin municipio"}
-                        {t.section ? ` · Secc #${t.section}` : ""}
                       </p>
+                      {t.section ? <p className="text-xs text-gray-600 mt-0.5 break-words">Secciones: {t.section}</p> : null}
                     </div>
                   </div>
 
@@ -287,7 +288,7 @@ export default function TeamsClient({ teams, users, esAdministracion = false, mu
                       {t.editable && (
                         <button
                           onClick={() => openEditModal(t)}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="w-10 h-10 grid place-items-center text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" aria-label="Editar equipo"
                           title="Editar"
                         >
                           <Edit size={14} />
@@ -297,7 +298,7 @@ export default function TeamsClient({ teams, users, esAdministracion = false, mu
                       <button
                         onClick={() => handleDelete(t.id)}
                         disabled={deletingId === t.id}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="w-10 h-10 grid place-items-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" aria-label="Eliminar equipo"
                         title="Eliminar"
                       >
                         <Trash size={14} />
@@ -386,7 +387,7 @@ export default function TeamsClient({ teams, users, esAdministracion = false, mu
               <button 
                 type="button"
                 onClick={() => setShowModal(false)} 
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="w-11 h-11 shrink-0 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
                 title="Cerrar ventana"
               >
                 <X size={18} />

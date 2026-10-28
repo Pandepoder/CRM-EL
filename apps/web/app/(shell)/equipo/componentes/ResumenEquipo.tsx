@@ -72,7 +72,7 @@ export function ResumenEquipo({ resumen, usuarioActualId }: { resumen: ResumenBi
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] tracking-wider">
+            <thead className="bg-gray-50 text-gray-500 uppercase text-[11px] tracking-wider">
               <tr>
                 <th scope="col" className="text-left px-4 py-3">Persona</th>
                 <th scope="col" className="text-right px-3 py-3">Total</th>
@@ -88,7 +88,7 @@ export function ResumenEquipo({ resumen, usuarioActualId }: { resumen: ResumenBi
               {filtrados.map((l) => (
                 <tr key={l.userId} className={l.userId === usuarioActualId ? "bg-blue-50/40" : ""}>
                   <td className="px-4 py-3">
-                    <p className="font-extrabold text-gray-900">{l.displayName}{l.userId === usuarioActualId && <span className="ml-1.5 text-[10px] bg-blue-100 text-blue-800 rounded px-1.5 py-0.5">Tú</span>}</p>
+                    <p className="font-extrabold text-gray-900">{l.displayName}{l.userId === usuarioActualId && <span className="ml-1.5 text-[11px] bg-blue-100 text-blue-800 rounded px-1.5 py-0.5">Tú</span>}</p>
                     <p className="text-[11px] text-gray-500">{l.roleName} · {l.teamName}</p>
                   </td>
                   <td className="px-3 py-3 text-right font-extrabold">{l.totalActivities}</td>

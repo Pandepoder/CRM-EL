@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 import { getDatabaseClient } from "@/lib/db-client";
-import { requireLiderParaIncidencias } from "@/lib/authorization";
+import { puedeLevantarComoAviso, requireLiderParaIncidencias } from "@/lib/authorization";
 import { schema } from "@tonala/shared/database";
 const { eventReports } = schema;
 import { and, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
@@ -137,12 +137,22 @@ export async function GET(_request: Request) {
 }
 
 export async function POST(request: Request) {
-  const actor = await requireLiderParaIncidencias();
+  // Quien coordina levanta la incidencia completa. Capturista y brigadista, desde «Avisar de una
+  // incidencia» (D9): su aviso entra «por aceptar», sin equipo ni responsable aunque los mande, y lo
+  // aceptan quienes mandan sobre ellos. A cualquier otro, el «no» de siempre.
+  const sesion = await actorFromSession();
+  if (!sesion) return unauthorized();
+  const alcanceDeQuienLevanta = await resolveUserNetworkScope(sesion.actorId);
+  const coordina = alcanceDeQuienLevanta.isAdmin || alcanceDeQuienLevanta.isLeader;
+  const esAviso = !coordina && puedeLevantarComoAviso(sesion.roles);
+  const actor = esAviso ? sesion : await requireLiderParaIncidencias();
   if (actor instanceof NextResponse) return actor;
 
   try {
     const body = await request.json();
-    const { title, description, latitude, longitude, category, municipality, district, eventDate, sectionId, assignedToUserId, assignedTeamId, mediaUrls, clientRequestId } = body;
+    const { title, description, latitude, longitude, category, municipality, district, eventDate, sectionId, mediaUrls, clientRequestId } = body;
+    const assignedToUserId = esAviso ? null : body.assignedToUserId;
+    const assignedTeamId = esAviso ? null : body.assignedTeamId;
 
     // Clave del formulario (R16): un doble toque o un reintento tras un corte de señal devuelve la
     // incidencia ya creada en vez de levantar otra. Ver `lib/idempotencia.ts`.
@@ -259,7 +269,7 @@ export async function POST(request: Request) {
               // aceptarlo antes de que la estructura empiece a trabajarlo. Quien ya
               // es la autoridad que acepta no se acepta a sí mismo, así que sus
               // altas entran directamente como aceptadas.
-              status: puedeAceptar ? "active" : "pendiente",
+              status: puedeAceptar && !esAviso ? "active" : "pendiente",
               createdByUserId: actor.actorId,
               clientRequestId: clientRequestId || null,
             })

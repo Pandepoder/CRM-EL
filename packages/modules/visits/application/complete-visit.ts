@@ -46,7 +46,7 @@ export async function completeVisit(
         const outcome = await dependencies.transactionManager.transaction(async (tx) => {
           const current = await dependencies.visitRepository.findById(visitId, tx);
           if (!current) {
-            throw notFoundError("visit_not_found", `Visit ${input.visitId} was not found.`, "Visit was not found.");
+            throw notFoundError("visit_not_found", `Visit ${input.visitId} was not found.`, "La visita ya no existe.");
           }
           // Se responde "no encontrada" y no "no autorizada": decir que la visita existe pero
           // es de otro ciudadano ya es información del trabajo ajeno.
@@ -58,10 +58,10 @@ export async function completeVisit(
             );
           }
           if (current.status !== VisitStatus.Scheduled) {
-            throw conflictError("visit_already_completed", `Visit ${input.visitId} is already completed.`, "Visit cannot be completed again.");
+            throw conflictError("visit_already_completed", `Visit ${input.visitId} is already completed.`, "Esta visita ya estaba cerrada.");
           }
           if (!canComplete(actor, current.assignedUserId, input.scopedUserIds)) {
-            throw forbiddenError("visit_completion_not_authorized", "Actor is not allowed to complete this visit.", "You cannot complete this visit.");
+            throw forbiddenError("visit_completion_not_authorized", "Actor is not allowed to complete this visit.", "Esta visita la cierra quien la tiene asignada o quien coordina a esa persona.");
           }
 
           const result = createVisitResult({
@@ -82,7 +82,7 @@ export async function completeVisit(
             }
           }, tx);
           if (!updated) {
-            throw conflictError("visit_completion_conflict", `Visit ${input.visitId} changed concurrently.`, "Visit was changed by another operation. Please retry.");
+            throw conflictError("visit_completion_conflict", `Visit ${input.visitId} changed concurrently.`, "Alguien más cambió esta visita al mismo tiempo. Vuelve a intentarlo.");
           }
           await dependencies.visitResultRepository.insert(result, tx);
           await dependencies.auditWriter.write({

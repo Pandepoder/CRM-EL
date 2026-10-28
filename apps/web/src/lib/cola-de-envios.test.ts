@@ -63,6 +63,44 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("el resultado de una visita o actividad (C3)", () => {
+  it("sin señal queda guardado con su método, y la cola lo reenvía por PATCH", async () => {
+    const metodos: string[] = [];
+    const respuestas: Respuesta[] = ["sin-red", { status: 200, cuerpo: { success: true } }];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      metodos.push(init?.method ?? "GET");
+      const r = respuestas.shift() ?? "sin-red";
+      if (r === "sin-red") throw new TypeError("Failed to fetch");
+      return { ok: true, status: r.status, redirected: false, json: async () => r.cuerpo } as unknown as Response;
+    }));
+    const envio = {
+      clave: "resultado-a1",
+      tipo: "resultado" as const,
+      url: "/api/equipo/tareas/a1",
+      metodo: "PATCH" as const,
+      cuerpo: { accion: "completar", outcome: "no_contact", summary: "No había nadie en casa." },
+      descripcion: "Resultado: Visita a la colonia",
+      usuarioId: "u1"
+    };
+    expect(await enviarOEncolar(envio)).toEqual({ estado: "encolado", motivo: "sin-senal" });
+    expect(leerCola()).toMatchObject([{ clave: "resultado-a1", metodo: "PATCH", tipo: "resultado" }]);
+
+    expect(await procesarCola("u1")).toEqual({ enviados: 1, pendientes: 0, rechazados: 0 });
+    expect(metodos).toEqual(["PATCH", "PATCH"]);
+    expect(leerCola()).toEqual([]);
+  });
+
+  it("las altas siguen yendo por POST si no se dice otra cosa", async () => {
+    const metodos: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      metodos.push(init?.method ?? "GET");
+      return { ok: true, status: 201, redirected: false, json: async () => ({ contactId: "c1" }) } as unknown as Response;
+    }));
+    await enviarOEncolar(alta("k1"));
+    expect(metodos).toEqual(["POST"]);
+  });
+});
+
 describe("clasificarRespuesta", () => {
   it("2xx es enviado; sin respuesta, 401, 408, 429 y 5xx se reintentan; el resto se rechaza", () => {
     expect(clasificarRespuesta(201)).toBe("enviado");

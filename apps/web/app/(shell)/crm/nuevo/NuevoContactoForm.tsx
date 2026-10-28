@@ -4,13 +4,24 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle, ArrowLeft, CloudOff, Save, User, MapPin, Briefcase, Sparkles, HeartHandshake, Calendar, MessageSquare, ChevronDown, ChevronUp,
-  ClipboardList
+  AlertCircle, ArrowLeft, CheckCircle2, CloudOff, Save, User, MapPin, Briefcase, HeartHandshake, Calendar, MessageSquare, ChevronDown, ChevronUp,
+  ClipboardList, UserPlus
 } from "lucide-react";
 import { ColonySelector } from "@/components/ColonySelector";
 import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
+import { QueEsEsto } from "@/components/QueEsEsto";
+import { celebrar } from "@/lib/celebraciones";
+import { AREAS_DE_PARTICIPACION } from "@/lib/areas-de-participacion";
 import { enviarOEncolar, nuevaClave, TEXTO_DE_ESPERA } from "@/lib/cola-de-envios";
+
+/**
+ * Hoy en Jalisco, AAAA-MM-DD. Con `toISOString()` era el día en UTC: después de las 18:00 la «fecha de
+ * primer contacto» proponía mañana (F5). Con la zona fija, el servidor y el teléfono pintan lo mismo.
+ */
+function hoyEnJalisco(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
 
 export default function NuevoContactoForm({
   userOptions,
@@ -30,6 +41,14 @@ export default function NuevoContactoForm({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enEspera, setEnEspera] = useState<string | null>(null);
+  /**
+   * El alta quedó guardada en el servidor. Antes se saltaba al directorio sin decir nada (F1): quien
+   * capturaba no sabía si había funcionado, y para el siguiente vecino tenía que volver a empezar.
+   */
+  const [listo, setListo] = useState<{ nombre: string; contactoId: string | null } | null>(null);
+  const zonaEnviada = useRef<{ colonia: string; seccion: string; municipio: string } | null>(null);
+  /** El municipio del registro anterior, para «Registrar a un vecino»; vacío, el del selector. */
+  const [municipioVecino, setMunicipioVecino] = useState("");
   const [barda, setBarda] = useState<MediaFile[]>([]);
   const [showSurvey, setShowSurvey] = useState(false);
   const [colony, setColony] = useState("");
@@ -44,6 +63,23 @@ export default function NuevoContactoForm({
   // teléfono). `confirmarTelefono` viaja solo en el envío que sigue a «Es otra persona: guardar».
   const [telefonoRepetido, setTelefonoRepetido] = useState<{ mensaje: string; contactoId: string | null } | null>(null);
   const confirmarTelefono = useRef(false);
+  /** El mismo aviso, pero en cuanto se termina de escribir el número, junto al campo (F15). */
+  const [avisoTelefono, setAvisoTelefono] = useState<{ mensaje: string; contactoId: string | null } | null>(null);
+  const ultimoTelefonoRevisado = useRef("");
+
+  async function revisarTelefono(valor: string) {
+    const telefono = valor.trim();
+    if (telefono.replace(/\D/g, "").length < 7 || telefono === ultimoTelefonoRevisado.current) return;
+    ultimoTelefonoRevisado.current = telefono;
+    try {
+      const res = await fetch(`/api/crm/contacts/telefono-repetido?telefono=${encodeURIComponent(telefono)}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const datos = (await res.json()) as { repetido?: boolean; message?: string; contactoExistenteId?: string | null };
+      setAvisoTelefono(datos.repetido && datos.message ? { mensaje: datos.message, contactoId: datos.contactoExistenteId ?? null } : null);
+    } catch {
+      // Sin señal no se revisa: el alta avisa igual al guardar.
+    }
+  }
 
   /**
    * Antes el formulario se enviaba a una acción de servidor que lanzaba sus errores: en producción
@@ -86,8 +122,19 @@ export default function NuevoContactoForm({
     setGuardando(false);
 
     if (r.estado === "enviado") {
-      router.push("/crm/contacts");
+      // La zona tal como se envió (también la colonia escrita a mano, que el selector no le avisa al
+      // formulario): es la que conserva «Registrar a un vecino».
+      zonaEnviada.current = {
+        colonia: typeof campos.colony === "string" ? campos.colony : "",
+        seccion: typeof campos.sectionNum === "string" ? campos.sectionNum : "",
+        municipio: typeof campos.municipality === "string" ? campos.municipality : ""
+      };
+      const id = r.datos.contactId;
+      setListo({ nombre: nombre || "El ciudadano", contactoId: typeof id === "string" ? id : null });
+      // Un reintento que el servidor reconoce (`repetido`) es el mismo ciudadano: no se celebra dos veces.
+      if (!r.datos.repetido) celebrar({ tipo: "registro", titulo: "Ciudadano registrado" });
       router.refresh();
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     if (r.estado === "encolado") {
@@ -108,16 +155,25 @@ export default function NuevoContactoForm({
     else window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function registrarOtro() {
+  /**
+   * Formulario nuevo y vacío. Con `conservarZona`, se quedan la colonia y la sección (el municipio lo
+   * recuerda el selector): en la calle, el siguiente casi siempre es el vecino de al lado.
+   */
+  function registrarOtro(conservarZona = false) {
     setClave(nuevaClave());
     setVersion((v) => v + 1);
+    setAvisoTelefono(null);
+    ultimoTelefonoRevisado.current = "";
     setEnEspera(null);
+    setListo(null);
     setError(null);
     setTelefonoRepetido(null);
     setBarda([]);
     setShowSurvey(false);
-    setColony("");
-    setSectionNum("");
+    const zona = conservarZona ? zonaEnviada.current : null;
+    setColony(zona?.colonia ?? "");
+    setSectionNum(zona?.seccion ?? "");
+    setMunicipioVecino(zona?.municipio ?? "");
     setLat(undefined);
     setLng(undefined);
     setAddress("");
@@ -141,6 +197,50 @@ export default function NuevoContactoForm({
     { num: "12", name: "Diciembre" },
   ];
 
+  if (listo) {
+    return (
+      <div className="workspace-page citizen-page p-4 md:p-6 max-w-2xl mx-auto space-y-5">
+        <div role="status" className="bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-3xl p-6 space-y-5">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 size={30} className="shrink-0 text-emerald-600" aria-hidden="true" />
+            <div className="space-y-1">
+              <h1 className="text-xl font-black">¡Listo! {listo.nombre} quedó registrado.</h1>
+              <p className="text-sm font-semibold text-emerald-900">
+                Ya aparece en el directorio y en el mapa de tu equipo. ¿Sigues con el de al lado? La colonia y la sección se quedan puestas.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={() => registrarOtro(true)}
+              className="min-h-[52px] px-5 rounded-2xl bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-base inline-flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <UserPlus size={20} aria-hidden="true" /> Registrar a un vecino
+            </button>
+            {listo.contactoId && (
+              <Link
+                href={`/crm/contacts/${listo.contactoId}`}
+                className="min-h-[52px] px-5 rounded-2xl border border-emerald-300 bg-white text-emerald-900 font-bold text-sm inline-flex items-center justify-center"
+              >
+                Ver su ficha
+              </Link>
+            )}
+            <Link
+              href="/crm/contacts"
+              className="min-h-[52px] px-5 rounded-2xl border border-emerald-300 bg-white text-emerald-900 font-bold text-sm inline-flex items-center justify-center"
+            >
+              Ir al directorio
+            </Link>
+          </div>
+          <button type="button" onClick={() => registrarOtro(false)} className="text-sm font-bold text-emerald-800 underline underline-offset-4 cursor-pointer">
+            Registrar a alguien de otra colonia
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (enEspera) {
     return (
       <div className="workspace-page citizen-page p-4 md:p-6 max-w-2xl mx-auto space-y-5">
@@ -154,7 +254,7 @@ export default function NuevoContactoForm({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={registrarOtro} className="px-5 py-3 rounded-2xl bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-sm cursor-pointer">Registrar otro ciudadano</button>
+            <button type="button" onClick={() => registrarOtro(true)} className="px-5 py-3 rounded-2xl bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-sm cursor-pointer">Registrar a un vecino</button>
             <Link href="/crm/contacts" className="px-5 py-3 rounded-2xl border border-amber-300 bg-white text-amber-900 font-bold text-sm">Ir al directorio</Link>
           </div>
         </div>
@@ -175,13 +275,8 @@ export default function NuevoContactoForm({
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-xl md:text-2xl font-black text-gray-950 tracking-tight flex flex-wrap items-center gap-2">
-              Registrar ciudadano
-              <span className="text-[11px] bg-blue-100 text-blue-800 font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <Sparkles size={11} /> Unificado
-              </span>
-            </h1>
-            <p className="text-xs text-gray-500 font-medium">Empieza con sus datos. Construye una conexión cercana.</p>
+            <h1 className="text-xl md:text-2xl font-black text-gray-950 tracking-tight">Registrar ciudadano</h1>
+            <p className="text-xs text-gray-600 font-medium">Solo lo marcado con * es obligatorio. Al guardar, te ofrecemos registrar al vecino de al lado.</p>
           </div>
         </div>
       </div>
@@ -219,7 +314,8 @@ export default function NuevoContactoForm({
             <span>{error} Lo que capturaste sigue aquí.</span>
           </div>
         )}
-        <div className="form-guide"><User size={20} /><div><strong>Un registro claro, de principio a fin</strong><p>Completa los campos con *. Los datos adicionales y la encuesta son opcionales.</p></div></div>
+        {/* El recuadro «Un registro claro, de principio a fin» repetía lo que ya dice el encabezado (L6): se
+            quitó para que el primer campo quede más arriba en el teléfono. */}
         {/* SECCIÓN B: DATOS DE CONTACTO */}
         <section className="bg-white p-5 md:p-6 rounded-3xl border border-gray-200 shadow-sm space-y-4">
           <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
@@ -232,7 +328,7 @@ export default function NuevoContactoForm({
               <label htmlFor="citizen-firstName" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Nombre(s) *</label>
               <input id="citizen-firstName"
                 type="text"
-                name="firstName" autoComplete="given-name"
+                name="firstName" autoComplete="off"
                 required
                 placeholder="Ej. Juan Carlos"
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
@@ -243,7 +339,7 @@ export default function NuevoContactoForm({
               <label htmlFor="citizen-lastName" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Primer Apellido *</label>
               <input id="citizen-lastName"
                 type="text"
-                name="lastName" autoComplete="family-name"
+                name="lastName" autoComplete="off"
                 required
                 placeholder="Ej. Hernández"
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
@@ -264,11 +360,24 @@ export default function NuevoContactoForm({
               <label htmlFor="citizen-phone" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Teléfono Principal *</label>
               <input id="citizen-phone"
                 type="tel"
-                name="phone" autoComplete="tel" inputMode="tel"
+                name="phone" autoComplete="off" inputMode="tel"
                 required
                 placeholder="10 dígitos"
+                aria-describedby={avisoTelefono ? "citizen-phone-aviso" : undefined}
+                onChange={() => { if (avisoTelefono) setAvisoTelefono(null); }}
+                onBlur={(e) => void revisarTelefono(e.currentTarget.value)}
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
               />
+              {/* Se avisa al terminar de escribir el número, no hasta guardar (F15). Avisa y deja seguir:
+                  una familia puede compartir teléfono (regla del dueño). */}
+              {avisoTelefono && (
+                <p id="citizen-phone-aviso" role="status" className="mt-1.5 text-xs font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                  {avisoTelefono.mensaje}{" "}
+                  {avisoTelefono.contactoId && (
+                    <Link href={`/crm/contacts/${avisoTelefono.contactoId}`} className="font-extrabold underline">Ver su ficha</Link>
+                  )}
+                </p>
+              )}
             </div>
 
             <div>
@@ -303,7 +412,7 @@ export default function NuevoContactoForm({
               <label htmlFor="citizen-email" className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Correo Electrónico (Opcional)</label>
               <input id="citizen-email"
                 type="email"
-                name="email" autoComplete="email"
+                name="email" autoComplete="off"
                 placeholder="correo@ejemplo.com"
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
               />
@@ -378,7 +487,7 @@ export default function NuevoContactoForm({
               <input id="citizen-firstContactDate"
                 type="date"
                 name="firstContactDate"
-                defaultValue={new Date().toISOString().split("T")[0]}
+                defaultValue={hoyEnJalisco()}
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white"
               />
             </div>
@@ -407,7 +516,7 @@ export default function NuevoContactoForm({
           <div className="space-y-4">
             {/* AUTOPREDICTOR DE COLONIA, SECCIÓN Y MUNICIPIO */}
             <ColonySelector
-              
+              defaultMunicipality={municipioVecino || undefined}
               defaultValue={colony}
               defaultSectionNum={sectionNum}
               onSelect={(_secId, col, _mun, secNum, coords, calle) => {
@@ -501,12 +610,9 @@ export default function NuevoContactoForm({
                 defaultValue="General"
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:bg-white"
               >
-                <option value="General">Participación General</option>
-                <option value="Vecinal">Comité Vecinal y Mejoras</option>
-                <option value="Deporte">Deportes y Juventud</option>
-                <option value="Cultura">Cultura y Tradiciones</option>
-                <option value="Comercio">Comercio y Emprendimiento</option>
-                <option value="Social">Apoyo Social y Familias</option>
+                {AREAS_DE_PARTICIPACION.map((a) => (
+                  <option key={a.clave} value={a.clave}>{a.nombre}</option>
+                ))}
               </select>
             </div>
 
@@ -558,7 +664,7 @@ export default function NuevoContactoForm({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-gray-800">
             <div>
-              <label htmlFor="citizen-panMilitancy" className="block text-[11px] font-extrabold text-blue-200 uppercase mb-1">Estatus de Militancia</label>
+              <label htmlFor="citizen-panMilitancy" className="flex items-center gap-1 text-[11px] font-extrabold text-blue-200 uppercase mb-1">Estatus de militancia <QueEsEsto termino="militancia" className="!text-blue-200" /></label>
               <select id="citizen-panMilitancy"
                 name="panMilitancy"
                 defaultValue="no_registrada"
@@ -606,7 +712,7 @@ export default function NuevoContactoForm({
             </div>
 
             <div>
-              <label htmlFor="citizen-initialNote" className="block text-[11px] font-extrabold text-gray-700 uppercase mb-1">Nota Inicial Inmutable</label>
+              <label htmlFor="citizen-initialNote" className="block text-[11px] font-extrabold text-gray-700 uppercase mb-1">Primera nota (no se podrá editar)</label>
               <textarea id="citizen-initialNote"
                 name="initialNote"
                 rows={2}
@@ -737,6 +843,7 @@ export default function NuevoContactoForm({
                   <option value="Asistir a reuniones o actividades">Asistir a reuniones o actividades</option>
                   <option value="Participar en acciones sociales">Participar en acciones sociales</option>
                   <option value="Compartir ideas o propuestas">Compartir ideas o propuestas</option>
+                  <option value="Representante de casilla">Ser representante de casilla el día de la elección</option>
                   <option value="Por ahora solamente deseo mantenerme informado">Por ahora solamente deseo mantenerme informado</option>
                 </select>
               </div>
@@ -759,12 +866,21 @@ export default function NuevoContactoForm({
 
         {/* SUBMIT BUTTON */}
         <div className="form-savebar">
-          <Link
-            href="/crm/contacts"
-            className="px-5 py-3 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs shadow-sm transition-colors cursor-pointer"
+          {/* Con algo escrito, pregunta antes de salir (F10): «Cancelar» descartaba todo sin avisar. */}
+          <button
+            type="button"
+            onClick={() => {
+              const campos = formulario.current?.elements;
+              const escrito = ["firstName", "lastName", "phone", "address", "email"].some(
+                (n) => ((campos?.namedItem(n) as HTMLInputElement | null)?.value ?? "").trim() !== ""
+              );
+              if (escrito && !window.confirm("¿Salir sin guardar? Lo que capturaste se perderá.")) return;
+              router.push("/crm/contacts");
+            }}
+            className="min-h-[48px] px-5 py-3 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-bold text-sm shadow-sm transition-colors cursor-pointer"
           >
             Cancelar
-          </Link>
+          </button>
 
           <button type="submit" disabled={guardando} className="contact-save"><Save size={18} />{guardando ? "Guardando ciudadano…" : "Guardar ciudadano"}</button>
         </div>

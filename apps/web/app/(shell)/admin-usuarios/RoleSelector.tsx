@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { avisar } from "@/lib/avisos";
 
 export function RoleSelector({ 
   userId, 
@@ -32,14 +33,14 @@ export function RoleSelector({
         // El servidor dice por qué (etapa 6: solo el maestro nombra administradores, nadie toca a otro
         // administrador…). Antes se decía «No se pudo» sin más.
         const cuerpo = (await res.json().catch(() => null)) as { message?: string } | null;
-        alert(cuerpo?.message ?? "No se pudo cambiar el rol.");
+        avisar(cuerpo?.message ?? "No se pudo cambiar el rol.");
         setRole(currentRoleId);
         return;
       }
 
       router.refresh();
     } catch {
-      alert("No se pudo cambiar el rol. Revisa tu conexión e intenta de nuevo.");
+      avisar("No se pudo cambiar el rol. Revisa tu conexión e intenta de nuevo.");
       setRole(currentRoleId); // Revert
     } finally {
       setIsUpdating(false);

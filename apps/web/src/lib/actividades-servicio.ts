@@ -4,7 +4,7 @@ import { DevelopmentLogger } from "@tonala/shared/observability";
 import { schema } from "@tonala/shared/database";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
-import { esResultadoValido, RESULTADOS_ACTIVIDAD } from "@/lib/actividades";
+import { esResultadoValido, LARGO_MAXIMO_CONCLUSION, RESULTADOS_ACTIVIDAD } from "@/lib/actividades";
 import { motivoSiAdjuntosAjenos, urlsDeAdjuntos } from "@/lib/archivos";
 import { permissionChecker } from "@/lib/api-helpers";
 import { buscarMunicipio } from "@/lib/municipios-jalisco";
@@ -18,7 +18,10 @@ import {
   cargarContextoIncidencia,
   motivoAsignacionFueraDeAlcance,
   puedeSobreIncidencia,
-  MOTIVO_ACTUALIZAR
+  MOTIVO_ACTUALIZAR,
+  MOTIVO_AVISO_POR_ACEPTAR,
+  MOTIVO_AVISO_REVISADO,
+  esAvisoDeQuienNoCoordina
 } from "@/lib/permisos-incidencias";
 import { ubicarEnSeccion } from "@/lib/sections-geo-cache";
 
@@ -83,7 +86,13 @@ async function auditar(
 }
 
 /** Lo que el llamador necesita para decidir si puede actuar sobre una actividad. */
-async function cargarActividad(id: string, actor: ActorActividad) {
+/**
+ * `soloNota`: anotar no cambia nada del registro. Todo lo demás (iniciar, cerrar, reprogramar, cancelar,
+ * archivar, editar) se niega a quien avisó y no coordina sobre su propio aviso, salvo que se lo hayan
+ * asignado ya aceptado: lo acepta quien manda sobre él (D9, `esAvisoDeQuienNoCoordina`); se retira desde el
+ * mapa o «Avisar de una incidencia». Quien no coordina no es autor de ninguna actividad de la Agenda.
+ */
+async function cargarActividad(id: string, actor: ActorActividad, opciones: { soloNota?: boolean } = {}) {
   const db = getDatabaseClient();
   const contexto = await cargarContextoIncidencia(id, actor.actorId);
   if (!contexto.incidencia) return { fallo: fallo(404, "no_encontrada", "La actividad no existe.") } as const;
@@ -91,6 +100,10 @@ async function cargarActividad(id: string, actor: ActorActividad) {
     !puedeSobreIncidencia("actualizar", contexto.incidencia, actor.actorId, contexto.esAdmin, contexto.equipos, contexto.personas)
   ) {
     return { fallo: fallo(403, "prohibido", MOTIVO_ACTUALIZAR) } as const;
+  }
+  if (!opciones.soloNota && esAvisoDeQuienNoCoordina(contexto.incidencia, actor.actorId, contexto.coordina, contexto.equipos)) {
+    const porAceptar = contexto.incidencia.status === "pendiente";
+    return { fallo: fallo(403, porAceptar ? "por_aceptar" : "aviso_revisado", porAceptar ? MOTIVO_AVISO_POR_ACEPTAR : MOTIVO_AVISO_REVISADO) } as const;
   }
   const [fila] = await db.select().from(schema.eventReports).where(eq(schema.eventReports.id, id)).limit(1);
   if (!fila) return { fallo: fallo(404, "no_encontrada", "La actividad no existe.") } as const;
@@ -442,7 +455,9 @@ export async function completarActividad(actor: ActorActividad, id: string, entr
   }
   const conclusion = entrada.summary.trim();
   if (!conclusion) return fallo(400, "conclusion_requerida", "Escribe qué pasó: la conclusión es obligatoria.");
-  if (conclusion.length > 4000) return fallo(400, "conclusion_larga", "La conclusión no puede pasar de 4000 caracteres.");
+  if (conclusion.length > LARGO_MAXIMO_CONCLUSION) {
+    return fallo(400, "conclusion_larga", `La conclusión no puede pasar de ${LARGO_MAXIMO_CONCLUSION} caracteres.`);
+  }
 
   const requiereSeguimiento = RESULTADOS_ACTIVIDAD[entrada.outcome]!.requiereSeguimiento;
   if (requiereSeguimiento && !entrada.seguimiento?.scheduledAt) {
@@ -452,7 +467,16 @@ export async function completarActividad(actor: ActorActividad, id: string, entr
   const cargada = await cargarActividad(id, actor);
   if ("fallo" in cargada) return cargada.fallo;
   const { fila } = cargada;
-  if (!estaAbierta(fila.status)) return fallo(409, "estado_invalido", "La actividad ya no está pendiente.");
+  if (!estaAbierta(fila.status)) {
+    // El mismo cierre que llega otra vez —la cola del teléfono lo reenvía porque la señal se cortó después
+    // de que el servidor lo guardara— no es un error: ya está hecho. Solo si es de la misma persona, con
+    // el mismo resultado y la misma conclusión; cualquier otro cierre sobre una actividad cerrada sigue
+    // siendo un conflicto.
+    const esElMismoCierre =
+      fila.status === "resolved" && fila.closedByUserId === actor.actorId && fila.outcome === entrada.outcome && (fila.outcomeSummary ?? "").trim() === conclusion;
+    if (esElMismoCierre) return { ok: true, actividad: fila, avisos: [] };
+    return fallo(409, "estado_invalido", "La actividad ya no está pendiente.");
+  }
 
   const db = getDatabaseClient();
   const avisos: string[] = [];
@@ -666,7 +690,7 @@ export async function agregarNota(actor: ActorActividad, id: string, texto: stri
   const nota = texto.trim();
   if (!nota) return fallo(400, "nota_vacia", "La nota no puede estar vacía.");
   if (nota.length > 4000) return fallo(400, "nota_larga", "La nota no puede pasar de 4000 caracteres.");
-  const cargada = await cargarActividad(id, actor);
+  const cargada = await cargarActividad(id, actor, { soloNota: true });
   if ("fallo" in cargada) return cargada.fallo;
   const db = getDatabaseClient();
   await registrarHistorial(db, id, actor.actorId, "note", nota);

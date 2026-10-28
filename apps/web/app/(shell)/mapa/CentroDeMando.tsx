@@ -9,6 +9,7 @@ import { ESTADOS_INCIDENCIA, ESTADO_DESCONOCIDO } from "@/lib/estados-incidencia
 import { MUNICIPIOS_JALISCO, TODO_JALISCO } from "@/lib/municipios-jalisco";
 
 import { CATEGORIES, categoriaDe } from "./constantes";
+import { QueEsEsto } from "@/components/QueEsEsto";
 import type { ReportFeature } from "./tipos";
 
 type Pestana = "abiertas" | "emergencias" | "resueltas" | "todas";
@@ -78,7 +79,7 @@ export function CentroDeMando(p: {
             <h1 className="m-0 text-[20px] font-black text-slate-900">Incidencias en el mapa</h1>
             <p className="mt-1 mb-0 text-slate-500 text-[12px]">
               Lo que sigue abierto y lo resuelto en los últimos {p.diasDeResueltas} días. El historial completo está en{" "}
-              <Link href="/historial-incidencias" className="font-bold text-blue-700 underline">Incidencias → Historial</Link>.
+              <Link href="/admin-incidencias?vista=cerradas" className="font-bold text-blue-700 underline">Incidencias → Cerradas</Link>.
             </p>
           </div>
           <div className="flex items-center gap-1.5">
@@ -103,7 +104,7 @@ export function CentroDeMando(p: {
             ["Efectividad", `${efectividad}%`, "border-slate-200", "text-blue-600"]
           ].map(([texto, valor, borde, color]) => (
             <div key={String(texto)} className={`bg-white border ${borde} rounded-xl p-3`}>
-              <div className="text-[11px] font-extrabold text-slate-600 uppercase">{texto}</div>
+              <div className="text-[11px] font-extrabold text-slate-600 uppercase flex items-center gap-1">{texto}{texto === "Efectividad" && <QueEsEsto termino="efectividad" />}</div>
               <div className={`text-[24px] font-black mt-0.5 ${color}`}>{valor}</div>
             </div>
           ))}
@@ -181,7 +182,7 @@ export function CentroDeMando(p: {
                         <MapPin size={12} /> Ver en el mapa
                       </button>
                       {r.properties.esActividad ? (
-                        <Link href="/equipo" className="bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold px-2.5 py-1.5 rounded-lg text-[11px]">En la Agenda</Link>
+                        <Link href={`/equipo?actividad=${encodeURIComponent(r.properties.id)}`} className="bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold px-2.5 py-1.5 rounded-lg text-[11px]">En la Agenda</Link>
                       ) : r.properties.puedeActualizar ? (
                         <>
                           <button type="button" onClick={() => p.onEditar(r)} className="bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg px-2 py-1.5 cursor-pointer" title="Editar o reasignar" aria-label="Editar o reasignar">

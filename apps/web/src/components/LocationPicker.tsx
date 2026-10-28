@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-// @ts-ignore
 import { MapPin, Search, Navigation, Check, Loader2, Sparkles, Crosshair } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { CENTRO_JALISCO, buscarMunicipio } from "@/lib/municipios-jalisco";
+import { avisar } from "@/lib/avisos";
 
 export type LocationValue = {
   latitude: number | null | undefined;
@@ -359,7 +359,7 @@ export function LocationPicker({
   // GPS Device Locator
   const handleGPS = () => {
     if (!navigator.geolocation) {
-      alert("Tu dispositivo no soporta geolocalización GPS.");
+      avisar("Este teléfono o navegador no deja usar el GPS. Elige el lugar en el mapa o escribe la dirección.");
       return;
     }
 
@@ -462,12 +462,12 @@ export function LocationPicker({
                 </div>
                 <span className="flex items-center gap-1 shrink-0">
                   {item.precision === "calle" && (
-                    <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full">
+                    <span className="text-[11px] bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full">
                       sin número
                     </span>
                   )}
                   {item.sectionNum && (
-                    <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
+                    <span className="text-[11px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
                       Secc. #{item.sectionNum}
                     </span>
                   )}

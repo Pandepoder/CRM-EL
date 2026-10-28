@@ -1,36 +1,47 @@
-import { getServerSession } from "@/lib/session-server";
-import { getDatabaseClient } from "@/lib/db-client";
-import { schema, decryptData } from "@tonala/shared/database";
-import { and, eq, or, desc, sql } from "drizzle-orm";
-import { requirePageAccess } from "@/lib/authorization";
-import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
-import { cuentaGobernada, esDelMunicipio } from "@/lib/alcance-municipal";
-import { registrarConsultaDelMaestro } from "@/lib/auditoria";
-import { actorFromSession } from "@/lib/api-helpers";
-import { contactosVisibles, contactIdRestriction } from "@/lib/contact-visibility";
-import { incidentScopeCondition } from "@/lib/incident-visibility";
+import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
+
+import { schema } from "@tonala/shared/database";
+
+import { cuentaGobernada } from "@/lib/alcance-municipal";
+import { actorFromSession } from "@/lib/api-helpers";
+import { registrarConsultaDelMaestro } from "@/lib/auditoria";
+import { requirePageAccess } from "@/lib/authorization";
+import { getDatabaseClient } from "@/lib/db-client";
+import { equiposDePersona } from "@/lib/equipos-de-persona";
 import { esUuid } from "@/lib/ids";
+import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { datosDelPerfil, puedeVerPerfil } from "@/lib/perfil";
+import { pestanaInicial } from "@/lib/perfil-pestanas";
+import { getServerSession } from "@/lib/session-server";
+
 import LeaderProfileClient from "./LeaderProfileClient";
 
+export const dynamic = "force-dynamic";
+
+/**
+ * El perfil de una persona (plan de auditoría de menús, fase 6): quién es, sus equipos reales, sus últimos 20
+ * ciudadanos y el total (el resto, en el Directorio con `?registro=`), sus últimas 30 actividades con el tipo real
+ * de la Agenda, y en qué colonias y secciones trabaja. Ver `lib/perfil.ts`.
+ */
 export default async function LeaderProfilePage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  // Ningún rol queda fuera de esta pantalla de entrada: quién puede ver el perfil
-  // de quién se decide más abajo por alcance, no por rol.
+  // Ningún rol queda fuera de esta pantalla de entrada: quién puede ver el perfil de quién se decide más abajo
+  // por alcance, no por rol.
   await requirePageAccess("/perfil");
   const session = await getServerSession();
   const { id: targetUserId } = await params;
-  // Un id que no es UUID no existe: sin esto la base lo rechazaba y la pantalla caía en la
-  // frontera de error («algo falló») en vez de decir que no hay tal perfil. Ver `ids.ts`.
+  // Un id que no es UUID no existe: sin esto la base lo rechazaba y la pantalla caía en la frontera de error
+  // («algo falló») en vez de decir que no hay tal perfil. Ver `ids.ts`.
   if (!esUuid(targetUserId)) return notFound();
 
   const db = getDatabaseClient();
-
-  // 1. Fetch user & role
-  const userRows = await db
+  const [targetUser] = await db
     .select({
       id: schema.userProfiles.id,
       displayName: schema.userProfiles.displayName,
@@ -48,28 +59,17 @@ export default async function LeaderProfilePage({
     .leftJoin(schema.roles, eq(schema.userProfiles.roleId, schema.roles.id))
     .where(eq(schema.userProfiles.id, targetUserId))
     .limit(1);
-
-  const targetUser = userRows[0];
   if (!targetUser) return notFound();
 
-  // Only the user themself, a global admin, or someone within the same
-  // brigade/network scope (leader <-> teammate) may view this profile —
-  // otherwise contact PII and activity registered by the target user would
-  // leak across unrelated brigades.
+  // La propia persona, el maestro, la administración de su municipio o alguien de su estructura: si no, el perfil
+  // no existe (sus ciudadanos y actividades se filtrarían entre brigadas sin relación).
   const viewerScope = await resolveUserNetworkScope(session.userId);
-  // Su domicilio (0025) lo ven la propia persona y la administración que la gobierna: el maestro, o la
-  // de su municipio. Sus compañeros de brigada ven su perfil, pero no dónde vive.
+  if (!(await puedeVerPerfil(viewerScope, targetUserId))) return notFound();
+
+  // Su domicilio (0025) lo ven la propia persona y la administración que la gobierna: el maestro, o la de su
+  // municipio. Sus compañeros de brigada ven su perfil, pero no dónde vive.
   let veDomicilio = session.userId === targetUserId || viewerScope.isMaster;
   if (session.userId !== targetUserId) {
-    // El maestro, a cualquiera; un administrador municipal, a su gente aunque ya no esté activa
-    // (Control de usuarios enlaza aquí a todas sus cuentas); el resto, a su estructura.
-    const canView =
-      viewerScope.isMaster ||
-      viewerScope.teammateUserIds.includes(targetUserId) ||
-      (viewerScope.adminMunicipalityId !== null && (await esDelMunicipio(targetUserId, viewerScope.adminMunicipalityId)));
-    if (!canView) {
-      return notFound();
-    }
     // «La que la gobierna»: la cuenta está en su municipio y no es de administración (A2).
     if (!veDomicilio && viewerScope.isAdmin) veDomicilio = (await cuentaGobernada(viewerScope, targetUserId)) !== null;
     // El maestro ve el perfil de cualquiera; cada uno que abre queda en la auditoría (etapa 6).
@@ -77,185 +77,9 @@ export default async function LeaderProfilePage({
     if (actor) await registrarConsultaDelMaestro(actor, viewerScope, "user_profile", targetUserId);
   }
 
-  // Entrar al perfil de alguien de tu alcance no amplía lo que ves: el mismo recorte del
-  // directorio se aplica a cada apartado que enseña ciudadanos.
-  const restriccionContactos = contactIdRestriction(await contactosVisibles(viewerScope));
-
-  // 2. Fetch Team
-  const teamRows = await db
-    .select({
-      id: schema.teams.id,
-      name: schema.teams.name,
-      zone: schema.teams.zone,
-      municipality: schema.teams.municipality
-    })
-    .from(schema.teams)
-    .where(eq(schema.teams.leaderId, targetUserId))
-    .limit(1);
-
-  const team = teamRows[0] || {
-    id: targetUser.id,
-    name: `Equipo de ${targetUser.displayName.split(" ")[0]}`,
-    // Quien no dirige un equipo no tiene zona: antes se le asignaba "Tonalá Centro".
-    zone: null,
-    municipality: null
-  };
-
-  // 3. Fetch Contacts Registered by this user
-  const rawContacts = await db
-    .select({
-      id: schema.contacts.id,
-      displayName: schema.contacts.displayName,
-      firstName: schema.contacts.firstName,
-      lastName: schema.contacts.lastName,
-      phone: schema.contacts.phone,
-      email: schema.contacts.email,
-      address: schema.contacts.address,
-      colony: schema.contacts.colony,
-      municipality: schema.contacts.municipality,
-      profession: schema.contacts.profession,
-      companyOrWork: schema.contacts.companyOrWork,
-      sectionId: schema.contacts.sectionId,
-      sectionNum: schema.electoralSections.sectionNum,
-      status: schema.contacts.status,
-      createdAt: schema.contacts.createdAt
-    })
-    .from(schema.contacts)
-    .leftJoin(schema.electoralSections, eq(schema.contacts.sectionId, schema.electoralSections.id))
-    // Los contactos del perfil se cruzan con lo que quien MIRA puede ver (equipo y territorio):
-    // antes un compañero veía todos los contactos de la otra persona, con teléfono y domicilio.
-    .where(and(
-      or(eq(schema.contacts.createdByUserId, targetUserId), eq(schema.contacts.referredByUserId, targetUserId)),
-      restriccionContactos
-    ))
-    .orderBy(desc(schema.contacts.createdAt));
-
-  const contacts = rawContacts.map(c => ({
-    id: c.id,
-    displayName: c.displayName,
-    firstName: decryptData(c.firstName),
-    lastName: decryptData(c.lastName),
-    phone: decryptData(c.phone),
-    email: decryptData(c.email),
-    address: decryptData(c.address),
-    colony: decryptData(c.colony),
-    municipality: decryptData(c.municipality) || "",
-    profession: decryptData(c.profession),
-    companyOrWork: decryptData(c.companyOrWork),
-    sectionNum: c.sectionNum || undefined,
-    status: c.status,
-    createdAt: (c.createdAt instanceof Date ? c.createdAt : new Date(c.createdAt)).toISOString()
-  }));
-
-  // 4. Fetch Event Reports / Activities
-  const rawEvents = await db
-    .select({
-      id: schema.eventReports.id,
-      title: schema.eventReports.title,
-      description: schema.eventReports.description,
-      category: schema.eventReports.category,
-      status: schema.eventReports.status,
-      eventDate: schema.eventReports.eventDate,
-      municipality: schema.eventReports.municipality,
-      latitude: schema.eventReports.latitude,
-      longitude: schema.eventReports.longitude,
-      sectionNum: schema.electoralSections.sectionNum,
-      createdAt: schema.eventReports.createdAt
-    })
-    .from(schema.eventReports)
-    .leftJoin(schema.electoralSections, eq(schema.eventReports.sectionId, schema.electoralSections.id))
-    // Las incidencias siguen la regla de siempre (incident-visibility.ts): lo que no aparece en
-    // gestión ni en el mapa tampoco debe aparecer por entrar al perfil de otra persona.
-    .where(and(
-      or(eq(schema.eventReports.assignedToUserId, targetUserId), eq(schema.eventReports.createdByUserId, targetUserId)),
-      incidentScopeCondition(viewerScope)
-    ))
-    .orderBy(desc(schema.eventReports.eventDate));
-
-  // 5. Fetch Visits
-  const rawVisits = await db
-    .select({
-      id: schema.visits.id,
-      status: schema.visits.status,
-      scheduledAt: schema.visits.scheduledAt,
-      location: schema.visits.visitLocationText,
-      contactId: schema.contacts.id,
-      contactName: schema.contacts.displayName,
-      createdAt: schema.visits.createdAt
-    })
-    .from(schema.visits)
-    .innerJoin(schema.contacts, eq(schema.visits.contactId, schema.contacts.id))
-    // Cada visita nombra al ciudadano y enlaza a su ficha, así que se recorta igual que el
-    // directorio: si no se puede ver al ciudadano, tampoco su visita.
-    .where(and(
-      or(eq(schema.visits.assignedUserId, targetUserId), eq(schema.visits.createdByUserId, targetUserId)),
-      restriccionContactos,
-      // La visita que agendó una actividad ya sale como parte de la actividad: no se lista dos veces.
-      sql`NOT EXISTS (SELECT 1 FROM event_reports x WHERE x.visit_id = ${schema.visits.id})`
-    ))
-    .orderBy(desc(schema.visits.scheduledAt));
-
-  const activities = [
-    ...rawVisits.map(v => ({
-      id: v.id,
-      type: "visita",
-      category: "visita",
-      title: `Visita Domiciliaria: ${v.contactName}`,
-      description: `Visita de seguimiento y vinculación en campo`,
-      location: v.location || "Domicilio en campo",
-      status: v.status,
-      scheduledAt: (v.scheduledAt instanceof Date ? v.scheduledAt : new Date(v.scheduledAt)).toISOString(),
-      createdAt: (v.createdAt instanceof Date ? v.createdAt : new Date(v.createdAt)).toISOString(),
-      contactId: v.contactId
-    })),
-    ...rawEvents.map(e => {
-      let cat = e.category;
-      const t = (e.title || "").toLowerCase();
-      if (t.includes("plática") || t.includes("platica")) cat = "platica";
-      else if (t.includes("visita")) cat = "visita";
-      else if (t.includes("evento") || t.includes("asamblea") || t.includes("mitin")) cat = "evento";
-      else if (t.includes("brigada") || t.includes("volanteo")) cat = "brigada";
-      else if (t.includes("perifoneo")) cat = "perifoneo";
-
-      return {
-        id: e.id,
-        type: "event",
-        category: cat,
-        title: e.title,
-        description: e.description || "",
-        location: e.sectionNum ? `Sección #${e.sectionNum}${e.municipality ? ` (${e.municipality})` : ""}` : (e.municipality || "Sin ubicación"),
-        status: e.status,
-        scheduledAt: (e.eventDate instanceof Date ? e.eventDate : new Date(e.eventDate || Date.now())).toISOString(),
-        createdAt: (e.createdAt instanceof Date ? e.createdAt : new Date(e.createdAt)).toISOString(),
-        latitude: e.latitude,
-        longitude: e.longitude
-      };
-    })
-  ].sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
-
-  // 6. Calculate Colonias and Sections presence
-  const colonyCounts: Record<string, number> = {};
-  const sectionCounts: Record<string, number> = {};
-
-  contacts.forEach(c => {
-    if (c.colony) {
-      colonyCounts[c.colony] = (colonyCounts[c.colony] || 0) + 1;
-    }
-    if (c.sectionNum) {
-      const secKey = `Secc. #${c.sectionNum}`;
-      sectionCounts[secKey] = (sectionCounts[secKey] || 0) + 1;
-    }
-  });
-
-  const topColonies = Object.entries(colonyCounts)
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
-
-  const topSections = Object.entries(sectionCounts)
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
+  // Sus equipos reales: los que dirige y de los que es integrante (auditoría de menús, A3). Lo demás, recortado a
+  // lo que quien mira puede ver: entrar al perfil de alguien no amplía lo que se ve.
+  const [equipos, datos] = await Promise.all([equiposDePersona(targetUserId, viewerScope), datosDelPerfil(viewerScope, targetUserId)]);
 
   return (
     <LeaderProfileClient
@@ -269,14 +93,16 @@ export default async function LeaderProfilePage({
         roleName: targetUser.roleName || "Operador Territorial",
         photoUrl: targetUser.photoUrl
       }}
-      team={team}
-      contacts={contacts}
-      activities={activities}
-      topColonies={topColonies}
-      topSections={topSections}
+      equipos={equipos}
+      contacts={datos.ciudadanos}
+      totalContactos={datos.totalCiudadanos}
+      activities={datos.actividades}
+      resumenActividades={datos.resumenActividades}
+      topColonies={datos.colonias}
+      topSections={datos.secciones}
       domicilio={veDomicilio ? { calle: targetUser.homeAddress, colonia: targetUser.homeColony, municipio: targetUser.homeMunicipality } : null}
       isCurrentUser={session.userId === targetUserId}
-      currentUserId={session.userId}
+      pestanaInicial={pestanaInicial((await searchParams)?.pestana, session.userId === targetUserId)}
       currentUserRole={session.roleKey || ""}
     />
   );

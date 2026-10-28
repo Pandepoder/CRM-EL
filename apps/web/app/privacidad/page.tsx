@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 
+import { MARCA } from "@/lib/marca";
+
 export default function PrivacidadPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -18,7 +20,7 @@ export default function PrivacidadPage() {
               <h2 className="text-xl font-semibold text-gray-900">1. Aviso de Privacidad y Manejo de Datos Sensibles</h2>
               <p>
                 En cumplimiento con la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP) 
-                y legislaciones aplicables, Tonalá OS se compromete a proteger la información de identificación personal (PII) 
+                y legislaciones aplicables, {MARCA.sistema} se compromete a proteger la información de identificación personal (PII) 
                 de los ciudadanos, operadores y voluntarios registrados en nuestro sistema.
               </p>
             </section>
@@ -26,7 +28,7 @@ export default function PrivacidadPage() {
             <section>
               <h2 className="text-xl font-semibold text-gray-900">2. Seguridad Criptográfica Aplicada</h2>
               <p>
-                Para garantizar la integridad y confidencialidad absoluta de los datos ciudadanos, Tonalá OS implementa 
+                Para garantizar la integridad y confidencialidad absoluta de los datos ciudadanos, {MARCA.sistema} implementa 
                 <strong> Cifrado de Grado Militar (AES-256-GCM) </strong> a nivel de aplicación (Data-at-Rest).
               </p>
               <ul className="list-disc pl-5 space-y-2 mt-2">

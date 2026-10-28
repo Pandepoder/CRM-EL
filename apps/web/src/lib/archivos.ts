@@ -7,6 +7,7 @@ import { condicionPorAutor } from "@/lib/alcance-municipal";
 import { getDatabaseClient } from "@/lib/db-client";
 import { incidentScopeCondition } from "@/lib/incident-visibility";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { puedeVerReporte } from "@/lib/problemas";
 
 /**
  * Archivos subidos (`/api/upload`) y quién puede verlos (`/api/uploads/<nombre>`).
@@ -16,8 +17,9 @@ import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
  * Ahora un archivo se entrega a quien:
  *
  *   1. lo subió (la vista previa del formulario, antes de que el registro exista);
- *   2. puede ver el registro que lo usa: la incidencia o actividad, el reporte de escucha o la
- *      ficha del ciudadano, con la misma regla de alcance que esas pantallas;
+ *   2. puede ver el registro que lo usa: la incidencia o actividad, el reporte de escucha, la
+ *      ficha del ciudadano o el reporte de un problema (su captura), con la misma regla de alcance que
+ *      esas pantallas;
  *   3. cualquier sesión, si es la foto de perfil de alguien: sale en la barra lateral, en la ficha
  *      y en las listas del equipo.
  *
@@ -108,6 +110,14 @@ export async function puedeVerArchivo(nombre: string, userId: string): Promise<b
     ))
     .limit(1);
   if (escucha) return true;
+
+  // La captura de un reporte de problema: quien lo hizo y administración con alcance sobre esa persona.
+  const reportes = await db
+    .select({ creadoPor: schema.problemReports.createdByUserId })
+    .from(schema.problemReports)
+    .where(eq(schema.problemReports.photoUrl, url))
+    .limit(5);
+  if (reportes.some((r) => puedeVerReporte(alcance, r.creadoPor))) return true;
 
   const bardas = await db
     .select({ id: schema.contacts.id })

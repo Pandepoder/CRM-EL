@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { AlertTriangle, CalendarPlus, Plus, X } from "lucide-react";
+import { AlertTriangle, CalendarPlus, Megaphone, MessageSquarePlus, Plus, UserPlus, X } from "lucide-react";
+
+import { opcionesDelBotonMas, type OpcionDelBotonMas } from "./boton-mas.js";
 
 /**
  * Botón de creación rápida, fijo en todas las pantallas del panel.
@@ -17,44 +19,24 @@ import { AlertTriangle, CalendarPlus, Plus, X } from "lucide-react";
  * del catálogo de categorías, que es como empezaron los problemas anteriores.
  */
 
-type Opcion = Readonly<{
-  href: string;
-  etiqueta: string;
-  ayuda: string;
-  icono: typeof AlertTriangle;
-  color: string;
-}>;
+const ICONOS: Record<OpcionDelBotonMas["icono"], typeof AlertTriangle> = {
+  ciudadano: UserPlus,
+  incidencia: AlertTriangle,
+  evento: CalendarPlus,
+  aviso: Megaphone,
+  peticion: MessageSquarePlus
+};
 
-/**
- * Las dos opciones las puede usar la misma gente: quien coordina (administración o quien lidera
- * un equipo). Es la condición con que la API acepta una incidencia y con que la Agenda deja crear
- * una actividad, y la calcula el servidor. Antes cada opción llevaba su lista de roles: «Evento o
- * actividad» se ofrecía también a capturista y brigadista, que llegaban a la Agenda y no se abría
- * nada, sin ningún mensaje (C7). Y una lista de roles se equivoca con quien lidera un equipo sin
- * tener rol de mando.
- */
-const OPCIONES: readonly Opcion[] = [
-  {
-    href: "/mapa?crear=incidencia",
-    etiqueta: "Incidencia",
-    ayuda: "Bache, fuga, alumbrado, emergencia…",
-    icono: AlertTriangle,
-    color: "#dc2626"
-  },
-  {
-    href: "/equipo?crear=evento",
-    etiqueta: "Evento o actividad",
-    ayuda: "Mitin, plática, brigada, visita…",
-    icono: CalendarPlus,
-    color: "#2563eb"
-  }
-];
-
-export function QuickCreateFab({ puedeCoordinar }: Readonly<{ puedeCoordinar: boolean }>) {
+export function QuickCreateFab({
+  puedeCoordinar,
+  puedeRegistrar = false,
+  puedeAvisar = false,
+  puedeAnotarPeticion = false
+}: Readonly<{ puedeCoordinar: boolean; puedeRegistrar?: boolean; puedeAvisar?: boolean; puedeAnotarPeticion?: boolean }>) {
   const [abierto, setAbierto] = useState(false);
   const contenedor = useRef<HTMLDivElement | null>(null);
 
-  const opciones = puedeCoordinar ? OPCIONES : [];
+  const opciones = opcionesDelBotonMas(puedeCoordinar, puedeRegistrar, puedeAvisar, puedeAnotarPeticion).map((o) => ({ ...o, icono: ICONOS[o.icono] }));
 
   useEffect(() => {
     if (!abierto) return;
@@ -78,6 +60,18 @@ export function QuickCreateFab({ puedeCoordinar }: Readonly<{ puedeCoordinar: bo
 
   // Sin nada que ofrecer no se pinta el botón: vale más que no esté a que abra un menú vacío.
   if (opciones.length === 0) return null;
+
+  // Con una sola opción (el brigadista: avisar), un menú de una línea es un toque de más.
+  const unica = opciones.length === 1 ? opciones[0] : null;
+  if (unica) {
+    return (
+      <div className="fab-creacion">
+        <a className="fab-boton" href={unica.href} aria-label={`${unica.etiqueta}: ${unica.ayuda}`} title={unica.ayuda}>
+          <Plus size={26} />
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div className="fab-creacion" ref={contenedor}>
@@ -112,8 +106,8 @@ export function QuickCreateFab({ puedeCoordinar }: Readonly<{ puedeCoordinar: bo
         onClick={() => setAbierto((previo) => !previo)}
         aria-expanded={abierto}
         aria-haspopup="menu"
-        aria-label={abierto ? "Cerrar menú de creación" : "Crear incidencia o evento"}
-        title="Crear incidencia o evento"
+        aria-label={abierto ? "Cerrar menú de creación" : `Crear: ${opciones.map((o) => o.etiqueta.toLowerCase()).join(", ")}`}
+        title="Crear"
       >
         {abierto ? <X size={24} /> : <Plus size={26} />}
       </button>

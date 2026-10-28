@@ -67,7 +67,8 @@ def test_suite():
     req = urllib.request.Request(f"{BASE_URL}/api/escucha-social", headers={"User-Agent": "Mozilla/5.0"})
     with opener.open(req) as res:
         escucha_data = json.loads(res.read().decode())
-        print(f"Escucha Social Status: {res.getcode()}, Items: {len(escucha_data.get('items', []))}")
+        # Desde la fase 3 del plan de auditoría de menús la lista va por páginas: `filas` y `total`.
+        print(f"Escucha Social Status: {res.getcode()}, Items: {escucha_data.get('total', len(escucha_data.get('items', [])))}")
 
     print("\n=== TEST 6: Rapid Activity Prospectos API ===")
     req = urllib.request.Request(f"{BASE_URL}/api/prospectos", headers={"User-Agent": "Mozilla/5.0"})

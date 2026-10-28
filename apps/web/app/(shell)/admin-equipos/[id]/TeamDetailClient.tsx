@@ -7,6 +7,7 @@ import Link from "next/link";
 import { AvatarPersona } from "@/components/AvatarPersona";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
 import { darDeBajaCiudadanoAction } from "../../crm/actions";
+import { avisar } from "@/lib/avisos";
 
 type Team = {
   id: string;
@@ -79,12 +80,12 @@ export default function TeamDetailClient({
     try {
       const resultado = await darDeBajaCiudadanoAction(contactId);
       if (!resultado.ok) {
-        alert(resultado.error);
+        avisar(resultado.error);
         return;
       }
       router.refresh();
     } catch {
-      alert("No se pudo dar de baja. Revisa tu conexión e intenta de nuevo.");
+      avisar("No se pudo dar de baja. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setDeletingContactId(null);
     }
@@ -107,7 +108,7 @@ export default function TeamDetailClient({
         router.refresh();
       } else {
         const data = await res.json();
-        alert(data.error || "Error al agregar integrante");
+        avisar(data.error || "No se pudo sumar a esta persona al equipo. Revisa tu señal y vuelve a intentarlo.");
       }
     } finally {
       setSaving(false);
@@ -124,7 +125,7 @@ export default function TeamDetailClient({
       if (res.ok) {
         router.refresh();
       } else {
-        alert("Error al remover integrante");
+        avisar("No se pudo quitar a esta persona del equipo. Revisa tu señal y vuelve a intentarlo.");
       }
     } finally {
       setRemovingId(null);
@@ -475,7 +476,7 @@ export default function TeamDetailClient({
               <button 
                 type="button"
                 onClick={() => setShowModal(false)} 
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="w-11 h-11 shrink-0 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
                 title="Cerrar ventana"
               >
                 <X size={18} />

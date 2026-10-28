@@ -1,3 +1,4 @@
+import { nombreDeCategoriaEscucha, nombreDeEstadoEscucha, type PuntoDePeticion } from "@/lib/escucha-social";
 import { ESTADOS_INCIDENCIA, ESTADO_DESCONOCIDO } from "@/lib/estados-incidencia";
 
 import { BLOQUES, PAN_BADGE_HTML, SVGS, calcularResultado, categoriaDe } from "./constantes";
@@ -80,7 +81,8 @@ export function globoIncidencia(report: ReportFeature, indice: number, total: nu
 
   let acciones = "";
   if (p.esActividad) {
-    acciones = `<a href="/equipo" style="flex:1; display:block; text-align:center; padding:8px 10px; background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe; border-radius:8px; font-size:12px; font-weight:700; text-decoration:none;">Es una actividad: se trabaja en la Agenda</a>`;
+    // Abre la ficha de esa actividad en la Agenda (C11), no la Agenda a secas.
+    acciones = `<a href="${id ? `/equipo?actividad=${id}` : "/equipo"}" style="flex:1; display:block; text-align:center; padding:8px 10px; background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe; border-radius:8px; font-size:12px; font-weight:700; text-decoration:none;">Es una actividad: se trabaja en la Agenda</a>`;
   } else {
     const cambiar = p.puedeActualizar && id
       ? estado.cerrada
@@ -151,6 +153,32 @@ export function globoContacto(c: ContactoDelMapa): string {
       ${p.isApproximate ? `<p style="margin:0 0 2px; font-size:11px; color:#b45309;">Ubicación aproximada: centro de su sección, sin GPS.</p>` : ""}
       <p style="margin:0 0 8px; font-size:11px; color:#64748b;">Red: <strong style="color:#0f172a;">${escaparHtml(p.creatorName || "Equipo")}</strong></p>
       ${id ? `<a href="/crm/contacts/${id}" style="display:block; text-align:center; padding:7px 12px; background:#2563eb; color:white; border-radius:8px; font-size:11px; font-weight:800; text-decoration:none;">Ver ficha</a>` : ""}
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Peticiones de Escucha Social (plan de auditoría de menús, F3.3): morado, para no confundirlas con
+// incidencias (rojo/ámbar) ni con contactos (azul). Sin nombre del vecino ni título (§5.2): el globo
+// dice qué tipo es y en qué va, y enlaza a Escucha Social, donde se ve lo que a cada quien le toca.
+const EMOJI_PETICION: Record<string, string> = { propuesta: "💡", problematica: "⚠️", compromiso: "🤝", seguimiento: "🔁", gestion: "🏛️" };
+
+export function iconoPeticion(p: PuntoDePeticion): string {
+  const cerrada = p.estado === "cerrado";
+  return `
+    <div style="width:28px; height:28px; border-radius:9px; background:${cerrada ? "#ede9fe" : "#7c3aed"}; border:2px solid #ffffff; box-shadow:0 3px 10px rgba(76,29,149,0.35); display:flex; align-items:center; justify-content:center; font-size:14px; line-height:1; opacity:${cerrada ? "0.8" : "1"};" title="${escaparHtml(`Petición: ${nombreDeCategoriaEscucha(p.categoria)}`)}">${EMOJI_PETICION[p.categoria] ?? "💬"}</div>`;
+}
+
+export function iconoGrupoPeticiones(total: number): string {
+  return `<div style="width:34px; height:34px; border-radius:11px; background:#6d28d9; color:#ffffff; border:2px solid #ffffff; box-shadow:0 3px 10px rgba(76,29,149,0.4); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900;">${cifra(total)}</div>`;
+}
+
+export function globoPeticion(p: PuntoDePeticion): string {
+  const id = idSeguro(p.id);
+  return `
+    <div style="font-family:system-ui,-apple-system,sans-serif; min-width:200px; padding:6px;">
+      <span style="font-size:11px; font-weight:800; color:#6d28d9; text-transform:uppercase;">Petición · ${escaparHtml(nombreDeCategoriaEscucha(p.categoria))}</span>
+      <p style="margin:4px 0 8px; font-size:12px; color:#334155; font-weight:700;">${escaparHtml(nombreDeEstadoEscucha(p.estado))}</p>
+      ${id ? `<a href="/escucha-social?peticion=${id}" style="display:block; text-align:center; padding:7px 12px; background:#7c3aed; color:white; border-radius:8px; font-size:11px; font-weight:800; text-decoration:none;">Ver petición</a>` : ""}
     </div>`;
 }
 

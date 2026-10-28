@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowLeft, Scale } from "lucide-react";
 
+import { MARCA } from "@/lib/marca";
+
 export default function TerminosPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -17,7 +19,7 @@ export default function TerminosPage() {
             <section>
               <h2 className="text-xl font-semibold text-gray-900">1. Aceptación de los Términos</h2>
               <p>
-                Al acceder y utilizar la plataforma Tonalá OS (en adelante, "el Sistema"), usted acepta estar sujeto a estos 
+                Al acceder y utilizar la plataforma {MARCA.sistema} (en adelante, "el Sistema"), usted acepta estar sujeto a estos 
                 Términos y Condiciones. Si no está de acuerdo con alguna parte de los mismos, debe abstenerse de utilizar el sistema.
               </p>
             </section>
@@ -31,7 +33,7 @@ export default function TerminosPage() {
               <ul className="list-disc pl-5 space-y-2 mt-2">
                 <li>Mantener la confidencialidad absoluta de sus credenciales de acceso.</li>
                 <li>No utilizar la plataforma para fines ajenos a los objetivos operativos oficiales.</li>
-                <li>Registrar información verífica y precisa durante sus labores en campo.</li>
+                <li>Registrar información verídica y precisa durante sus labores en campo.</li>
               </ul>
             </section>
 

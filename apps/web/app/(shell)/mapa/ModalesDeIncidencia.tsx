@@ -9,6 +9,8 @@ import type { ComponentType } from "react";
 import { AddressAutocomplete, type AutocompleteItem } from "@/components/AddressAutocomplete";
 import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
 import { PredictiveCombobox } from "@/components/PredictiveCombobox";
+import { celebrar } from "@/lib/celebraciones";
+import { useUsuarioActual } from "@/lib/usuario-contexto";
 import { enviarOEncolar, nuevaClave, TEXTO_DE_ESPERA } from "@/lib/cola-de-envios";
 import { ESTADOS_INCIDENCIA } from "@/lib/estados-incidencia";
 import { MUNICIPIOS_JALISCO, TODO_JALISCO } from "@/lib/municipios-jalisco";
@@ -68,7 +70,7 @@ function seccionDelPunto(secciones: any, lat: number, lng: number) {
   return null;
 }
 
-const vacio = { title: "", address: "", description: "", category: "servicios", municipality: "", sectionId: "", assignedToUserId: "", mediaUrls: [] as MediaFile[] };
+const vacio = { title: "", address: "", description: "", category: "servicios", municipality: "", sectionId: "", assignedToUserId: "", assignedTeamId: "", mediaUrls: [] as MediaFile[] };
 
 /**
  * Levantar una incidencia en un punto. Detecta dirección, municipio y sección del punto (al instante
@@ -79,6 +81,8 @@ export function ModalNuevaIncidencia(p: {
   punto: PuntoDeReporte | null;
   secciones: any;
   usuarios: UserOption[];
+  /** Equipos del alcance (`/api/map/teams`): el mismo formulario que «Levantar incidencia» (C3). */
+  equipos?: Array<{ id: string; name: string; memberCount?: number }>;
   usuarioActualId: string | null;
   onCerrar: () => void;
   onGuardada: (mensaje: string) => void;
@@ -110,14 +114,18 @@ export function ModalNuevaIncidencia(p: {
     setForm({
       ...vacio,
       title: colonia ? `Reporte en ${colonia}` : muni ? `Reporte en ${muni}` : "Nuevo reporte",
-      address: `Coordenadas: ${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}`,
+      address: `Punto en el mapa: ${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}`,
       municipality: muni,
       sectionId: seccionId || ""
     });
     setUbicando(true);
     void (async () => {
       try {
-        const res = await fetch(`/api/map/reverse-geocode?lat=${punto.lat}&lng=${punto.lng}`);
+        // Con mala señal la búsqueda de la dirección podía no terminar nunca. Se corta a los 6 s: el
+        // servidor ubica el punto en su sección de todos modos (F9).
+        // (Un Safari viejo no tiene `AbortSignal.timeout`: ahí se espera como antes.)
+        const corte = typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function" ? { signal: AbortSignal.timeout(6000) } : {};
+        const res = await fetch(`/api/map/reverse-geocode?lat=${punto.lat}&lng=${punto.lng}`, corte);
         if (!res.ok || !vigente) return;
         const data = await res.json();
         const m = punto.municipio || data.municipality || muni;
@@ -138,8 +146,13 @@ export function ModalNuevaIncidencia(p: {
 
   if (!p.punto || !coords) return null;
 
+  // Con descripción o fotos capturadas, cerrar pregunta antes (F10): un toque fuera de la ventana lo
+  // borraba todo. El título y la ubicación los propone el formulario solo, así que no cuentan.
   const cerrar = () => {
-    if (!guardando) p.onCerrar();
+    if (guardando) return;
+    const capturado = form.description.trim() !== "" || form.mediaUrls.length > 0;
+    if (capturado && !listo && !window.confirm("¿Cerrar sin guardar? Lo que capturaste se perderá.")) return;
+    p.onCerrar();
   };
 
   async function guardar(e: React.FormEvent) {
@@ -156,6 +169,7 @@ export function ModalNuevaIncidencia(p: {
       municipality: form.municipality,
       sectionId: form.sectionId || deteccion?.sectionId || null,
       assignedToUserId: form.assignedToUserId || null,
+      assignedTeamId: form.assignedTeamId || null,
       mediaUrls: form.mediaUrls,
       clientRequestId: clave
     };
@@ -163,6 +177,7 @@ export function ModalNuevaIncidencia(p: {
     setGuardando(false);
     if (r.estado === "enviado" || r.estado === "encolado") {
       const texto = r.estado === "enviado" ? "Incidencia registrada." : TEXTO_DE_ESPERA[r.motivo];
+      if (r.estado === "enviado") celebrar({ tipo: "otro", titulo: "Incidencia levantada" });
       setClave(nuevaClave());
       setListo(texto);
       p.onGuardada(texto);
@@ -201,10 +216,10 @@ export function ModalNuevaIncidencia(p: {
             <div className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center"><AlertCircle size={18} /></div>
             <div>
               <h3 className="m-0 font-black text-[15px] text-slate-900">Registrar incidencia</h3>
-              <div className="text-[10px] font-bold text-slate-500">Coordenadas: {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</div>
+              <div className="text-xs font-bold text-slate-500">Punto en el mapa: {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</div>
             </div>
           </div>
-          <button type="button" onClick={cerrar} className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer" aria-label="Cerrar">
+          <button type="button" onClick={cerrar} className="w-11 h-11 shrink-0 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer" aria-label="Cerrar">
             <X size={17} />
           </button>
         </div>
@@ -245,20 +260,24 @@ export function ModalNuevaIncidencia(p: {
               )}
             </div>
 
+            {/* «¿Qué pasa?» como botones grandes (F14): eran chips de 10 px. Uno llena la categoría y el título;
+                para otra categoría sigue la lista de abajo. */}
             <div>
-              <span className={ETIQUETA}>Plantillas rápidas</span>
-              <div className="flex gap-1.5 flex-wrap">
+              <span className={ETIQUETA}>¿Qué pasa? Toca uno</span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5" role="radiogroup" aria-label="Tipo de incidencia">
                 {plantillas.map((pl) => (
                   <button
                     key={pl.cat}
                     type="button"
+                    role="radio"
+                    aria-checked={form.category === pl.cat}
                     onClick={() => {
                       const donde = deteccion?.colony ? ` en Col. ${deteccion.colony}` : form.municipality ? ` en ${form.municipality}` : "";
                       setForm((prev) => ({ ...prev, category: pl.cat, title: `${pl.title}${donde}` }));
                     }}
-                    className={`px-2 py-1 rounded-md border text-[10px] font-bold flex items-center gap-1 cursor-pointer ${form.category === pl.cat ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 bg-slate-50 text-slate-600"}`}
+                    className={`min-h-[44px] px-2.5 rounded-xl border-2 text-[13px] font-extrabold flex items-center gap-1.5 cursor-pointer ${form.category === pl.cat ? "border-blue-600 bg-blue-50 text-blue-800" : "border-slate-200 bg-white text-slate-700"}`}
                   >
-                    <pl.icon size={12} /> {pl.label}
+                    <pl.icon size={16} className="shrink-0" aria-hidden="true" /> {pl.label}
                   </button>
                 ))}
               </div>
@@ -331,8 +350,16 @@ export function ModalNuevaIncidencia(p: {
               />
             </div>
 
+            <PredictiveCombobox label="Categoría" required allowCustom={false} value={form.category} onChange={(val) => setForm({ ...form, category: val })} options={opcionesCategoria} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <PredictiveCombobox label="Categoría" required allowCustom={false} value={form.category} onChange={(val) => setForm({ ...form, category: val })} options={opcionesCategoria} />
+              <PredictiveCombobox
+                label="Asignar a equipo"
+                allowCustom={false}
+                placeholder="Buscar brigada…"
+                value={form.assignedTeamId}
+                onChange={(val) => setForm({ ...form, assignedTeamId: val })}
+                options={(p.equipos ?? []).map((e) => ({ value: e.id, label: e.name, badge: (e.memberCount ?? 0) > 0 ? `${e.memberCount} integrantes` : "Sin integrantes" }))}
+              />
               <PredictiveCombobox
                 label="Asignar responsable"
                 allowCustom={false}
@@ -357,7 +384,9 @@ export function ModalNuevaIncidencia(p: {
 
             <div className="flex gap-2 pt-2 border-t border-slate-100">
               <button type="button" onClick={cerrar} className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-[12px] font-bold cursor-pointer">Cancelar</button>
-              <button type="submit" disabled={guardando || ubicando} className="flex-[1.5] py-2.5 bg-red-600 text-white rounded-lg text-[12px] font-extrabold cursor-pointer disabled:opacity-60">
+              {/* No espera a la dirección: sin ella se guarda igual (ver arriba). Antes el botón se quedaba
+                  apagado sin explicar por qué mientras se buscaba. */}
+              <button type="submit" disabled={guardando} className="flex-[1.5] py-2.5 bg-red-600 text-white rounded-lg text-[12px] font-extrabold cursor-pointer disabled:opacity-60">
                 {guardando ? "Guardando…" : "Registrar incidencia"}
               </button>
             </div>
@@ -370,6 +399,8 @@ export function ModalNuevaIncidencia(p: {
 
 /** Editar o reasignar una incidencia. Los estados salen del catálogo, no de una lista escrita aquí. */
 export function ModalEditarIncidencia(p: { reporte: ReportFeature | null; usuarios: UserOption[]; onCerrar: () => void; onGuardada: () => void }) {
+  const usuario = useUsuarioActual();
+  const coordina = Boolean(usuario?.puedeCoordinar);
   const [form, setForm] = useState({ title: "", description: "", category: "servicios", municipality: "", status: "active", assignedToUserId: "" });
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -383,6 +414,7 @@ export function ModalEditarIncidencia(p: { reporte: ReportFeature | null; usuari
 
   if (!p.reporte) return null;
   const id = p.reporte.properties.id;
+  const estadoBloqueado = !coordina && p.reporte.properties.status === "pendiente";
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -392,7 +424,13 @@ export function ModalEditarIncidencia(p: { reporte: ReportFeature | null; usuari
       const res = await fetch(`/api/map/reports/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, assignedToUserId: form.assignedToUserId || null })
+        // Quien no coordina no manda el responsable: reasignar es de quien coordina, y el servidor rechazaba el
+        // cambio entero. Tampoco el estado de su propio aviso «por aceptar» (D9).
+        body: JSON.stringify(
+          coordina
+            ? { ...form, assignedToUserId: form.assignedToUserId || null }
+            : { title: form.title, description: form.description, category: form.category, municipality: form.municipality, ...(estadoBloqueado ? {} : { status: form.status }) }
+        )
       });
       const datos = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -416,7 +454,7 @@ export function ModalEditarIncidencia(p: { reporte: ReportFeature | null; usuari
       <div className={CAJA} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Editar incidencia">
         <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-200 bg-slate-50 shrink-0">
           <h3 className="m-0 font-black text-[15px] text-slate-900">Editar incidencia</h3>
-          <button type="button" onClick={p.onCerrar} className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer" aria-label="Cerrar"><X size={18} /></button>
+          <button type="button" onClick={p.onCerrar} className="w-11 h-11 shrink-0 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer" aria-label="Cerrar"><X size={18} /></button>
         </div>
         <form onSubmit={guardar} className="p-4 pb-10 flex flex-col gap-3 overflow-y-auto overscroll-contain flex-1">
           <div>
@@ -428,8 +466,14 @@ export function ModalEditarIncidencia(p: { reporte: ReportFeature | null; usuari
             <PredictiveCombobox label="Categoría" required allowCustom={false} value={form.category} onChange={(val) => setForm({ ...form, category: val })} options={opcionesCategoria} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <PredictiveCombobox label="Estado" required allowCustom={false} value={form.status} onChange={(val) => setForm({ ...form, status: val })} options={opcionesEstado} />
-            <PredictiveCombobox label="Responsable" allowCustom={false} placeholder="Buscar persona…" value={form.assignedToUserId} onChange={(val) => setForm({ ...form, assignedToUserId: val })} options={p.usuarios.map((u) => ({ value: u.id, label: u.displayName, badge: "Persona" }))} />
+            {estadoBloqueado ? (
+              <p className="m-0 text-[12px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5">Por aceptar: tu líder la acepta.</p>
+            ) : (
+              <PredictiveCombobox label="Estado" required allowCustom={false} value={form.status} onChange={(val) => setForm({ ...form, status: val })} options={opcionesEstado} />
+            )}
+            {coordina && (
+              <PredictiveCombobox label="Responsable" allowCustom={false} placeholder="Buscar persona…" value={form.assignedToUserId} onChange={(val) => setForm({ ...form, assignedToUserId: val })} options={p.usuarios.map((u) => ({ value: u.id, label: u.displayName, badge: "Persona" }))} />
+            )}
           </div>
           <div>
             <label className={ETIQUETA} htmlFor="editar-descripcion">Descripción / seguimiento *</label>
@@ -455,7 +499,7 @@ export function ModalArchivarResueltas(p: { abierto: boolean; ocupado: boolean; 
         <div className="w-11 h-11 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center mx-auto mb-2.5"><Archive size={22} /></div>
         <h3 className="m-0 mb-1 text-[16px] font-black text-slate-900">¿Archivar las incidencias resueltas?</h3>
         <p className="m-0 mb-3.5 text-[12px] text-slate-500 leading-snug">
-          Salen del mapa y de la bandeja, y quedan en Incidencias → Historial como archivadas. No se borra nada. Las
+          Salen del mapa y de la bandeja, y quedan en Incidencias → Cerradas como archivadas. No se borra nada. Las
           actividades de la bitácora no se tocan.
         </p>
         <div className="flex gap-2">

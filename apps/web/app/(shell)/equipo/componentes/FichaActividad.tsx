@@ -3,13 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Archive, ArchiveRestore, CalendarClock, CheckCircle2, Copy, GitBranchPlus, Loader2, MapPin, MessageSquarePlus,
+  Archive, ArchiveRestore, CalendarClock, CheckCircle2, ChevronDown, Copy, GitBranchPlus, Loader2, MapPin, MessageSquarePlus,
   Pencil, Play, Trash2, User, Users, X, XCircle
 } from "lucide-react";
 
-import { CLAVES_RESULTADO, proximaHoraLocal, RESULTADOS_ACTIVIDAD } from "@/lib/actividades";
+import { LARGO_MAXIMO_CONCLUSION, LARGO_MAXIMO_RESUMEN_VISITA, proximaHoraLocal, RESULTADOS_ACTIVIDAD } from "@/lib/actividades";
 import type { ActividadItem, OpcionSelector } from "@/lib/bitacora-tipos";
+import { AccionesDeContacto } from "@/components/AccionesDeContacto";
+import { agregarFrase, ElegirResultado, FrasesRapidas } from "@/components/ElegirResultado";
 import { MediaGallery } from "@/components/MediaGallery";
+import { QueEsEsto } from "@/components/QueEsEsto";
+import { celebrar } from "@/lib/celebraciones";
+import { enviarOEncolar, TEXTO_DE_ESPERA } from "@/lib/cola-de-envios";
 import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
 
 import { llamar } from "./api";
@@ -45,6 +50,24 @@ type Accion = "completar" | "reprogramar" | "cancelar" | "seguimiento" | "editar
 const campoClase = "w-full p-2.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none";
 const etiquetaClase = "block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1";
 
+/** La conclusión vive en el teléfono hasta que se guarda (C3): sin señal o al cerrar la ficha, no se pierde. */
+const claveBorrador = (id: string) => `borrador-resultado:${id}`;
+type Borrador = { texto: string; outcome: string };
+function leerBorrador(id: string): Borrador | null {
+  try {
+    const crudo = window.localStorage.getItem(claveBorrador(id));
+    if (!crudo) return null;
+    const b = JSON.parse(crudo) as Partial<Borrador>;
+    return typeof b.texto === "string" ? { texto: b.texto, outcome: typeof b.outcome === "string" ? b.outcome : "successful" } : null;
+  } catch { return null; }
+}
+function guardarBorrador(id: string, texto: string, outcome = "successful"): void {
+  try {
+    if (texto.trim()) window.localStorage.setItem(claveBorrador(id), JSON.stringify({ texto, outcome }));
+    else window.localStorage.removeItem(claveBorrador(id));
+  } catch { /* sin almacenamiento: el texto sigue en pantalla */ }
+}
+
 function describirEvento(e: Evento): string {
   const d = e.data ?? {};
   if (e.kind === "rescheduled" && typeof d.a === "string") {
@@ -57,13 +80,15 @@ function describirEvento(e: Evento): string {
 }
 
 export function FichaActividad({
-  id, onCerrar, onCambio, onDuplicar, usuarios, usuarioActualId, esAdmin
+  id, onCerrar, onCambio, onDuplicar, usuarios, usuarioActualId, esAdmin, puedeCrear = true
 }: {
   id: string;
   onCerrar: () => void;
   /** Avisa que algo cambió, para refrescar el listado detrás de la ficha. */
   onCambio: () => void;
   onDuplicar: (a: ActividadItem) => void;
+  /** Puede registrar actividades: sin esto, «Duplicar como nueva» cerraba la ficha y no abría nada (C10). */
+  puedeCrear?: boolean;
   usuarios: UsuarioOpcion[];
   usuarioActualId: string;
   esAdmin: boolean;
@@ -74,7 +99,9 @@ export function FichaActividad({
   const [ocupado, setOcupado] = useState(false);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
+  const [masAcciones, setMasAcciones] = useState(false);
   const contenedor = useRef<HTMLDivElement>(null);
+  const formularioAccion = useRef<HTMLFormElement>(null);
 
   // Campos de los paneles de acción
   const [outcome, setOutcome] = useState("successful");
@@ -96,11 +123,34 @@ export function FichaActividad({
 
   useEffect(() => { setDetalle(null); setAccion(null); setMensaje(null); void cargar(); }, [cargar]);
   useEffect(() => { contenedor.current?.focus(); }, []);
+
+  /**
+   * Cerrar con algo escrito pregunta antes (F10): un toque fuera de la hoja borraba todo. La conclusión
+   * de un resultado no pregunta, porque queda como borrador.
+   */
+  const intentarCerrar = () => {
+    if (ocupado) return;
+    const escrito = accion !== null && accion !== "completar" && accion !== "borrar" && (texto.trim() !== "" || tituloSeg.trim() !== "");
+    if (escrito && !window.confirm("¿Cerrar sin guardar? Lo que escribiste se perderá.")) return;
+    onCerrar();
+  };
+  const intentarCerrarRef = useRef(intentarCerrar);
+  intentarCerrarRef.current = intentarCerrar;
   useEffect(() => {
-    const alTeclear = (e: KeyboardEvent) => { if (e.key === "Escape" && !ocupado) onCerrar(); };
+    const alTeclear = (e: KeyboardEvent) => { if (e.key === "Escape") intentarCerrarRef.current(); };
     document.addEventListener("keydown", alTeclear);
     return () => document.removeEventListener("keydown", alTeclear);
-  }, [ocupado, onCerrar]);
+  }, []);
+
+  // El formulario de la acción aparece debajo de los botones: se lleva a la vista para no tener que buscarlo.
+  useEffect(() => {
+    if (accion) formularioAccion.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [accion]);
+
+  // Mientras se escribe la conclusión, se guarda como borrador, con el resultado elegido.
+  useEffect(() => {
+    if (accion === "completar") guardarBorrador(id, texto, outcome);
+  }, [accion, id, texto, outcome]);
 
   // Un error de validación deja de mostrarse en cuanto la persona corrige algo.
   useEffect(() => { setErrorAccion(null); }, [texto, outcome, fecha, tituloSeg]);
@@ -113,8 +163,9 @@ export function FichaActividad({
   function abrirAccion(x: Exclude<Accion, null>) {
     setErrorAccion(null);
     setMensaje(null);
-    setTexto("");
-    setOutcome("successful");
+    const borrador = x === "completar" ? leerBorrador(id) : null;
+    setTexto(borrador?.texto ?? "");
+    setOutcome(borrador?.outcome ?? "successful");
     setFecha(proximaHoraLocal(x === "seguimiento" ? 60 * 24 * 3 : 60));
     setTituloSeg("");
     setResponsable(a?.assignedUserId ?? usuarioActualId);
@@ -146,22 +197,47 @@ export function FichaActividad({
     if (!texto.trim()) { setErrorAccion("Escribe la conclusión: es obligatoria."); return; }
     const requiere = RESULTADOS_ACTIVIDAD[outcome]?.requiereSeguimiento;
 
-    if (esVisitaSuelta) {
-      setOcupado(true); setErrorAccion(null);
-      const r = await llamar(`/api/crm/contacts/${a.contactId}/visits/${a.id}/complete`, { cuerpo: { structuredOutcome: outcome, summary: texto.trim() } });
-      setOcupado(false);
-      if (!r.ok) { setErrorAccion(r.error); return; }
-      setMensaje("Visita completada."); setAccion(null); await cargar(); onCambio();
+    if (!esVisitaSuelta && requiere && !fecha) { setErrorAccion("Este resultado requiere seguimiento: indica cuándo."); return; }
+
+    // El cierre pasa por la cola del teléfono (C3): sin señal queda guardado y se envía solo cuando vuelve,
+    // como las altas. Reenviarlo no cierra dos veces: el servidor reconoce el mismo cierre.
+    setOcupado(true); setErrorAccion(null);
+    const r = await enviarOEncolar({
+      clave: `resultado-${a.id}`,
+      tipo: "resultado",
+      descripcion: `Resultado: ${a.title}`,
+      usuarioId: usuarioActualId,
+      ...(esVisitaSuelta
+        ? {
+            url: `/api/crm/contacts/${a.contactId}/visits/${a.id}/complete`,
+            cuerpo: { structuredOutcome: outcome, summary: texto.trim() }
+          }
+        : {
+            url: `/api/equipo/tareas/${id}`,
+            metodo: "PATCH" as const,
+            cuerpo: {
+              accion: "completar", outcome, summary: texto.trim(),
+              ...(requiere ? { seguimiento: { scheduledAt: new Date(fecha).toISOString(), assignedToUserId: responsable || null, title: tituloSeg.trim() || undefined } } : {})
+            }
+          })
+    });
+    setOcupado(false);
+
+    if (r.estado === "rechazado" || r.estado === "sin-cola") { setErrorAccion(r.error); return; }
+    // Enviado o guardado en el teléfono: el borrador ya no hace falta (en la cola está lo que se mandará).
+    guardarBorrador(id, "");
+    setAccion(null);
+    if (r.estado === "encolado") {
+      setMensaje(`${TEXTO_DE_ESPERA[r.motivo]} Mientras, la actividad se sigue viendo pendiente.`);
       return;
     }
-    if (requiere && !fecha) { setErrorAccion("Este resultado requiere seguimiento: indica cuándo."); return; }
-    await ejecutar(
-      {
-        accion: "completar", outcome, summary: texto.trim(),
-        ...(requiere ? { seguimiento: { scheduledAt: new Date(fecha).toISOString(), assignedToUserId: responsable || null, title: tituloSeg.trim() || undefined } } : {})
-      },
-      requiere ? "Actividad completada y seguimiento creado." : "Actividad completada."
-    );
+    const avisos = Array.isArray(r.datos.avisos) ? ` ${(r.datos.avisos as string[]).join(" ")}` : "";
+    setMensaje(esVisitaSuelta ? "Visita completada." : `${requiere ? "Actividad completada y seguimiento creado." : "Actividad completada."}${avisos}`);
+    await cargar();
+    onCambio();
+    // Aviso abajo con vibración: suma a «Mi día» y puede ganar una insignia. Un reenvío que el servidor
+    // reconoce como el mismo cierre no se celebra dos veces.
+    if (!r.datos.repetido) celebrar({ tipo: "cierre", titulo: esVisitaSuelta ? "Visita completada" : "Actividad completada" });
   }
 
   if (errorCarga) {
@@ -183,12 +259,12 @@ export function FichaActividad({
   const requiereSeg = RESULTADOS_ACTIVIDAD[outcome]?.requiereSeguimiento;
 
   return (
-    <Envoltorio onCerrar={onCerrar} contenedor={contenedor} titulo={a.title}>
+    <Envoltorio onCerrar={intentarCerrar} contenedor={contenedor} titulo={a.title}>
       <div className="px-5 pt-4 pb-3 border-b border-gray-100 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <EtiquetaEstado estado={a.estado} />
           {a.tipo ? <InsigniaTipo nombre={a.tipo.nombre} color={a.tipo.color} /> : <span className="text-[11px] font-bold text-gray-500 border border-gray-200 rounded-lg px-2.5 py-0.5">Sin tipo (registro anterior)</span>}
-          {a.tieneSeguimiento && <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-0.5">Con seguimiento</span>}
+          {a.tieneSeguimiento && <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg pl-2.5 pr-1 py-0.5 inline-flex items-center gap-0.5">Con seguimiento <QueEsEsto termino="seguimiento" /></span>}
           {a.etiquetas.map((t) => <span key={t.id} className="text-[11px] font-bold text-gray-700 bg-gray-100 rounded-lg px-2 py-0.5">#{t.name}</span>)}
         </div>
       </div>
@@ -209,6 +285,9 @@ export function FichaActividad({
           )}
           {a.createdByName && <Dato icono={<User size={14} />} etiqueta="Creada por" valor={a.createdByName} />}
         </dl>
+
+        {/* Cómo llegar al punto de la actividad mientras está pendiente (C1). */}
+        {abierta && <AccionesDeContacto lat={a.latitude} lng={a.longitude} direccion={a.locationText} tamano="compacta" className="max-w-xs" />}
 
         {a.description && <Bloque titulo="Notas"><p className="text-sm text-gray-800 whitespace-pre-wrap">{a.description}</p></Bloque>}
 
@@ -233,25 +312,48 @@ export function FichaActividad({
         )}
         {a.followUpOfId && <p className="text-xs font-semibold text-gray-600">Esta actividad es un seguimiento de otra.</p>}
 
-        {/* Acciones */}
-        {puedeActuar && (
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Acciones de la actividad">
-            {abierta && !esVisitaSuelta && a.estado !== "en_curso" && <BotonAccion icono={<Play size={14} />} onClick={() => void ejecutar({ accion: "iniciar" }, "Actividad en curso.")} deshabilitado={ocupado}>Iniciar</BotonAccion>}
-            {abierta && <BotonAccion principal icono={<CheckCircle2 size={14} />} onClick={() => abrirAccion("completar")}>{esVisitaSuelta ? "Reportar resultado" : "Completar"}</BotonAccion>}
-            {abierta && !esVisitaSuelta && <BotonAccion icono={<CalendarClock size={14} />} onClick={() => abrirAccion("reprogramar")}>Reprogramar</BotonAccion>}
-            {abierta && !esVisitaSuelta && <BotonAccion peligro icono={<XCircle size={14} />} onClick={() => abrirAccion("cancelar")}>Cancelar</BotonAccion>}
-            {!esVisitaSuelta && <BotonAccion icono={<GitBranchPlus size={14} />} onClick={() => abrirAccion("seguimiento")}>Crear seguimiento</BotonAccion>}
-            {!esVisitaSuelta && <BotonAccion icono={<MessageSquarePlus size={14} />} onClick={() => abrirAccion("nota")}>Agregar nota</BotonAccion>}
-            {!esVisitaSuelta && a.estado !== "archivada" && <BotonAccion icono={<Pencil size={14} />} onClick={() => abrirAccion("editar")}>Editar</BotonAccion>}
-            {!esVisitaSuelta && <BotonAccion icono={<Copy size={14} />} onClick={() => onDuplicar(a)}>Duplicar como nueva</BotonAccion>}
-            {!esVisitaSuelta && cerrada && <BotonAccion icono={<Archive size={14} />} onClick={() => void ejecutar({ accion: "archivar" }, "Actividad archivada. Sigue en el historial.")} deshabilitado={ocupado}>Archivar</BotonAccion>}
-            {!esVisitaSuelta && a.estado === "archivada" && <BotonAccion icono={<ArchiveRestore size={14} />} onClick={() => void ejecutar({ accion: "restaurar" }, "Actividad restaurada.")} deshabilitado={ocupado}>Restaurar</BotonAccion>}
-            {!esVisitaSuelta && a.puedeBorrar && <BotonAccion peligro icono={<Trash2 size={14} />} onClick={() => abrirAccion("borrar")}>Eliminar</BotonAccion>}
+        {/* Acciones. Lo que más se hace va primero y en grande: registrar el resultado (C2). Las demás siguen
+            todas aquí; las menos usadas, dentro de «Más acciones», para no tener once botones chicos. */}
+        {puedeActuar && abierta && accion !== "completar" && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 space-y-2">
+            <p className="text-sm font-extrabold text-emerald-950">{esVisitaSuelta ? "¿Ya hiciste la visita?" : "¿Ya se realizó?"}</p>
+            <button type="button" onClick={() => abrirAccion("completar")} className="w-full min-h-[52px] rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-base font-extrabold inline-flex items-center justify-center gap-2 cursor-pointer">
+              <CheckCircle2 size={20} aria-hidden="true" /> {esVisitaSuelta ? "Reportar resultado" : "Registrar resultado"}
+            </button>
           </div>
         )}
+        {puedeActuar && (() => {
+          const visibles: React.ReactNode[] = [];
+          const ocultas: React.ReactNode[] = [];
+          if (abierta && !esVisitaSuelta && a.estado !== "en_curso") visibles.push(<BotonAccion key="iniciar" icono={<Play size={15} />} onClick={() => void ejecutar({ accion: "iniciar" }, "Actividad en curso.")} deshabilitado={ocupado}>Iniciar</BotonAccion>);
+          if (abierta && !esVisitaSuelta) visibles.push(<BotonAccion key="reprogramar" icono={<CalendarClock size={15} />} onClick={() => abrirAccion("reprogramar")}>Reprogramar</BotonAccion>);
+          if (!esVisitaSuelta) visibles.push(<BotonAccion key="nota" icono={<MessageSquarePlus size={15} />} onClick={() => abrirAccion("nota")}>Agregar nota</BotonAccion>);
+          if (!esVisitaSuelta) (cerrada ? visibles : ocultas).push(<BotonAccion key="seguimiento" icono={<GitBranchPlus size={15} />} onClick={() => abrirAccion("seguimiento")}>Crear seguimiento</BotonAccion>);
+          if (abierta && !esVisitaSuelta) ocultas.push(<BotonAccion key="cancelar" peligro icono={<XCircle size={15} />} onClick={() => abrirAccion("cancelar")}>Cancelar actividad</BotonAccion>);
+          if (!esVisitaSuelta && a.estado !== "archivada") ocultas.push(<BotonAccion key="editar" icono={<Pencil size={15} />} onClick={() => abrirAccion("editar")}>Editar</BotonAccion>);
+          if (!esVisitaSuelta && puedeCrear) ocultas.push(<BotonAccion key="duplicar" icono={<Copy size={15} />} onClick={() => onDuplicar(a)}>Duplicar como nueva</BotonAccion>);
+          if (!esVisitaSuelta && cerrada) ocultas.push(<BotonAccion key="archivar" icono={<Archive size={15} />} onClick={() => void ejecutar({ accion: "archivar" }, "Actividad archivada. Sigue en el historial.")} deshabilitado={ocupado}>Archivar</BotonAccion>);
+          if (!esVisitaSuelta && a.estado === "archivada") ocultas.push(<BotonAccion key="restaurar" icono={<ArchiveRestore size={15} />} onClick={() => void ejecutar({ accion: "restaurar" }, "Actividad restaurada.")} deshabilitado={ocupado}>Restaurar</BotonAccion>);
+          if (!esVisitaSuelta && a.puedeBorrar) ocultas.push(<BotonAccion key="borrar" peligro icono={<Trash2 size={15} />} onClick={() => abrirAccion("borrar")}>Eliminar</BotonAccion>);
+          if (visibles.length === 0 && ocultas.length === 0) return null;
+          return (
+            <div className="space-y-2" role="group" aria-label="Acciones de la actividad">
+              <div className="flex flex-wrap gap-2">
+                {visibles}
+                {ocultas.length > 0 && (
+                  <button type="button" onClick={() => setMasAcciones((v) => !v)} aria-expanded={masAcciones}
+                    className="min-h-[44px] px-3.5 rounded-xl text-sm font-extrabold inline-flex items-center gap-1.5 cursor-pointer bg-white border border-gray-200 text-gray-800 hover:bg-gray-50">
+                    Más acciones <ChevronDown size={15} className={`transition-transform ${masAcciones ? "rotate-180" : ""}`} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+              {masAcciones && ocultas.length > 0 && <div className="flex flex-wrap gap-2 p-2 rounded-2xl bg-gray-50 border border-gray-100">{ocultas}</div>}
+            </div>
+          );
+        })()}
 
         {accion && (
-          <form className="p-4 rounded-2xl border border-blue-200 bg-blue-50/40 space-y-3" onSubmit={(e) => {
+          <form ref={formularioAccion} className="p-4 rounded-2xl border border-blue-200 bg-blue-50/40 space-y-3 scroll-mt-4" onSubmit={(e) => {
             e.preventDefault();
             if (accion === "completar") void completar();
             else if (accion === "reprogramar") { if (!fecha) setErrorAccion("Indica la nueva fecha."); else void ejecutar({ accion: "reprogramar", scheduledAt: new Date(fecha).toISOString(), reason: texto.trim() || undefined }, "Actividad reprogramada."); }
@@ -270,18 +372,20 @@ export function FichaActividad({
             } else if (accion === "borrar") void eliminar();
           }}>
             {accion === "completar" && (<>
-              <div>
-                <label htmlFor="fa-resultado" className={etiquetaClase}>Resultado</label>
-                <select id="fa-resultado" value={outcome} className={campoClase} onChange={(e) => {
-                  setOutcome(e.target.value);
-                  // El seguimiento se propone en unos días, no en una hora.
-                  if (RESULTADOS_ACTIVIDAD[e.target.value]?.requiereSeguimiento) setFecha(proximaHoraLocal(60 * 24 * 3));
-                }}>
-                  {CLAVES_RESULTADO.map((k) => <option key={k} value={k}>{RESULTADOS_ACTIVIDAD[k]!.label}</option>)}
-                </select>
-                <p className="mt-1 text-[11px] text-gray-600">{RESULTADOS_ACTIVIDAD[outcome]?.ayuda}</p>
-              </div>
-              <Texto etiqueta="Conclusión *" valor={texto} onCambio={setTexto} placeholder="Qué pasó, asistentes, acuerdos…" />
+              <ElegirResultado valor={outcome} onElegir={(k) => {
+                setOutcome(k);
+                // El seguimiento se propone en unos días, no en una hora.
+                if (RESULTADOS_ACTIVIDAD[k]?.requiereSeguimiento) setFecha(proximaHoraLocal(60 * 24 * 3));
+              }} />
+              <Texto
+                etiqueta="Conclusión *"
+                valor={texto}
+                onCambio={setTexto}
+                placeholder="Qué pasó, asistentes, acuerdos…"
+                maximo={esVisitaSuelta || a.visitId ? LARGO_MAXIMO_RESUMEN_VISITA : LARGO_MAXIMO_CONCLUSION}
+              />
+              <FrasesRapidas resultado={outcome} onFrase={(frase) => setTexto((t) => agregarFrase(t, frase))} />
+              {texto.trim() && <p className="text-[11px] font-semibold text-gray-600">Se guarda como borrador en este teléfono hasta que lo envíes.</p>}
               {requiereSeg && !esVisitaSuelta && (
                 <div className="grid sm:grid-cols-2 gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
                   <p className="sm:col-span-2 text-xs font-extrabold text-amber-900">Este resultado requiere seguimiento: quedará asignado y con fecha.</p>
@@ -319,8 +423,8 @@ export function FichaActividad({
 
             {errorAccion && <p role="alert" className="text-sm font-bold text-red-700">{errorAccion}</p>}
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setAccion(null)} disabled={ocupado} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold cursor-pointer">Cancelar</button>
-              <button type="submit" disabled={ocupado} className={`px-5 py-2 rounded-xl text-white text-sm font-extrabold cursor-pointer inline-flex items-center gap-2 ${accion === "borrar" || accion === "cancelar" ? "bg-red-600" : "bg-blue-600"}`}>
+              <button type="button" onClick={() => setAccion(null)} disabled={ocupado} className="min-h-[48px] px-4 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold cursor-pointer">{accion === "completar" ? "Ahora no" : "Cancelar"}</button>
+              <button type="submit" disabled={ocupado} className={`flex-1 sm:flex-none min-h-[48px] px-5 rounded-xl text-white text-sm font-extrabold cursor-pointer inline-flex items-center justify-center gap-2 ${accion === "borrar" || accion === "cancelar" ? "bg-red-600" : accion === "completar" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600"}`}>
                 {ocupado && <Loader2 size={14} className="animate-spin" />}
                 {accion === "completar" ? "Guardar resultado" : accion === "reprogramar" ? "Reprogramar" : accion === "cancelar" ? "Cancelar la actividad" : accion === "seguimiento" ? "Crear seguimiento" : accion === "nota" ? "Guardar nota" : accion === "borrar" ? "Sí, eliminar" : "Guardar cambios"}
               </button>
@@ -366,7 +470,7 @@ function Envoltorio({ children, onCerrar, contenedor, titulo }: { children: Reac
       <div ref={contenedor} tabIndex={-1} role="dialog" aria-modal="true" aria-label={titulo ?? "Actividad"} className="bg-white w-full sm:max-w-2xl max-h-[94dvh] flex flex-col rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden outline-none">
         <div className="flex items-start justify-between gap-3 px-5 py-4 bg-slate-900 text-white shrink-0">
           <h2 className="text-base font-extrabold leading-snug">{titulo ?? "Actividad"}</h2>
-          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="p-1.5 rounded-lg hover:bg-white/15 cursor-pointer shrink-0"><X size={18} /></button>
+          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="w-11 h-11 -mr-2 -mt-2 grid place-items-center rounded-xl hover:bg-white/15 cursor-pointer shrink-0"><X size={20} /></button>
         </div>
         <div className="flex flex-col overflow-hidden flex-1 min-h-0">{children}</div>
       </div>
@@ -395,18 +499,18 @@ function Bloque({ titulo, children }: { titulo: string; children: React.ReactNod
 function BotonAccion({ children, icono, onClick, principal, peligro, deshabilitado }: { children: React.ReactNode; icono: React.ReactNode; onClick: () => void; principal?: boolean; peligro?: boolean; deshabilitado?: boolean }) {
   const color = principal ? "bg-emerald-600 text-white hover:bg-emerald-700" : peligro ? "bg-red-50 text-red-700 hover:bg-red-100" : "bg-gray-100 text-gray-800 hover:bg-gray-200";
   return (
-    <button type="button" onClick={onClick} disabled={deshabilitado} className={`px-3 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60 ${color}`}>
+    <button type="button" onClick={onClick} disabled={deshabilitado} className={`min-h-[44px] px-3.5 rounded-xl text-sm font-extrabold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60 ${color}`}>
       {icono}{children}
     </button>
   );
 }
 
-function Texto({ etiqueta, valor, onCambio, rows = 3, placeholder }: { etiqueta: string; valor: string; onCambio: (v: string) => void; rows?: number; placeholder?: string }) {
+function Texto({ etiqueta, valor, onCambio, rows = 3, placeholder, maximo = LARGO_MAXIMO_CONCLUSION }: { etiqueta: string; valor: string; onCambio: (v: string) => void; rows?: number; placeholder?: string; maximo?: number }) {
   const id = `t-${etiqueta.replace(/\W+/g, "")}`;
   return (
     <div>
       <label htmlFor={id} className={etiquetaClase}>{etiqueta}</label>
-      <textarea id={id} rows={rows} maxLength={4000} value={valor} placeholder={placeholder} onChange={(e) => onCambio(e.target.value)} className={campoClase + " resize-none"} />
+      <textarea id={id} rows={rows} maxLength={maximo} value={valor} placeholder={placeholder} onChange={(e) => onCambio(e.target.value)} className={campoClase + " resize-none"} />
     </div>
   );
 }

@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { actorFromSession } from "@/lib/api-helpers";
 import { esUuid } from "@/lib/ids";
-import { crearAlmacen, crearArticulo, registrarMovimiento, type Resultado } from "@/lib/logistica";
+import { archivarArticulo, crearAlmacen, crearArticulo, editarArticulo, paginaDeHistorial, registrarMovimiento, type Resultado } from "@/lib/logistica";
+import { esTipoDeMovimiento, type MovimientoDeLogistica } from "@/lib/logistica-tipos";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 
 /**
@@ -53,11 +54,13 @@ export async function createInventoryItemAction(formData: FormData): Promise<Res
       sku: texto(formData.get("sku")),
       categoria: texto(formData.get("category")),
       descripcion: texto(formData.get("description")),
-      imagen: texto(formData.get("imageUrl"))
+      imagen: texto(formData.get("imageUrl")),
+      minimo: texto(formData.get("minQuantity"))
     })
   );
 }
 
+/** Entregar (`out`), resurtir (`in`) o recibir una devolución (`devolucion`). */
 export async function registerMovementAction(formData: FormData): Promise<Resultado> {
   const s = await sesion();
   if (!s) return SIN_PERMISO;
@@ -65,7 +68,8 @@ export async function registerMovementAction(formData: FormData): Promise<Result
   if (!esUuid(itemId)) return { ok: false, error: "Elige un artículo del inventario." };
   const responsable = formData.get("assignedToUserId");
   if (responsable && !esUuid(responsable)) return { ok: false, error: "Elige al responsable de la lista." };
-  const tipo = texto(formData.get("type")) === "in" ? "in" : "out";
+  const pedido = texto(formData.get("type"));
+  const tipo = esTipoDeMovimiento(pedido) ? pedido : "out";
   return responder(
     await registrarMovimiento(s.actor, s.alcance, {
       itemId,
@@ -75,4 +79,35 @@ export async function registerMovementAction(formData: FormData): Promise<Result
       notas: texto(formData.get("notes"))
     })
   );
+}
+
+export async function editItemAction(formData: FormData): Promise<Resultado> {
+  const s = await sesion();
+  if (!s) return SIN_PERMISO;
+  const itemId = formData.get("itemId");
+  if (!esUuid(itemId)) return { ok: false, error: "Ese artículo no está en tus almacenes." };
+  return responder(
+    await editarArticulo(s.actor, s.alcance, itemId, {
+      nombre: texto(formData.get("name")),
+      sku: texto(formData.get("sku")),
+      categoria: texto(formData.get("category")),
+      descripcion: texto(formData.get("description")),
+      imagen: texto(formData.get("imageUrl")),
+      minimo: texto(formData.get("minQuantity"))
+    })
+  );
+}
+
+export async function archiveItemAction(itemId: string, archivar: boolean): Promise<Resultado> {
+  const s = await sesion();
+  if (!s) return SIN_PERMISO;
+  if (!esUuid(itemId)) return { ok: false, error: "Ese artículo no está en tus almacenes." };
+  return responder(await archivarArticulo(s.actor, s.alcance, itemId, archivar));
+}
+
+/** Otra página del historial, con los nombres recortados al alcance (P1). */
+export async function historyPageAction(pagina: number): Promise<{ ok: true; filas: MovimientoDeLogistica[]; hayMas: boolean } | { ok: false; error: string }> {
+  const s = await sesion();
+  if (!s) return { ok: false, error: "Logística la llevan administración y dirección." };
+  return { ok: true, ...(await paginaDeHistorial(s.alcance, Number(pagina) || 1)) };
 }

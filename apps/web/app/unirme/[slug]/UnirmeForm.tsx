@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Check, Loader2 } from "lucide-react";
+import { ArrowRight, Check, Eye, EyeOff, Loader2, UserPlus } from "lucide-react";
 
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 
@@ -25,13 +25,27 @@ export default function UnirmeForm({
   /** El municipio del anfitrión: casi siempre es también donde vive quien se suma. */
   municipioSugerido?: string | null;
 }) {
-  const [datos, setDatos] = useState({
+  const vacio = (municipio: string) => ({
     displayName: "", phone: "", email: "", password: "",
-    homeAddress: "", homeColony: "", homeMunicipality: municipioSugerido ?? ""
+    homeAddress: "", homeColony: "", homeMunicipality: municipio
   });
+  const [datos, setDatos] = useState(() => vacio(municipioSugerido ?? ""));
   const [enviando, setEnviando] = useState(false);
   const [listo, setListo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [verClave, setVerClave] = useState(false);
+  /** El correo con el que entrará: se le repite al terminar para que no lo olvide (F12). */
+  const [correoEnviado, setCorreoEnviado] = useState("");
+
+  /** Otra persona en el mismo teléfono (casi siempre el del líder): formulario limpio, mismo municipio. */
+  function sumarOtra() {
+    setDatos(vacio(datos.homeMunicipality));
+    setListo(null);
+    setError(null);
+    setVerClave(false);
+    setCorreoEnviado("");
+    window.scrollTo({ top: 0 });
+  }
 
   const cambiar = (campo: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setDatos((prev) => ({ ...prev, [campo]: e.target.value }));
@@ -48,6 +62,7 @@ export default function UnirmeForm({
       });
       const cuerpo = await res.json().catch(() => ({}));
       if (res.ok) {
+        setCorreoEnviado(datos.email.trim());
         setListo(cuerpo.mensaje || "Solicitud enviada.");
       } else {
         setError(cuerpo.error || "No se pudo enviar tu solicitud.");
@@ -75,9 +90,27 @@ export default function UnirmeForm({
           ¡Listo!
         </h2>
         <p style={{ color: "#166534", lineHeight: 1.6 }}>{listo}</p>
-        <p className="text-sm mt-4" style={{ color: "#3f6212" }}>
-          Te avisarán cuando tu cuenta esté activa. Guarda tu correo y contraseña.
+        {/* El sistema no manda correos: se dice qué hacer en vez de prometer un aviso (L9, F12). */}
+        <p className="text-sm mt-4" style={{ color: "#3f6212", lineHeight: 1.6 }}>
+          Cuando {anfitrion} te acepte, entra con tu correo{correoEnviado ? <> <strong>{correoEnviado}</strong></> : null} y la contraseña que creaste. No te llegará ningún correo: si tarda, avísale.
         </p>
+        <div className="flex flex-col gap-2 mt-6">
+          <a
+            href="/login"
+            className="inline-flex items-center justify-center gap-2 font-bold rounded-xl"
+            style={{ background: "#15803d", color: "#fff", padding: "0.95rem 1.25rem", fontSize: "1rem" }}
+          >
+            Ir a iniciar sesión <ArrowRight size={18} />
+          </a>
+          <button
+            type="button"
+            onClick={sumarOtra}
+            className="inline-flex items-center justify-center gap-2 font-bold rounded-xl cursor-pointer"
+            style={{ background: "#fff", color: "#14532d", border: "1px solid #bbf7d0", padding: "0.95rem 1.25rem", fontSize: "1rem" }}
+          >
+            <UserPlus size={18} /> Sumar a otra persona
+          </button>
+        </div>
       </div>
     );
   }
@@ -123,8 +156,21 @@ export default function UnirmeForm({
         <label htmlFor="clave" className="block text-xs font-bold uppercase mb-1.5" style={{ letterSpacing: ".08em", color: "#5b6780" }}>
           Crea una contraseña
         </label>
-        <input id="clave" required type="password" minLength={6} value={datos.password} onChange={cambiar("password")}
-          autoComplete="new-password" placeholder="Mínimo 6 caracteres" style={campo} />
+        {/* Con «Mostrar», quien la escribe de pie y con prisa puede revisar que quedó como quería. */}
+        <div style={{ position: "relative" }}>
+          <input id="clave" required type={verClave ? "text" : "password"} minLength={6} value={datos.password} onChange={cambiar("password")}
+            autoComplete="new-password" placeholder="Mínimo 6 caracteres" style={{ ...campo, paddingRight: "3.5rem" }} />
+          <button
+            type="button"
+            onClick={() => setVerClave((v) => !v)}
+            aria-label={verClave ? "Ocultar contraseña" : "Mostrar contraseña"}
+            aria-pressed={verClave}
+            className="cursor-pointer"
+            style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", width: 44, height: 44, display: "grid", placeItems: "center", color: "#5b6780", background: "transparent", border: 0 }}
+          >
+            {verClave ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
+        </div>
       </div>
 
       <div>

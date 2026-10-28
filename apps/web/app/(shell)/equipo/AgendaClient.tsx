@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Activity, BarChart3, Calendar, Plus, Settings2, Sparkles } from "lucide-react";
 
+import { MiDia } from "@/components/MiDia";
 import type { ActividadItem, FiltrosBitacora, PaginaBitacora, ResumenBitacora } from "@/lib/bitacora-tipos";
 import type { Recordatorios } from "@/lib/recordatorios";
 import { pedirActualizarRecordatorios } from "@/lib/recordatorios-cliente";
@@ -97,11 +98,12 @@ export default function AgendaClient({
     <div className="workspace-page agenda-page p-4 md:p-8 max-w-6xl mx-auto space-y-6">
       <div className="workspace-hero flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <span className="text-xs font-black uppercase tracking-wider bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-md inline-flex items-center gap-1.5 mb-1">
+          {/* En el teléfono, solo el título: el encabezado entero empujaba los recordatorios fuera de la primera pantalla (C5). */}
+          <span className="hidden md:inline-flex text-xs font-black uppercase tracking-wider bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-md items-center gap-1.5 mb-1">
             <Activity size={13} aria-hidden="true" /> Registra · Encuentra · Da seguimiento
           </span>
-          <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight">Tu bitácora de campo</h1>
-          <p className="text-gray-500 mt-1">Registra lo que haces, encuentra lo guardado y no pierdas el siguiente paso.</p>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-blue-950 tracking-tight">Tu agenda</h1>
+          <p className="hidden md:block text-gray-500 mt-1">Registra lo que haces, encuentra lo guardado y no pierdas el siguiente paso.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {puedeCrear && (
@@ -126,6 +128,8 @@ export default function AgendaClient({
         ))}
       </nav>
 
+      {pestana === "agenda" && <MiDia />}
+
       {!puedeCrear && pestana === "agenda" && (
         <p className="text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
           Las actividades las registra quien lidera tu equipo. Aquí puedes consultarlas y, si te las asignaron, cerrarlas o darles seguimiento.
@@ -137,7 +141,7 @@ export default function AgendaClient({
       {pestana === "agenda" && recordatorios && <RecordatoriosAgenda datos={recordatorios} onAbrir={setFichaId} />}
 
       {pestana === "agenda" && pagina && (
-        <ListaActividades pagina={pagina} filtros={filtros} usuarios={usuarios} tipos={tipos} etiquetas={etiquetas} puedeAsignar={puedeAsignar} contactoNombre={contactoNombre} onAbrir={(a) => setFichaId(a.id)} />
+        <ListaActividades pagina={pagina} filtros={filtros} usuarios={usuarios} tipos={tipos} etiquetas={etiquetas} puedeAsignar={puedeAsignar} contactoNombre={contactoNombre} onAbrir={(a) => setFichaId(a.id)} puedeCrear={puedeCrear} onNueva={nueva} />
       )}
       {pestana === "prospectos" && <Prospectos esAdmin={esAdmin} puedeConvertir={puedeConvertir} usuarioActualId={usuarioActualId} />}
       {pestana === "resumen" && resumen && <ResumenEquipo resumen={resumen} usuarioActualId={usuarioActualId} />}
@@ -149,7 +153,7 @@ export default function AgendaClient({
       />
       {fichaId && (
         <FichaActividad
-          id={fichaId} usuarios={usuarios} usuarioActualId={usuarioActualId} esAdmin={esAdmin}
+          id={fichaId} usuarios={usuarios} usuarioActualId={usuarioActualId} esAdmin={esAdmin} puedeCrear={puedeCrear}
           onCerrar={() => setFichaId(null)} onCambio={alCambiar}
           onDuplicar={(a) => { setFichaId(null); setPlantilla(a); setFormularioAbierto(true); }}
         />

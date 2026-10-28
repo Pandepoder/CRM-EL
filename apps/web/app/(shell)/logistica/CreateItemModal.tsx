@@ -38,10 +38,10 @@ export function CreateItemModal({ almacenes }: { almacenes: { id: string; nombre
         onClick={() => setIsOpen(true)}
         disabled={almacenes.length === 0}
         title={almacenes.length === 0 ? "Primero da de alta un almacén" : undefined}
-        className="bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 font-bold py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 transition-colors mr-3"
+        className="min-h-[44px] bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 transition-colors"
       >
         <PlusCircle className="h-5 w-5" />
-        Nuevo Artículo
+        Nuevo artículo
       </button>
     );
   }
@@ -50,10 +50,10 @@ export function CreateItemModal({ almacenes }: { almacenes: { id: string; nombre
     <>
       <button 
         onClick={() => setIsOpen(true)}
-        className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 transition-colors mr-3"
+        className="min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 transition-colors"
       >
         <PlusCircle className="h-5 w-5" />
-        Nuevo Artículo
+        Nuevo artículo
       </button>
 
       <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => { setIsOpen(false); setStep(1); }}>
@@ -95,7 +95,7 @@ export function CreateItemModal({ almacenes }: { almacenes: { id: string; nombre
                     <input name="name" type="text" required placeholder="Ej. Lona 2x2" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 bg-gray-50 text-sm font-semibold outline-none focus:border-blue-500 focus:bg-white transition-colors" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">SKU *</label>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Clave *</label>
                     <input name="sku" type="text" required placeholder="Ej. LONA-2X2" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 bg-gray-50 text-sm font-semibold outline-none focus:border-blue-500 focus:bg-white transition-colors" />
                   </div>
                 </div>
@@ -118,6 +118,11 @@ export function CreateItemModal({ almacenes }: { almacenes: { id: string; nombre
                     ]}
                     icon={<Tag size={14} className="text-blue-600" />}
                   />
+                </div>
+
+                <div>
+                  <label htmlFor="articulo-minimo" className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Avisar cuando queden (opcional)</label>
+                  <input id="articulo-minimo" name="minQuantity" inputMode="numeric" pattern="[0-9]*" placeholder="Ej. 50: sale en «Por agotarse»" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 bg-gray-50 text-base sm:text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" />
                 </div>
 
                 <div>

@@ -28,8 +28,11 @@ function proximoPaso(a: ActividadItem): { texto: string; alerta: boolean } | nul
 }
 
 export function ListaActividades({
-  pagina, filtros, usuarios, tipos, etiquetas, puedeAsignar, contactoNombre, onAbrir
+  pagina, filtros, usuarios, tipos, etiquetas, puedeAsignar, contactoNombre, onAbrir, puedeCrear = false, onNueva
 }: {
+  /** Puede registrar actividades: el vacío le ofrece hacerlo. A quien no, no se le promete (L2, C9). */
+  puedeCrear?: boolean;
+  onNueva?: () => void;
   pagina: PaginaBitacora;
   filtros: FiltrosBitacora;
   usuarios: UsuarioOpcion[];
@@ -231,9 +234,34 @@ export function ListaActividades({
       </ul>
 
       {pagina.total === 0 && (
-        <div className="text-center bg-white rounded-2xl border border-dashed border-gray-300 p-10">
-          <p className="font-extrabold text-gray-800">No hay actividades aquí.</p>
-          <p className="text-sm text-gray-500 mt-1">Cambia de vista o limpia los filtros; también puedes registrar una nueva.</p>
+        // Un solo vacío que dice la verdad: antes, a quien no puede crear actividades se le sugería
+        // «registrar una nueva», y «limpia los filtros» aunque no hubiera ninguno puesto.
+        <div className="text-center bg-white rounded-2xl border border-dashed border-gray-300 p-8 space-y-3">
+          {activos.length > 0 ? (
+            <>
+              <p className="font-extrabold text-gray-800">Nada con estos filtros.</p>
+              <button type="button" onClick={() => { setTexto(""); aplicar({ q: null, tipo: null, estado: null, resultado: null, etiqueta: null, contacto: null, leaderId: null, responsable: null, desde: null, hasta: null }); }}
+                className="min-h-[44px] px-5 rounded-xl bg-gray-900 text-white text-sm font-extrabold cursor-pointer">Limpiar filtros</button>
+            </>
+          ) : puedeCrear ? (
+            <>
+              <p className="font-extrabold text-gray-800">Aquí no hay actividades todavía.</p>
+              <p className="text-sm text-gray-600">Registra una reunión, una visita o una brigada y asígnala a tu gente. También puedes cambiar de vista arriba.</p>
+              {onNueva && (
+                <button type="button" onClick={onNueva} className="min-h-[44px] px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-extrabold cursor-pointer">
+                  Nueva actividad
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="font-extrabold text-gray-800">Por ahora no tienes nada asignado aquí.</p>
+              <p className="text-sm text-gray-600">Cuando tu líder te asigne una visita o una reunión, aparecerá en esta lista y en tus recordatorios. Mientras, puedes revisar tus ciudadanos asignados.</p>
+              <a href="/crm/contacts?asignados=mios" className="inline-flex items-center min-h-[44px] px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-extrabold">
+                Ver mis ciudadanos asignados
+              </a>
+            </>
+          )}
         </div>
       )}
 
@@ -253,7 +281,7 @@ export function ListaActividades({
 function Campo({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-[10px] font-extrabold uppercase tracking-wider text-gray-500 mb-1">{etiqueta}</span>
+      <span className="block text-[11px] font-extrabold uppercase tracking-wider text-gray-500 mb-1">{etiqueta}</span>
       {children}
     </label>
   );

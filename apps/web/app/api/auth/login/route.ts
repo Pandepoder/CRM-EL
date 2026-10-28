@@ -40,18 +40,19 @@ export async function POST(request: Request) {
     if (!result.success) {
       if (result.reason === "pending_approval") {
         return NextResponse.json(
-          { code: "pending_approval", message: "Tu solicitud de cuenta está registrada y pendiente de aprobación por el Administrador." },
+          { code: "pending_approval", message: "Tu solicitud ya está registrada, pero aún no la aprueban. Avísale a quien te invitó para que la acepte." },
           { status: 403 }
         );
       }
       if (result.reason === "inactive_account") {
         return NextResponse.json(
-          { code: "inactive_account", message: "Esta cuenta está inactiva. Contacta al Administrador." },
+          { code: "inactive_account", message: "Esta cuenta está dada de baja. Si crees que es un error, habla con quien coordina tu equipo." },
           { status: 403 }
         );
       }
       return NextResponse.json(
-        { code: "invalid_credentials", message: "Credenciales incorrectas." },
+        // Sin decir cuál de los dos falló: así no se puede averiguar qué correos tienen cuenta.
+        { code: "invalid_credentials", message: "El correo o la contraseña no coinciden. Revisa que el correo esté bien escrito." },
         { status: 401 }
       );
     }

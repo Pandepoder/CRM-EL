@@ -41,6 +41,8 @@ export type EstadoIncidencia = string;
 
 export type Incidencia = {
   createdByUserId: string;
+  /** Hace falta para la regla de los avisos «por aceptar» (`motivoSiAvisoPorAceptar`). */
+  status?: string | null;
   assignedToUserId: string | null;
   assignedTeamId: string | null;
   description: string;
@@ -65,6 +67,8 @@ export type ContextoIncidencia = {
    * solo es integrante no: el capturista los ve, pero no trabaja lo suyo.
    */
   personas: string[];
+  /** Coordina: administración o quien lidera un equipo (`isLeader`; dirección siempre cuenta). */
+  coordina: boolean;
 };
 
 /**
@@ -79,7 +83,7 @@ export type ContextoIncidencia = {
 export async function cargarContextoIncidencia(id: string, actorId: string): Promise<ContextoIncidencia> {
   // Un id que no es UUID no existe; sin esto la base lo rechazaba y /api/map/reports/[id]
   // respondía 500. Ver `ids.ts`.
-  if (!esUuid(id)) return { incidencia: null, esAdmin: false, equipos: [], personas: [] };
+  if (!esUuid(id)) return { incidencia: null, esAdmin: false, equipos: [], personas: [], coordina: false };
   const db = getDatabaseClient();
   const filas = await db
     .select({
@@ -87,22 +91,24 @@ export async function cargarContextoIncidencia(id: string, actorId: string): Pro
       assignedToUserId: schema.eventReports.assignedToUserId,
       assignedTeamId: schema.eventReports.assignedTeamId,
       description: schema.eventReports.description,
-      activityTypeId: schema.eventReports.activityTypeId
+      activityTypeId: schema.eventReports.activityTypeId,
+      status: schema.eventReports.status
     })
     .from(schema.eventReports)
     .where(eq(schema.eventReports.id, id))
     .limit(1);
 
   const incidencia = filas[0] ?? null;
-  if (!incidencia) return { incidencia: null, esAdmin: false, equipos: [], personas: [] };
+  if (!incidencia) return { incidencia: null, esAdmin: false, equipos: [], personas: [], coordina: false };
 
   const alcance = await resolveUserNetworkScope(actorId);
-  if (!(await laVe(alcance, id))) return { incidencia: null, esAdmin: false, equipos: [], personas: [] };
+  if (!(await laVe(alcance, id))) return { incidencia: null, esAdmin: false, equipos: [], personas: [], coordina: false };
   return {
     incidencia,
     esAdmin: alcance.isAdmin,
     equipos: alcance.teamIds,
-    personas: alcance.commandUserIds ?? []
+    personas: alcance.commandUserIds ?? [],
+    coordina: alcance.isAdmin || alcance.isLeader
   };
 }
 
@@ -141,6 +147,59 @@ export function puedeSobreIncidencia(
   return personasDelActor.includes(incidencia.createdByUserId)
     || Boolean(incidencia.assignedToUserId && personasDelActor.includes(incidencia.assignedToUserId));
 }
+
+/**
+ * Avisos de campo (plan de auditoría de menús, D9): capturistas y brigadistas avisan de un bache o una
+ * fuga, y el aviso entra «por aceptar», sin equipo ni responsable: lo ven y lo aceptan quienes mandan sobre
+ * quien avisó (su líder, su dirección, la administración de su municipio), porque está en su mando. Sus
+ * compañeros no lo tocan: no está asignado a la brigada.
+ *
+ * Quien avisó y no coordina no le cambia el estado —sin esta regla se aceptaría a sí mismo, porque el autor
+ * puede actualizar lo que levanta—: lo único que puede es retirarlo mientras esté «por aceptar», y queda como
+ * rechazado. Tampoco lo reabre después. Si quien coordina se lo asigna, ya lo trabaja como cualquier
+ * asignado. Solo toca a quien avisó: lo demás sigue con las reglas de siempre.
+ *
+ * Vale para todo camino que cambie el estado: el mapa (`PATCH /api/map/reports/[id]`) y la Agenda
+ * (`actividades-servicio.ts`). Las actividades de la Agenda nunca están en `pendiente`.
+ */
+export const MOTIVO_AVISO_POR_ACEPTAR = "Este aviso espera a que quien coordina tu brigada lo acepte. Mientras tanto solo puedes retirarlo.";
+export const MOTIVO_AVISO_REVISADO = "Tu aviso ya lo revisó quien coordina tu brigada: si hay que cambiarle algo, díselo.";
+
+/**
+ * ¿Es un aviso que quien avisó no puede mover? Lo levantó él, no coordina y no se lo asignaron para
+ * trabajarlo (a él o a su equipo) ya aceptado.
+ */
+export function esAvisoDeQuienNoCoordina(
+  incidencia: Pick<Incidencia, "status" | "createdByUserId" | "assignedToUserId" | "assignedTeamId">,
+  actorId: string,
+  coordina: boolean,
+  equiposDelActor: readonly string[] = []
+): boolean {
+  if (coordina || incidencia.createdByUserId !== actorId) return false;
+  const asignadaAEl = incidencia.assignedToUserId === actorId || Boolean(incidencia.assignedTeamId && equiposDelActor.includes(incidencia.assignedTeamId));
+  return !(asignadaAEl && incidencia.status !== "pendiente");
+}
+export { MOTIVO_RETIRADO } from "@/lib/avisos-de-campo";
+
+export function motivoSiAvisoPorAceptar(
+  incidencia: Pick<Incidencia, "status" | "createdByUserId" | "assignedToUserId" | "assignedTeamId">,
+  actorId: string,
+  coordina: boolean,
+  nuevoEstado: string | undefined,
+  equiposDelActor: readonly string[] = []
+): string | null {
+  if (nuevoEstado === undefined || nuevoEstado === incidencia.status) return null;
+  if (!esAvisoDeQuienNoCoordina(incidencia, actorId, coordina, equiposDelActor)) return null;
+  // Retirarlo mientras nadie lo acepta: queda rechazado.
+  if (incidencia.status === "pendiente" && nuevoEstado === "rechazada") return null;
+  return incidencia.status === "pendiente" ? MOTIVO_AVISO_POR_ACEPTAR : MOTIVO_AVISO_REVISADO;
+}
+
+/**
+ * Un aviso no se borra: se retira y queda como rechazado. Antes de los avisos, quien no coordina no era
+ * autor de ninguna incidencia, así que esto no le quita nada que pudiera hacer.
+ */
+export const MOTIVO_BORRAR_AVISO = "Un aviso no se borra: retíralo y queda como rechazado.";
 
 export const MOTIVO_ACTUALIZAR =
   "No puedes modificar una incidencia que no es tuya ni está asignada a ti o a tu equipo.";

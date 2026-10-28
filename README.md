@@ -34,20 +34,32 @@
 - **Geolocalización GPS Móvil (`Mi ubicación`):** Marcador pulsante en tiempo real con zoom asistido para brigadistas operando en la calle.
 - **Agrupamiento Inteligente (Clustering):** Manejo fluido de miles de marcadores territoriales con colores diferenciados por prioridad y estatus.
 
-### 2. Centro Integral de Administración y Despacho de Incidencias
-- **4 Pestañas Operacionales:** *Pendientes por Atender*, *Emergencias Críticas*, *Historial de Resueltas* y *Todas las Incidencias* (con envío estricto de resueltas al final).
-- **Herramientas Masivas:** Selección múltiple para resolver, reabrir, reasignar o purgar reportes en lote.
-- **Exportación CSV & Hoja de Despacho Imprimible:** Generación de órdenes de trabajo listas para brigadas en campo.
+### 2. Incidencias: lo que pasa en la calle
+- **Una sola pantalla** con tres vistas: *Por atender*, *Cerradas* y *Todas*. Chips para lo urgente: por aceptar, sin asignar, más de 7 días, sin sección, asignadas a mí. El buscador no deja el texto en la dirección web.
+- **Asignar, cambiar sección o estado** en hojas que suben desde abajo, a un toque en el teléfono. Quien reportó y quien atiende salen con nombre solo dentro de la estructura de quien mira («Otra estructura» si no).
+- **Avisar de una incidencia:** capturistas y brigadistas avisan de un bache o una fuga; el aviso entra «por aceptar» y lo aceptan quienes coordinan su brigada.
+- En el mapa, «Ver en el mapa» centra y abre la incidencia; desde ahí también se exporta a CSV.
 
-### 3. Directorio Ciudadano y CRM
-- Captura de simpatizantes con validación de CURP, clave electoral, sección y geolocalización.
-- Historial de visitas territoriales, registro de compromisos y asignación a coordinadores.
-- Exportación segura en formato CSV UTF-8.
+### 3. Directorio y ficha del ciudadano
+- Alta en pocos toques: ubicación con GPS, sección filtrada por municipio, aviso de teléfono repetido; también sin señal.
+- Ficha con Llamar, WhatsApp y Cómo llegar, sus visitas y actividades, y **lo que ha pedido** (Escucha Social).
+- Filtro «Registrados por…» para ver todo lo que dio de alta una persona de tu estructura. Exportación CSV con tope y en la auditoría.
+- Datos personales cifrados (teléfono, correo, domicilio, colonia, profesión e intereses, entre otros); las listas enseñan nombre y colonia, lo demás solo en la ficha.
 
-### 4. Estructura Electoral y Brigadas
-- Control de Representantes Generales (RG) y Representantes de Casilla (RC) por sección.
-- Organización de cuadrillas y asignación de líderes de equipo con auditoría de movimientos.
-- Trazabilidad y control de inventario/propaganda en almacenes territoriales.
+### 4. Estructura, Escucha Social, Logística y equipos
+- **Estructura Electoral:** cobertura por sección (coordinación, RG y RC contra las casillas estimadas), qué falta en cada una y «Nombrar», «Cambiar» o «Quitar» en una hoja. Un RC puede ser un ciudadano del padrón, no solo una cuenta del sistema.
+- **Escucha Social y Gestiones:** lo que piden los vecinos, ligado a su ficha, en el mapa (capa «Peticiones», sin nombres) y sin señal. Administración puede turnarlo a una dependencia con folio.
+- **Logística e Inventarios:** qué hay en el almacén, qué se está acabando, qué tiene cada persona y el historial completo; entregar, resurtir, devoluciones con tope, editar y archivar. Lo de otra estructura sale sumado, sin nombres.
+- **Equipos y perfiles:** el tablero de equipos, el perfil de cada persona con sus equipos reales, sus últimos ciudadanos y actividades, y «Mi perfil → Seguridad» para cambiar nombre y contraseña.
+- Qué ve cada rol y por qué: [`CLAUDE.md`](CLAUDE.md) y [`docs/MAPA_DE_PANTALLAS.md`](docs/MAPA_DE_PANTALLAS.md).
+
+### 5. Fácil de usar para quien nunca usó un CRM
+- **«Mi día»:** meta del día, racha semanal, insignias y el total de la semana del equipo (sin nombres). Quien coordina puede ponerle una meta del día a su gente.
+- **En la calle:** Llamar, WhatsApp y Cómo llegar en cada ficha; registrar el resultado de una visita en pocos toques, también sin señal (se envía solo al volver la conexión).
+- **Registro rápido:** «usar mi ubicación» llena el domicilio, la sección se filtra por municipio y el teléfono repetido se avisa al escribirlo.
+- **Resumen por meta propia:** medallas por los días de la semana con la meta cumplida, no por lugar en la lista.
+- **Reportar un problema:** desde el menú o desde el propio aviso de error, en tres toques y con captura opcional; administración lo revisa en «Problemas reportados» y la persona ve la respuesta.
+- Detalle, decisiones y pruebas: [`docs/PLAN_EXPERIENCIA_SENCILLA.md`](docs/PLAN_EXPERIENCIA_SENCILLA.md).
 
 ---
 

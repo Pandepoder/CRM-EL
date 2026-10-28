@@ -2,7 +2,8 @@ import "dotenv/config";
 import { getDatabaseClient } from "../../apps/web/src/lib/db-client.js";
 import { schema } from "@tonala/shared/database";
 
-const electoralRoles = ["Coordinador de Zona", "Representante General (RG)", "Representante de Casilla (RC)", "Promotor"];
+// Las claves que acepta la base desde la migración 0029 (plan de auditoría de menús, fase 4).
+const electoralRoles = ["coordinador", "representante_general", "representante_casilla"];
 
 async function run() {
   const db = getDatabaseClient();
@@ -22,7 +23,7 @@ async function run() {
     for (const user of users) {
       if (Math.random() > 0.3) { // 70% chance to assign a user to an electoral section
         const sectionId = sections[Math.floor(Math.random() * sections.length)];
-        const role = electoralRoles[Math.floor(Math.random() * electoralRoles.length)] ?? "Promotor";
+        const role = electoralRoles[Math.floor(Math.random() * electoralRoles.length)] ?? "coordinador";
         
         if (sectionId && user?.id) {
           await db.insert(schema.electoralRepresentatives).values({

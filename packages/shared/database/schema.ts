@@ -8,6 +8,7 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -119,6 +120,13 @@ export const userProfiles = pgTable(
      * desde la aplicación.
      */
     isMasterAdmin: boolean("is_master_admin").notNull().default(false),
+    /**
+     * Meta del día que le puso quien manda sobre la persona (0026): acciones al día, de 1 a 200. Sin
+     * ella, la persona elige su ritmo en su teléfono sobre la meta de su rol. Ver `lib/meta-del-lider.ts`.
+     */
+    dailyGoal: smallint("daily_goal"),
+    dailyGoalSetByUserId: uuid("daily_goal_set_by_user_id"),
+    dailyGoalSetAt: timestamp("daily_goal_set_at", { withTimezone: true }),
     /**
      * Sube con cada cambio de rol, estado, contraseña o marca de maestro —y de municipio, si es
      * administración— (disparador de la 0023). Una sesión abierta con otra versión deja de valer.
@@ -556,7 +564,9 @@ export const visits = pgTable(
     index("visits_contact_idx").on(table.contactId),
     index("visits_colony_idx").on(table.colonyId),
     index("visits_assigned_user_idx").on(table.assignedUserId),
-    index("visits_created_by_user_idx").on(table.createdByUserId)
+    index("visits_created_by_user_idx").on(table.createdByUserId),
+    // «Mi día», el total de la brigada y las medallas del Resumen cuentan los cierres por persona (0026).
+    index("visits_completed_by_user_idx").on(table.completedByUserId).where(sql`${table.completedByUserId} IS NOT NULL`)
   ]
 );
 
@@ -676,6 +686,8 @@ export const eventReports = pgTable(
     // cada sección; sin índice eso es un recorrido secuencial por sección.
     index("event_reports_section_idx").on(table.sectionId),
     index("event_reports_assigned_user_idx").on(table.assignedToUserId),
+    // Los cierres de cada persona («Mi día», brigada y medallas del Resumen; 0026).
+    index("event_reports_closed_by_user_idx").on(table.closedByUserId).where(sql`${table.closedByUserId} IS NOT NULL`),
     index("event_reports_assigned_team_idx").on(table.assignedTeamId),
     index("event_reports_status_idx").on(table.status),
     index("event_reports_category_idx").on(table.category),
@@ -749,12 +761,22 @@ export const electoralRepresentatives = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     sectionId: uuid("section_id").notNull().references(() => electoralSections.id),
-    userId: uuid("user_id").notNull().references(() => userProfiles.id),
+    /** Una cuenta… (0029: ya no es obligatoria; la regla `electoral_reps_persona_check` pide una de las dos). */
+    userId: uuid("user_id").references(() => userProfiles.id),
+    /** …o un ciudadano del padrón (D4, 0029). */
+    contactId: uuid("contact_id").references(() => contacts.id),
+    /** `coordinador`, `representante_general` o `representante_casilla` (regla `electoral_reps_role_check`, 0029). */
     role: text("role").notNull(),
+    /** La casilla que cuida un representante de casilla (D5, 0029). */
+    casilla: text("casilla"),
+    /** Quién lo nombró (0029). Las filas anteriores no lo tienen. */
+    assignedByUserId: uuid("assigned_by_user_id").references(() => userProfiles.id),
     assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
-    uniqueIndex("electoral_reps_section_user_idx").on(table.sectionId, table.userId)
+    uniqueIndex("electoral_reps_section_user_idx").on(table.sectionId, table.userId),
+    uniqueIndex("electoral_reps_section_contact_idx").on(table.sectionId, table.contactId).where(sql`${table.contactId} IS NOT NULL`),
+    index("electoral_reps_contact_idx").on(table.contactId).where(sql`${table.contactId} IS NOT NULL`)
   ]
 );
 
@@ -779,7 +801,12 @@ export const inventoryItems = pgTable("inventory_items", {
   imageUrl: text("image_url"),
   quantity: integer("quantity").notNull().default(0),
   category: text("category").notNull(),
+  /** El mínimo (D7, 0030): con las existencias en o por debajo, «Por agotarse». */
+  minQuantity: integer("min_quantity"),
+  /** Archivado (0030): fuera de la lista, sin borrarse; no acepta movimientos. */
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const inventoryTransactions = pgTable(
@@ -787,6 +814,7 @@ export const inventoryTransactions = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
+    /** `in`, `out` o `devolucion` (regla `inventory_transactions_type_check`, 0030). */
     transactionType: text("transaction_type").notNull(),
     quantity: integer("quantity").notNull(),
     assignedToUserId: uuid("assigned_to_user_id").references(() => userProfiles.id),
@@ -797,7 +825,8 @@ export const inventoryTransactions = pgTable(
   (table) => [
     index("inventory_transactions_item_idx").on(table.itemId),
     index("inventory_transactions_assigned_to_user_idx").on(table.assignedToUserId),
-    index("inventory_transactions_performed_by_user_idx").on(table.performedByUserId)
+    index("inventory_transactions_performed_by_user_idx").on(table.performedByUserId),
+    index("inventory_transactions_created_at_idx").on(table.createdAt)
   ]
 );
 
@@ -901,9 +930,21 @@ export const socialListening = pgTable(
     createdByUserId: uuid("created_by_user_id").notNull().references(() => userProfiles.id),
     /** Llave de municipio (0022): la de quien lo levantó. */
     municipalityId: llaveDeMunicipio(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** 0028: la petición que la cola del teléfono reenvía se guarda una sola vez. */
+    clientRequestId: uuid("client_request_id"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    statusChangedAt: timestamp("status_changed_at", { withTimezone: true }),
+    statusChangedByUserId: uuid("status_changed_by_user_id").references(() => userProfiles.id),
+    /** 0028, D6: a qué dependencia se turnó la gestión formal, con qué folio y cuándo. */
+    gestionDependencia: text("gestion_dependencia"),
+    gestionFolio: text("gestion_folio"),
+    gestionTurnadaAt: timestamp("gestion_turnada_at", { withTimezone: true })
   },
   (table) => [
+    uniqueIndex("social_listening_client_request_idx").on(table.clientRequestId).where(sql`${table.clientRequestId} IS NOT NULL`),
+    index("social_listening_contact_idx").on(table.contactId).where(sql`${table.contactId} IS NOT NULL`),
+    index("social_listening_ubicacion_idx").on(table.latitude, table.longitude).where(sql`${table.latitude} IS NOT NULL`),
     index("social_listening_status_idx").on(table.status),
     index("social_listening_created_by_idx").on(table.createdByUserId),
     index("social_listening_created_at_idx").on(table.createdAt),
@@ -965,5 +1006,47 @@ export const uploadedFiles = pgTable(
   (table) => [
     check("uploaded_files_media_type_check", sql`${table.mediaType} IN ('image', 'video')`),
     index("uploaded_files_uploaded_by_idx").on(table.uploadedByUserId)
+  ]
+);
+
+/**
+ * «Reportar un problema» (0027): lo que una persona del panel avisa que falla, no se entiende, se ve mal o
+ * podría mejorar, y dónde. Lo revisa administración con alcance sobre quien lo reportó; la persona ve en qué
+ * va el suyo. Ver `apps/web/src/lib/problemas.ts` y `problemas-servicio.ts`.
+ */
+export const problemReports = pgTable(
+  "problem_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdByUserId: uuid("created_by_user_id").notNull().references(() => userProfiles.id),
+    /** La ruta de una pantalla que la persona abre («/equipo») o una función («funcion:sin-senal»). */
+    place: text("place").notNull(),
+    /** El nombre del lugar como lo vio la persona al reportar. */
+    placeLabel: text("place_label").notNull(),
+    kind: text("kind").notNull(),
+    description: text("description").notNull(),
+    photoUrl: text("photo_url"),
+    pagePath: text("page_path"),
+    errorMessage: text("error_message"),
+    /** Navegador, tamaño de pantalla y si había señal: se llena solo. */
+    device: jsonb("device"),
+    status: text("status").notNull().default("nuevo"),
+    resolutionNote: text("resolution_note"),
+    statusChangedByUserId: uuid("status_changed_by_user_id").references(() => userProfiles.id),
+    statusChangedAt: timestamp("status_changed_at", { withTimezone: true }),
+    clientRequestId: uuid("client_request_id"),
+    /** Cuándo vio quien reportó la última respuesta: si el estado cambió después, tiene una nueva. */
+    reporterSeenAt: timestamp("reporter_seen_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    check("problem_reports_kind_check", sql`${table.kind} IN ('falla', 'no_entiendo', 'idea', 'se_ve_mal')`),
+    check("problem_reports_status_check", sql`${table.status} IN ('nuevo', 'en_revision', 'resuelto', 'descartado')`),
+    check("problem_reports_description_check", sql`char_length(${table.description}) BETWEEN 1 AND 2000`),
+    uniqueIndex("problem_reports_client_request_idx").on(table.clientRequestId).where(sql`${table.clientRequestId} IS NOT NULL`),
+    index("problem_reports_status_created_idx").on(table.status, table.createdAt),
+    index("problem_reports_created_by_idx").on(table.createdByUserId),
+    index("problem_reports_photo_url_idx").on(table.photoUrl).where(sql`${table.photoUrl} IS NOT NULL`)
   ]
 );

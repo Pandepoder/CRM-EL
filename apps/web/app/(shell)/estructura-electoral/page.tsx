@@ -1,60 +1,36 @@
-import { getServerSession } from "@/lib/session-server";
-import { getDatabaseClient } from "@/lib/db-client";
-import { schema } from "@tonala/shared/database";
-import { and, eq, inArray } from "drizzle-orm";
+import { requirePageAccess } from "@/lib/authorization";
+import { leerFiltrosDeCobertura } from "@/lib/estructura-electoral";
+import { coberturaPorSeccion, municipioDeCobertura } from "@/lib/estructura-electoral-servicio";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { getServerSession } from "@/lib/session-server";
+
 import EstructuraClient from "./EstructuraClient";
 
-import { requirePageAccess } from "@/lib/authorization";
+export const dynamic = "force-dynamic";
 
-export default async function EstructuraPage() {
+/**
+ * Estructura Electoral (plan de auditoría de menús, fase 4): qué secciones del municipio tienen coordinación,
+ * representante general y representantes de casilla, y quién. Antes era una tabla de nombramientos sin
+ * cobertura, que mandaba las 3,791 secciones al navegador y no dejaba quitar ni cambiar a nadie.
+ *
+ * - El maestro elige municipio (`?municipio=`); los demás ven el suyo.
+ * - `?filtro=` (sin_coordinador, sin_rg, sin_rc, completas) y `?page=`. El buscador no va en la dirección.
+ * - Dirección y líder cuentan solo su estructura (D11).
+ */
+export default async function EstructuraPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requirePageAccess("/estructura-electoral");
   const session = await getServerSession();
-
-  const db = getDatabaseClient();
-  // Dirección y coordinación ven y asignan a gente de sus equipos. Antes esta pantalla listaba a
-  // todas las personas activas y a todos los representantes del sistema.
   const alcance = await resolveUserNetworkScope(session.userId);
-  const personasDelAlcance = alcance.isMaster ? undefined : inArray(schema.userProfiles.id, alcance.teammateUserIds);
+  const sp = await searchParams;
+  const pedido = Array.isArray(sp.municipio) ? sp.municipio[0] : sp.municipio;
+  const municipio = await municipioDeCobertura(alcance, alcance.isMaster ? pedido : null);
+  const filtros = { ...leerFiltrosDeCobertura(sp), q: "" };
 
-  // Try to query electoralRepresentatives if the table exists (graceful degradation)
-  let representatives: any[] = [];
-  try {
-    representatives = await db
-      .select({
-        id: schema.electoralRepresentatives.id,
-        sectionNum: schema.electoralSections.sectionNum,
-        sectionId: schema.electoralSections.id,
-        displayName: schema.userProfiles.displayName,
-        role: schema.electoralRepresentatives.role,
-        assignedAt: schema.electoralRepresentatives.assignedAt
-      })
-      .from(schema.electoralRepresentatives)
-      .innerJoin(schema.electoralSections, eq(schema.electoralRepresentatives.sectionId, schema.electoralSections.id))
-      .innerJoin(schema.userProfiles, eq(schema.electoralRepresentatives.userId, schema.userProfiles.id))
-      .where(personasDelAlcance);
-  } catch (_err) {
-    console.warn("Table electoral_representatives not found yet, returning empty list");
-    representatives = [];
-  }
-
-  const users = await db.select({
-    id: schema.userProfiles.id,
-    displayName: schema.userProfiles.displayName
-  }).from(schema.userProfiles).where(and(eq(schema.userProfiles.status, "active"), personasDelAlcance));
-
-  let sections: any[] = [];
-  try {
-    sections = await db.select({
-      id: schema.electoralSections.id,
-      sectionNum: schema.electoralSections.sectionNum,
-      // Sin esto el combo rotulaba "Tonalá" al 100% de las secciones.
-      municipality: schema.electoralSections.municipality
-    }).from(schema.electoralSections).orderBy(schema.electoralSections.sectionNum);
-  } catch (_err) {
-    console.warn("Table electoral_sections not found yet, returning empty list");
-    sections = [];
-  }
-
-  return <EstructuraClient representatives={representatives} availableUsers={users} sections={sections} />;
+  return (
+    <EstructuraClient
+      inicial={await coberturaPorSeccion(alcance, municipio, filtros)}
+      filtrosIniciales={filtros}
+      esMaestro={alcance.isMaster}
+    />
+  );
 }

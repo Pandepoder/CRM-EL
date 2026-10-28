@@ -30,7 +30,12 @@ const PANTALLAS = Object.keys(ACCESO_A_PANTALLAS) as PantallaDelPanel[];
 
 /** Rutas del panel sin pantalla propia en la lista, con el motivo. Cada una tiene que seguir siéndolo. */
 const EXCEPCIONES: Record<string, string> = {
-  "/inbox": "redirige a / y no enseña nada"
+  "/inbox": "redirige a / y no enseña nada",
+  // D2 del plan de auditoría de menús: las dos son vistas de Incidencias, que tiene su propia guarda.
+  "/admin-inbox": "redirige a /admin-incidencias?vista=todas",
+  "/historial-incidencias": "redirige a /admin-incidencias?vista=cerradas",
+  // D1: Ajustes no guardaba nada; lo real (nombre y contraseña) está en el perfil propio.
+  "/settings": "redirige a /perfil?pestana=seguridad"
 };
 
 function archivos(dir: string, nombre: string): string[] {
@@ -148,7 +153,7 @@ describe("ACCESO_A_PANTALLAS gobierna el menú y las guardas", () => {
 
 describe("pantallas del administrador maestro (etapa 6)", () => {
   /** Lo que gobierna todo el estado. Si una pantalla deja de estar aquí, que sea a propósito. */
-  const DEL_MAESTRO: PantallaDelPanel[] = ["/administracion-municipal", "/sin-municipio", "/auditoria", "/settings"];
+  const DEL_MAESTRO: PantallaDelPanel[] = ["/administracion-municipal", "/sin-municipio", "/auditoria"];
 
   it("solo las abre el maestro: ningún rol de la tabla, tampoco administración", () => {
     for (const pantalla of DEL_MAESTRO) {

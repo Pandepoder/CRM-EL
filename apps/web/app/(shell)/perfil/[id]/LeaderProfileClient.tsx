@@ -1,16 +1,22 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   User, Shield, Mail, Calendar, MapPin, Phone, Home,
-  CheckCircle, Clock, Plus, Search, Users, Coffee, Mic, ChevronRight,
-  Building2, Hash, Key, Footprints, X, Flag
+  CheckCircle, Clock, Plus, Search, Users, ChevronRight,
+  Building2, Hash, Key, Flag, ListChecks
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { puedeAbrir } from "@tonala/ui";
+import { AccionesDeContacto } from "@/components/AccionesDeContacto";
 import { AvatarPersona } from "@/components/AvatarPersona";
 import { FotoDePerfilEditable } from "@/components/FotoDePerfilEditable";
 import { DomicilioDeLaCuenta, type Domicilio } from "@/components/DomicilioDeLaCuenta";
+import { avisar } from "@/lib/avisos";
+import type { EquipoDePersona } from "@/lib/equipos-de-persona";
+import type { ActividadDelPerfil, CiudadanoDelPerfil, ResumenDeActividades } from "@/lib/perfil";
+import type { PestanaDelPerfil } from "@/lib/perfil-pestanas";
 
 export type LeaderUser = {
   id: string;
@@ -24,72 +30,53 @@ export type LeaderUser = {
   photoUrl: string | null;
 };
 
-export type LeaderContact = {
-  id: string;
-  displayName: string;
-  firstName?: string | null | undefined;
-  lastName?: string | null | undefined;
-  phone?: string | null | undefined;
-  email?: string | null | undefined;
-  address?: string | null | undefined;
-  colony?: string | null | undefined;
-  municipality?: string | undefined;
-  profession?: string | null | undefined;
-  companyOrWork?: string | null | undefined;
-  sectionNum?: number | undefined;
-  status: string;
-  createdAt: string;
-};
-
-export type LeaderActivity = {
-  id: string;
-  type: string;
-  category: string;
-  title: string;
-  description: string;
-  location: string;
-  status: string;
-  scheduledAt: string;
-  createdAt: string;
-  latitude?: number | null | undefined;
-  longitude?: number | null | undefined;
-  contactId?: string | undefined;
-};
 
 export default function LeaderProfileClient({
   user,
-  team,
+  equipos,
   contacts,
+  totalContactos,
   activities,
+  resumenActividades,
   topColonies,
   topSections,
   domicilio = null,
   isCurrentUser,
-  currentUserId,
+  pestanaInicial = "contactos",
   currentUserRole
 }: {
   user: LeaderUser;
-  team: { id: string; name: string; zone?: string | null; municipality?: string | null };
-  contacts: LeaderContact[];
-  activities: LeaderActivity[];
+  equipos: EquipoDePersona[];
+  /** Los últimos 20 que quien mira puede ver (plan de auditoría de menús, fase 6); el resto, en el Directorio. */
+  contacts: CiudadanoDelPerfil[];
+  totalContactos: number;
+  /** Las últimas 30, con el tipo real de la Agenda; el resto, en la Agenda. */
+  activities: ActividadDelPerfil[];
+  resumenActividades: ResumenDeActividades;
   topColonies: { name: string; count: number }[];
   topSections: { name: string; count: number }[];
   /** `null`: quien mira no puede ver dónde vive esta persona. */
   domicilio?: Domicilio | null;
   isCurrentUser: boolean;
-  currentUserId: string;
+  /** La que pide `?pestana=` (`lib/perfil-pestanas.ts`); `/settings` lleva a «seguridad». */
+  pestanaInicial?: PestanaDelPerfil;
   currentUserRole: string;
 }) {
   const router = useRouter();
+  // La misma lista con la que la pantalla de alta deja entrar (`capacidades.ts`).
+  const puedeRegistrar = puedeAbrir("/crm/nuevo", currentUserRole);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<"contactos" | "agenda" | "territorio" | "seguridad">("contactos");
+  const [activeTab, setActiveTab] = useState<PestanaDelPerfil>(pestanaInicial);
+  // Quien llega a una pestaña concreta (desde lo que fue Ajustes, por ejemplo) la ve sin buscarla: en el
+  // teléfono, las pestañas quedan debajo de la cabecera y de las cifras.
+  const refPestanas = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Sin animación: con el desplazamiento suave de toda la página, al cargar se quedaba a medio camino.
+    if (pestanaInicial !== "contactos") refPestanas.current?.scrollIntoView({ block: "start", behavior: "instant" });
+  }, [pestanaInicial]);
 
-  // Contact search & filter
-  const [contactSearch, setContactSearch] = useState("");
-  const [colonyFilter, setColonyFilter] = useState("todas");
-
-  // Activity filter
+  // Activity filter: por el tipo real de la Agenda (antes se adivinaba por el título).
   const [activityCategoryFilter, setActivityCategoryFilter] = useState("todas");
   const [activitySearch, setActivitySearch] = useState("");
 
@@ -99,35 +86,19 @@ export default function LeaderProfileClient({
   const [savingPassword, setSavingPassword] = useState(false);
 
   // Name edit state (for current user)
-  const [isEditingName, setIsEditingName] = useState(false);
   const [displayName, setDisplayName] = useState(user.displayName);
   const [savingName, setSavingName] = useState(false);
 
-  // Filtered contacts
-  const filteredContacts = useMemo(() => {
-    return contacts.filter(c => {
-      if (colonyFilter !== "todas" && c.colony !== colonyFilter) return false;
-      if (!contactSearch.trim()) return true;
-      const q = contactSearch.toLowerCase();
-      return (
-        c.displayName.toLowerCase().includes(q) ||
-        (c.phone || "").includes(q) ||
-        (c.colony || "").toLowerCase().includes(q) ||
-        (c.profession || "").toLowerCase().includes(q) ||
-        String(c.sectionNum || "").includes(q)
-      );
-    });
-  }, [contacts, contactSearch, colonyFilter]);
+  const filteredContacts = contacts;
+  const enDirectorio = `/crm/contacts?registro=${user.id}`;
+
+  // Los tipos de las actividades que se ven, para los filtros.
+  const tiposEnLista = useMemo(() => [...new Set(activities.map((a) => a.tipo))].sort((a, b) => a.localeCompare(b, "es")), [activities]);
 
   // Filtered activities
   const filteredActivities = useMemo(() => {
     return activities.filter(a => {
-      if (activityCategoryFilter !== "todas") {
-        if (activityCategoryFilter === "platica" && a.category !== "platica") return false;
-        if (activityCategoryFilter === "visita" && a.category !== "visita") return false;
-        if (activityCategoryFilter === "evento" && a.category !== "evento" && a.category !== "mitin") return false;
-        if (activityCategoryFilter === "brigada" && a.category !== "brigada" && a.category !== "propaganda" && a.category !== "perifoneo") return false;
-      }
+      if (activityCategoryFilter !== "todas" && a.tipo !== activityCategoryFilter) return false;
       if (!activitySearch.trim()) return true;
       const q = activitySearch.toLowerCase();
       return (
@@ -138,20 +109,14 @@ export default function LeaderProfileClient({
     });
   }, [activities, activityCategoryFilter, activitySearch]);
 
-  // KPIs
-  const totalActividades = activities.length;
-  const platicasCount = activities.filter(a => a.category === "platica" || a.title.toLowerCase().includes("plática")).length;
-  const visitasCount = activities.filter(a => a.category === "visita" || a.type === "visita" || a.title.toLowerCase().includes("visita")).length;
-  const eventosCount = activities.filter(a => a.category === "evento" || a.category === "mitin" || a.title.toLowerCase().includes("evento")).length;
-  const brigadasCount = activities.filter(a => a.category === "brigada" || a.category === "propaganda" || a.category === "perifoneo").length;
-  const completedCount = activities.filter(a => ["completed", "resolved", "successful"].includes(a.status)).length;
+  // KPIs: contados en la base sobre todas sus actividades, no sobre las 30 de la lista.
+  const totalActividades = resumenActividades.total;
+  const completedCount = resumenActividades.hechas;
   const completionRate = totalActividades > 0 ? Math.round((completedCount / totalActividades) * 100) : 0;
+  const tiposPrincipales = resumenActividades.porTipo.slice(0, 3);
 
   async function handleSaveName() {
-    if (!displayName.trim() || displayName.trim() === user.displayName) {
-      setIsEditingName(false);
-      return;
-    }
+    if (!displayName.trim() || displayName.trim() === user.displayName) return;
     setSavingName(true);
     try {
       const res = await fetch("/api/auth/profile", {
@@ -160,10 +125,9 @@ export default function LeaderProfileClient({
         body: JSON.stringify({ displayName }),
       });
       if (res.ok) {
-        setIsEditingName(false);
         router.refresh();
       } else {
-        alert("Error al actualizar nombre");
+        avisar("No se pudo cambiar el nombre. Revisa tu señal y vuelve a intentarlo.");
       }
     } finally {
       setSavingName(false);
@@ -203,20 +167,15 @@ export default function LeaderProfileClient({
     }
   }
 
-  const getCategoryBadge = (cat?: string) => {
-    if (cat === "visita") {
+  // El tipo real (el de la Agenda, «Visita» o «Incidencia»), con su color.
+  const getCategoryBadge = (tipo: string) => {
+    if (tipo === "Visita") {
       return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Home size={12} /> Visita</span>;
     }
-    if (cat === "platica") {
-      return <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Coffee size={12} /> Plática</span>;
+    if (tipo === "Incidencia") {
+      return <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Flag size={12} /> Incidencia</span>;
     }
-    if (cat === "evento" || cat === "mitin") {
-      return <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Mic size={12} /> Evento</span>;
-    }
-    if (cat === "brigada") {
-      return <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Footprints size={12} /> Brigada</span>;
-    }
-    return <span className="bg-gray-50 text-gray-700 border border-gray-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><Flag size={12} /> Tarea</span>;
+    return <span className="bg-blue-50 text-blue-800 border border-blue-200 text-[11px] font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1"><ListChecks size={12} /> {tipo}</span>;
   };
 
   return (
@@ -257,7 +216,8 @@ export default function LeaderProfileClient({
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
-                  <Building2 size={13} className="text-blue-400" /> {team.name}
+                  <Building2 size={13} className="text-blue-400" />{" "}
+                  {equipos.length === 0 ? "Sin equipo todavía" : equipos.map((e) => (e.lidera ? `Dirige ${e.nombre}` : e.nombre)).join(" · ")}
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
@@ -276,19 +236,26 @@ export default function LeaderProfileClient({
               <Calendar size={14} /> Ver en Agenda
             </Link>
 
-            <Link
-              href={`/admin-equipos/${team.id}`}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs backdrop-blur-sm border border-white/15 transition-all flex items-center gap-1.5"
-            >
-              <Users size={14} /> Ver su Equipo
-            </Link>
+            {/* Solo equipos que existen y que quien mira puede abrir en «Equipos». */}
+            {equipos.filter((e) => e.enlazable).map((e, i, lista) => (
+              <Link
+                key={e.id}
+                href={`/admin-equipos/${e.id}`}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs backdrop-blur-sm border border-white/15 transition-all flex items-center gap-1.5"
+              >
+                <Users size={14} /> {lista.length === 1 ? "Ver su equipo" : `Ver ${e.nombre}`}
+              </Link>
+            ))}
 
-            <Link
-              href="/crm/nuevo"
-              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold rounded-xl text-xs shadow-md transition-all flex items-center gap-1.5"
-            >
-              <Plus size={14} /> + Registrar Contacto
-            </Link>
+            {/* Solo a quien la pantalla de alta deja entrar: al brigadista lo rebotaba a su inicio (L4). */}
+            {puedeRegistrar && (
+              <Link
+                href="/crm/nuevo"
+                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold rounded-xl text-xs shadow-md transition-all flex items-center gap-1.5"
+              >
+                <Plus size={14} /> Registrar ciudadano
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -302,8 +269,8 @@ export default function LeaderProfileClient({
             <span className="text-[10px] font-extrabold uppercase tracking-wider">Personas en Red</span>
             <Users size={15} />
           </div>
-          <div className="text-2xl font-black">{contacts.length}</div>
-          <div className="text-[10px] opacity-75 font-semibold mt-1">Registrados en CRM</div>
+          <div className="text-2xl font-black">{totalContactos.toLocaleString("es-MX")}</div>
+          <div className="text-[10px] opacity-75 font-semibold mt-1">Ciudadanos registrados</div>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
@@ -311,36 +278,21 @@ export default function LeaderProfileClient({
             <span className="text-[10px] font-extrabold uppercase tracking-wider">Total Actividades</span>
             <Calendar size={15} className="text-blue-600" />
           </div>
-          <div className="text-2xl font-black text-gray-900">{totalActividades}</div>
+          <div className="text-2xl font-black text-gray-900">{totalActividades.toLocaleString("es-MX")}</div>
           <div className="text-[10px] text-gray-400 font-semibold mt-1">En agenda territorial</div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between text-gray-500 mb-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider">Pláticas</span>
-            <Coffee size={15} className="text-amber-500" />
+        {/* Los tres tipos que más hace, con el nombre real de la Agenda. Antes «Pláticas», «Visitas» y «Eventos»
+            se adivinaban por el título de cada actividad. */}
+        {tiposPrincipales.map((t) => (
+          <div key={t.tipo} className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between text-gray-500 mb-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider line-clamp-2" title={t.tipo}>{t.tipo}</span>
+              <ListChecks size={15} className="text-blue-500 shrink-0" />
+            </div>
+            <div className="text-2xl font-black text-gray-900">{t.cantidad.toLocaleString("es-MX")}</div>
           </div>
-          <div className="text-2xl font-black text-amber-700">{platicasCount}</div>
-          <div className="text-[10px] text-gray-400 font-semibold mt-1">Reuniones vecinales</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between text-gray-500 mb-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider">Visitas</span>
-            <Home size={15} className="text-emerald-500" />
-          </div>
-          <div className="text-2xl font-black text-emerald-700">{visitasCount}</div>
-          <div className="text-[10px] text-gray-400 font-semibold mt-1">Domiciliarias</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between text-gray-500 mb-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider">Eventos</span>
-            <Mic size={15} className="text-purple-500" />
-          </div>
-          <div className="text-2xl font-black text-purple-700">{eventosCount}</div>
-          <div className="text-[10px] text-gray-400 font-semibold mt-1">Asambleas / Mítines</div>
-        </div>
+        ))}
 
         <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between text-gray-500 mb-1">
@@ -353,11 +305,11 @@ export default function LeaderProfileClient({
       </div>
 
       {/* 3. PESTAÑAS 360° */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-1">
+      <div ref={refPestanas} className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-1 scroll-mt-20">
         <button
           type="button"
           onClick={() => setActiveTab("contactos")}
-          className={`px-4 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+          className={`min-h-[44px] px-4 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer ${
             activeTab === "contactos"
               ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -366,14 +318,14 @@ export default function LeaderProfileClient({
           <Users size={14} />
           <span>Personas que ha Subido</span>
           <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "contactos" ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"}`}>
-            {contacts.length}
+            {totalContactos.toLocaleString("es-MX")}
           </span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("agenda")}
-          className={`px-4 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+          className={`min-h-[44px] px-4 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer ${
             activeTab === "agenda"
               ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -382,14 +334,14 @@ export default function LeaderProfileClient({
           <Calendar size={14} />
           <span>Agenda y Actividades Realizadas</span>
           <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "agenda" ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"}`}>
-            {activities.length}
+            {totalActividades.toLocaleString("es-MX")}
           </span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("territorio")}
-          className={`px-4 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+          className={`min-h-[44px] px-4 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer ${
             activeTab === "territorio"
               ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -406,7 +358,7 @@ export default function LeaderProfileClient({
           <button
             type="button"
             onClick={() => setActiveTab("seguridad")}
-            className={`px-4 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+            className={`min-h-[44px] px-4 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer ${
               activeTab === "seguridad"
                 ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -421,36 +373,19 @@ export default function LeaderProfileClient({
       {/* 4. CONTENIDO: TAB 1 - PERSONAS QUE HA SUBIDO AL CRM */}
       {activeTab === "contactos" && (
         <div className="space-y-4">
-          {/* Controles de Búsqueda de Contactos */}
-          <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="relative flex-1 w-full">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar por nombre, teléfono, colonia o profesión..."
-                value={contactSearch}
-                onChange={e => setContactSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
-              />
-              {contactSearch && (
-                <button onClick={() => setContactSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"><X size={14} /></button>
-              )}
-            </div>
-
-            {/* Filtro por Colonia si hay múltiples */}
-            {topColonies.length > 0 && (
-              <select
-                value={colonyFilter}
-                onChange={e => setColonyFilter(e.target.value)}
-                className="p-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none cursor-pointer"
-              >
-                <option value="todas">Todas las Colonias ({contacts.length})</option>
-                {topColonies.map(c => (
-                  <option key={c.name} value={c.name}>{c.name} ({c.count})</option>
-                ))}
-              </select>
-            )}
-          </div>
+          {/* Buscar entre todos sus ciudadanos es del Directorio, que ya busca por nombre, teléfono, colonia o
+              sección: el perfil enseña los últimos 20 y lleva allá con el filtro puesto. */}
+          {totalContactos > 0 && (
+            <Link
+              href={enDirectorio}
+              className="flex items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-blue-200 shadow-sm text-sm font-extrabold text-blue-800 hover:bg-blue-50"
+            >
+              <span className="flex items-center gap-2">
+                <Search size={16} aria-hidden="true" /> Buscar entre sus {totalContactos.toLocaleString("es-MX")} en el Directorio
+              </span>
+              <ChevronRight size={16} aria-hidden="true" />
+            </Link>
+          )}
 
           {/* Listado de Contactos */}
           {filteredContacts.length === 0 ? (
@@ -458,98 +393,110 @@ export default function LeaderProfileClient({
               <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
                 <Users size={28} />
               </div>
-              <h3 className="font-extrabold text-base text-gray-900 mb-1">No se encontraron personas con estos filtros</h3>
+              <h3 className="font-extrabold text-base text-gray-900 mb-1">Todavía no hay ciudadanos</h3>
               <p className="text-xs text-gray-500 max-w-sm mx-auto mb-4">
-                Este líder aún no ha registrado contactos con este criterio o nombre en el padrón.
+                {isCurrentUser ? "Cuando registres a alguien, saldrá aquí." : "Esta persona aún no registra ciudadanos que tú puedas ver."}
               </p>
-              <Link
-                href="/crm/nuevo"
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white font-bold rounded-xl text-xs"
-              >
-                <Plus size={14} /> + Dar de Alta Nuevo Ciudadano
-              </Link>
+              {puedeRegistrar && (
+                <Link
+                  href="/crm/nuevo"
+                  className="inline-flex items-center gap-1.5 min-h-[44px] px-4 bg-blue-600 text-white font-bold rounded-xl text-sm"
+                >
+                  <Plus size={14} /> Registrar ciudadano
+                </Link>
+              )}
             </div>
           ) : (
             <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-4 border-b border-gray-100 flex items-center justify-between text-xs font-bold text-gray-500">
-                <span>Mostrando {filteredContacts.length} personas registradas por {user.displayName}</span>
+                <span>
+                  {totalContactos > filteredContacts.length
+                    ? `Los últimos ${filteredContacts.length} de ${totalContactos.toLocaleString("es-MX")}`
+                    : `${filteredContacts.length} ${filteredContacts.length === 1 ? "persona registrada" : "personas registradas"}`}
+                </span>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-gray-50 text-gray-500 uppercase font-black text-[10px] tracking-wider border-b border-gray-100">
+              {/* En el teléfono cada fila es una tarjeta (mismas celdas, sin columnas): la tabla de siete
+                  columnas obligaba a deslizar de lado para llegar a la ficha. */}
+              <div className="md:overflow-x-auto">
+                <table className="block md:table w-full text-left text-xs">
+                  <thead className="hidden md:table-header-group bg-gray-50 text-gray-500 uppercase font-black text-[10px] tracking-wider border-b border-gray-100">
                     <tr>
                       <th className="py-3.5 px-4">Ciudadano</th>
                       <th className="py-3.5 px-3">Teléfono</th>
                       <th className="py-3.5 px-3">Colonia</th>
                       <th className="py-3.5 px-3 text-center">Sección</th>
-                      <th className="py-3.5 px-3">Ocupación</th>
                       <th className="py-3.5 px-3">Fecha de Registro</th>
                       <th className="py-3.5 px-4 text-right">Ficha</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="block md:table-row-group divide-y divide-gray-100">
                     {filteredContacts.map(c => (
-                      <tr key={c.id} className="hover:bg-blue-50/30 transition-colors">
-                        <td className="py-3.5 px-4">
+                      <tr key={c.id} className="block md:table-row px-4 py-3.5 md:p-0 hover:bg-blue-50/30 transition-colors">
+                        <td className="block md:table-cell md:py-3.5 md:px-4">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-slate-100 text-blue-900 font-black text-[11px] flex items-center justify-center shrink-0 border border-slate-200">
+                            <div className="w-8 h-8 md:w-7 md:h-7 rounded-full bg-slate-100 text-blue-900 font-black text-[11px] flex items-center justify-center shrink-0 border border-slate-200">
                               {c.displayName.slice(0, 2).toUpperCase()}
                             </div>
-                            <div>
-                              <div className="font-extrabold text-gray-900 text-xs">{c.displayName}</div>
-                              {c.address && <div className="text-[10px] text-gray-400">{c.address}</div>}
+                            <div className="min-w-0">
+                              <div className="font-extrabold text-gray-900 text-sm md:text-xs">{c.displayName}</div>
                             </div>
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-3">
+                        <td className="inline-block md:table-cell mt-2 md:mt-0 mr-3 md:mr-0 md:py-3.5 md:px-3">
                           {c.phone ? (
                             <div className="flex items-center gap-1 font-bold text-gray-700">
                               <Phone size={11} className="text-emerald-500" />
                               <span>{c.phone}</span>
                             </div>
                           ) : (
-                            <span className="text-gray-400 text-[10px]">Sin teléfono</span>
+                            <span className="text-gray-500 text-[11px]">Sin teléfono</span>
                           )}
                         </td>
 
-                        <td className="py-3.5 px-3 font-semibold text-gray-700">
+                        <td className="inline-block md:table-cell mr-3 md:mr-0 md:py-3.5 md:px-3 font-semibold text-gray-700">
                           {c.colony || "—"}
                         </td>
 
-                        <td className="py-3.5 px-3 text-center">
+                        <td className="inline-block md:table-cell mr-3 md:mr-0 md:py-3.5 md:px-3 md:text-center">
                           {c.sectionNum ? (
                             <span className="bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-black px-2 py-0.5 rounded-md">
                               #{c.sectionNum}
                             </span>
                           ) : (
-                            <span className="text-gray-300">-</span>
+                            <span className="text-gray-400">-</span>
                           )}
                         </td>
 
-                        <td className="py-3.5 px-3 font-medium text-gray-600">
-                          {c.profession || c.companyOrWork || "General"}
-                        </td>
-
-                        <td className="py-3.5 px-3 text-gray-400 text-[11px]">
+                        <td className="inline-block md:table-cell md:py-3.5 md:px-3 text-gray-500 text-[11px]">
+                          <span className="md:hidden">Reg. </span>
                           {new Date(c.createdAt).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}
                         </td>
 
-                        <td className="py-3.5 px-4 text-right">
-                          <Link
-                            href={`/crm/contacts/${c.id}`}
-                            className="px-2.5 py-1 bg-gray-100 hover:bg-blue-50 text-blue-700 hover:text-blue-800 font-bold rounded-lg text-[11px] inline-flex items-center gap-1 transition-colors"
-                          >
-                            <span>Ver CRM</span>
-                            <ChevronRight size={12} />
-                          </Link>
+                        <td className="block md:table-cell mt-2.5 md:mt-0 md:py-3.5 md:px-4 md:text-right">
+                          <div className="flex md:inline-flex gap-2 md:justify-end">
+                            {/* En el teléfono, Llamar y WhatsApp a un toque junto a la ficha (C1). */}
+                            <AccionesDeContacto telefono={c.phone} tamano="compacta" className="flex-[2] md:hidden" />
+                            <Link
+                              href={`/crm/contacts/${c.id}`}
+                              className="flex-1 md:flex-none min-h-[44px] md:min-h-0 justify-center whitespace-nowrap px-2.5 py-1 bg-gray-100 hover:bg-blue-50 text-blue-700 hover:text-blue-800 font-bold rounded-xl md:rounded-lg text-[13px] md:text-[11px] inline-flex items-center gap-1 transition-colors"
+                            >
+                              <span>Ver ficha</span>
+                              <ChevronRight size={12} />
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              {totalContactos > filteredContacts.length && (
+                <Link href={enDirectorio} className="block p-4 border-t border-gray-100 text-center text-sm font-extrabold text-blue-700 hover:bg-blue-50">
+                  Ver los {totalContactos.toLocaleString("es-MX")} en el Directorio →
+                </Link>
+              )}
             </div>
           )}
         </div>
@@ -572,24 +519,19 @@ export default function LeaderProfileClient({
             </div>
 
             <div className="flex items-center gap-1.5 flex-wrap">
-              {[
-                { key: "todas", label: "Todas", icon: null },
-                { key: "platica", label: "Pláticas", icon: Coffee },
-                { key: "visita", label: "Visitas", icon: Home },
-                { key: "evento", label: "Eventos", icon: Mic },
-                { key: "brigada", label: "Brigadas", icon: Footprints },
-              ].map(cat => (
+              {["todas", ...tiposEnLista].map(tipo => (
                 <button
-                  key={cat.key}
+                  key={tipo}
                   type="button"
-                  onClick={() => setActivityCategoryFilter(cat.key)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
-                    activityCategoryFilter === cat.key
+                  aria-pressed={activityCategoryFilter === tipo}
+                  onClick={() => setActivityCategoryFilter(tipo)}
+                  className={`min-h-[40px] px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                    activityCategoryFilter === tipo
                       ? "bg-blue-900 text-white shadow-sm"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 >
-                  {cat.icon && <cat.icon size={13} />} {cat.label}
+                  {tipo === "todas" ? "Todas" : tipo}
                 </button>
               ))}
             </div>
@@ -603,19 +545,21 @@ export default function LeaderProfileClient({
               </div>
               <h3 className="font-extrabold text-base text-gray-900 mb-1">No hay actividades con estos filtros</h3>
               <p className="text-xs text-gray-500 max-w-sm mx-auto mb-4">
-                No se registraron pláticas, visitas o eventos para este líder en este criterio.
+                No hay actividades de este tipo entre las últimas {activities.length}. En la Agenda están todas.
               </p>
+              {/* Decía «+ Programar Nueva Actividad» y llevaba a una agenda sin formulario: no todos pueden
+                  crear actividades. Ir a la Agenda sirve a todos. */}
               <Link
-                href="/equipo"
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white font-bold rounded-xl text-xs"
+                href={`/equipo?vista=todas&scope=equipo&responsable=${user.id}`}
+                className="inline-flex items-center gap-1.5 min-h-[44px] px-4 bg-blue-600 text-white font-bold rounded-xl text-sm"
               >
-                <Plus size={14} /> + Programar Nueva Actividad
+                <Calendar size={14} /> Ir a la Agenda
               </Link>
             </div>
           ) : (
             <div className="grid gap-3.5">
               {filteredActivities.map(act => {
-                const isCompleted = ["completed", "resolved", "successful"].includes(act.status);
+                const isCompleted = act.hecha;
 
                 return (
                   <div
@@ -626,7 +570,7 @@ export default function LeaderProfileClient({
                   >
                     <div className="space-y-1.5 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        {getCategoryBadge(act.category)}
+                        {getCategoryBadge(act.tipo)}
 
                         <span className="text-gray-400 text-xs font-semibold flex items-center gap-1 ml-auto">
                           <Clock size={12} />
@@ -671,6 +615,14 @@ export default function LeaderProfileClient({
                 );
               })}
             </div>
+          )}
+          {totalActividades > activities.length && (
+            <Link
+              href={`/equipo?vista=todas&scope=equipo&responsable=${user.id}`}
+              className="block p-4 bg-white rounded-2xl border border-blue-200 text-center text-sm font-extrabold text-blue-700 hover:bg-blue-50"
+            >
+              Las últimas {activities.length} de {totalActividades.toLocaleString("es-MX")}: ver todas en la Agenda →
+            </Link>
           )}
         </div>
       )}

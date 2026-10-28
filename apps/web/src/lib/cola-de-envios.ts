@@ -24,13 +24,22 @@
  * tenerlo unos minutos en el teléfono de la brigada.
  */
 
-export type TipoDeEnvio = "ciudadano" | "registro-publico" | "actividad" | "prospecto" | "incidencia";
+/**
+ * `resultado`: el cierre de una visita o actividad (C3). No crea nada, así que no lleva `clientRequestId`:
+ * el servidor reconoce el mismo cierre si llega dos veces (misma persona, resultado y conclusión) y responde
+ * lo ya hecho en vez de «ya está cerrada».
+ */
+export type TipoDeEnvio = "ciudadano" | "registro-publico" | "actividad" | "prospecto" | "incidencia" | "resultado" | "problema" | "escucha";
+
+export type MetodoDeEnvio = "POST" | "PATCH";
 
 export type EnvioEnCola = {
   /** El `clientRequestId` del envío: lo identifica en la cola y en el servidor. */
   clave: string;
   tipo: TipoDeEnvio;
   url: string;
+  /** POST si no se dice (las altas); el cierre de una actividad va por PATCH. */
+  metodo?: MetodoDeEnvio | undefined;
   cuerpo: Record<string, unknown>;
   /** Lo que se enseña en el aviso: «Ciudadano: Ana López». Sin teléfonos ni domicilios. */
   descripcion: string;
@@ -137,12 +146,12 @@ function guardarEnCola(envio: EnvioEnCola): boolean {
 
 type Intento = { http: number; datos: Record<string, unknown> };
 
-async function intentar(url: string, cuerpo: Record<string, unknown>): Promise<Intento> {
+async function intentar(url: string, cuerpo: Record<string, unknown>, metodo: MetodoDeEnvio = "POST"): Promise<Intento> {
   const control = new AbortController();
   const reloj = setTimeout(() => control.abort(), ESPERA_MAXIMA_MS);
   try {
     const res = await fetch(url, {
-      method: "POST",
+      method: metodo,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(cuerpo),
       signal: control.signal
@@ -176,11 +185,12 @@ export async function enviarOEncolar(envio: {
   clave: string;
   tipo: TipoDeEnvio;
   url: string;
+  metodo?: MetodoDeEnvio | undefined;
   cuerpo: Record<string, unknown>;
   descripcion: string;
   usuarioId: string | null;
 }): Promise<ResultadoEnvio> {
-  const r = await intentar(envio.url, envio.cuerpo);
+  const r = await intentar(envio.url, envio.cuerpo, envio.metodo);
   const decision = clasificarRespuesta(r.http);
   if (decision === "enviado") {
     // Si ya estaba en la cola (un reintento desde el formulario), sale de ella.
@@ -217,7 +227,7 @@ export function procesarCola(usuarioId: string | null): Promise<ResumenCola> {
   enCurso = (async () => {
     let enviados = 0;
     for (const envio of enviosDe(usuarioId).filter((e) => e.estado === "pendiente")) {
-      const r = await intentar(envio.url, envio.cuerpo);
+      const r = await intentar(envio.url, envio.cuerpo, envio.metodo);
       const decision = clasificarRespuesta(r.http);
       const actual = leerCola();
       if (decision === "enviado") {
