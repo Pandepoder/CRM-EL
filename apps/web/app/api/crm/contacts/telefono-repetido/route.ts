@@ -17,10 +17,13 @@ export const dynamic = "force-dynamic";
  * pregunta puede verla—, y pide el mismo permiso que el alta. Como una consulta suelta es más fácil de
  * repetir que un formulario entero, lleva un tope por persona. El registro público por QR no la usa: ahí
  * permitiría averiguar qué teléfonos están registrados sin sesión.
+ *
+ * El teléfono viaja en el cuerpo de un POST: en la dirección (`?telefono=`, como antes) quedaba en las
+ * bitácoras del servidor y de cualquier intermediario.
  */
 const TOPE_POR_HORA = 120;
 
-export async function GET(req: Request) {
+export async function POST(req: Request) {
   const actor = await actorFromSession();
   if (!actor) return unauthorized();
   if (!requirePermission(actor, Permission.ContactsCreate, permissionChecker).ok) {
@@ -29,7 +32,14 @@ export async function GET(req: Request) {
   const limite = checkRateLimit(`telefono-repetido:${actor.actorId}`, TOPE_POR_HORA, 60 * 60 * 1000);
   if (!limite.allowed) return rateLimitResponse(limite);
 
-  const telefono = new URL(req.url).searchParams.get("telefono")?.slice(0, 20) ?? "";
+  let cuerpo: unknown;
+  try {
+    cuerpo = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
+  const pedido = cuerpo && typeof cuerpo === "object" ? (cuerpo as { telefono?: unknown }).telefono : undefined;
+  const telefono = typeof pedido === "string" ? pedido.slice(0, 20) : "";
   if (telefono.replace(/\D/g, "").length < 7) return NextResponse.json({ repetido: false });
 
   try {

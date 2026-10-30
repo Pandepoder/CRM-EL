@@ -23,6 +23,12 @@ const nextConfig: NextConfig = {
   experimental: {
     externalDir: true
   },
+  // El optimizador de imágenes (/_next/image) no pide sesión: que solo procese las imágenes propias del sitio,
+  // nunca lo que sube la gente (/uploads, /api/uploads) ni otra ruta. Sus fallas conocidas se disparan con una
+  // imagen preparada a propósito.
+  images: {
+    localPatterns: [{ pathname: "/brand/**" }, { pathname: "/media/**" }]
+  },
   async headers() {
     return [
       {

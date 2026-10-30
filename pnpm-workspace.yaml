@@ -8,3 +8,7 @@ allowBuilds:
   esbuild: true
   puppeteer: true
   sharp: true
+# sharp llega con Next (optimizador de imágenes). Next 15.5.28 acepta ^0.34.3 o ^0.35.5, y pnpm se quedaba
+# con la 0.34.5, que trae libvips, libheif y librsvg con fallas conocidas al abrir imágenes preparadas.
+overrides:
+  sharp: ^0.35.5

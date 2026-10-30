@@ -183,28 +183,28 @@ describe("prospectos", () => {
 });
 
 describe("registro público (POST /api/public/registro)", () => {
-  it("el reenvío de un registro que sí llegó devuelve el mismo, no «teléfono ya registrado»", async () => {
+  it("el reenvío de un registro que sí llegó responde lo mismo y no lo duplica", async () => {
     const clave = id();
     const cuerpo = personaPublica("3398700001", { clientRequestId: clave });
     const r1 = await registroPublico(peticionPublica(cuerpo));
     const r2 = await registroPublico(peticionPublica(cuerpo));
     expect(r1.status).toBe(200);
     expect(r2.status).toBe(200);
-    const [d1, d2] = [await r1.json(), await r2.json()];
-    expect(d2.contactId).toBe(d1.contactId);
-    expect(d2.repetido).toBe(true);
+    expect(await r2.json()).toEqual(await r1.json());
     expect(await contactosConClave(clave)).toHaveLength(1);
-    // Otra clave con el mismo teléfono sí es otra persona intentando registrarse: 409, como antes.
+    // Otra clave con el mismo teléfono es otra persona intentando registrarse: sin sesión de quien opera el
+    // enlace no se le dice que ya estaba (registro-publico-sin-oraculo), pero tampoco se guarda otra ficha.
     const r3 = await registroPublico(peticionPublica(personaPublica("3398700001", { clientRequestId: id() })));
-    expect(r3.status).toBe(409);
+    expect(r3.status).toBe(200);
+    expect(await db().select({ id: schema.contacts.id }).from(schema.contacts).where(eq(schema.contacts.phoneHash, huellaDeTelefono("3398700001")!))).toHaveLength(1);
   });
 
-  it("el mismo teléfono cuatro veces a la vez, con solicitudes distintas: una ficha y tres «ya registrado»", async () => {
+  it("el mismo teléfono cuatro veces a la vez, con solicitudes distintas: una sola ficha", async () => {
     // En un evento: la persona desde su teléfono y desde el kiosco al mismo tiempo. Antes las cuatro
     // pasaban la búsqueda del teléfono antes de que ninguna guardara, y quedaban cuatro fichas.
     const telefono = "3398700010";
     const rs = await Promise.all([0, 1, 2, 3].map((i) => registroPublico(peticionPublica(personaPublica(telefono, { clientRequestId: id() }), `10.9.1.${i}`))));
-    expect(rs.map((r) => r.status).sort()).toEqual([200, 409, 409, 409]);
+    expect(rs.map((r) => r.status)).toEqual([200, 200, 200, 200]);
     const fichas = await db().select({ id: schema.contacts.id }).from(schema.contacts).where(eq(schema.contacts.phoneHash, huellaDeTelefono(telefono)!));
     expect(fichas).toHaveLength(1);
   });
@@ -218,8 +218,6 @@ describe("registro público (POST /api/public/registro)", () => {
       const cuerpo = personaPublica(`339870002${ronda}`, { clientRequestId: clave });
       const rs = await Promise.all([0, 1, 2, 3, 4, 5].map(() => registroPublico(peticionPublica(cuerpo))));
       expect(rs.map((r) => r.status)).toEqual([200, 200, 200, 200, 200, 200]);
-      const ids = new Set(await Promise.all(rs.map(async (r) => (await r.json()).contactId)));
-      expect(ids.size).toBe(1);
       expect(await contactosConClave(clave)).toHaveLength(1);
     }
   });
@@ -239,10 +237,9 @@ describe("registro público (POST /api/public/registro)", () => {
     const clave = id();
     const r = await registroPublico(peticionPublica(personaPublica("3398700005", { clientRequestId: clave, modo: "evento", sectionNum: 990001 })));
     expect(r.status).toBe(200);
-    const { contactId } = await r.json();
-    const [ficha] = await db().select().from(schema.contacts).where(eq(schema.contacts.id, contactId));
+    const [ficha] = await db().select().from(schema.contacts).where(eq(schema.contacts.clientRequestId, clave));
     expect(ficha).toMatchObject({ origin: "evento", sectionId: seccion.tonala, municipality: "Tonalá", createdByUserId: u.L });
-    expect(await db().select().from(schema.contactNotes).where(eq(schema.contactNotes.contactId, contactId))).toHaveLength(1);
+    expect(await db().select().from(schema.contactNotes).where(eq(schema.contactNotes.contactId, ficha!.id))).toHaveLength(1);
   });
 
   it("un cuerpo que no es JSON es 400, no 500", async () => {
@@ -282,10 +279,11 @@ describe("el territorio desde el alta (D20)", () => {
   });
 
   it("el registro público lo vincula a nombre del dueño del enlace", async () => {
-    const r = await registroPublico(peticionPublica(personaPublica("3398700030", { colony: "ZZ-COLONIA PRÁCTICA" })));
+    const clave = id();
+    const r = await registroPublico(peticionPublica(personaPublica("3398700030", { colony: "ZZ-COLONIA PRÁCTICA", clientRequestId: clave })));
     expect(r.status).toBe(200);
-    const { contactId } = await r.json();
-    expect(await territorioDe(contactId)).toMatchObject({ colonyId: colonia.tonala, linkedByUserId: u.L });
+    const [ficha] = await contactosConClave(clave);
+    expect(await territorioDe(ficha!.id)).toMatchObject({ colonyId: colonia.tonala, linkedByUserId: u.L });
   });
 });
 

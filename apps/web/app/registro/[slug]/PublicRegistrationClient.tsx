@@ -187,7 +187,8 @@ export default function PublicRegistrationClient({
       return;
     }
     // La regla no cambia (el registro público no acepta un teléfono repetido), pero ya no se dice como un
-    // error en rojo: quien lo ve casi siempre ya estaba en la red.
+    // error en rojo: quien lo ve casi siempre ya estaba en la red. Solo lo dice el servidor a quien opera el
+    // enlace con su sesión (modo evento); sin sesión, un repetido responde como un registro nuevo.
     if (r.estado === "rechazado" && r.http === 409 && r.campo === "phone") {
       setYaRegistrado(true);
       window.scrollTo({ top: 0, behavior: "smooth" });

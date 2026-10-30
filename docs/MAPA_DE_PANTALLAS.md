@@ -250,7 +250,8 @@ Siguen existiendo solo para que un enlace o marcador viejo no se rompa.
 - **Quién entra:** administración, dirección, líder y capturista. El brigadista no registra.
 - **Archivos:** `crm/nuevo/page.tsx`, `NuevoContactoForm.tsx`, `components/ColonySelector.tsx`,
   `components/LocationPicker.tsx`.
-- **APIs:** `POST /api/crm/contacts` (con `clientRequestId`), `/api/crm/contacts/telefono-repetido`.
+- **APIs:** `POST /api/crm/contacts` (con `clientRequestId`), `POST /api/crm/contacts/telefono-repetido` (el teléfono
+  en el cuerpo, nunca en la dirección).
 - **Secciones del selector (O3, 2026-10):** `lib/secciones-del-catalogo.ts` pide
   `GET /api/electoral/sections?ligera=1` (id, número y municipio, sin colonias ni conteos) una sola vez por visita,
   y el navegador la guarda 10 minutos. Antes bajaba el catálogo completo, con colonias y conteos, cada vez que se

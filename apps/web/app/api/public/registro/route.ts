@@ -104,7 +104,8 @@ export async function POST(req: NextRequest) {
       // Un cuerpo que no es JSON es un error de quien envía, no del servidor (antes, 500).
       return NextResponse.json({ error: "Datos de registro inválidos." }, { status: 400 });
     }
-    const slugLimite = typeof rawBody?.slug === "string" ? rawBody.slug.toLowerCase().slice(0, 80) : "";
+    // Como lo lee el esquema (sin espacios): escrito con espacios era otro tope.
+    const slugLimite = typeof rawBody?.slug === "string" ? rawBody.slug.trim().toLowerCase().slice(0, 80) : "";
 
     const parsed = publicRegistrationSchema.safeParse(rawBody);
     if (!parsed.success) {
@@ -169,7 +170,7 @@ export async function POST(req: NextRequest) {
     const operador = await operadorDelEnlace(req, owner.id);
     const rl = operador
       ? checkRateLimit(`public-reg:operador:${operador}`, LIMITE_DEL_OPERADOR, HORA)
-      : checkRateLimit(`public-reg:${ip}:${slugLimite}`, LIMITE_POR_IP_Y_ENLACE, HORA);
+      : checkRateLimit(`public-reg:${ip}:${owner.id}`, LIMITE_POR_IP_Y_ENLACE, HORA);
     if (!rl.allowed) return rateLimitResponse(rl);
 
     const buscarPorClave = async (clave: string) =>
@@ -179,14 +180,20 @@ export async function POST(req: NextRequest) {
         .where(eq(schema.contacts.clientRequestId, clave))
         .limit(1))[0];
 
+    // Sin la sesión de quien opera el enlace, la misma respuesta siempre: sin la ficha ni si ya estaba. Con
+    // ellas, o con un «ya registrado», cualquiera averiguaba qué teléfonos están en el padrón (con una lista
+    // de números, quién está con la campaña). Quien abre el QR no las necesita; el modo evento, sí.
+    const registroCompletado = (ficha?: { contactId: string; repetido: boolean }) =>
+      NextResponse.json({ success: true, ...(operador ? ficha : undefined), message: "¡Registro completado exitosamente! Gracias por sumarte." });
+
     // «Este teléfono ya está registrado»… salvo que sea esta misma solicitud, guardada por otro toque
     // mientras esta pasaba entre la búsqueda por clave y la del teléfono: para quien envía es su propio
-    // registro. Visto en el simulacro de evento, con dobles toques a la vez.
+    // registro. Visto en el simulacro de evento, con dobles toques a la vez. Sin sesión de quien opera el
+    // enlace no se dice: responde como un registro nuevo y no se guarda otra vez.
     const telefonoYaRegistrado = async () => {
       const previa = clientRequestId ? await buscarPorClave(clientRequestId) : undefined;
-      if (previa && previa.createdByUserId === owner.id) {
-        return NextResponse.json({ success: true, contactId: previa.id, repetido: true, message: "¡Registro completado exitosamente! Gracias por sumarte." });
-      }
+      if (previa && previa.createdByUserId === owner.id) return registroCompletado({ contactId: previa.id, repetido: true });
+      if (!operador) return registroCompletado();
       return NextResponse.json({ error: "Este teléfono ya se encuentra registrado en el padrón.", campo: "phone" }, { status: 409 });
     };
 
@@ -197,19 +204,11 @@ export async function POST(req: NextRequest) {
       if (previa && previa.createdByUserId !== owner.id) {
         return NextResponse.json({ error: "Esta solicitud ya se usó." }, { status: 409 });
       }
-      if (previa) {
-        return NextResponse.json({ success: true, contactId: previa.id, repetido: true, message: "¡Registro completado exitosamente! Gracias por sumarte." });
-      }
+      if (previa) return registroCompletado({ contactId: previa.id, repetido: true });
     }
 
-    // 3. Detección de duplicados por teléfono
-    //
-    // Antes se leía y descifraba la tabla ENTERA de contactos en cada alta: 22 µs por fila,
-    // lineal con la concurrencia. Con 3 385 ciudadanos, 50 personas registrándose a la vez
-    // esperaban 2,5 s cada una; con 50 000, más de un segundo por persona solo en el escaneo, en
-    // un endpoint público y sin sesión. Ahora se busca por la huella del teléfono, con índice.
-    //
-    // La regla de qué es "el mismo teléfono" no cambia: se comparan todos los dígitos.
+    // 3. Todo lo demás se revisa antes de buscar el teléfono (paso 5): antes, un teléfono sin municipio
+    // respondía «ya registrado» o «elige el municipio» según estuviera o no en el padrón.
     const telefonoNormalizado = normalizarTelefono(phone);
     if (!telefonoNormalizado) {
       // Sin ningún dígito no hay teléfono. Antes eso daba "" y coincidía con cualquier teléfono
@@ -217,6 +216,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Revisa el teléfono: no tiene ningún número.", campo: "phone" }, { status: 400 });
     }
 
+    // Sección y municipio: del catálogo, y coherentes entre sí. Una sección que no existe o que
+    // es de otro municipio se rechaza diciendo cuál, en vez de guardarse a medias.
+    const territorio = await resolverSeccionYMunicipio({ sectionNum, municipality });
+    if (!territorio.ok) return NextResponse.json({ error: territorio.message, campo: territorio.campo }, { status: 400 });
+    // Ningún ciudadano sin municipio (D1): cualquiera sabe en qué municipio vive.
+    if (!territorio.municipio) return NextResponse.json({ error: "Elige el municipio donde vives.", campo: "municipality" }, { status: 400 });
+    // La colonia se pide (decisión del dueño, 2026-09-26): sin ella el ciudadano no se puede ubicar ni
+    // repartir. La calle y el número siguen siendo opcionales aquí, para no frenar un evento.
+    if (!colony?.trim()) return NextResponse.json({ error: "Escribe tu colonia o fraccionamiento.", campo: "colony" }, { status: 400 });
+
+    // 4. Fecha de nacimiento: un 31 de febrero ya no se convierte en silencio en 3 de marzo.
+    const birthDate = fechaDeNacimiento(birthDay, birthMonth, birthYear);
+    if (!birthDate) return NextResponse.json({ error: "Esa fecha de cumpleaños no existe. Revisa el día y el mes.", campo: "birthDay" }, { status: 400 });
+
+    // 5. Detección de duplicados por teléfono.
+    //
+    // Antes se leía y descifraba la tabla ENTERA de contactos en cada alta: 22 µs por fila,
+    // lineal con la concurrencia. Con 3 385 ciudadanos, 50 personas registrándose a la vez
+    // esperaban 2,5 s cada una; con 50 000, más de un segundo por persona solo en el escaneo, en
+    // un endpoint público y sin sesión. Ahora se busca por la huella del teléfono, con índice.
+    //
+    // La regla de qué es "el mismo teléfono" no cambia: se comparan todos los dígitos.
     const [porHuella] = await db
       .select({ id: schema.contacts.id })
       .from(schema.contacts)
@@ -237,22 +258,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Do not disclose who the phone number belongs to — this endpoint is public and unauthenticated.
+    // Nunca de quién es el teléfono; y sin sesión de quien opera el enlace, tampoco que ya estaba.
     if (duplicate) return telefonoYaRegistrado();
-
-    // 4. Sección y municipio: del catálogo, y coherentes entre sí. Una sección que no existe o que
-    // es de otro municipio se rechaza diciendo cuál, en vez de guardarse a medias.
-    const territorio = await resolverSeccionYMunicipio({ sectionNum, municipality });
-    if (!territorio.ok) return NextResponse.json({ error: territorio.message, campo: territorio.campo }, { status: 400 });
-    // Ningún ciudadano sin municipio (D1): cualquiera sabe en qué municipio vive.
-    if (!territorio.municipio) return NextResponse.json({ error: "Elige el municipio donde vives.", campo: "municipality" }, { status: 400 });
-    // La colonia se pide (decisión del dueño, 2026-09-26): sin ella el ciudadano no se puede ubicar ni
-    // repartir. La calle y el número siguen siendo opcionales aquí, para no frenar un evento.
-    if (!colony?.trim()) return NextResponse.json({ error: "Escribe tu colonia o fraccionamiento.", campo: "colony" }, { status: 400 });
-
-    // 5. Fecha de nacimiento: un 31 de febrero ya no se convierte en silencio en 3 de marzo.
-    const birthDate = fechaDeNacimiento(birthDay, birthMonth, birthYear);
-    if (!birthDate) return NextResponse.json({ error: "Esa fecha de cumpleaños no existe. Revisa el día y el mes.", campo: "birthDay" }, { status: 400 });
 
     const fullName = `${firstName.trim()} ${lastName ? lastName.trim() : ""} ${maternalLastName ? maternalLastName.trim() : ""}`.trim();
 
@@ -358,12 +365,7 @@ export async function POST(req: NextRequest) {
     // dueño del enlace, como el ciudadano mismo. Nunca impide el registro.
     if (!resultado.repetida) await vincularTerritorioDelAlta(owner.id, resultado.fila.id, colony, territorio.municipio);
 
-    return NextResponse.json({
-      success: true,
-      contactId: resultado.fila.id,
-      repetido: resultado.repetida,
-      message: "¡Registro completado exitosamente! Gracias por sumarte."
-    });
+    return registroCompletado({ contactId: resultado.fila.id, repetido: resultado.repetida });
   } catch (error: unknown) {
     registrarError("Error in public registration", error);
     return NextResponse.json({ error: safeErrorMessage(error, "Error al procesar el registro.") }, { status: 500 });

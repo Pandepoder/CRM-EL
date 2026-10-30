@@ -74,6 +74,9 @@ Lo que no se ve no existe: un id fuera del alcance o mal formado responde **404*
 - Listas con nombre y colonia como mucho; teléfono, correo y domicilio solo en la ficha.
 - Nada personal en la dirección web: el texto de un buscador viaja en el cuerpo de un `POST` (modelo:
   `POST /api/incidencias/consulta` y `lib/incidencias-filtros.ts`, con `direccionDe…` que nunca lleva el texto).
+- El registro por QR no dice qué teléfonos están en el padrón: sin la sesión de quien opera el enlace, un repetido
+  responde como un registro nuevo y no se guarda (`registro-publico-sin-oraculo.test.ts`). Lo que depende de esa
+  sesión nunca se decide por lo que diga el cuerpo (`modo`).
 - Exportaciones con tope y en la auditoría. Lo delicado se anota en `audit_logs` con su etiqueta en
   `apps/web/src/lib/auditoria-acciones.ts`.
 

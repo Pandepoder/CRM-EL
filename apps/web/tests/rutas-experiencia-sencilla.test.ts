@@ -19,8 +19,8 @@ import { crearBaseDesechable } from "./base-desechable";
  * base desechable:
  * - poner la meta del día (`PUT /api/equipo/personas/[id]/meta`);
  * - «Mi día» (`GET /api/yo/progreso`), que nunca recibe el id de nadie;
- * - el aviso de teléfono repetido al escribirlo (`GET /api/crm/contacts/telefono-repetido`), que solo dice de
- *   quién es la ficha si quien pregunta la puede ver;
+ * - el aviso de teléfono repetido al escribirlo (`POST /api/crm/contacts/telefono-repetido`, con el teléfono en el
+ *   cuerpo y no en la dirección), que solo dice de quién es la ficha si quien pregunta la puede ver;
  * - los mensajes del alta de ciudadano (`POST /api/crm/contacts`): en español y con el campo a corregir;
  * - el resultado que la cola del teléfono reenvía al volver la señal: el mismo cierre repetido responde lo
  *   ya hecho, y cualquier otro cierre sobre algo cerrado sigue siendo un conflicto (visita suelta y
@@ -77,7 +77,7 @@ const json = (url: string, method: string, cuerpo?: unknown, crudo?: string) =>
 
 const ponerMeta = (persona: string, cuerpo?: unknown, crudo?: string) =>
   rutaMeta.PUT(json(`/api/equipo/personas/${persona}/meta`, "PUT", cuerpo, crudo), { params: Promise.resolve({ id: persona }) });
-const telefono = (numero: string) => rutaTelefono.GET(new Request(`http://localhost/api/crm/contacts/telefono-repetido?telefono=${numero}`));
+const telefono = (numero: string, crudo?: string) => rutaTelefono.POST(json("/api/crm/contacts/telefono-repetido", "POST", { telefono: numero }, crudo));
 const cerrarVisita = (cuerpo: unknown, visitId = visita) =>
   rutaVisita.POST(json(`/api/crm/contacts/${c.deM}/visits/${visitId}/complete`, "POST", cuerpo), { params: Promise.resolve({ id: c.deM, visitId }) });
 const cerrarActividad = (cuerpo: unknown) =>
@@ -192,7 +192,13 @@ describe("GET /api/yo/progreso", () => {
   });
 });
 
-describe("GET /api/crm/contacts/telefono-repetido", () => {
+describe("POST /api/crm/contacts/telefono-repetido", () => {
+  it("el teléfono viaja en el cuerpo, nunca en la dirección: ya no hay GET", async () => {
+    expect("GET" in rutaTelefono).toBe(false);
+    como("K");
+    expect((await telefono("", "no es json")).status).toBe(400);
+  });
+
   it("sin sesión 401; quien no da de alta ciudadanos (brigadista) 403", async () => {
     como(null);
     expect((await telefono(TEL_M)).status).toBe(401);

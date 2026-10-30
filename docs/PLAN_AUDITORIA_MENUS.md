@@ -1450,3 +1450,29 @@ viejos, `GET` de la exportación y del catálogo) y cada prueba nueva con su mut
 | `sqlCondicionIncidencias` sin llamadas | Borrada; `incidentScopeCondition` es la única | typecheck y build |
 | Errata en Términos | «información verídica» | — |
 | El título «Mi cuenta y ajustes» | Se deja: cambiarlo es cosmético y obliga a tocar las pruebas del menú | — |
+
+## 22. Revisión de seguridad (2026-10-30)
+
+Se revisó todo el proyecto: rutas, pantallas, acciones de servidor, sesión, archivos, cifrado, configuración y
+librerías. No maneja PHP. Cada arreglo tiene su prueba y su mutación atrapada (`MUTACIONES_SEGURIDAD`, índices 98 a 106).
+
+| Qué | Cómo quedó | Pruebas |
+|---|---|---|
+| El QR público revelaba si un teléfono está en el padrón: «ya registrado» (409) o «elige el municipio» (400), sin guardar nada | Lo demás se revisa antes que el teléfono. Sin la sesión de quien opera el enlace, un repetido responde igual que un registro nuevo, no se guarda y la respuesta no trae la ficha ni si fue repetido. Con esa sesión se sigue diciendo (409). `modo` en el cuerpo no cuenta. El tope va por la persona dueña del enlace, no por cómo se escribió | `registro-publico-sin-oraculo` (7); `altas-de-campo` y `municipio-llave` ajustadas |
+| `telefono-repetido` llevaba el teléfono en `?telefono=` | `POST` con el teléfono en el cuerpo; ya no hay `GET` | `rutas-experiencia-sencilla` |
+| Next.js 15.5.23: ejecución remota de código en el optimizador de imágenes (`/_next/image`, sin sesión) | Next 15.5.28. Además el optimizador solo acepta `/brand` y `/media` (`images.localPatterns`): nunca lo que sube la gente | `imagenes-solo-propias` (2) |
+| `sharp` 0.34.5, con fallas en libvips, libheif y librsvg | 0.35.5, fijada en `overrides` de `pnpm-workspace.yaml` porque Next acepta las dos | `imagenes-solo-propias`; imagen de producción construida |
+| `zod` 4.4.3 (memoria con colecciones enormes) y `maplibre-gl` 6.3.0 (nadie la importa) | Actualizadas | Toda la suite |
+
+**Se dejan a propósito:** `postcss` 8.4.31, `nanoid` y `source-map-js`, fijados por Next: solo actúan al compilar el CSS
+propio, nunca con datos de quien usa el sistema. `pnpm audit --prod` los sigue contando.
+
+**Lo que cambia para la gente:** quien vuelve a registrarse por QR sin sesión ve «registro completado» y no «ya estás en la
+red». En modo evento sin sesión abierta pasa lo mismo, y el contador del evento también lo suma.
+
+**Observaciones sin arreglar (no dan acceso a nada):**
+
+- `/api/auth/register` y `/api/public/unirme` dicen si un correo ya tiene cuenta; probar uno nuevo crea una solicitud pendiente.
+- Un administrador municipal puede poner meta a otro de su municipio o nombrarlo representante (`puedeFijarMeta`, `nombrar`).
+- El perfil enseña el nombre de equipos que quien mira no puede abrir (`equiposDePersona`).
+- Los textos de ejemplo de `.env.production.example` pasan la revisión de largo: copiados sin cambiar, la aplicación arranca.

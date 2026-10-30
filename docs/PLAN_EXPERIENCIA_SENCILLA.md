@@ -63,7 +63,8 @@ nombres (§4, decisión 3).
 - La Agenda vacía dice la verdad según lo que cada quien puede hacer.
 
 **QR público y «Unirme»**
-- El QR confirma con nombre y teléfono; el teléfono repetido se dice en ámbar («ya estás en la red»), no
+- El QR confirma con nombre y teléfono; el teléfono repetido se dice en ámbar («ya estás en la red», desde el
+  2026-10-30 solo a quien opera el enlace con su sesión: ver §22 de `PLAN_AUDITORIA_MENUS.md`), no
   como error. Campos de 16 px (el iPhone ya no hace zoom), la encuesta contestada se envía aunque se pliegue
   y el botón dice «Registrarme».
 - «Unirme» repite el correo y ofrece «Ir a iniciar sesión» y «Sumar a otra persona».

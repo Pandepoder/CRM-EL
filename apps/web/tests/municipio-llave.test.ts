@@ -9,7 +9,7 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createAuthenticatedActor } from "@tonala/shared/auth";
-import { schema } from "@tonala/shared/database";
+import { huellaDeTelefono, schema } from "@tonala/shared/database";
 
 import { registrarCiudadano } from "@/lib/alta-ciudadano";
 import { getDatabaseClient } from "@/lib/db-client";
@@ -302,7 +302,8 @@ describe("ningún ciudadano sin municipio (C4, D1)", () => {
 
     const con = await pedir({ phone: "3398711002", municipality: "Guadalajara" });
     expect(con.status).toBe(200);
-    const { contactId } = (await con.json()) as { contactId: string };
-    expect(await llaveDe("contacts", contactId)).toBe(await m("Guadalajara"));
+    // Sin sesión la respuesta no trae la ficha (no se dice si el teléfono ya estaba): se busca por su huella.
+    const [ficha] = await db().select({ id: schema.contacts.id }).from(schema.contacts).where(eq(schema.contacts.phoneHash, huellaDeTelefono("3398711002")!));
+    expect(await llaveDe("contacts", ficha!.id)).toBe(await m("Guadalajara"));
   });
 });

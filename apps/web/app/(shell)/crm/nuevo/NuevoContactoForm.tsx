@@ -72,7 +72,13 @@ export default function NuevoContactoForm({
     if (telefono.replace(/\D/g, "").length < 7 || telefono === ultimoTelefonoRevisado.current) return;
     ultimoTelefonoRevisado.current = telefono;
     try {
-      const res = await fetch(`/api/crm/contacts/telefono-repetido?telefono=${encodeURIComponent(telefono)}`, { cache: "no-store" });
+      // En el cuerpo, no en la dirección: un teléfono no debe quedar en las bitácoras.
+      const res = await fetch("/api/crm/contacts/telefono-repetido", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telefono }),
+        cache: "no-store"
+      });
       if (!res.ok) return;
       const datos = (await res.json()) as { repetido?: boolean; message?: string; contactoExistenteId?: string | null };
       setAvisoTelefono(datos.repetido && datos.message ? { mensaje: datos.message, contactoId: datos.contactoExistenteId ?? null } : null);
