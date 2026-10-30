@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CalendarClock, ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Search, UserCheck, X } from "lucide-react";
 
@@ -8,6 +8,8 @@ import { aValorLocal } from "@/lib/actividades";
 import type { OpcionSelector } from "@/lib/bitacora-tipos";
 import { CLAVES_DISPOSICION, DISPOSICIONES, ETIQUETA_NOTAS_INTERNAS, type PosibleContacto, type ProspectoItem } from "@/lib/prospectos";
 
+import { QueEsEsto } from "@/components/QueEsEsto";
+import { celebrar } from "@/lib/celebraciones";
 import { enviarOEncolar, nuevaClave, TEXTO_DE_ESPERA } from "@/lib/cola-de-envios";
 
 import { llamar } from "./api";
@@ -86,7 +88,7 @@ export function Prospectos({ esAdmin, puedeConvertir, usuarioActualId }: { esAdm
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
-        <p className="text-sm text-gray-600 max-w-xl">Personas que conociste en una actividad y aún no son contacto. Da seguimiento y conviértelas cuando estén listas.</p>
+        <p className="text-sm text-gray-600 max-w-xl">Personas que conociste en una actividad y aún no son contacto. Da seguimiento y conviértelas cuando estén listas. <QueEsEsto termino="prospecto" /></p>
         <button type="button" onClick={() => setFormulario({ id: null, borrador: vacio() })} className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-extrabold inline-flex items-center justify-center gap-2 cursor-pointer">
           <Plus size={15} /> Nuevo prospecto
         </button>
@@ -149,8 +151,17 @@ export function Prospectos({ esAdmin, puedeConvertir, usuarioActualId }: { esAdm
         ))}
       </ul>
       {datos && datos.items.length === 0 && (
-        <div className="text-center bg-white rounded-2xl border border-dashed border-gray-300 p-10">
+        <div className="text-center bg-white rounded-2xl border border-dashed border-gray-300 p-8 space-y-3">
           <p className="font-extrabold text-gray-800">{consulta || disposicion || estado ? "Ningún prospecto coincide." : "Aún no hay prospectos."}</p>
+          {/* Vacío con siguiente paso (L10): qué es un prospecto y el botón para anotar el primero. */}
+          {!consulta && !disposicion && !estado && (
+            <>
+              <p className="text-sm text-gray-600 max-w-md mx-auto">Un prospecto es alguien que conociste y aún no registras: un líder de colonia, un comerciante, una vecina interesada. Anótalo para no perderle la pista.</p>
+              <button type="button" onClick={() => setFormulario({ id: null, borrador: vacio() })} className="min-h-[44px] px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-extrabold inline-flex items-center gap-2 cursor-pointer">
+                <Plus size={15} /> Anotar mi primer prospecto
+              </button>
+            </>
+          )}
         </div>
       )}
       {ultima > 1 && (
@@ -176,11 +187,19 @@ function FormularioProspecto({ id, inicial, esAdmin, usuarioActualId, onCerrar, 
   const [error, setError] = useState<string | null>(null);
   const poner = <K extends keyof Borrador>(k: K, v: Borrador[K]) => setF((p) => ({ ...p, [k]: v }));
 
+  // Con algo capturado, cerrar pregunta antes (F10): un toque fuera del formulario lo borraba todo.
+  const cerrarConCuidado = () => {
+    if (guardando) return;
+    if (JSON.stringify(f) !== JSON.stringify(inicial) && !window.confirm("¿Cerrar sin guardar? Lo que capturaste se perderá.")) return;
+    onCerrar();
+  };
+  const cerrarRef = useRef(cerrarConCuidado);
+  cerrarRef.current = cerrarConCuidado;
   useEffect(() => {
-    const t = (e: KeyboardEvent) => { if (e.key === "Escape" && !guardando) onCerrar(); };
+    const t = (e: KeyboardEvent) => { if (e.key === "Escape") cerrarRef.current(); };
     document.addEventListener("keydown", t);
     return () => document.removeEventListener("keydown", t);
-  }, [guardando, onCerrar]);
+  }, []);
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -211,15 +230,16 @@ function FormularioProspecto({ id, inicial, esAdmin, usuarioActualId, onCerrar, 
     });
     setGuardando(false);
     if (r.estado === "rechazado" || r.estado === "sin-cola") { setError(r.error); return; }
+    if (r.estado === "enviado" && !r.datos.repetido) celebrar({ tipo: "otro", titulo: "Prospecto anotado" });
     onGuardado(r.estado === "encolado" ? TEXTO_DE_ESPERA[r.motivo] : r.datos.repetido ? "Ese prospecto ya estaba registrado." : "Prospecto registrado.");
   }
 
   return (
-    <div className="fixed inset-0 z-[110] bg-black/50 flex items-end sm:items-center justify-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !guardando) onCerrar(); }}>
+    <div className="fixed inset-0 z-[110] bg-black/50 flex items-end sm:items-center justify-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) cerrarConCuidado(); }}>
       <form onSubmit={guardar} noValidate role="dialog" aria-modal="true" aria-label={id ? "Editar prospecto" : "Nuevo prospecto"} className="bg-white w-full sm:max-w-xl max-h-[94dvh] flex flex-col rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 bg-slate-900 text-white shrink-0">
           <h2 className="text-base font-extrabold">{id ? "Editar prospecto" : "Nuevo prospecto"}</h2>
-          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="p-1.5 rounded-lg hover:bg-white/15 cursor-pointer"><X size={18} /></button>
+          <button type="button" onClick={cerrarConCuidado} aria-label="Cerrar" className="w-11 h-11 -mr-2 grid place-items-center rounded-xl hover:bg-white/15 cursor-pointer"><X size={20} /></button>
         </div>
         <div className="overflow-y-auto px-5 py-4 space-y-4 flex-1">
           <div>
@@ -257,7 +277,7 @@ function FormularioProspecto({ id, inicial, esAdmin, usuarioActualId, onCerrar, 
           {error && <p role="alert" className="text-sm font-bold text-red-700">{error}</p>}
         </div>
         <div className="shrink-0 border-t border-gray-100 px-5 py-3 flex justify-end gap-2">
-          <button type="button" onClick={onCerrar} disabled={guardando} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold cursor-pointer">Cancelar</button>
+          <button type="button" onClick={cerrarConCuidado} disabled={guardando} className="min-h-[48px] px-4 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold cursor-pointer">Cancelar</button>
           <button type="submit" disabled={guardando} className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-extrabold inline-flex items-center gap-2 cursor-pointer disabled:opacity-70">
             {guardando && <Loader2 size={14} className="animate-spin" />} {guardando ? "Guardando…" : "Guardar"}
           </button>
@@ -291,7 +311,7 @@ function DialogoConversion({ p, posibles, onCerrar, onListo }: { p: ProspectoIte
       <div role="dialog" aria-modal="true" aria-label="Convertir a contacto" className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden">
         <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
           <h2 className="text-base font-extrabold">Convertir «{p.prospectName}» en contacto</h2>
-          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="p-1.5 rounded-lg hover:bg-white/15 cursor-pointer"><X size={18} /></button>
+          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="w-11 h-11 shrink-0 grid place-items-center rounded-lg hover:bg-white/15 cursor-pointer"><X size={18} /></button>
         </div>
         <div className="px-5 py-4 space-y-4">
           {posibles === null ? (

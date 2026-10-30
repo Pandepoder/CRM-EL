@@ -276,7 +276,7 @@ export default function AnalyticsClient({ analisis: a }: { analisis: AnalisisDem
         <Tarjeta titulo="Disponibilidad" subtitulo="Qué tanto quieren involucrarse" icono={<HeartHandshake size={18} />}>
           <Dona datos={a.disponibilidad} colores={[COLORES[3]!, COLORES[1]!, COLORES[0]!, COLORES[2]!, COLORES[4]!, COLORES[5]!]} />
         </Tarjeta>
-        <Tarjeta titulo="Áreas de participación" icono={<Users size={18} />}>
+        <Tarjeta titulo="Áreas de participación" subtitulo="Quien eligió varias cuenta en cada una" icono={<Users size={18} />}>
           <BarrasConEtiqueta datos={a.areas} color="#8b5cf6" />
         </Tarjeta>
         {a.profesiones.length > 0 && (

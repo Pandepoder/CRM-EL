@@ -68,28 +68,3 @@ export function incidenciasQuePuedeTrabajar(scope: UserNetworkScope): SQL | unde
     scope.teamIds.length > 0 ? inArray(t.assignedTeamId, scope.teamIds) : undefined
   );
 }
-
-/** La misma regla para SQL escrito a mano sobre `event_reports` con el alias dado. */
-export function sqlCondicionIncidencias(scope: UserNetworkScope, alias: string): SQL {
-  if (scope.isMaster) return sql`true`;
-  if (!/^[a-z_][a-z0-9_]*$/i.test(alias)) throw new Error(`Alias de tabla inválido: ${alias}`);
-  const t = sql.raw(alias);
-
-  if (scope.isAdmin) {
-    const municipio = scope.adminMunicipalityId;
-    if (!municipio) {
-      return sql`(${t}.created_by_user_id = ${scope.userId}::uuid OR ${t}.assigned_to_user_id = ${scope.userId}::uuid)`;
-    }
-    const gente = genteDelMunicipio(municipio);
-    return sql`(${t}.municipality_id = ${municipio}::uuid OR ${t}.created_by_user_id IN (${gente})
-      OR ${t}.assigned_to_user_id IN (${gente})
-      OR ${t}.assigned_team_id IN (SELECT teq.id FROM teams teq WHERE teq.municipality_id = ${municipio}::uuid))`;
-  }
-
-  const personas = scope.allowedUserIds ?? [];
-  if (personas.length === 0) return sql`false`;
-
-  const lista = (ids: string[]) => sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `);
-  const porEquipo = scope.teamIds.length > 0 ? sql` OR ${t}.assigned_team_id IN (${lista(scope.teamIds)})` : sql``;
-  return sql`(${t}.created_by_user_id IN (${lista(personas)}) OR ${t}.assigned_to_user_id IN (${lista(personas)})${porEquipo})`;
-}

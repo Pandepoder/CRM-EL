@@ -52,14 +52,14 @@ export function createVisitLocationText(value: string): string {
     throw new DomainError({
       code: "visit_location_required",
       message: "Visit location text is required.",
-      publicMessage: "Visit location is required."
+      publicMessage: "Falta el lugar de la visita."
     });
   }
   if (normalized.length > visitLocationTextMaxLength) {
     throw new DomainError({
       code: "visit_location_too_long",
       message: `Visit location text must be ${visitLocationTextMaxLength} characters or less.`,
-      publicMessage: "Visit location is too long."
+      publicMessage: `El lugar de la visita puede tener hasta ${visitLocationTextMaxLength} caracteres.`
     });
   }
   return normalized;
@@ -71,14 +71,14 @@ export function createVisitSummary(value: string): string {
     throw new DomainError({
       code: "visit_summary_required",
       message: "Visit summary is required.",
-      publicMessage: "Visit summary is required."
+      publicMessage: "Escribe qué pasó en la visita."
     });
   }
   if (normalized.length > visitSummaryMaxLength) {
     throw new DomainError({
       code: "visit_summary_too_long",
       message: `Visit summary must be ${visitSummaryMaxLength} characters or less.`,
-      publicMessage: "Visit summary is too long."
+      publicMessage: `Lo que pasó en la visita puede tener hasta ${visitSummaryMaxLength} caracteres: resúmelo un poco.`
     });
   }
   return normalized;
@@ -115,7 +115,7 @@ export function assertVisitCanComplete(visit: Visit): void {
     throw new DomainError({
       code: "visit_already_completed",
       message: `Visit ${visit.visitId} cannot be completed from status ${visit.status}.`,
-      publicMessage: "Visit cannot be completed again."
+      publicMessage: "Esta visita ya estaba cerrada."
     });
   }
 }
@@ -148,7 +148,7 @@ export function createVisitResult(input: {
     throw new DomainError({
       code: "visit_outcome_invalid",
       message: `Visit outcome ${input.structuredOutcome} is not allowed.`,
-      publicMessage: "Visit outcome is invalid."
+      publicMessage: "Elige cómo salió la visita."
     });
   }
 

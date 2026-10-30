@@ -128,7 +128,7 @@ export function AdministrarOpciones({ onCerrar, esAdmin, usuarioActualId, onCamb
             <h2 className="text-base font-extrabold">Administrar opciones</h2>
             <p className="text-[11px] text-slate-300">Tipos de actividad, etiquetas y perfiles de prospecto. Archivar no borra el historial.</p>
           </div>
-          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="p-1.5 rounded-lg hover:bg-white/15 cursor-pointer"><X size={18} /></button>
+          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="w-11 h-11 shrink-0 grid place-items-center rounded-lg hover:bg-white/15 cursor-pointer"><X size={18} /></button>
         </div>
 
         <div className="px-5 pt-4 space-y-3 shrink-0">

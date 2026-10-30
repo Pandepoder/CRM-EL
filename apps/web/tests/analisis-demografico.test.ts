@@ -51,14 +51,15 @@ beforeAll(async () => {
     // Domingo 20 de septiembre, 12:00 en Jalisco.
     alta(ciudadano.c1, u.L, "2026-09-20T18:00:00Z", {
       origin: "evento", panMilitancy: "confirmada", birthDate: new Date(Date.UTC(1990, 4, 10)), colony: "Centro",
-      availability: "Voluntario activo", preferredContactMethod: "whatsapp", preferredContactTime: "manana"
+      availability: "Voluntario activo", preferredContactMethod: "whatsapp", preferredContactTime: "manana",
+      interests: "Vecinal"
     }),
     // Viernes 25 de septiembre, 21:30 en Jalisco (ya es 26 en UTC). Sin año de nacimiento capturado.
     alta(ciudadano.c2, u.L, "2026-09-26T03:30:00Z", {
       origin: "toca_toca", birthDate: new Date(Date.UTC(2000, 0, 1)), birthYearKnown: false, colony: "  centro ",
-      availability: "Simpatizante"
+      availability: "Simpatizante", interests: "vecinal, Programas sociales"
     }),
-    alta(ciudadano.c3, u.B, "2026-08-01T15:00:00Z", { origin: "toca_toca", birthDate: new Date(Date.UTC(1960, 1, 1)), colony: "Alfareros" }),
+    alta(ciudadano.c3, u.B, "2026-08-01T15:00:00Z", { origin: "toca_toca", birthDate: new Date(Date.UTC(1960, 1, 1)), colony: "Alfareros", interests: "Cultura" }),
     alta(ciudadano.c4, u.O, "2026-09-26T15:00:00Z", { origin: "evento", panMilitancy: "confirmada", colony: "Tabachines" }),
     alta(ciudadano.baja, u.L, "2026-09-21T15:00:00Z", { status: "inactive", origin: "otro" })
   ]);
@@ -133,6 +134,16 @@ describe("Análisis demográfico", () => {
     expect(a.colonias[0]?.etiqueta.toLowerCase()).toBe("centro · tonalá");
     expect(a.colonias[1]?.etiqueta).toBe("Alfareros · Tonalá");
     expect(a.totales.voluntarios).toBe(1);
+  });
+
+  it("las áreas de participación se cuentan una por una y con su nombre, no como combinaciones", async () => {
+    // c1 «Vecinal», c2 «vecinal, Programas sociales» (importado), c3 «Cultura». A2 de la auditoría de menús.
+    const a = await analisisDe(u.L);
+    expect(a.areas.map((x) => [x.etiqueta, x.total])).toEqual([
+      ["Comité vecinal y mejoras", 2],
+      ["Cultura y tradiciones", 1],
+      ["Programas sociales", 1]
+    ]);
   });
 
   it("el avance por equipo suma lo del líder y sus integrantes, solo de los equipos que ve", async () => {

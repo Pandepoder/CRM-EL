@@ -56,8 +56,7 @@ async function run() {
     { name: "08-escucha-social", url: "http://localhost:3001/escucha-social", title: "Escucha Social" },
     { name: "09-admin-incidencias", url: "http://localhost:3001/admin-incidencias", title: "Incidencias y Reportes" },
     { name: "10-perfil", url: "http://localhost:3001/perfil", title: "Mi Perfil 360" },
-    { name: "11-admin-usuarios", url: "http://localhost:3001/admin-usuarios", title: "Usuarios y Redes" },
-    { name: "12-settings", url: "http://localhost:3001/settings", title: "Ajustes del Sistema" }
+    { name: "11-admin-usuarios", url: "http://localhost:3001/admin-usuarios", title: "Usuarios y Redes" }
   ];
 
   for (const r of routes) {

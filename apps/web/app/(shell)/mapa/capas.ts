@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { PuntoDePeticion } from "@/lib/escucha-social";
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 
 import { BLOQUES, MUNICIPALITY_COLORS, SIN_ATLAS, calcularResultado, opacidadPorMargen } from "./constantes";
@@ -9,11 +10,14 @@ import {
   etiquetaSeccion,
   globoContacto,
   globoIncidencia,
+  globoPeticion,
   iconoContacto,
   iconoGrupoContactos,
   iconoGrupoIncidencias,
   iconoIncidencia,
   iconoMunicipio,
+  iconoGrupoPeticiones,
+  iconoPeticion,
   puntoMunicipio,
   tooltipSeccion
 } from "./html";
@@ -358,4 +362,45 @@ export function useCapaContactos(opciones: { L: any; mapa: any; capa: any; conta
         .addTo(capa);
     }
   }, [L, capa, mapa, contactos, grupos, visible]);
+}
+
+/**
+ * Peticiones de Escucha Social con ubicación (F3.3): agrupadas en una rejilla hasta el zoom 14, sueltas
+ * después, como las incidencias. El globo se arma al abrirse.
+ */
+export function useCapaPeticiones(opciones: { L: any; mapa: any; capa: any; puntos: PuntoDePeticion[]; zoom: number; visible: boolean }) {
+  const { L, mapa, capa, puntos, zoom, visible } = opciones;
+  useEffect(() => {
+    if (!L || !capa || !mapa) return;
+    capa.clearLayers();
+    if (!visible) return;
+    const suelta = (p: PuntoDePeticion) => {
+      const icono = L.divIcon({ html: iconoPeticion(p), className: "peticion-map-marker", iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -15] });
+      L.marker([p.latitud, p.longitud], { icon: icono, pane: "peticionesPane" })
+        .bindPopup(() => globoPeticion(p), { closeButton: true, maxWidth: 260 })
+        .addTo(capa);
+    };
+    if (zoom > 14) {
+      for (const p of puntos) suelta(p);
+      return;
+    }
+    const rejilla = zoom <= 11 ? 0.05 * 2 ** (11 - Math.max(Math.round(zoom), 0)) : zoom <= 13 ? 0.02 : 0.008;
+    const celdas = new Map<string, PuntoDePeticion[]>();
+    for (const p of puntos) {
+      const clave = `${Math.floor(p.latitud / rejilla)}_${Math.floor(p.longitud / rejilla)}`;
+      celdas.set(clave, [...(celdas.get(clave) ?? []), p]);
+    }
+    for (const grupo of celdas.values()) {
+      if (grupo.length === 1) {
+        suelta(grupo[0]!);
+        continue;
+      }
+      const lat = grupo.reduce((s, p) => s + p.latitud, 0) / grupo.length;
+      const lng = grupo.reduce((s, p) => s + p.longitud, 0) / grupo.length;
+      const icono = L.divIcon({ html: iconoGrupoPeticiones(grupo.length), className: "peticion-cluster-marker", iconSize: [34, 34], iconAnchor: [17, 17] });
+      L.marker([lat, lng], { icon: icono, pane: "peticionesPane", title: `${grupo.length} peticiones` })
+        .on("click", () => mapa.flyTo([lat, lng], Math.min(mapa.getZoom() + 2, 16), { duration: 0.8 }))
+        .addTo(capa);
+    }
+  }, [L, capa, mapa, puntos, zoom, visible]);
 }

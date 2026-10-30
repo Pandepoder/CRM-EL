@@ -1,580 +1,308 @@
 "use client";
 
-import { useRef, useState } from "react";
-import {
-  Plus, Search, Filter, MapPin, MessageSquare, Check, X,
-  Lightbulb, AlertTriangle, Handshake, RefreshCw, Landmark
-} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, ChevronLeft, ChevronRight, Handshake, Landmark, Lightbulb, Loader2, MapPin, MessageSquare, Plus, RefreshCw, Search, X } from "lucide-react";
 import type { ComponentType } from "react";
 
-type CategoryIcon = ComponentType<{ size?: number | string; className?: string }>;
-import type { LocationValue } from "@/components/LocationPicker";
-import { LocationPicker } from "@/components/LocationPicker";
-import { MediaGallery } from "@/components/MediaGallery";
-import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
+import { QueEsEsto } from "@/components/QueEsEsto";
+import { avisar } from "@/lib/avisos";
+import {
+  CATEGORIAS_ESCUCHA,
+  direccionDePeticiones,
+  nombreDeCategoriaEscucha,
+  nombreDeEstadoEscucha,
+  textoDeProblemaEnLaCalle,
+  textoDelTurno,
+  type FilaDePeticion,
+  type FiltrosDePeticiones,
+  type ResultadoDePeticiones,
+  type VistaDeEscucha
+} from "@/lib/escucha-social";
 import { useMunicipioUsuario } from "@/lib/municipio-contexto";
 
-type SocialListeningItem = {
-  id: string;
-  contactId: string | null;
-  categories: string[];
-  title: string;
-  description: string;
-  photoUrls: string[];
-  latitude: number | null;
-  longitude: number | null;
-  locationText: string | null;
-  status: string;
-  isFormalGestion: number;
-  approvedByUserId: string | null;
-  resolutionNotes: string | null;
-  createdByUserId: string;
-  createdByName: string | null;
-  createdAt: string;
-  /** Puede cambiarle estado y notas (quien lo levantó o quien coordina); si no, solo lo consulta. */
-  puedeTrabajar?: boolean;
+// El formulario trae el selector de ubicación y el de fotos, y el detalle la galería: se cargan aparte, después de
+// la lista, para que en el teléfono la lista salga antes (pasaba de 132 a 148 kB la primera carga).
+const FormularioPeticion = dynamic(() => import("./FormularioPeticion").then((m) => m.FormularioPeticion), { ssr: false });
+const DetallePeticion = dynamic(() => import("./DetallePeticion").then((m) => m.DetallePeticion), { ssr: false });
+
+type Icono = ComponentType<{ size?: number | string; className?: string }>;
+
+const ESTILO: Record<string, { icono: Icono; bg: string; texto: string }> = {
+  propuesta: { icono: Lightbulb, bg: "bg-amber-100", texto: "text-amber-900" },
+  problematica: { icono: AlertTriangle, bg: "bg-rose-100", texto: "text-rose-900" },
+  compromiso: { icono: Handshake, bg: "bg-blue-100", texto: "text-blue-900" },
+  seguimiento: { icono: RefreshCw, bg: "bg-purple-100", texto: "text-purple-900" },
+  gestion: { icono: Landmark, bg: "bg-emerald-100", texto: "text-emerald-900" }
+};
+const SIN_ESTILO = { icono: MessageSquare, bg: "bg-gray-100", texto: "text-gray-700" };
+
+const ESTADO_ESTILO: Record<string, string> = {
+  pendiente: "bg-amber-100 text-amber-900",
+  en_seguimiento: "bg-blue-100 text-blue-900",
+  cerrado: "bg-emerald-100 text-emerald-900"
 };
 
+const VISTAS: Array<{ clave: VistaDeEscucha; nombre: string }> = [
+  { clave: "todas", nombre: "Todas" },
+  ...CATEGORIAS_ESCUCHA.map((c) => ({ clave: c.clave, nombre: c.plural })),
+  // Las que administración ya turnó a una dependencia (D6). Antes se llamaba «Gestiones Formales» y se
+  // confundía con la categoría «Gestión».
+  { clave: "turnadas", nombre: "Turnadas a dependencia" }
+];
+
+const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "short", timeZone: "America/Mexico_City" });
+
+/**
+ * Escucha Social (plan de auditoría de menús, fase 3): lo que pide o propone un vecino, ligado a él. La lista
+ * llega por páginas y los filtros se resuelven en la base (`POST /api/escucha-social/consulta`); el texto del
+ * buscador no va en la dirección.
+ */
 export default function EscuchaSocialClient({
-  initialItems,
-  isCoordinacion,
-  currentUserId
+  inicial,
+  filtrosIniciales,
+  abrirNueva,
+  vecinoInicial,
+  peticionInicial,
+  peticionNoEncontrada,
+  esAdministracion,
+  coordina,
+  usuarioId
 }: {
-  initialItems: SocialListeningItem[];
-  isCoordinacion: boolean;
-  currentUserId: string;
+  inicial: ResultadoDePeticiones;
+  filtrosIniciales: FiltrosDePeticiones;
+  abrirNueva: boolean;
+  vecinoInicial: { id: string; nombre: string } | null;
+  peticionInicial: FilaDePeticion | null;
+  peticionNoEncontrada: boolean;
+  esAdministracion: boolean;
+  coordina: boolean;
+  usuarioId: string;
 }) {
-  // El municipio de quien tiene la sesión: los textos de esta pantalla decían Tonalá.
-  const municipioUsuario = useMunicipioUsuario();
-  const [items, setItems] = useState<SocialListeningItem[]>(initialItems);
-  const [activeTab, setActiveTab] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  
-  // New Report Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("propuesta");
-  const [locationText, setLocationText] = useState("");
-  // ¿El lugar lo puso el mapa o se escribió a mano? El del mapa sigue al punto; el escrito se respeta.
-  const lugarDelMapa = useRef(true);
-  const [lat, setLat] = useState<number | undefined>(undefined);
-  const [lng, setLng] = useState<number | undefined>(undefined);
-  const [saving, setSaving] = useState(false);
-  // Fotos del reporte (3.7). La tabla, la API y la ficha ya las contemplaban, pero el formulario no
-  // tenía dónde subirlas (C16): el arreglo llegaba siempre vacío.
-  const [fotos, setFotos] = useState<MediaFile[]>([]);
-  const [errorAlta, setErrorAlta] = useState<string | null>(null);
+  const router = useRouter();
+  const municipio = useMunicipioUsuario();
+  const [filtros, setFiltros] = useState(filtrosIniciales);
+  const [datos, setDatos] = useState(inicial);
+  const [cargando, setCargando] = useState(false);
+  const [formulario, setFormulario] = useState(abrirNueva);
+  const [abierta, setAbierta] = useState<FilaDePeticion | null>(peticionInicial);
+  const primeraVez = useRef(true);
+  const pedido = useRef(0);
 
-  // Selected item for detail / resolution modal
-  const [selectedItem, setSelectedItem] = useState<SocialListeningItem | null>(null);
-  const [resolutionNotes, setResolutionNotes] = useState("");
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-
-  const filteredItems = items.filter(item => {
-    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.locationText && item.locationText.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-
-    if (activeTab === "gestiones") {
-      return matchesSearch && matchesStatus && item.isFormalGestion === 1;
+  // Lo que llega por la dirección (?nueva=1, ?peticion=, ?contacto=) se usa una vez y se retira.
+  useEffect(() => {
+    if (peticionNoEncontrada) avisar("No encontramos esa petición o no es de tu equipo.");
+    if (abrirNueva || peticionInicial || peticionNoEncontrada || vecinoInicial) {
+      window.history.replaceState(null, "", window.location.pathname + direccionDePeticiones(filtrosIniciales));
     }
-    if (activeTab !== "all") {
-      return matchesSearch && matchesStatus && item.categories.includes(activeTab);
-    }
-    return matchesSearch && matchesStatus;
-  });
+  }, [abrirNueva, peticionInicial, peticionNoEncontrada, vecinoInicial, filtrosIniciales]);
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim() || !description.trim()) return;
-
-    setSaving(true);
-    setErrorAlta(null);
+  const consultar = useCallback(async (f: FiltrosDePeticiones) => {
+    const numero = ++pedido.current;
+    setCargando(true);
     try {
-      const res = await fetch("/api/escucha-social", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          description,
-          categories: [category],
-          locationText,
-          latitude: lat,
-          longitude: lng,
-          photoUrls: fotos.map((f) => f.url)
-        })
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setItems([data.item, ...items]);
-        setIsModalOpen(false);
-        setTitle("");
-        setDescription("");
-        setLocationText("");
-        setFotos([]);
-      } else {
-        // Antes un fallo no decía nada: el formulario seguía abierto y parecía que no había pasado nada.
-        setErrorAlta(data.error || "No se pudo guardar el registro. Tus datos siguen aquí.");
-      }
+      const res = await fetch("/api/escucha-social/consulta", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+      const d = await res.json().catch(() => null);
+      if (numero !== pedido.current) return;
+      if (!res.ok || !d) avisar(d?.error || "No se pudieron leer las peticiones.");
+      else setDatos(d as ResultadoDePeticiones);
     } catch {
-      setErrorAlta("Sin conexión con el servidor. Tus datos siguen aquí; intenta de nuevo cuando tengas señal.");
+      if (numero === pedido.current) avisar("Sin conexión: no se pudieron leer las peticiones.");
     } finally {
-      setSaving(false);
+      if (numero === pedido.current) setCargando(false);
     }
-  }
+  }, []);
 
-  async function handleUpdateStatus(newStatus: string) {
-    if (!selectedItem) return;
-    setUpdatingStatus(true);
-    try {
-      const res = await fetch(`/api/escucha-social/${selectedItem.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: newStatus,
-          resolutionNotes: resolutionNotes || selectedItem.resolutionNotes
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setItems(items.map(i => i.id === selectedItem.id ? { ...i, ...data.item } : i));
-        setSelectedItem(null);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setUpdatingStatus(false);
+  useEffect(() => {
+    if (primeraVez.current) {
+      primeraVez.current = false;
+      return;
     }
-  }
+    window.history.replaceState(null, "", window.location.pathname + direccionDePeticiones(filtros));
+    const t = setTimeout(() => void consultar(filtros), filtros.q ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [filtros, consultar]);
 
-  async function handleToggleApproveGestion(approve: boolean) {
-    if (!selectedItem) return;
-    setUpdatingStatus(true);
-    try {
-      const res = await fetch(`/api/escucha-social/${selectedItem.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          approveGestion: approve
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setItems(items.map(i => i.id === selectedItem.id ? { ...i, ...data.item } : i));
-        setSelectedItem({ ...selectedItem, isFormalGestion: approve ? 1 : 0 });
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setUpdatingStatus(false);
-    }
-  }
-
-  const categoryBadges: Record<string, { label: string; icon: CategoryIcon; bg: string; text: string }> = {
-    propuesta: { label: "Idea / Propuesta", icon: Lightbulb, bg: "bg-amber-100", text: "text-amber-900" },
-    problematica: { label: "Problemática", icon: AlertTriangle, bg: "bg-rose-100", text: "text-rose-900" },
-    compromiso: { label: "Compromiso", icon: Handshake, bg: "bg-blue-100", text: "text-blue-900" },
-    seguimiento: { label: "Seguimiento", icon: RefreshCw, bg: "bg-purple-100", text: "text-purple-900" },
-    gestion: { label: "Gestión", icon: Landmark, bg: "bg-emerald-100", text: "text-emerald-900" },
+  const cambiar = (parcial: Partial<FiltrosDePeticiones>) => setFiltros((f) => ({ ...f, pagina: 1, ...parcial }));
+  const recargar = async () => {
+    await consultar(filtros);
+    router.refresh();
   };
+  const hayFiltros = Boolean(filtros.q || filtros.estado || filtros.mias || filtros.vista !== "todas");
 
   return (
-    <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
-      {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-              Escucha Social
-            </h1>
-            <span className="text-xs font-black bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-full">
-              Comunitaria
-            </span>
-          </div>
-          <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
-            Registro y seguimiento de propuestas, necesidades y compromisos ciudadanos{municipioUsuario ? ` en ${municipioUsuario}` : ""}
+    <div className="max-w-6xl mx-auto px-4 pt-3 pb-6 md:p-6 space-y-4">
+      <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="hidden md:block text-3xl font-black text-slate-900 tracking-tight">Escucha Social y Gestiones</h1>
+          {/* Se confundía con Incidencias (L7): aquí va lo que pide o propone un vecino, no los baches. */}
+          <p className="text-sm text-slate-600 max-w-2xl">
+            Anota lo que te pide o propone un vecino{municipio ? ` de ${municipio}` : ""}: una idea, una necesidad o un compromiso. {textoDeProblemaEnLaCalle(coordina, !coordina)} <QueEsEsto termino="escucha" />
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setIsModalOpen(true)}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-blue-600/20 flex items-center gap-2 transition-all cursor-pointer"
-        >
-          <Plus size={16} />
-          <span>Registrar Escucha Social</span>
+        <button type="button" onClick={() => setFormulario(true)} className="min-h-[48px] px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-extrabold inline-flex items-center justify-center gap-2 cursor-pointer self-start">
+          <Plus size={18} aria-hidden="true" /> Anotar una petición
         </button>
+      </header>
+
+      <nav aria-label="Categorías" className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0">
+        {VISTAS.map((v) => (
+          <button
+            key={v.clave}
+            type="button"
+            aria-pressed={filtros.vista === v.clave}
+            onClick={() => cambiar({ vista: v.clave })}
+            className={`shrink-0 min-h-[40px] px-3.5 rounded-full text-sm font-bold whitespace-nowrap cursor-pointer ${filtros.vista === v.clave ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+          >
+            {v.nombre}
+          </button>
+        ))}
+      </nav>
+
+      <div className="relative">
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+        <input
+          type="search"
+          value={filtros.q}
+          onChange={(e) => cambiar({ q: e.target.value })}
+          placeholder="Buscar por tema, propuesta o colonia…"
+          aria-label="Buscar peticiones"
+          className="w-full min-h-[48px] pl-10 pr-4 rounded-2xl border border-gray-200 bg-white text-base text-gray-900 outline-none focus:ring-2 focus:ring-blue-500"
+        />
       </div>
 
-      {/* TABS DE CATEGORÍA */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-gray-200 text-xs font-bold">
-        {[
-          { id: "all", label: "Todas las Entradas", icon: null },
-          { id: "propuesta", label: "Ideas / Propuestas", icon: Lightbulb },
-          { id: "problematica", label: "Problemáticas", icon: AlertTriangle },
-          { id: "compromiso", label: "Compromisos", icon: Handshake },
-          { id: "seguimiento", label: "Seguimiento", icon: RefreshCw },
-          { id: "gestiones", label: "Gestiones Formales", icon: Landmark },
-        ].map(tab => (
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0" aria-label="Filtros">
+        {/* Primero: quien no coordina abre con este filtro puesto, y tiene que verse sin deslizar. */}
+        <button
+          type="button"
+          aria-pressed={filtros.mias}
+          onClick={() => cambiar({ mias: !filtros.mias })}
+          className={`shrink-0 min-h-[40px] px-3.5 rounded-full border text-sm font-bold whitespace-nowrap cursor-pointer ${filtros.mias ? "bg-slate-900 text-white border-slate-900" : "bg-white text-gray-700 border-gray-200"}`}
+        >
+          {filtros.mias && <X size={13} className="inline mr-1 -mt-0.5" aria-hidden="true" />}
+          Las que anoté
+        </button>
+        {(["pendiente", "en_seguimiento", "cerrado"] as const).map((e) => (
           <button
-            key={tab.id}
+            key={e}
             type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5 ${
-              activeTab === tab.id
-                ? "bg-slate-900 text-white shadow-sm"
-                : "bg-gray-100 hover:bg-gray-200 text-gray-600"
-            }`}
+            aria-pressed={filtros.estado === e}
+            onClick={() => cambiar({ estado: filtros.estado === e ? null : e })}
+            className={`shrink-0 min-h-[40px] px-3.5 rounded-full border text-sm font-bold whitespace-nowrap cursor-pointer ${filtros.estado === e ? "bg-slate-900 text-white border-slate-900" : "bg-white text-gray-700 border-gray-200"}`}
           >
-            {tab.icon && <tab.icon size={13} />} {tab.label}
+            {filtros.estado === e && <X size={13} className="inline mr-1 -mt-0.5" aria-hidden="true" />}
+            {e === "pendiente" ? `Pendientes ${datos.pendientes}` : nombreDeEstadoEscucha(e)}
           </button>
         ))}
       </div>
 
-      {/* FILTROS Y BÚSQUEDA */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <div className="w-full sm:max-w-md relative">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Buscar por propuesta, tema o colonia..."
-            className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs font-medium text-gray-900 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-          />
-        </div>
+      {hayFiltros && (
+        <button type="button" onClick={() => setFiltros({ ...filtros, vista: "todas", estado: null, mias: false, q: "", pagina: 1 })} className="min-h-[40px] text-sm font-bold text-blue-700 hover:text-blue-900 cursor-pointer">
+          Quitar filtros
+        </button>
+      )}
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="flex items-center gap-1 bg-white border border-gray-200 p-1 rounded-xl shadow-sm text-xs font-bold text-gray-700">
-            <Filter size={13} className="text-gray-400 ml-1.5" />
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="bg-transparent border-none outline-none text-xs font-bold py-1 pr-2 cursor-pointer"
-            >
-              <option value="all">Todos los estados</option>
-              <option value="pendiente">Pendientes</option>
-              <option value="en_seguimiento">En seguimiento</option>
-              <option value="cerrado">Cerrados</option>
-            </select>
-          </div>
-        </div>
+      <div aria-live="polite" className="text-sm font-semibold text-gray-600 flex items-center gap-2">
+        {cargando && <Loader2 size={15} className="animate-spin" aria-hidden="true" />}
+        {datos.total > 0 && `${datos.total.toLocaleString("es-MX")} ${datos.total === 1 ? "petición" : "peticiones"}`}
       </div>
 
-      {/* ITEMS LIST */}
-      {filteredItems.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-gray-200 p-12 text-center shadow-sm space-y-4">
+      {datos.filas.length === 0 && !cargando ? (
+        <div className="bg-white rounded-3xl border border-gray-200 p-10 text-center shadow-sm space-y-3">
           <div className="w-14 h-14 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto">
-            <MessageSquare size={26} />
+            <MessageSquare size={26} aria-hidden="true" />
           </div>
-          <h3 className="text-base font-bold text-gray-900">
-            No hay registros de escucha social en esta vista
-          </h3>
-          <p className="text-xs text-gray-500 max-w-sm mx-auto">
-            Sé el primero en registrar una propuesta, problemática vecinal o compromiso.
+          <p className="text-base font-bold text-gray-900">{hayFiltros ? "Nada con esos filtros." : "Todavía no hay peticiones."}</p>
+          <p className="text-sm text-gray-600 max-w-sm mx-auto">
+            {hayFiltros ? "Prueba con otra palabra o quita algún filtro." : "Cuando un vecino te pida algo o te proponga una idea, anótalo aquí para que no se pierda y tu equipo le dé seguimiento."}
           </p>
+          {!hayFiltros && (
+            <button type="button" onClick={() => setFormulario(true)} className="min-h-[44px] px-5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm rounded-xl inline-flex items-center gap-2 cursor-pointer">
+              <Plus size={16} aria-hidden="true" /> Anotar la primera
+            </button>
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredItems.map(item => {
-            const cat = item.categories[0] || "propuesta";
-            const badge = categoryBadges[cat] ?? categoryBadges["propuesta"] ?? { label: "Idea / Propuesta", icon: Lightbulb, bg: "bg-amber-100", text: "text-amber-900" };
-
+        <ul className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 transition-opacity ${cargando ? "opacity-60" : ""}`}>
+          {datos.filas.map((p) => {
+            const estilo = ESTILO[p.categoria] ?? SIN_ESTILO;
+            const IconoCategoria = estilo.icono;
             return (
-              <div
-                key={item.id}
-                onClick={() => {
-                  setSelectedItem(item);
-                  setResolutionNotes(item.resolutionNotes || "");
-                }}
-                className="bg-white rounded-3xl p-5 border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer space-y-3 flex flex-col justify-between"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black inline-flex items-center gap-1 ${badge.bg} ${badge.text}`}>
-                      <badge.icon size={10} /> {badge.label}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
-                      item.status === "cerrado" ? "bg-emerald-100 text-emerald-800" :
-                      item.status === "en_seguimiento" ? "bg-blue-100 text-blue-800" : "bg-amber-100 text-amber-800"
-                    }`}>
-                      {item.status.replace("_", " ")}
-                    </span>
-                  </div>
-
-                  <h3 className="font-extrabold text-sm text-gray-900 line-clamp-1">
-                    {item.title}
-                  </h3>
-
-                  <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed">
-                    {item.description}
-                  </p>
-                </div>
-
-                <div className="pt-2 border-t border-gray-100 text-[10px] text-gray-400 space-y-1">
-                  {item.locationText && (
-                    <div className="flex items-center gap-1 font-semibold text-gray-600">
-                      <MapPin size={11} className="text-blue-600 shrink-0" />
-                      <span className="truncate">{item.locationText}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-1">
-                    <span>Por: <strong className="text-gray-700">{item.createdByName || "Integrante"}</strong></span>
-                    <span>{new Date(item.createdAt).toLocaleDateString("es-MX")}</span>
-                  </div>
-
-                  {item.isFormalGestion === 1 && (
-                    <div className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md mt-1">
-                      <Check size={11} /> Gestión Formal Aprobada
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* CREATE MODAL */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setIsModalOpen(false)}>
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
-              <div>
-                <h3 className="text-base font-black">Registrar Escucha Social</h3>
-                <p className="text-xs text-slate-300">Captura de demandas comunitarias e ideas</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
-                title="Cerrar ventana"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreate} className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Categoría</label>
-                <select
-                  value={category}
-                  onChange={e => setCategory(e.target.value)}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
-                >
-                  <option value="propuesta">Idea / Propuesta</option>
-                  <option value="problematica">Problemática de Colonia</option>
-                  <option value="compromiso">Compromiso Social</option>
-                  <option value="seguimiento">Seguimiento de Petición</option>
-                  <option value="gestion">Gestión de Servicio Público</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Título Resumido *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej. Reparación de luminarias en calle Morelos"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Descripción Detallada *</label>
-                <textarea
-                  rows={3}
-                  required
-                  placeholder="Detalla lo conversado con el vecino o la necesidad identificada..."
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 outline-none focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Ubicación / Colonia / Referencia</label>
-                <input
-                  type="text"
-                  placeholder={municipioUsuario ? `Colonia, calle o referencia de ${municipioUsuario}...` : "Colonia, calle o referencia..."}
-                  value={locationText}
-                  onChange={e => {
-                    setLocationText(e.target.value);
-                    lugarDelMapa.current = e.target.value.trim() === "";
-                  }}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 outline-none focus:bg-white"
-                />
-              </div>
-
-              <div className="pt-2">
-                <LocationPicker
-                  value={{
-                    latitude: lat || null,
-                    longitude: lng || null,
-                    address: locationText,
-                    locationText: locationText
-                  }}
-                  onChange={(val: LocationValue) => {
-                    if (typeof val.latitude === "number") setLat(val.latitude);
-                    if (typeof val.longitude === "number") setLng(val.longitude);
-                    // Antes solo si el campo estaba vacío: al corregir el punto se quedaba la dirección del primero.
-                    if (val.address && (lugarDelMapa.current || !locationText.trim())) {
-                      setLocationText(val.address);
-                      lugarDelMapa.current = true;
-                    }
-                  }}
-                  label="Ubicación de la Demanda / Propuesta (Opcional)"
-                  helperText="Selecciona en el mapa o escribe la calle y colonia."
-                />
-              </div>
-
-              <MediaUploader
-                value={fotos}
-                onChange={setFotos}
-                maxFiles={4}
-                soloImagenes
-                label="Fotos (opcional)"
-                helperText="Hasta 4 fotos"
-              />
-
-              {errorAlta && (
-                <p role="alert" className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-xl">{errorAlta}</p>
-              )}
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+              <li key={p.id}>
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-gray-100 rounded-xl text-xs font-bold text-gray-600"
+                  onClick={() => setAbierta(p)}
+                  className="w-full h-full text-left bg-white rounded-3xl p-4 border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer space-y-2"
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer"
-                >
-                  {saving ? "Guardando..." : "Guardar Registro"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* DETAIL / RESOLUTION MODAL */}
-      {selectedItem && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setSelectedItem(null)}>
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-blue-300">Detalle de Escucha</span>
-                <h3 className="text-base font-black line-clamp-1">{selectedItem.title}</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedItem(null)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
-                title="Cerrar ventana"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="p-5 sm:p-6 space-y-4 text-xs overflow-y-auto overscroll-contain flex-1 pb-16">
-              <div className="space-y-1">
-                <span className="font-extrabold text-gray-400 uppercase text-[10px]">Descripción</span>
-                <p className="font-medium text-gray-800 leading-relaxed bg-gray-50 p-3 rounded-2xl">
-                  {selectedItem.description}
-                </p>
-              </div>
-
-              {selectedItem.locationText && (
-                <div>
-                  <span className="font-extrabold text-gray-400 uppercase text-[10px]">Ubicación</span>
-                  <p className="font-bold text-gray-900">{selectedItem.locationText}</p>
-                </div>
-              )}
-
-              {selectedItem.photoUrls.length > 0 && <MediaGallery media={selectedItem.photoUrls} title="Fotos" />}
-
-              {/* GESTIÓN FORMAL APPROVAL (EXCLUSIVE FOR COORDINATION) */}
-              {isCoordinacion && (
-                <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-indigo-950 text-xs">Bandeja de Aprobación de Gestión</span>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleApproveGestion(selectedItem.isFormalGestion !== 1)}
-                      disabled={updatingStatus}
-                      className={`px-3 py-1 rounded-xl font-bold text-[11px] cursor-pointer ${
-                        selectedItem.isFormalGestion === 1
-                          ? "bg-rose-100 text-rose-800 hover:bg-rose-200"
-                          : "bg-emerald-600 text-white hover:bg-emerald-700"
-                      }`}
-                    >
-                      {selectedItem.isFormalGestion === 1 ? "Revocar Gestión Formal" : "Aprobar como Gestión Formal"}
-                    </button>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black inline-flex items-center gap-1 ${estilo.bg} ${estilo.texto}`}>
+                      <IconoCategoria size={11} /> {nombreDeCategoriaEscucha(p.categoria)}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-extrabold ${ESTADO_ESTILO[p.estado] ?? "bg-gray-100 text-gray-700"}`}>{nombreDeEstadoEscucha(p.estado)}</span>
                   </div>
-                  <p className="text-[10px] text-indigo-700">
-                    Solo la Coordinación puede formalizar peticiones ante dependencias públicas municipales o estatales.
+                  <p className="font-extrabold text-sm text-gray-900 line-clamp-2">{p.titulo}</p>
+                  <p className="text-xs text-gray-600 line-clamp-2">{p.descripcion}</p>
+                  <p className="text-xs text-gray-700">
+                    De: <strong>{p.vecino ? p.vecino.nombre : p.vecinoOculto ? "un vecino" : "el barrio"}</strong>
                   </p>
-                </div>
-              )}
-
-              {selectedItem.puedeTrabajar === false ? (
-                <p className="pt-2 border-t border-gray-100 text-[11px] font-bold text-gray-500">
-                  Solo consulta: lo atiende quien lo levantó o quien coordina su brigada.
-                </p>
-              ) : (<>
-              {/* RESOLUTION NOTES */}
-              <div className="space-y-1.5">
-                <label className="block font-extrabold text-gray-700 uppercase text-[10px]">Notas de Resolución / Seguimiento</label>
-                <textarea
-                  rows={2}
-                  value={resolutionNotes}
-                  onChange={e => setResolutionNotes(e.target.value)}
-                  placeholder="Escribe el estatus o respuesta otorgada a los vecinos..."
-                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-medium outline-none focus:bg-white"
-                />
-              </div>
-
-              {/* STATUS CHANGE BUTTONS */}
-              <div className="pt-2 flex items-center justify-between gap-2 border-t border-gray-100">
-                <span className="text-[11px] font-bold text-gray-500">Cambiar estado:</span>
-                <div className="flex gap-1.5">
-                  {["pendiente", "en_seguimiento", "cerrado"].map(st => (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => handleUpdateStatus(st)}
-                      disabled={updatingStatus || selectedItem.status === st}
-                      className={`px-3 py-1.5 rounded-xl font-bold text-[10px] uppercase cursor-pointer transition-all ${
-                        selectedItem.status === st
-                          ? "bg-slate-900 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {st.replace("_", " ")}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              </>)}
-            </div>
-          </div>
-        </div>
+                  {p.lugar && (
+                    <p className="text-[11px] text-gray-500 flex items-center gap-1 truncate">
+                      <MapPin size={11} className="text-blue-600 shrink-0" aria-hidden="true" /> <span className="truncate">{p.lugar}</span>
+                    </p>
+                  )}
+                  {p.turno && (
+                    <p className="text-[11px] font-black text-emerald-800 bg-emerald-50 rounded-md px-2 py-0.5 inline-flex items-center gap-1">
+                      <Landmark size={11} aria-hidden="true" /> {textoDelTurno({ ...p.turno, folio: null })}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-gray-500 flex justify-between gap-2 pt-1 border-t border-gray-100">
+                    <span>Anotó: {p.autor ?? "otra estructura"}</span>
+                    <span>{fecha(p.creada)}</span>
+                  </p>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
+
+      {datos.totalPaginas > 1 && (
+        <nav aria-label="Páginas" className="flex items-center justify-between gap-3">
+          <button type="button" disabled={datos.pagina <= 1} onClick={() => setFiltros((f) => ({ ...f, pagina: datos.pagina - 1 }))} className="min-h-[44px] px-4 rounded-xl border border-gray-200 bg-white text-sm font-bold inline-flex items-center gap-1 disabled:opacity-40 cursor-pointer">
+            <ChevronLeft size={16} aria-hidden="true" /> Anteriores
+          </button>
+          <span className="text-sm font-semibold text-gray-600">Página {datos.pagina} de {datos.totalPaginas}</span>
+          <button type="button" disabled={datos.pagina >= datos.totalPaginas} onClick={() => setFiltros((f) => ({ ...f, pagina: datos.pagina + 1 }))} className="min-h-[44px] px-4 rounded-xl border border-gray-200 bg-white text-sm font-bold inline-flex items-center gap-1 disabled:opacity-40 cursor-pointer">
+            Siguientes <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </nav>
+      )}
+
+      <FormularioPeticion
+        abierto={formulario}
+        vecinoInicial={vecinoInicial}
+        usuarioId={usuarioId}
+        onCerrar={() => setFormulario(false)}
+        onGuardada={() => {
+          setFormulario(false);
+          void recargar();
+        }}
+      />
+      <DetallePeticion
+        peticion={abierta}
+        esAdministracion={esAdministracion}
+        onCerrar={() => setAbierta(null)}
+        onCambio={async () => {
+          const id = abierta?.id;
+          await consultar(filtros);
+          // La petición abierta se vuelve a leer: el estado, las notas y el turno cambiaron.
+          if (id) {
+            const r = await fetch(`/api/escucha-social/${id}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+            setAbierta(r?.peticion ?? null);
+          }
+        }}
+      />
     </div>
   );
 }

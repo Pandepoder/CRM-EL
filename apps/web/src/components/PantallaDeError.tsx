@@ -2,8 +2,10 @@
 
 import { useEffect, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { AlertTriangle, Home, Loader2, RotateCw } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { AlertTriangle, Home, LifeBuoy, Loader2, RotateCw } from "lucide-react";
+
+import { guardarContextoDelReporte, rutaParaReportar } from "@/lib/problemas";
 
 /**
  * Pantalla que se muestra cuando una vista revienta.
@@ -26,7 +28,8 @@ export function PantallaDeError({
   titulo = "No pudimos cargar esta pantalla",
   ayuda = "El resto del sistema sigue funcionando. Vuelve a intentarlo; si sigue igual, avisa a quien te dio el acceso.",
   ambito,
-  enlaceInicio = { href: "/", etiqueta: "Ir al inicio" }
+  enlaceInicio = { href: "/", etiqueta: "Ir al inicio" },
+  reportar = false
 }: Readonly<{
   error: Error & { digest?: string };
   reset: () => void;
@@ -42,8 +45,14 @@ export function PantallaDeError({
    * media alta por QR saldría del formulario. Ahí solo se ofrece reintentar.
    */
   enlaceInicio?: Readonly<{ href: string; etiqueta: string }> | null;
+  /**
+   * Ofrecer «Reportar este problema» (§9 del plan): solo dentro del panel, donde hay sesión y la pantalla
+   * de reportes existe. Lleva la pantalla y la clave del fallo ya puestas.
+   */
+  reportar?: boolean;
 }>) {
   const router = useRouter();
+  const ruta = usePathname();
   const [reintentando, iniciarReintento] = useTransition();
 
   /**
@@ -119,6 +128,16 @@ export function PantallaDeError({
               style={{ borderColor: "var(--line)", color: "var(--ink)" }}
             >
               <Home size={16} aria-hidden="true" /> {enlaceInicio.etiqueta}
+            </Link>
+          ) : null}
+          {reportar ? (
+            <Link
+              href={rutaParaReportar(ruta)}
+              onClick={() => guardarContextoDelReporte({ ruta, error: `La pantalla no cargó${error.digest ? ` (clave del fallo: ${error.digest})` : ""}.` })}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-bold"
+              style={{ borderColor: "var(--line)", color: "var(--ink)" }}
+            >
+              <LifeBuoy size={16} aria-hidden="true" /> Reportar este problema
             </Link>
           ) : null}
         </div>

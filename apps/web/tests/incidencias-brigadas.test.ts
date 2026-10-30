@@ -160,8 +160,20 @@ afterAll(async () => {
 });
 
 describe("Alta de incidencias", () => {
-  it("un brigadista sin brigada a su cargo no puede levantarlas", async () => {
-    const { estado, cuerpo } = await crearIncidencia(actor(ids.brigadistaA));
+  it("un brigadista no levanta una incidencia completa: su alta entra como aviso «por aceptar», sin asignar", async () => {
+    // Antes respondía 403 «Repórtasela a tu líder». Con «Avisar de una incidencia» (D9 del plan de
+    // auditoría de menús) el brigadista avisa, y el aviso lo acepta quien manda sobre él. Lo que mande de
+    // equipo o responsable se ignora.
+    const { estado, cuerpo } = await crearIncidencia(actor(ids.brigadistaA), { assignedTeamId: ids.brigadaB, assignedToUserId: ids.liderB });
+
+    expect(estado).toBe(201);
+    expect(cuerpo.status).toBe("pendiente");
+    expect(cuerpo.assignedTeamId).toBeNull();
+    expect(cuerpo.assignedToUserId).toBeNull();
+  });
+
+  it("quien no coordina ni tiene un rol que avisa sigue sin poder levantarlas", async () => {
+    const { estado, cuerpo } = await crearIncidencia(actor(ids.brigadistaA, ["rol-sin-permisos"]));
 
     expect(estado).toBe(403);
     expect(cuerpo.code).toBe("forbidden_no_es_lider");

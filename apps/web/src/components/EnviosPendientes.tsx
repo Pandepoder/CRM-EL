@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, CloudOff, RefreshCw, Trash2 } from "lucide-react";
 
+import { celebrar } from "@/lib/celebraciones";
 import {
   confirmarTelefonoRepetido,
   descartarEnvio,
@@ -23,6 +25,7 @@ const CADA_MS = 30_000;
  * `usuarioId`: la sesión abierta, o `null` en el registro público.
  */
 export function EnviosPendientes({ usuarioId }: { usuarioId: string | null }) {
+  const router = useRouter();
   const [envios, setEnvios] = useState<EnvioEnCola[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [recienEnviados, setRecienEnviados] = useState(0);
@@ -36,12 +39,20 @@ export function EnviosPendientes({ usuarioId }: { usuarioId: string | null }) {
     setEnviando(true);
     try {
       const r = await procesarCola(usuarioId);
-      if (r.enviados > 0) setRecienEnviados((n) => n + r.enviados);
+      if (r.enviados > 0) {
+        setRecienEnviados((n) => n + r.enviados);
+        // Lo guardado sin señal también cuenta en «Mi día» (solo en el panel, que es donde está la capa).
+        if (usuarioId) {
+          celebrar({ tipo: "otro", titulo: r.enviados === 1 ? "Se envió lo que estaba pendiente" : `Se enviaron ${r.enviados} pendientes` });
+          // La pantalla abierta se pone al día: un resultado que salió de la cola deja la actividad cerrada.
+          router.refresh();
+        }
+      }
     } finally {
       setEnviando(false);
       refrescar();
     }
-  }, [usuarioId, refrescar]);
+  }, [usuarioId, refrescar, router]);
 
   useEffect(() => {
     refrescar();

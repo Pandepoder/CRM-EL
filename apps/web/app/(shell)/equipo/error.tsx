@@ -15,6 +15,7 @@ export default function Error({
       error={error}
       reset={reset}
       ambito="bitacora"
+      reportar
       titulo="La agenda no pudo cargarse"
       ayuda="Lo que ya habías registrado está guardado. Reintenta en un momento; si sigue igual, avisa a quien coordina tu equipo."
     />

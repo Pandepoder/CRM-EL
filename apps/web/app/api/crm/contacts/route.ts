@@ -52,6 +52,7 @@ import { z } from "zod";
 import { Permission, requirePermission } from "@tonala/shared/auth";
 
 import { registrarCiudadano } from "@/lib/alta-ciudadano";
+import { mensajeDeCampo } from "@/lib/mensajes-de-validacion";
 import { registrarError } from "@/lib/registro";
 
 /** Lo que manda un formulario: "" es "sin dato", y los números llegan como texto. */
@@ -110,7 +111,8 @@ export async function POST(request: Request) {
   if (!a.success) {
     const problema = a.error.issues[0];
     return NextResponse.json(
-      { code: "datos_invalidos", message: problema?.message ?? "Datos no válidos.", campo: problema?.path[0]?.toString() },
+      // El mensaje de Zod salía en inglés; ahora, por campo, qué corregir (F6).
+      { code: "datos_invalidos", message: mensajeDeCampo(problema?.path[0]?.toString()), campo: problema?.path[0]?.toString() },
       { status: 400 }
     );
   }

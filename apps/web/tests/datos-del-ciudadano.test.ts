@@ -374,7 +374,8 @@ describe("Escucha social: estados válidos, y ver no es trabajar", () => {
   it("el capturista lo ve como solo consulta y no le cambia el estado", async () => {
     capturista();
     const lista = await (await escucha.GET(json("/api/escucha-social", "GET"))).json();
-    const item = lista.items.find((i: { id: string }) => i.id === e1);
+    // La lista va por páginas desde la fase 3 del plan de auditoría de menús (`filas`; antes `items`).
+    const item = lista.filas.find((i: { id: string }) => i.id === e1);
     expect(item?.puedeTrabajar).toBe(false);
     expect((await cambiar({ status: "cerrado" })).status).toBe(403);
   });
@@ -382,7 +383,7 @@ describe("Escucha social: estados válidos, y ver no es trabajar", () => {
   it("quien lo levantó y quien lo coordina sí; un estado inventado, no", async () => {
     lider();
     const lista = await (await escucha.GET(json("/api/escucha-social", "GET"))).json();
-    expect(lista.items.find((i: { id: string }) => i.id === e1)?.puedeTrabajar).toBe(true);
+    expect(lista.filas.find((i: { id: string }) => i.id === e1)?.puedeTrabajar).toBe(true);
     expect((await cambiar({ status: "hackeado" })).status).toBe(400);
     expect((await cambiar({ status: "en_seguimiento", resolutionNotes: "Se reportó a la dirección" })).status).toBe(200);
     brigadista();

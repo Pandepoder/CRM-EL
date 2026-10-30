@@ -137,11 +137,17 @@ function LoginForm() {
         )}
       </button>
 
-      <div style={{ textAlign: "center", marginTop: "20px", paddingTop: "14px", borderTop: "1px solid #f1f5f9" }}>
+      {/* No hay recuperación por correo: la contraseña la cambia quien coordina, desde Usuarios. Antes no
+          había ninguna pista de qué hacer si se olvidaba (L8). */}
+      <p style={{ textAlign: "center", fontSize: "14px", color: "#475569", margin: "16px 0 0" }}>
+        <strong>¿Olvidaste tu contraseña?</strong> Pídele a quien coordina tu equipo que te asigne una nueva.
+      </p>
+
+      <div style={{ textAlign: "center", marginTop: "16px", paddingTop: "14px", borderTop: "1px solid #f1f5f9" }}>
         <p style={{ fontSize: "14px", color: "#64748b", margin: 0 }}>
           ¿Eres nuevo brigadista u operador?{" "}
           <Link href="/register" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "none" }}>
-            Solicitar Acceso
+            Solicitar acceso
           </Link>
         </p>
       </div>

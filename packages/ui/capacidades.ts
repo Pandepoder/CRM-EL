@@ -39,16 +39,22 @@ export const ACCESO_A_PANTALLAS = {
   "/estructura-electoral": MANDO,
   // El mapa lo abre cualquiera: lo que cambia por rol es lo que trae cada capa, y eso lo acota la API.
   "/mapa": TODOS,
+  // Una sola pantalla con las vistas «Por atender», «Cerradas» y «Todas» (plan de auditoría de menús, D2).
+  // «Todos los reportes» (/admin-inbox) e Historial (/historial-incidencias) solo redirigen aquí.
   "/admin-incidencias": MANDO,
-  // Lo cerrado sale de la bandeja de trabajo pero no se borra: sigue aquí y en el mapa.
-  "/historial-incidencias": MANDO,
-  // Levantar una incidencia es de quien coordina: la API rechaza el alta de un brigadista.
+  // Levantar una incidencia completa es de quien coordina.
   "/reportes": MANDO,
+  // Avisar de una incidencia (un bache, una fuga): quien no coordina. Entra «por aceptar» y la aceptan
+  // quienes mandan sobre quien avisa (plan de auditoría de menús, D9).
+  "/avisar-incidencia": ["capturist", "visit_responsible"],
   "/escucha-social": TODOS,
-  "/admin-inbox": MANDO,
   "/logistica": ["admin", "direction"],
   "/perfil": TODOS,
+  // Avisar que algo falla o no se entiende: cualquiera. Solo puede señalar pantallas que abre (`lib/problemas.ts`).
+  "/reportar-problema": TODOS,
   "/admin-usuarios": ["admin"],
+  // Revisar y contestar lo reportado: administración, sobre la gente de su alcance (el maestro, todo).
+  "/problemas-reportados": ["admin"],
   // Etapa 6: lo que gobierna todo el estado es del administrador maestro.
   // Administradores por municipio: quién administra cada uno, alertas y recuperación de acceso.
   "/administracion-municipal": MAESTRO,
@@ -56,8 +62,8 @@ export const ACCESO_A_PANTALLAS = {
   // municipio, y cambiar a alguien de municipio es del maestro.
   "/sin-municipio": MAESTRO,
   // Quién cambió qué: roles, municipios, altas, bajas, contraseñas, exportaciones.
-  "/auditoria": MAESTRO,
-  "/settings": MAESTRO
+  "/auditoria": MAESTRO
+  // «Ajustes» (`/settings`) se retiró (D1 del plan de auditoría de menús): lleva a Mi perfil → Seguridad.
 } as const satisfies Record<string, readonly RolDeAcceso[]>;
 
 export type PantallaDelPanel = keyof typeof ACCESO_A_PANTALLAS;

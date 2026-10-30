@@ -51,6 +51,9 @@ export function SelectorBuscable({
   const [hayMas, setHayMas] = useState(false);
   const [pagina, setPagina] = useState(1);
   const [cargando, setCargando] = useState(false);
+  // El texto cuya búsqueda ya volvió. Mientras corre la espera entre teclas no hay nada «cargando», y sin esto
+  // la lista decía «Sin resultados.» antes de haber buscado (plan de auditoría de menús, fase 3).
+  const [respondido, setRespondido] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const [errorCrear, setErrorCrear] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -64,6 +67,7 @@ export function SelectorBuscable({
       const r = await buscar(q, p, senal);
       if (senal.aborted) return;
       setCargando(false);
+      setRespondido(q);
       if (!r) return;
       setResultados((prev) => (p === 1 ? r.resultados : [...prev, ...r.resultados]));
       setHayMas(r.hayMas);
@@ -98,6 +102,7 @@ export function SelectorBuscable({
   const normal = normalizarNombre(termino);
   const hayExacta = resultados.some((r) => normalizarNombre(r.nombre) === normal);
   const puedeCrear = Boolean(crear) && normal.length >= 2 && !hayExacta && !cargando;
+  const esperando = cargando || respondido !== termino;
   const filas = resultados.length + (puedeCrear ? 1 : 0);
 
   function elegir(o: OpcionSelector) {
@@ -197,13 +202,13 @@ export function SelectorBuscable({
             </li>
           ))}
 
-          {cargando && (
+          {esperando && (
             <li className="px-3 py-2 text-xs text-gray-500 flex items-center gap-2" role="status"><Loader2 size={13} className="animate-spin" /> Buscando…</li>
           )}
-          {!cargando && resultados.length === 0 && !puedeCrear && (
+          {!esperando && resultados.length === 0 && !puedeCrear && (
             <li className="px-3 py-2 text-xs text-gray-500">{vacio}</li>
           )}
-          {hayMas && !cargando && (
+          {hayMas && !esperando && (
             <li>
               <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { const c = new AbortController(); const p = pagina + 1; setPagina(p); void consultar(termino, p, c.signal); }}
                 className="w-full text-left px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50 cursor-pointer">

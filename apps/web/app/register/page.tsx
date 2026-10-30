@@ -70,7 +70,7 @@ export default function RegisterPage() {
           </h1>
           
           <p style={{ color: "#475569", fontSize: "15px", lineHeight: "1.6", marginBottom: "24px" }}>
-            Tu cuenta para <strong>{email}</strong> ha sido registrada. Por seguridad, el <strong>Administrador del Sistema</strong> revisará y autorizará tu acceso para asignarte tu territorio y rol operativo.
+            Tu cuenta para <strong>{email}</strong> quedó registrada. Antes de entrar, alguien del equipo tiene que aprobarla y asignarte tu brigada.
           </p>
 
           <div style={{
@@ -86,7 +86,7 @@ export default function RegisterPage() {
             <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
               <ShieldCheck size={16} color="#2563eb" /> Estado de la Cuenta: Pendiente de Aprobación
             </div>
-            Recibirás acceso una vez que el equipo directivo confirme tu asignación de brigada o rol territorial.
+            No te llegará ningún correo: avísale a quien te invitó para que apruebe tu solicitud. Después entra con este mismo correo y tu contraseña.
           </div>
 
           <Link href="/login" className="modern-button" style={{ display: "inline-flex", textDecoration: "none", width: "100%", justifyContent: "center" }}>

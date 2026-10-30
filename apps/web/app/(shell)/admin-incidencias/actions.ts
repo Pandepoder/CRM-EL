@@ -59,7 +59,7 @@ export async function updateReportStatusAction(reportId: string, newStatus: stri
     revalidatePath("/historial-incidencias");
     revalidatePath("/mapa");
     return { success: true };
-  } catch (_error: any) {
+  } catch {
     return { error: "Error de base de datos al actualizar el estado." };
   }
 }

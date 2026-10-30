@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-// @ts-ignore
 import { Search, MapPin, Check, ChevronDown, Sparkles, Hash, Building2, Navigation, Loader2, Crosshair, X } from "lucide-react";
 import { LocationPicker } from "@/components/LocationPicker";
 import { MUNICIPIOS_JALISCO, TODO_JALISCO, guardarMunicipioPreferido, leerMunicipioPreferido } from "@/lib/municipios-jalisco";
+import { seccionesDelCatalogo } from "@/lib/secciones-del-catalogo";
+import { municipioDeOtraSeccion, seccionesParaElegir } from "@/lib/secciones-del-municipio";
+import { QueEsEsto } from "@/components/QueEsEsto";
 import { useMunicipioUsuario } from "@/lib/municipio-contexto";
+import { avisar } from "@/lib/avisos";
 
 export function ColonySelector({ 
   defaultColony, 
@@ -71,15 +74,15 @@ export function ColonySelector({
   const sectionInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch known sections on mount for 0ms predictive typing
+  // El catálogo de secciones, una sola vez por visita y en su versión ligera (O3): ver `lib/secciones-del-catalogo.ts`.
   useEffect(() => {
-    fetch("/api/electoral/sections")
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        const list = Array.isArray(data) ? data : (Array.isArray(data?.sections) ? data.sections : []);
-        setAllSections(list);
-      })
-      .catch((err) => console.error("Error loading sections:", err));
+    let vigente = true;
+    void seccionesDelCatalogo().then((lista) => {
+      if (vigente) setAllSections(lista);
+    });
+    return () => {
+      vigente = false;
+    };
   }, []);
 
   // Live predictive query for colonies as user types
@@ -122,11 +125,10 @@ export function ColonySelector({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filter sections dynamically
-  const filteredSections = allSections.filter((s) => {
-    if (!sectionNum.trim()) return true;
-    return String(s.sectionNum).includes(sectionNum.trim());
-  });
+  // Las secciones del municipio elegido (F8), y de cuál es la escrita si es de otro: ver
+  // `lib/secciones-del-municipio.ts`, donde se prueban.
+  const filteredSections = seccionesParaElegir(allSections, municipality, sectionNum);
+  const deOtroMunicipio = municipioDeOtraSeccion(allSections, municipality, sectionNum);
 
   const handleSelectSection = (s: any) => {
     setSectionNum(String(s.sectionNum));
@@ -160,7 +162,7 @@ export function ColonySelector({
   // GPS Auto-detect handler
   const handleDetectGPS = () => {
     if (!navigator.geolocation) {
-      alert("Tu navegador o dispositivo no soporta geolocalización GPS.");
+      avisar("Este teléfono o navegador no deja usar el GPS. Elige el lugar en el mapa o escribe la dirección.");
       return;
     }
 
@@ -237,46 +239,43 @@ export function ColonySelector({
       <input type="hidden" name="sectionId" value={selectedSectionId} />
       <input type="hidden" name="postalCode" value={postalCode} />
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-3 gap-2">
+      {/* El GPS llena municipio, sección, colonia, CP y calle de una vez, y era un botón chico junto a un
+          adorno (F13). Ahora va primero y grande; el mapa, al lado, para cuando no se está en la casa. */}
+      <div className="border-b border-gray-100 pb-3 space-y-2">
         <span className="text-xs font-extrabold text-blue-950 uppercase tracking-wider flex items-center gap-2">
-          <MapPin size={16} className="text-blue-600" /> Autopredictor de Ubicación y Sección
+          <MapPin size={16} className="text-blue-600" /> Domicilio y sección
         </span>
-        
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setShowMapPicker(true)}
-            className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-3 py-1.5 rounded-xl border border-blue-200 shadow-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-            title="Abrir mapa interactivo para buscar domicilio o marcar punto"
-          >
-            <Crosshair size={13} className="text-blue-600" />
-            <span>Abrir Mapa / Buscar Domicilio</span>
-          </button>
-
+        <div className="flex flex-col sm:flex-row gap-2">
           <button
             type="button"
             onClick={handleDetectGPS}
             disabled={isLocatingGPS}
-            className="text-xs bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold px-3 py-1.5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-            title="Detectar automáticamente Municipio, Sección y Colonia por GPS"
+            className="flex-1 min-h-[52px] px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-extrabold inline-flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[.98] disabled:opacity-60"
+            title="Llena municipio, sección, colonia y calle con la ubicación de este teléfono"
           >
             {isLocatingGPS ? (
               <>
-                <Loader2 size={13} className="animate-spin text-blue-600" />
-                <span>Detectando GPS...</span>
+                <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+                <span>Buscando tu ubicación…</span>
               </>
             ) : (
               <>
-                <Navigation size={13} className="text-blue-600" />
-                <span>Mi GPS</span>
+                <Navigation size={18} aria-hidden="true" />
+                <span>Estoy en su domicilio: usar mi ubicación</span>
               </>
             )}
           </button>
-
-          <span className="text-[11px] bg-emerald-50 text-emerald-800 font-bold px-2.5 py-1 rounded-xl flex items-center gap-1 border border-emerald-200">
-            <Sparkles size={12} className="text-emerald-600" /> Predicción Activa
-          </span>
+          <button
+            type="button"
+            onClick={() => setShowMapPicker(true)}
+            className="min-h-[52px] px-4 rounded-2xl bg-white hover:bg-blue-50 text-blue-800 text-sm font-bold border border-blue-200 inline-flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[.98]"
+            title="Abrir el mapa para buscar el domicilio o marcar el punto"
+          >
+            <Crosshair size={17} className="text-blue-600" aria-hidden="true" />
+            <span>Buscar en el mapa</span>
+          </button>
         </div>
+        <p className="text-xs text-gray-600 font-medium">O escribe la colonia y la sección abajo: te sugerimos mientras escribes.</p>
       </div>
 
       {/* DEDICATED FULL-VIEW MAP MODAL */}
@@ -297,7 +296,7 @@ export function ColonySelector({
               <button
                 type="button"
                 onClick={() => setShowMapPicker(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="w-11 h-11 shrink-0 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
                 title="Cerrar ventana"
               >
                 <X size={18} />
@@ -407,23 +406,27 @@ export function ColonySelector({
         <div className="relative">
           <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 flex items-center justify-between">
             <span className="flex items-center gap-1">
-              <Hash size={13} className="text-gray-500" /> Sección Electoral
+              <Hash size={13} className="text-gray-500" /> Sección electoral <QueEsEsto termino="seccion" />
             </span>
             {sectionNum && (
-              <span className="text-[10px] text-blue-600 font-bold">#{sectionNum}</span>
+              <span className="text-[11px] text-blue-600 font-bold">#{sectionNum}</span>
             )}
           </label>
           <div className="relative">
             <input
               ref={sectionInputRef}
-              type="number"
-              min="1"
-              max="9999"
+              // Texto con teclado numérico: `type=number` ponía flechitas y en algunos teléfonos dejaba
+              // escribir letras o el signo de menos.
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              aria-label="Sección electoral"
               placeholder="Escribe ej. 2704"
               value={sectionNum}
               onFocus={() => setShowSectionDropdown(true)}
               onChange={(e) => {
-                setSectionNum(e.target.value);
+                setSectionNum(e.target.value.replace(/\D/g, "").slice(0, 4));
                 setSelectedSectionId("");
                 setShowSectionDropdown(true);
               }}
@@ -443,7 +446,7 @@ export function ColonySelector({
           {/* Floating Section Predictions */}
           {showSectionDropdown && (
             <div className="absolute z-30 left-0 right-0 mt-1 bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-              <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+              <div className="px-3 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                 <span>Secciones Disponibles</span>
                 <button type="button" onClick={() => setShowSectionDropdown(false)} className="text-gray-400 hover:text-gray-600"><X size={12} /></button>
               </div>
@@ -457,7 +460,7 @@ export function ColonySelector({
                   }`}
                 >
                   <span className="font-bold text-sm text-gray-900">Sección #{s.sectionNum}</span>
-                  <span className="text-[10px] text-blue-600 font-semibold bg-blue-100/60 px-2 py-0.5 rounded-md">
+                  <span className="text-[11px] text-blue-600 font-semibold bg-blue-100/60 px-2 py-0.5 rounded-md">
                     {s.municipality || "Sin municipio"}
                   </span>
                 </button>
@@ -470,6 +473,18 @@ export function ColonySelector({
                   <div className="px-2 py-1 text-xs font-semibold text-amber-900 flex items-center gap-1.5">
                     <Sparkles size={14} className="text-amber-600 shrink-0" />
                     <span>La sección <strong>#{sectionNum}</strong> no está en la cartografía de Jalisco. Revisa el número en la credencial.</span>
+                  </div>
+                </div>
+              )}
+              {/* Existe, pero en otro municipio: se dice cuál, en vez de que el servidor la rechace al guardar. */}
+              {deOtroMunicipio && (
+                <div className="p-2 bg-amber-50 border-t border-amber-100">
+                  <div className="px-2 py-1 text-xs font-semibold text-amber-900 flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-amber-600 shrink-0" />
+                    <span>
+                      La sección <strong>#{sectionNum}</strong> es de{" "}
+                      <strong>{deOtroMunicipio}</strong>, no de {municipality}. Revisa el municipio o el número.
+                    </span>
                   </div>
                 </div>
               )}
@@ -531,7 +546,7 @@ export function ColonySelector({
         {/* Floating Colony Predictions */}
         {showColonyDropdown && (
           <div className="absolute z-40 left-0 right-0 mt-1.5 bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-3 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100 flex items-center justify-between">
               <span>
                 {loadingSuggestions ? "Buscando coincidencias..." : `Predicciones en ${municipality || "Jalisco"} ${sectionNum ? `(Sección #${sectionNum})` : ""}`}
               </span>

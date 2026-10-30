@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentType, type ReactNode } from "react";
 import { 
   Map as MapIcon, 
   Users, 
@@ -10,10 +10,8 @@ import {
   User,
   UserPlus,
   CalendarCheck,
-  FileText,
   AlertTriangle,
   Megaphone,
-  Settings,
   PieChart,
   Landmark,
   Headset,
@@ -23,11 +21,13 @@ import {
   Building2,
   History,
   Menu,
+  LifeBuoy,
+  Bug,
   X
 } from "lucide-react";
-import { rolesDeAcceso } from "./capacidades.js";
+import { puedeAbrir, rolesDeAcceso } from "./capacidades.js";
 import type { NavItemConfig } from "./role-home.js";
-import { getNavSection, itemsDeBarraMovil, SECCIONES_DEL_MENU } from "./role-home.js";
+import { getNavSection, itemsDeBarraMovil, juntarSeccionesSueltas, SECCIONES_DEL_MENU, TITULOS_FUERA_DEL_MENU } from "./role-home.js";
 import { QuickCreateFab } from "./QuickCreateFab.js";
 
 export type AppShellProps = Readonly<{
@@ -65,6 +65,8 @@ export type AppShellProps = Readonly<{
    * número, o en cero, no se enseña nada.
    */
   insignias?: Readonly<Record<string, number>> | undefined;
+  /** El enlace del menú (ver `ComponenteEnlace`): con `next/link`, cambiar de pantalla no recarga la página. */
+  Enlace?: ComponenteEnlace | undefined;
 }>;
 
 const getIconForNavKey = (key: string, size = 18) => {
@@ -81,14 +83,14 @@ const getIconForNavKey = (key: string, size = 18) => {
     case "mapa": return <MapIcon size={size} />;
     case "admin-incidencias": return <AlertTriangle size={size} />;
     case "escucha-social": return <MessageSquare size={size} />;
-    case "admin-inbox": return <FileText size={size} />;
     case "reportes": return <Megaphone size={size} />;
     case "logistica": return <Package size={size} />;
     case "perfil": return <User size={size} />;
     case "sin-municipio": return <MapPinOff size={size} />;
     case "administracion-municipal": return <Building2 size={size} />;
     case "auditoria": return <History size={size} />;
-    case "settings": return <Settings size={size} />;
+    case "reportar-problema": return <LifeBuoy size={size} />;
+    case "problemas-reportados": return <Bug size={size} />;
     default: return <MessageSquare size={size} />;
   }
 };
@@ -105,9 +107,27 @@ function iniciales(nombre: string): string {
   return ((partes[0]?.[0] ?? "") + (partes[1]?.[0] ?? "")).toUpperCase();
 }
 
-function EnlaceNav({ item, alNavegar }: { item: ElementoNav; alNavegar?: () => void }) {
+/**
+ * El enlace con que se navega desde el menú. `@tonala/ui` no depende de Next, así que quien monta el
+ * armazón le pasa el suyo (`next/link` en `ShellWrapper`): cambiar de pantalla ya no recarga la página
+ * entera (C14), y lo que vive en el armazón —avisos, celebración, contador de la agenda— sigue en pie.
+ * Sin él, un `<a>` de siempre.
+ */
+export type ComponenteEnlace = ComponentType<{
+  href: string;
+  className?: string;
+  title?: string;
+  onClick?: () => void;
+  "aria-current"?: "page";
+  "aria-label"?: string;
+  children?: ReactNode;
+}>;
+
+const EnlaceSimple: ComponenteEnlace = ({ children, ...props }) => <a {...props}>{children}</a>;
+
+function EnlaceNav({ item, alNavegar, Enlace }: { item: ElementoNav; alNavegar?: () => void; Enlace: ComponenteEnlace }) {
   return (
-    <a
+    <Enlace
       className={`nav-button ${item.active ? "is-active" : ""}`}
       href={item.href}
       // `aria-current` es lo que anuncia un lector de pantalla como "página actual": el color
@@ -117,11 +137,14 @@ function EnlaceNav({ item, alNavegar }: { item: ElementoNav; alNavegar?: () => v
       {...(alNavegar ? { onClick: alNavegar } : {})}
     >
       <span className="nav-icono">{getIconForNavKey(item.key)}</span>
-      <span className="nav-texto">{item.label}</span>
+      <span className={item.ayuda ? "nav-texto nav-texto--con-ayuda" : "nav-texto"}>
+        {item.label}
+        {item.ayuda && <span className="nav-ayuda">{item.ayuda}</span>}
+      </span>
       {item.insignia > 0 && (
         <span className="nav-insignia" aria-label={`${item.insignia} pendientes`}>{textoInsignia(item.insignia)}</span>
       )}
-    </a>
+    </Enlace>
   );
 }
 
@@ -133,11 +156,13 @@ function EnlaceNav({ item, alNavegar }: { item: ElementoNav; alNavegar?: () => v
 function SeccionNav({
   titulo,
   items,
-  alNavegar
+  alNavegar,
+  Enlace
 }: {
   titulo: string;
   items: ElementoNav[];
   alNavegar?: () => void;
+  Enlace: ComponenteEnlace;
 }) {
   if (items.length === 0) return null;
   return (
@@ -145,7 +170,7 @@ function SeccionNav({
       <p className="side-section-title">{titulo}</p>
       <nav className="nav-list" aria-label={titulo}>
         {items.map((item) => (
-          <EnlaceNav key={item.key} item={item} {...(alNavegar ? { alNavegar } : {})} />
+          <EnlaceNav key={item.key} item={item} Enlace={Enlace} {...(alNavegar ? { alNavegar } : {})} />
         ))}
       </nav>
     </div>
@@ -164,7 +189,8 @@ export function AppShell({
   municipality,
   appName,
   logoutAction = "/api/auth/logout",
-  insignias
+  insignias,
+  Enlace = EnlaceSimple
 }: AppShellProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const cerrarCajon = () => setIsDrawerOpen(false);
@@ -180,12 +206,15 @@ export function AppShell({
       }));
   };
 
-  const secciones = SECCIONES_DEL_MENU.map(({ clave, titulo }) => ({ clave, titulo, items: filterNavItems(getNavSection(clave)) }));
+  const secciones = juntarSeccionesSueltas(SECCIONES_DEL_MENU.map(({ clave, titulo }) => ({ clave, titulo, items: filterNavItems(getNavSection(clave)) })));
   const allItems = secciones.flatMap((s) => s.items);
   const barraMovil = itemsDeBarraMovil(userRoleKey, allItems);
   const activaFueraDeBarra = allItems.some((item) => item.active) && !barraMovil.some((item) => item.active);
+  // Lo pendiente de las entradas que no caben en la barra (una respuesta a un reporte, problemas por
+  // revisar…) se suma en «Más»: si no, el número solo se veía al abrir el cajón.
+  const pendientesEnMas = allItems.filter((item) => !barraMovil.includes(item)).reduce((n, item) => n + item.insignia, 0);
   const marca = municipality ? `${municipality} OS` : (appName || "Jalisco OS");
-  const activeTitle = allItems.find((n) => n.active)?.label ?? marca;
+  const activeTitle = allItems.find((n) => n.active)?.label ?? TITULOS_FUERA_DEL_MENU[activeNavKey] ?? marca;
 
   return (
     <div className="shell">
@@ -223,7 +252,7 @@ export function AppShell({
 
         <div className="sidebar-scrollable">
           {secciones.map((s) => (
-            <SeccionNav key={s.clave} titulo={s.titulo} items={s.items} />
+            <SeccionNav key={s.clave} titulo={s.titulo} items={s.items} Enlace={Enlace} />
           ))}
         </div>
 
@@ -263,15 +292,16 @@ export function AppShell({
         </header>
 
         {/* MOBILE HEADER */}
+        {/* En el teléfono, la foto o las iniciales en vez del nombre completo, que ocupaba dos renglones
+            junto al título; tocarla lleva a «Mi perfil». */}
         <header className="mobile-header-top">
-          <div>
+          <div className="min-w-0">
             <h2 className="mobile-title">{activeTitle}</h2>
             <p className="mobile-subtitle">{userRoleLabel}</p>
           </div>
-          <div className="user-chip">
-            {userPhotoUrl ? <img className="user-chip__foto" src={userPhotoUrl} alt="" /> : <User size={14} />}
-            {userDisplayName}
-          </div>
+          <Enlace className="mobile-avatar" href="/perfil" aria-label={`Mi perfil: ${userDisplayName}`} title={userDisplayName}>
+            {userPhotoUrl ? <img src={userPhotoUrl} alt="" width={40} height={40} /> : <span aria-hidden="true">{iniciales(userDisplayName)}</span>}
+          </Enlace>
         </header>
 
         {/* CHILDREN (VIEWS). El hueco final deja ver lo último de cada pantalla por encima del botón
@@ -310,7 +340,7 @@ export function AppShell({
               {/* Las mismas secciones que en el escritorio: una lista corrida de trece enlaces
                   obligaba a leerlos todos para encontrar uno. */}
               {secciones.map((s) => (
-                <SeccionNav key={s.clave} titulo={s.titulo} items={s.items} alNavegar={cerrarCajon} />
+                <SeccionNav key={s.clave} titulo={s.titulo} items={s.items} alNavegar={cerrarCajon} Enlace={Enlace} />
               ))}
             </div>
 
@@ -330,7 +360,7 @@ export function AppShell({
       <nav className="mobile-bottom-nav" aria-label="Navegación movil">
         {/* Las cuatro que cada rol usa en campo, Mapa y Agenda primero: ver itemsDeBarraMovil. */}
         {barraMovil.map((item) => (
-          <a
+          <Enlace
             key={item.key}
             className={`mobile-nav-button ${item.active ? "is-active" : ""}`}
             href={item.href}
@@ -344,7 +374,7 @@ export function AppShell({
             {/* Nombre corto: "Directorio Ciudadano" no cabe en un quinto de pantalla y se partía
                 en tres renglones ilegibles. */}
             <span className="mobile-nav-texto">{item.corto ?? item.label}</span>
-          </a>
+          </Enlace>
         ))}
         {/* 'Más' abre el cajón con el menú completo. Se marca cuando la pantalla abierta no está
             en la barra: si no, estando en ella ninguna entrada decía dónde estás. */}
@@ -355,12 +385,24 @@ export function AppShell({
         >
           <span className="mobile-nav-marca" aria-hidden="true" />
           <Menu size={21} />
+          {pendientesEnMas > 0 && (
+            <span className="mobile-nav-insignia" aria-label={`${pendientesEnMas} pendientes en el menú`}>{textoInsignia(pendientesEnMas)}</span>
+          )}
           <span className="mobile-nav-texto">Más</span>
         </button>
       </nav>
 
-      {/* Crear incidencia o evento desde cualquier pantalla, sin ir al mapa. */}
-      <QuickCreateFab puedeCoordinar={puedeCoordinar} />
+      {/* Registrar ciudadano, crear incidencia o evento desde cualquier pantalla. En los formularios de una
+          sola pantalla («Reportar un problema», «Avisar de una incidencia») no: ahí el botón de abajo es
+          «Enviar», y el «+» lo tapaba. */}
+      {activeNavKey !== "reportar-problema" && activeNavKey !== "avisar-incidencia" && (
+        <QuickCreateFab
+          puedeCoordinar={puedeCoordinar}
+          puedeRegistrar={puedeAbrir("/crm/nuevo", userRoleKey)}
+          puedeAvisar={puedeAbrir("/avisar-incidencia", userRoleKey)}
+          puedeAnotarPeticion={puedeAbrir("/escucha-social", userRoleKey)}
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect, useId } from "react";
-// @ts-ignore
 import { ChevronDown, Check, X, Sparkles, Edit3 } from "lucide-react";
 
 export type ComboboxOption = {

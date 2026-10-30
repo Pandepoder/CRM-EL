@@ -4,6 +4,7 @@ import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import { and, inArray, eq } from "drizzle-orm";
 import { getServerSession } from "@/lib/session-server";
 import { requirePageAccess } from "@/lib/authorization";
+import { nombreDelNivel } from "@/lib/lenguaje";
 import NuevoContactoForm from "./NuevoContactoForm";
 
 export default async function NuevoContactoPage() {
@@ -29,7 +30,7 @@ export default async function NuevoContactoPage() {
   const userOptions = users.map((u) => ({
     value: u.id,
     label: u.displayName,
-    badge: (u.accessType || "conexion").toUpperCase()
+    badge: nombreDelNivel(u.accessType)
   }));
 
   return (

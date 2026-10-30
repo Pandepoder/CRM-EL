@@ -24,7 +24,7 @@ export async function getVisitById(
       try {
         const visit = await dependencies.visitRepository.findById(createEntityId(input.visitId));
         if (!visit) {
-          return err(notFoundError("visit_not_found", `Visit ${input.visitId} was not found.`, "Visit was not found."));
+          return err(notFoundError("visit_not_found", `Visit ${input.visitId} was not found.`, "La visita ya no existe."));
         }
         return ok(visit);
       } catch (error) {

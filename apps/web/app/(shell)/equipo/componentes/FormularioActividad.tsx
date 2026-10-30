@@ -8,6 +8,7 @@ import type { ActividadItem, OpcionSelector } from "@/lib/bitacora-tipos";
 import { LocationPicker } from "@/components/LocationPicker";
 import { MediaUploader, type MediaFile } from "@/components/MediaUploader";
 import { useMunicipioUsuario } from "@/lib/municipio-contexto";
+import { celebrar } from "@/lib/celebraciones";
 import { enviarOEncolar, nuevaClave, TEXTO_DE_ESPERA } from "@/lib/cola-de-envios";
 
 import { buscarCatalogo, buscarContactos, buscarSecciones, crearEnCatalogo } from "./buscadores";
@@ -46,6 +47,11 @@ type Estado = {
   outcome: string;
   conclusion: string;
 };
+
+/** Lo que la persona escribió o eligió a mano: con esto se decide si cerrar el formulario pregunta antes. */
+function capturado(e: Estado): string {
+  return JSON.stringify([e.tituloEditado ? e.titulo : "", e.tipo, e.descripcion, e.conclusion, e.media, e.contacto, e.etiquetas, e.asistentes]);
+}
 
 function estadoInicial(responsableId: string, modo: "programar" | "registrar" = "programar"): Estado {
   return {
@@ -100,6 +106,8 @@ export function FormularioActividad({
   // Se genera al abrir el formulario y solo cambia tras un guardado: un doble clic o un reintento
   // tras un corte de red llega con la misma clave y el servidor devuelve la actividad ya creada.
   const claveSolicitud = useRef(nuevaClave());
+  // Lo capturado a mano al abrir (vacío, o lo de la plantilla al duplicar): ver `cerrarConCuidado`.
+  const capturadoAlAbrir = useRef("");
   const primerError = useRef<HTMLDivElement>(null);
   const formulario = useRef<HTMLFormElement>(null);
   const [agregarOtra, setAgregarOtra] = useState(false);
@@ -122,6 +130,7 @@ export function FormularioActividad({
         base.asistentes = plantilla.estimatedAttendees?.toString() ?? "";
       }
       setF(base);
+      capturadoAlAbrir.current = capturado(base);
       setErrores({});
       setMensaje(null);
       setMostrarMapa(false);
@@ -129,12 +138,24 @@ export function FormularioActividad({
     }
   }, [abierto, usuarioActualId, plantilla]);
 
+  /**
+   * Un toque fuera del formulario o un «Cancelar» por error borraban todo lo capturado (F10). Si la
+   * persona escribió algo, se le pregunta antes; lo que el formulario rellena solo (GPS, fecha) no cuenta.
+   */
+  const cerrarConCuidado = () => {
+    if (guardando) return;
+    if (capturado(f) !== capturadoAlAbrir.current && !window.confirm("¿Cerrar sin guardar? Lo que capturaste se perderá.")) return;
+    onCerrar();
+  };
+  const cerrarRef = useRef(cerrarConCuidado);
+  cerrarRef.current = cerrarConCuidado;
+
   useEffect(() => {
     if (!abierto) return;
-    const alTeclear = (e: KeyboardEvent) => { if (e.key === "Escape" && !guardando) onCerrar(); };
+    const alTeclear = (e: KeyboardEvent) => { if (e.key === "Escape") cerrarRef.current(); };
     document.addEventListener("keydown", alTeclear);
     return () => document.removeEventListener("keydown", alTeclear);
-  }, [abierto, guardando, onCerrar]);
+  }, [abierto]);
 
   useEffect(() => {
     if (Object.keys(errores).length === 0) return;
@@ -225,6 +246,7 @@ export function FormularioActividad({
     }
 
     const datos = r.estado === "enviado" ? (r.datos as { duplicada?: boolean; avisos?: string[] }) : {};
+    if (r.estado === "enviado" && !datos.duplicada) celebrar({ tipo: "otro", titulo: "Actividad guardada" });
     const avisos = datos.avisos ?? [];
     const texto =
       r.estado === "encolado"
@@ -239,6 +261,8 @@ export function FormularioActividad({
         locationText: prev.locationText, sectionId: prev.sectionId, seccion: prev.seccion,
         fecha: prev.fecha
       }));
+      // Lo que se conserva (lugar, día) no es captura nueva: cerrar ahora no pregunta.
+      capturadoAlAbrir.current = capturado(estadoInicial(usuarioActualId));
       setMensaje(texto);
       setErrores({});
       onGuardada(texto);
@@ -253,7 +277,7 @@ export function FormularioActividad({
   const err = (c: Campo) => errores[c];
 
   return (
-    <div className="fixed inset-0 z-[110] bg-black/50 flex items-end sm:items-center justify-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !guardando) onCerrar(); }}>
+    <div className="fixed inset-0 z-[110] bg-black/50 flex items-end sm:items-center justify-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) cerrarConCuidado(); }}>
       <form
         ref={formulario}
         role="dialog" aria-modal="true" aria-labelledby="titulo-formulario"
@@ -266,7 +290,7 @@ export function FormularioActividad({
             <h2 id="titulo-formulario" className="text-base font-extrabold">{f.modo === "programar" ? "Programar actividad" : "Registrar lo que ya ocurrió"}</h2>
             <p className="text-[11px] text-blue-100">Lo esencial arriba; el resto, en «Más detalles».</p>
           </div>
-          <button type="button" onClick={onCerrar} disabled={guardando} aria-label="Cerrar" className="p-1.5 rounded-lg hover:bg-white/15 cursor-pointer"><X size={18} /></button>
+          <button type="button" onClick={cerrarConCuidado} disabled={guardando} aria-label="Cerrar" className="w-11 h-11 -mr-2 grid place-items-center rounded-xl hover:bg-white/15 cursor-pointer"><X size={20} /></button>
         </div>
 
         <div className="overflow-y-auto px-5 py-4 space-y-4 flex-1">
@@ -325,20 +349,28 @@ export function FormularioActividad({
             )}
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label htmlFor="af-lugar" className={etiquetaClase + " mb-0"}>Ubicación <span aria-hidden="true">*</span></label>
-              <button type="button" onClick={() => setMostrarMapa((v) => !v)} className="text-xs font-extrabold text-blue-700 hover:text-blue-900 inline-flex items-center gap-1 cursor-pointer">
-                <MapPin size={12} aria-hidden="true" /> {mostrarMapa ? "Ocultar mapa" : f.latitude !== null ? "Cambiar en el mapa" : "Fijar en el mapa"}
+          {/* Decía «Ubicación *» con «(opcional)» adentro (F11): lo obligatorio es el punto en el mapa, y el nombre
+              del lugar es aparte y opcional. Ahora cada cosa dice lo que es. */}
+          <div className="space-y-2">
+            <div>
+              <span className={etiquetaClase}>Punto en el mapa <span aria-hidden="true">*</span></span>
+              <button type="button" onClick={() => setMostrarMapa((v) => !v)} aria-invalid={err("ubicacion") ? true : undefined}
+                className={`w-full min-h-[48px] px-4 rounded-xl text-sm font-extrabold inline-flex items-center justify-center gap-2 cursor-pointer border ${
+                  f.latitude !== null ? "bg-emerald-50 border-emerald-200 text-emerald-800" : err("ubicacion") ? "bg-red-50 border-red-300 text-red-700" : "bg-blue-50 border-blue-200 text-blue-800"
+                }`}>
+                <MapPin size={16} aria-hidden="true" />
+                {mostrarMapa ? "Ocultar mapa" : f.latitude !== null ? `Punto marcado${f.municipality ? ` en ${f.municipality}` : ""} · cambiar` : "Elegir en el mapa o usar mi GPS"}
               </button>
+              {err("ubicacion") && <p role="alert" className="mt-1 text-xs font-bold text-red-600">{err("ubicacion")}</p>}
             </div>
-            <input id="af-lugar" aria-invalid={err("ubicacion") ? true : undefined} value={f.locationText} placeholder="Domicilio o lugar (opcional): calle, comité, plaza…" maxLength={240}
-              onChange={(e) => {
-                poner("locationText", e.target.value);
-                lugarDelMapa.current = e.target.value.trim() === "";
-              }} className={clase(false)} />
-            {f.latitude !== null && !mostrarMapa && <p className="mt-1 text-[11px] font-semibold text-emerald-700">Punto marcado en el mapa{f.municipality ? ` · ${f.municipality}` : ""}.</p>}
-            {err("ubicacion") && <p role="alert" className="mt-1 text-xs font-bold text-red-600">{err("ubicacion")}</p>}
+            <div>
+              <label htmlFor="af-lugar" className={etiquetaClase}>Nombre del lugar (opcional)</label>
+              <input id="af-lugar" value={f.locationText} placeholder="Calle, comité, plaza, salón…" maxLength={240}
+                onChange={(e) => {
+                  poner("locationText", e.target.value);
+                  lugarDelMapa.current = e.target.value.trim() === "";
+                }} className={clase(false)} />
+            </div>
             {mostrarMapa && (
               <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-2xl">
                 <LocationPicker
@@ -436,7 +468,7 @@ export function FormularioActividad({
 
         {/* Acciones siempre visibles, también en móvil */}
         <div className="shrink-0 border-t border-gray-100 bg-white px-5 py-3 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-          <button type="button" onClick={onCerrar} disabled={guardando} className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold cursor-pointer">Cancelar</button>
+          <button type="button" onClick={cerrarConCuidado} disabled={guardando} className="min-h-[48px] px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold cursor-pointer">Cancelar</button>
           <button type="button" onClick={() => void guardar(true)} disabled={guardando} className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 text-sm font-extrabold cursor-pointer inline-flex items-center justify-center gap-2">
             {guardando && agregarOtra && <Loader2 size={14} className="animate-spin" />} Guardar y agregar otra
           </button>

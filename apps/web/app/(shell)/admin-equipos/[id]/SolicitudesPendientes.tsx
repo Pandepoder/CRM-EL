@@ -5,6 +5,7 @@ import { Check, UserPlus, X } from "lucide-react";
 
 import { QrImagen } from "@/components/QrImagen";
 import { aceptarSolicitudAction, rechazarSolicitudAction } from "../actions";
+import { avisar } from "@/lib/avisos";
 
 /**
  * Solicitudes de quien llegó por el QR de la brigada.
@@ -40,12 +41,12 @@ export function SolicitudesPendientes({
           ? await aceptarSolicitudAction(teamId, userId)
           : await rechazarSolicitudAction(teamId, userId);
       if (res?.error) {
-        alert(res.error);
+        avisar(res.error);
       } else {
         setLista((prev) => prev.filter((s) => s.userId !== userId));
       }
     } catch {
-      alert("No se pudo guardar. Revisa tu conexión.");
+      avisar("No se pudo guardar. Revisa tu conexión.");
     } finally {
       setOcupado(null);
     }

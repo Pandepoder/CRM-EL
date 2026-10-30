@@ -25,14 +25,33 @@ const createSectionSchema = z.object({
 /**
  * GET /api/electoral/sections
  * Returns list of electoral sections with their assigned colonies and municipality
+ *
+ * `?ligera=1`: solo id, número y municipio de cada sección, sin colonias ni conteos. Es lo que usa el selector de
+ * «Registrar ciudadano» (`ColonySelector`), que antes bajaba todo esto cada vez que se abría el formulario
+ * (observación O3 del plan de auditoría de menús). El catálogo casi no cambia: el navegador lo guarda un rato.
  */
-export async function GET() {
+export async function GET(req: Request) {
   // Esta ruta era pública: sin ninguna sesión devolvía el conteo de contactos de
   // cada sección, es decir, dónde y cuánto trabaja la estructura. Ninguna página
   // pública la necesita —el registro ciudadano solo llama a /api/public/registro—,
   // así que ahora exige sesión.
   const actor = await actorFromSession();
   if (!actor) return unauthorized();
+
+  if (new URL(req.url).searchParams.get("ligera") === "1") {
+    try {
+      const filas = await getDatabaseClient().execute<{ id: string; section_num: number; municipality: string | null }>(
+        sql`SELECT es.id::text, es.section_num, es.municipality FROM electoral_sections es ORDER BY es.section_num ASC`
+      );
+      return NextResponse.json(
+        { sections: filas.rows.map((r) => ({ id: r.id, sectionNum: r.section_num, municipality: r.municipality })) },
+        { headers: { "Cache-Control": "private, max-age=600" } }
+      );
+    } catch (error) {
+      registrarError("Failed to fetch electoral sections (ligera)", error);
+      return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+  }
 
   // Y el conteo se acota al alcance de quien pregunta: cuántos contactos tiene
   // *su* brigada en cada sección, no cuántos tienen las demás. El número por

@@ -15,8 +15,9 @@ export default function Error({
       error={error}
       reset={reset}
       ambito="panel"
+      reportar
       titulo="No pudimos cargar esta pantalla"
-      ayuda="El resto del panel sigue funcionando: puedes moverte por el menú. Vuelve a intentarlo y, si sigue igual, avisa a quien te dio el acceso."
+      ayuda="El resto del panel sigue funcionando: puedes moverte por el menú. Vuelve a intentarlo y, si sigue igual, repórtalo: le llega a quien administra el sistema."
     />
   );
 }

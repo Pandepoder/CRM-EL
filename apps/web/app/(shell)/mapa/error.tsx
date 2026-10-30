@@ -15,6 +15,7 @@ export default function Error({
       error={error}
       reset={reset}
       ambito="mapa"
+      reportar
       titulo="El mapa no pudo abrirse"
       ayuda="Puedes seguir trabajando desde la Agenda o el Directorio mientras tanto. Si estás con poca señal, espera a tener mejor cobertura y reintenta."
     />

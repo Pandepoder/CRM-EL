@@ -12,6 +12,9 @@ import { RUTA_SESION_INACTIVA } from "@/lib/authorization";
 import { getServerSession } from "@/lib/session-server";
 import { municipioDelUsuario } from "@/lib/municipio-usuario";
 import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
+import { contarProblemasNuevos, contarRespuestasNuevas } from "@/lib/problemas-servicio";
+import { contarPorAceptar } from "@/lib/incidencias-consulta";
+import { puedeAbrir, rolesDeAcceso } from "@tonala/ui";
 
 /**
  * Nombre visible del rol. La barra lateral lo tomaba de la cookie, así que a quien le cambiaban
@@ -81,6 +84,13 @@ export default async function ShellLayout({ children }: Readonly<{ children: Rea
   // actividad» a quien no podía crearla (C7).
   const puedeCoordinar = Boolean(alcance && (alcance.isAdmin || alcance.isLeader));
   const foto = session.userId ? await fotoDelUsuario(session.userId) : null;
+  // Solo administración revisa reportes de problemas: al resto no se le consulta nada.
+  const problemasNuevos = alcance?.isAdmin ? await contarProblemasNuevos(alcance).catch(() => 0) : 0;
+  // A cualquiera: respuestas a sus reportes que no ha visto.
+  const respuestasNuevas = session.userId ? await contarRespuestasNuevas(session.userId).catch(() => 0) : 0;
+  // Quien abre Incidencias: lo que le espera «por aceptar» (también los avisos de su gente, D9).
+  const abreIncidencias = Boolean(alcance && rolesDeAcceso(alcance.roleKey, alcance.isMaster).some((r) => puedeAbrir("/admin-incidencias", r)));
+  const porAceptar = alcance && abreIncidencias ? await contarPorAceptar(alcance).catch(() => 0) : 0;
 
   return (
     <ShellWrapper
@@ -93,6 +103,9 @@ export default async function ShellLayout({ children }: Readonly<{ children: Rea
       puedeCoordinar={puedeCoordinar}
       municipality={municipio}
       appName={NOMBRE_POR_OMISION}
+      problemasNuevos={problemasNuevos}
+      respuestasNuevas={respuestasNuevas}
+      porAceptar={porAceptar}
     >
       {alcance?.isAdmin && !alcance.isMaster && !alcance.adminMunicipalityId ? (
         // Etapa 6: un administrador que la 0022 dejó en General no ve nada del padrón. Se dice en

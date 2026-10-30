@@ -14,6 +14,7 @@ export default function Error({
       error={error}
       reset={reset}
       ambito="directorio"
+      reportar
       titulo="El directorio no pudo cargarse"
       ayuda="Los registros no se perdieron: es la consulta la que falló. Reintenta en un momento."
     />

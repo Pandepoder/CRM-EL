@@ -1,401 +1,290 @@
 "use client";
 
-import { useState } from "react";
-// @ts-ignore
-import { Landmark, Users, Search, Plus, Map, X, Check, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { PredictiveCombobox } from "@/components/PredictiveCombobox";
+import { Check, ChevronLeft, ChevronRight, Landmark, Loader2, Plus, Search, X } from "lucide-react";
+
+import { QueEsEsto } from "@/components/QueEsEsto";
+import { avisar } from "@/lib/avisos";
+import {
+  CASILLAS_ESTIMADAS_POR_SECCION,
+  direccionDeCobertura,
+  FILTROS_DE_COBERTURA,
+  ROLES_ELECTORALES,
+  type FilaDeCobertura,
+  type FiltrosDeCobertura,
+  type ResultadoDeCobertura
+} from "@/lib/estructura-electoral";
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
 
-type Representative = {
-  id: string;
-  sectionNum: number;
-  sectionId: string;
-  displayName: string;
-  role: string;
-  assignedAt: Date;
-};
+// Las dos hojas se cargan aparte, después de la cobertura: en el teléfono la lista sale antes.
+const Nombrar = dynamic(() => import("./Nombrar").then((m) => m.Nombrar), { ssr: false });
+const DetalleSeccion = dynamic(() => import("./DetalleSeccion").then((m) => m.DetalleSeccion), { ssr: false });
 
-type UserProfile = {
-  id: string;
-  displayName: string;
-};
+function Barra({ etiqueta, hechas, de, nota }: { etiqueta: string; hechas: number; de: number; nota?: string }) {
+  const parte = de > 0 ? Math.min(1, hechas / de) : 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between gap-2 text-sm">
+        <span className="min-w-0 font-extrabold text-gray-900">{etiqueta}</span>
+        <span className="shrink-0 whitespace-nowrap font-bold text-gray-700 tabular-nums">
+          {hechas.toLocaleString("es-MX")} de {de.toLocaleString("es-MX")}
+          {nota ? <span className="font-semibold text-gray-500"> {nota}</span> : null}
+        </span>
+      </div>
+      <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden" role="progressbar" aria-label={etiqueta} aria-valuenow={Math.round(parte * 100)} aria-valuemin={0} aria-valuemax={100}>
+        <div className="h-full rounded-full bg-indigo-600" style={{ width: `${parte * 100}%` }} />
+      </div>
+    </div>
+  );
+}
 
-type Section = {
-  id: string;
-  sectionNum: number;
-  municipality?: string;
-  colonies?: string[];
-};
+/** Una línea por rol: verde con nombre(s) o gris «Falta». */
+function LineaDeRol({ fila, clave, corto }: { fila: FilaDeCobertura; clave: string; corto: string }) {
+  const nombrados = fila.nombrados.filter((n) => n.rol === clave);
+  const esRc = clave === "representante_casilla";
+  const lleno = esRc ? nombrados.length >= CASILLAS_ESTIMADAS_POR_SECCION : nombrados.length > 0;
+  return (
+    <p className="text-sm flex items-start gap-1.5">
+      <span className={`mt-0.5 w-4 h-4 rounded shrink-0 inline-flex items-center justify-center ${lleno ? "bg-emerald-600 text-white" : nombrados.length ? "bg-amber-400 text-white" : "bg-gray-200"}`} aria-hidden="true">
+        {nombrados.length > 0 && <Check size={12} />}
+      </span>
+      <span className="min-w-0">
+        <span className="font-bold text-gray-700">{corto}{esRc ? ` (${nombrados.length} de ${CASILLAS_ESTIMADAS_POR_SECCION})` : ""}: </span>
+        {nombrados.length ? (
+          <span className="text-gray-900 font-semibold">
+            {nombrados.map((n) => `${n.nombre}${n.casilla ? ` (${n.casilla})` : ""}`).join(", ")}
+          </span>
+        ) : (
+          <span className="text-gray-500">falta</span>
+        )}
+      </span>
+    </p>
+  );
+}
 
-type Props = {
-  representatives: Representative[];
-  availableUsers: UserProfile[];
-  sections: Section[];
-};
-
-export default function EstructuraClient({ representatives, availableUsers, sections: initialSections }: Props) {
+/**
+ * Estructura Electoral por cobertura (plan de auditoría de menús, F4.1): arriba, cuánto falta; abajo, una tarjeta
+ * por sección con sus tres roles y «Nombrar». Los números de dirección y líder cuentan solo su estructura (D11).
+ */
+export default function EstructuraClient({
+  inicial,
+  filtrosIniciales,
+  esMaestro
+}: {
+  inicial: ResultadoDeCobertura;
+  filtrosIniciales: FiltrosDeCobertura;
+  esMaestro: boolean;
+}) {
   const router = useRouter();
-  const [sectionsList, setSectionsList] = useState<Section[]>(initialSections);
-  const [showModal, setShowModal] = useState(false);
-  const [showNewSectionModal, setShowNewSectionModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ sectionId: "", userId: "", role: "coordinador" });
-  
-  const [newSectionForm, setNewSectionForm] = useState({
-    sectionNum: "",
-    municipality: "",
-    colony: ""
-  });
+  const [datos, setDatos] = useState(inicial);
+  const [filtros, setFiltros] = useState(filtrosIniciales);
+  const [cargando, setCargando] = useState(false);
+  const [nombrarEn, setNombrarEn] = useState<FilaDeCobertura | null>(null);
+  const [detalleDe, setDetalleDe] = useState<string | null>(null);
+  const primeraVez = useRef(true);
+  const pedido = useRef(0);
+  const municipio = datos.municipio?.nombre ?? null;
 
-  const filtered = representatives.filter(r => 
-    r.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    r.sectionNum.toString().includes(searchTerm)
+  const consultar = useCallback(
+    async (f: FiltrosDeCobertura) => {
+      const numero = ++pedido.current;
+      setCargando(true);
+      try {
+        const res = await fetch("/api/electoral/cobertura", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...f, ...(esMaestro && municipio ? { municipio } : {}) })
+        });
+        const d = await res.json().catch(() => null);
+        if (numero !== pedido.current) return;
+        if (!res.ok || !d) avisar(d?.error || d?.message || "No se pudo leer la cobertura.");
+        else setDatos(d as ResultadoDeCobertura);
+      } catch {
+        if (numero === pedido.current) avisar("Sin conexión: no se pudo leer la cobertura.");
+      } finally {
+        if (numero === pedido.current) setCargando(false);
+      }
+    },
+    [esMaestro, municipio]
   );
 
-  async function handleAssign(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.sectionId || !form.userId) return;
-
-    setSaving(true);
-    try {
-      const res = await fetch("/api/electoral/representatives", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) {
-        setShowModal(false);
-        setForm({ sectionId: "", userId: "", role: "coordinador" });
-        router.refresh();
-      } else {
-        const data = await res.json();
-        alert(data.error || "Error al asignar");
-      }
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleCreateSection(e: React.FormEvent) {
-    e.preventDefault();
-    const num = Number(newSectionForm.sectionNum);
-    if (!num || num <= 0) {
-      alert("Por favor ingresa un número de sección válido.");
+  useEffect(() => {
+    if (primeraVez.current) {
+      primeraVez.current = false;
       return;
     }
+    window.history.replaceState(null, "", window.location.pathname + direccionDeCobertura(filtros, esMaestro ? municipio : null));
+    const t = setTimeout(() => void consultar(filtros), filtros.q ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [filtros, consultar, esMaestro, municipio]);
 
-    setSaving(true);
-    try {
-      const res = await fetch("/api/electoral/sections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sectionNum: num,
-          municipality: newSectionForm.municipality,
-          colony: newSectionForm.colony.trim() || undefined
-        })
-      });
+  const cambiar = (parcial: Partial<FiltrosDeCobertura>) => setFiltros((f) => ({ ...f, pagina: 1, ...parcial }));
+  const recargar = () => void consultar(filtros);
+  const t = datos.totales;
+  const conteoDeChip: Record<string, number | null> = { todas: null, sin_coordinador: t.sinCoordinador, sin_rg: t.sinRg, sin_rc: t.sinRc, completas: t.completas };
+  const detalle = datos.filas.find((f) => f.seccionId === detalleDe) ?? null;
 
-      if (res.ok) {
-        const data = await res.json();
-        const created = data.section;
-        if (created) {
-          setSectionsList(prev => [...prev, {
-            id: created.id,
-            sectionNum: created.sectionNum,
-            municipality: created.municipality,
-            colonies: created.colonies
-          }].sort((a, b) => a.sectionNum - b.sectionNum));
-          
-          setForm(f => ({ ...f, sectionId: created.id }));
-        }
-        setShowNewSectionModal(false);
-        setNewSectionForm({ sectionNum: "", municipality: "", colony: "" });
-        alert(`✓ Sección #${num} registrada con éxito en la base de datos.`);
-        router.refresh();
-      } else {
-        const data = await res.json();
-        alert(data.error || "Error al registrar la sección");
-      }
-    } catch (_err) {
-      alert("Error de conexión al crear sección");
-    } finally {
-      setSaving(false);
-    }
+  if (!datos.municipio) {
+    return (
+      <div className="max-w-xl mx-auto p-6 text-center space-y-3">
+        <Landmark size={36} className="mx-auto text-gray-400" aria-hidden="true" />
+        <p className="text-base font-bold text-gray-900">Tu cuenta aún no tiene municipio.</p>
+        <p className="text-sm text-gray-600">La cobertura es por municipio: pídele a la administración que te lo asigne.</p>
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-8">
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-sm">
-            <Landmark size={28} />
-          </div>
-          <div>
-            <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight">Estructura Electoral</h1>
-            <p className="text-gray-500 mt-1">Gestión de coordinadores, representantes de casilla y catálogo de secciones.</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button 
+    <div className="max-w-6xl mx-auto px-4 pt-3 pb-6 md:p-6 space-y-4">
+      <header className="space-y-1">
+        <h1 className="hidden md:flex text-3xl font-black text-slate-900 tracking-tight items-center gap-3">
+          <Landmark className="text-indigo-600 h-8 w-8" aria-hidden="true" /> Estructura Electoral
+        </h1>
+        {esMaestro ? (
+          <label className="block">
+            <span className="sr-only">Municipio</span>
+            <select
+              value={municipio ?? ""}
+              onChange={(e) => router.push(`/estructura-electoral?municipio=${encodeURIComponent(e.target.value)}`)}
+              className="w-full md:w-auto min-h-[44px] px-3 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-900"
+            >
+              {MUNICIPIOS_JALISCO.map((m) => (
+                <option key={m.name} value={m.name}>{m.name}</option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <p className="text-sm font-bold text-gray-700">
+            {municipio} · {datos.soloSuEstructura ? "tu estructura" : "todo el municipio"}
+          </p>
+        )}
+        <p className="text-sm text-gray-600">
+          Quién cubre cada sección el día de la elección.
+          {datos.soloSuEstructura ? " Los números cuentan solo lo que nombró tu estructura." : ""} <QueEsEsto termino="cobertura" />
+        </p>
+      </header>
+
+      <section aria-label="Avance" className="bg-white rounded-3xl border border-gray-200 p-4 space-y-3 shadow-sm">
+        <Barra etiqueta="Coordinación" hechas={t.conCoordinador} de={t.secciones} nota="secciones" />
+        <Barra etiqueta="Rep. general (RG)" hechas={t.conRg} de={t.secciones} nota="secciones" />
+        <Barra etiqueta="Rep. de casilla (RC)" hechas={t.rc} de={t.rcEsperados} nota="casillas" />
+        <p className="text-xs text-gray-500">
+          Las casillas se estiman en {CASILLAS_ESTIMADAS_POR_SECCION} por sección mientras no tengamos el catálogo de casillas del INE. <QueEsEsto termino="rgrc" />
+        </p>
+      </section>
+
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0" aria-label="Filtros">
+        {FILTROS_DE_COBERTURA.map((c) => (
+          <button
+            key={c.clave}
             type="button"
-            onClick={() => setShowNewSectionModal(true)}
-            className="flex items-center justify-center gap-2 px-5 py-3 bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-bold rounded-xl shadow-sm transition-all"
+            aria-pressed={filtros.filtro === c.clave}
+            onClick={() => cambiar({ filtro: c.clave })}
+            className={`shrink-0 min-h-[40px] px-3.5 rounded-full border text-sm font-bold whitespace-nowrap cursor-pointer ${filtros.filtro === c.clave ? "bg-slate-900 text-white border-slate-900" : "bg-white text-gray-700 border-gray-200"}`}
           >
-            <Plus size={18} /> Nueva Sección
+            {c.nombre}
+            {conteoDeChip[c.clave] !== null ? ` ${conteoDeChip[c.clave]!.toLocaleString("es-MX")}` : ""}
           </button>
-          <button 
-            type="button"
-            onClick={() => setShowModal(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm transition-all"
-          >
-            <Plus size={18} /> Asignar Representante
-          </button>
-        </div>
+        ))}
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="relative max-w-md w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Buscar por sección o nombre..." 
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div className="text-xs font-bold text-gray-500">
-            {sectionsList.length} Secciones Electorales en Base de Datos
-          </div>
-        </div>
-
-        {filtered.length === 0 ? (
-          <div className="p-16 text-center">
-            <div className="w-20 h-20 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Users size={40} />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">No hay asignaciones</h2>
-            <p className="text-gray-500 mb-6">Aún no hay representantes o coordinadores asignados a las secciones electorales.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[700px]">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider font-bold text-gray-500">
-                  <th className="p-4 pl-6">Sección</th>
-                  <th className="p-4">Representante</th>
-                  <th className="p-4">Rol</th>
-                  <th className="p-4">Fecha de Asignación</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map((r) => (
-                  <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="p-4 pl-6 font-bold text-gray-900 flex items-center gap-3">
-                      <div className="w-8 h-8 bg-indigo-100 text-indigo-700 rounded-lg flex items-center justify-center">
-                        <Map size={16} />
-                      </div>
-                      Sección #{r.sectionNum}
-                    </td>
-                    <td className="p-4 text-gray-700 font-medium">
-                      {r.displayName}
-                    </td>
-                    <td className="p-4">
-                      <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold uppercase rounded-full tracking-wider border border-blue-100">
-                        {r.role.replace("_", " ")}
-                      </span>
-                    </td>
-                    <td className="p-4 text-gray-500 text-sm">
-                      {new Date(r.assignedAt).toLocaleDateString("es-MX")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <div className="relative">
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+        <input
+          type="search"
+          value={filtros.q}
+          onChange={(e) => cambiar({ q: e.target.value })}
+          placeholder="Sección, colonia o nombre…"
+          aria-label="Buscar sección, colonia o persona"
+          className="w-full min-h-[48px] pl-10 pr-10 rounded-2xl border border-gray-200 bg-white text-base text-gray-900 outline-none focus:ring-2 focus:ring-indigo-500 [&::-webkit-search-cancel-button]:hidden"
+        />
+        {filtros.q && (
+          <button type="button" onClick={() => cambiar({ q: "" })} aria-label="Borrar búsqueda" className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full inline-flex items-center justify-center text-gray-500 cursor-pointer">
+            <X size={16} aria-hidden="true" />
+          </button>
         )}
       </div>
 
-      {/* Modal: Asignar Representante */}
-      {showModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
-              <h2 className="text-lg font-bold text-blue-950">Asignar Representante</h2>
-              <button 
-                type="button" 
-                onClick={() => setShowModal(false)} 
-                className="text-gray-500 hover:text-gray-800 w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/60 transition-colors cursor-pointer"
-                title="Cerrar ventana"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <form onSubmit={handleAssign} className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide">Sección Electoral *</label>
-                  <button 
-                    type="button" 
-                    onClick={() => { setShowModal(false); setShowNewSectionModal(true); }}
-                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer"
-                  >
-                    + Registrar Nueva
-                  </button>
-                </div>
-                <PredictiveCombobox
-                  placeholder="Escribe para buscar sección (ej. 2704)..."
-                  required
-                  allowCustom={false}
-                  value={form.sectionId}
-                  onChange={(val) => setForm({ ...form, sectionId: val })}
-                  options={sectionsList.map((s) => ({
-                    value: s.id,
-                    label: `Sección #${s.sectionNum}`,
-                    sublabel: s.municipality || "Sin municipio",
-                    badge: `Sección ${s.sectionNum}`
-                  }))}
-                />
-              </div>
+      <div aria-live="polite" className="text-sm font-semibold text-gray-600 flex items-center gap-2">
+        {cargando && <Loader2 size={15} className="animate-spin" aria-hidden="true" />}
+        {datos.total.toLocaleString("es-MX")} {datos.total === 1 ? "sección" : "secciones"}
+      </div>
 
-              <div>
-                <PredictiveCombobox
-                  label="Usuario / Operador"
-                  required
-                  allowCustom={false}
-                  placeholder="Escribe para buscar usuario..."
-                  value={form.userId}
-                  onChange={(val) => setForm({ ...form, userId: val })}
-                  options={availableUsers.map((u) => ({
-                    value: u.id,
-                    label: u.displayName,
-                    badge: "Usuario"
-                  }))}
-                />
-              </div>
-
-              <div>
-                <PredictiveCombobox
-                  label="Rol en Estructura"
-                  required
-                  allowCustom={false}
-                  value={form.role}
-                  onChange={(val) => setForm({ ...form, role: val })}
-                  options={[
-                    { value: "coordinador", label: "Coordinador de Sección", badge: "Liderazgo" },
-                    { value: "representante_casilla", label: "Representante de Casilla (RC)", badge: "Casilla" },
-                    { value: "representante_general", label: "Representante General (RG)", badge: "General" }
-                  ]}
-                />
-              </div>
-
-              <div className="pt-2 flex gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={saving || !form.sectionId || !form.userId}
-                  className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
-                >
-                  {saving ? <Loader2 size={16} className="animate-spin" /> : "Asignar"}
-                </button>
-              </div>
-            </form>
-          </div>
+      {datos.filas.length === 0 && !cargando ? (
+        <div className="bg-white rounded-3xl border border-gray-200 p-8 text-center space-y-2">
+          <p className="text-base font-bold text-gray-900">{filtros.q || filtros.filtro !== "todas" ? "Ninguna sección con esos filtros." : "Este municipio no tiene secciones cargadas."}</p>
+          {(filtros.q || filtros.filtro !== "todas") && (
+            <button type="button" onClick={() => cambiar({ q: "", filtro: "todas" })} className="min-h-[40px] text-sm font-bold text-indigo-700 cursor-pointer">
+              Quitar filtros
+            </button>
+          )}
         </div>
+      ) : (
+        <ul className={`grid grid-cols-1 md:grid-cols-2 gap-3 transition-opacity ${cargando ? "opacity-60" : ""}`}>
+          {datos.filas.map((fila) => (
+            <li key={fila.seccionId} className="bg-white rounded-3xl border border-gray-200 shadow-sm">
+              <button type="button" onClick={() => setDetalleDe(fila.seccionId)} className="w-full text-left p-4 pb-2 space-y-1.5 cursor-pointer rounded-t-3xl hover:bg-gray-50">
+                <p className="text-base font-black text-gray-900">
+                  Sección {fila.numero}
+                  {fila.colonias.length ? (
+                    <span className="font-semibold text-gray-600 text-sm">
+                      {" "}· {fila.colonias.slice(0, 2).join(", ")}
+                      {fila.colonias.length > 2 ? ` y ${fila.colonias.length - 2} más` : ""}
+                    </span>
+                  ) : null}
+                </p>
+                {ROLES_ELECTORALES.map((r) => (
+                  <LineaDeRol key={r.clave} fila={fila} clave={r.clave} corto={r.corto} />
+                ))}
+                {fila.nombrados.some((n) => !ROLES_ELECTORALES.some((r) => r.clave === n.rol)) && (
+                  <p className="text-xs text-gray-500">Y {fila.nombrados.filter((n) => !ROLES_ELECTORALES.some((r) => r.clave === n.rol)).length} con un rol viejo: tócala para cambiarlo.</p>
+                )}
+              </button>
+              {/* A la izquierda: a la derecha lo tapaba el botón «+» flotante en el teléfono. */}
+              <div className="px-4 pb-4 pt-1 flex justify-start">
+                <button
+                  type="button"
+                  onClick={() => setNombrarEn(fila)}
+                  aria-label={`Nombrar en la sección ${fila.numero}`}
+                  className="min-h-[44px] px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-extrabold inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus size={16} aria-hidden="true" /> Nombrar
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
 
-      {/* Modal: Registrar Nueva Sección Electoral */}
-      {showNewSectionModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={() => setShowNewSectionModal(false)}>
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
-              <h2 className="text-lg font-bold text-blue-950 flex items-center gap-2">
-                <Landmark size={20} className="text-indigo-600" /> Registrar Sección Electoral
-              </h2>
-              <button 
-                type="button" 
-                onClick={() => setShowNewSectionModal(false)} 
-                className="text-gray-500 hover:text-gray-800 w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/60 transition-colors cursor-pointer"
-                title="Cerrar ventana"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <form onSubmit={handleCreateSection} className="p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-16">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Número de Sección Electoral *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  max="9999"
-                  placeholder="Ej. 2800"
-                  value={newSectionForm.sectionNum}
-                  onChange={e => setNewSectionForm({...newSectionForm, sectionNum: e.target.value})}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-bold"
-                />
-              </div>
-
-              <div>
-                <PredictiveCombobox
-                  label="Municipio"
-                  required
-                  allowCustom={false}
-                  value={newSectionForm.municipality}
-                  onChange={(val) => setNewSectionForm({ ...newSectionForm, municipality: val })}
-                  options={MUNICIPIOS_JALISCO.map((m) => ({ value: m.name, label: m.name, badge: `${m.count} secc.` }))}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Colonia / Asentamiento (Opcional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej. Centro / Lomas de la Soledad"
-                  value={newSectionForm.colony}
-                  onChange={e => setNewSectionForm({...newSectionForm, colony: e.target.value})}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setShowNewSectionModal(false)}
-                  className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={saving || !newSectionForm.sectionNum}
-                  className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
-                >
-                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                  Guardar Sección
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {datos.totalPaginas > 1 && (
+        <nav aria-label="Páginas" className="flex items-center justify-between gap-3">
+          <button type="button" disabled={datos.pagina <= 1} onClick={() => setFiltros((f) => ({ ...f, pagina: datos.pagina - 1 }))} className="min-h-[44px] px-4 rounded-xl border border-gray-200 bg-white text-sm font-bold inline-flex items-center gap-1 disabled:opacity-40 cursor-pointer">
+            <ChevronLeft size={16} aria-hidden="true" /> Anteriores
+          </button>
+          <span className="text-sm font-semibold text-gray-600">Página {datos.pagina} de {datos.totalPaginas}</span>
+          <button type="button" disabled={datos.pagina >= datos.totalPaginas} onClick={() => setFiltros((f) => ({ ...f, pagina: datos.pagina + 1 }))} className="min-h-[44px] px-4 rounded-xl border border-gray-200 bg-white text-sm font-bold inline-flex items-center gap-1 disabled:opacity-40 cursor-pointer">
+            Siguientes <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </nav>
       )}
+
+      <Nombrar
+        fila={nombrarEn}
+        onCerrar={() => setNombrarEn(null)}
+        onNombrado={() => {
+          setNombrarEn(null);
+          recargar();
+        }}
+      />
+      <DetalleSeccion
+        fila={nombrarEn ? null : detalle}
+        municipio={municipio}
+        onCerrar={() => setDetalleDe(null)}
+        onCambio={recargar}
+        onNombrar={(f) => setNombrarEn(f)}
+      />
     </div>
   );
 }

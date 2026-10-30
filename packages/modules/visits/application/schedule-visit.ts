@@ -32,29 +32,29 @@ export async function scheduleVisit(
         const contactId = createEntityId(input.contactId);
         const scheduledAt = new Date(input.scheduledAt);
         if (Number.isNaN(scheduledAt.getTime())) {
-          return err(validationError("visit_scheduled_at_invalid", "scheduledAt is not a valid date.", "Scheduled date is invalid."));
+          return err(validationError("visit_scheduled_at_invalid", "scheduledAt is not a valid date.", "La fecha de la visita no es válida."));
         }
         if (scheduledAt.getTime() < now.getTime()) {
-          return err(validationError("visit_scheduled_at_in_past", "scheduledAt cannot be in the past.", "Scheduled date cannot be in the past."));
+          return err(validationError("visit_scheduled_at_in_past", "scheduledAt cannot be in the past.", "La fecha de la visita no puede estar en el pasado."));
         }
 
         const contact = await dependencies.contactsReader.getContactStatus(contactId);
         if (!contact || contact.status !== "active") {
-          return err(notFoundError("contact_not_found", `Contact ${input.contactId} was not found or inactive.`, "Contact was not found."));
+          return err(notFoundError("contact_not_found", `Contact ${input.contactId} was not found or inactive.`, "El ciudadano no fue encontrado o está dado de baja."));
         }
         const territory = await dependencies.territoryReader.getContactTerritory(contactId);
         if (!territory) {
-          return err(notFoundError("contact_territory_not_found", `Contact ${input.contactId} has no territory.`, "Contact territory was not found."));
+          return err(notFoundError("contact_territory_not_found", `Contact ${input.contactId} has no territory.`, "Primero asigna colonia y sección a este ciudadano."));
         }
         if (territory.territoryStatus !== "confirmed") {
-          return err(validationError("contact_territory_not_confirmed", `Contact ${input.contactId} territory is not confirmed.`, "Contact territory is not confirmed."));
+          return err(validationError("contact_territory_not_confirmed", `Contact ${input.contactId} territory is not confirmed.`, "El territorio de este ciudadano aún no está confirmado."));
         }
         const assignment = await dependencies.assignmentsReader.getContactAssignment(contactId);
         if (!assignment) {
-          return err(notFoundError("contact_assignment_not_found", `Contact ${input.contactId} has no assignment.`, "Contact assignment was not found."));
+          return err(notFoundError("contact_assignment_not_found", `Contact ${input.contactId} has no assignment.`, "Primero asigna un responsable a este ciudadano."));
         }
         if (assignment.assignmentStatus !== "active") {
-          return err(validationError("contact_assignment_not_active", `Contact ${input.contactId} assignment is not active.`, "Contact assignment is not active."));
+          return err(validationError("contact_assignment_not_active", `Contact ${input.contactId} assignment is not active.`, "La asignación de este ciudadano no está activa."));
         }
 
         const visit = createVisit({

@@ -566,8 +566,8 @@ export async function runGenerateOfficialSections() {
       await pool.query(
         `
           INSERT INTO electoral_representatives (section_id, user_id, role)
-          VALUES ($1, $2, 'casilla_responsible')
-          ON CONFLICT (section_id, user_id) DO UPDATE SET role = 'casilla_responsible'
+          VALUES ($1, $2, 'representante_casilla')
+          ON CONFLICT (section_id, user_id) DO UPDATE SET role = 'representante_casilla'
         `,
         [sectionId, rcUser.id]
       );
@@ -576,8 +576,8 @@ export async function runGenerateOfficialSections() {
         await pool.query(
           `
             INSERT INTO electoral_representatives (section_id, user_id, role)
-            VALUES ($1, $2, 'general_responsible')
-            ON CONFLICT (section_id, user_id) DO UPDATE SET role = 'general_responsible'
+            VALUES ($1, $2, 'representante_general')
+            ON CONFLICT (section_id, user_id) DO UPDATE SET role = 'representante_general'
           `,
           [sectionId, rgUser.id]
         );

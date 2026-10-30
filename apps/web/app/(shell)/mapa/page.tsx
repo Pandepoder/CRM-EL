@@ -3,16 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 
+import type { PuntoDePeticion } from "@/lib/escucha-social";
 import { ESTADOS_INCIDENCIA } from "@/lib/estados-incidencia";
 import { CENTRO_JALISCO, RECUADRO_JALISCO, TODO_JALISCO, buscarMunicipio, guardarMunicipioPreferido, leerMunicipioPreferido, resolverMunicipio } from "@/lib/municipios-jalisco";
 import { useMunicipioUsuario } from "@/lib/municipio-contexto";
 import { useUsuarioActual } from "@/lib/usuario-contexto";
 
-import { useCapaContactos, useCapaIncidencias, useCapaMunicipios, useCapaSecciones } from "./capas";
+import { useCapaContactos, useCapaIncidencias, useCapaMunicipios, useCapaPeticiones, useCapaSecciones } from "./capas";
 import { CentroDeMando } from "./CentroDeMando";
 import { BLOQUES, SIN_ATLAS, TILE_STYLES, type EstiloDeMapa } from "./constantes";
 import { ControlesDelMapa } from "./ControlesDelMapa";
-import { globoGps, ICONO_GPS } from "./html";
+import { globoGps, globoIncidencia, ICONO_GPS } from "./html";
 import { ModalArchivarResueltas, ModalEditarIncidencia, ModalNuevaIncidencia, type PuntoDeReporte } from "./ModalesDeIncidencia";
 import { PanelDelMapa, type Panel } from "./PanelDelMapa";
 import type { BloqueElectoral, Coloreado, CoberturaContactos, ContactoDelMapa, GrupoDeContactos, ReportFeature, SectionProperties, UserOption } from "./tipos";
@@ -46,7 +47,7 @@ export default function MapaPage() {
 
   const [L, setL] = useState<any>(null);
   const [mapa, setMapa] = useState<any>(null);
-  const [capas, setCapas] = useState<{ incidencias: any; contactos: any; etiquetas: any; base: any } | null>(null);
+  const [capas, setCapas] = useState<{ incidencias: any; contactos: any; peticiones: any; etiquetas: any; base: any } | null>(null);
   const marcadorGps = useRef<any>(null);
   const [zoom, setZoom] = useState(8);
 
@@ -59,6 +60,7 @@ export default function MapaPage() {
   const [estilo, setEstilo] = useState<EstiloDeMapa>("osm");
   const [verIncidencias, setVerIncidencias] = useState(true);
   const [verContactos, setVerContactos] = useState(false);
+  const [verPeticiones, setVerPeticiones] = useState(false);
   const [verSecciones, setVerSecciones] = useState(true);
   const [coloreado, setColoreado] = useState<Coloreado>("municipio");
 
@@ -70,6 +72,7 @@ export default function MapaPage() {
   const [cobertura, setCobertura] = useState<CoberturaContactos | null>(null);
   const [secciones, setSecciones] = useState<any>(null);
   const [usuarios, setUsuarios] = useState<UserOption[] | null>(null);
+  const [equipos, setEquipos] = useState<Array<{ id: string; name: string; memberCount?: number }> | null>(null);
 
   // Selección y acciones.
   const [seccion, setSeccion] = useState<SectionProperties | null>(null);
@@ -128,8 +131,9 @@ export default function MapaPage() {
       // Panes separados fijan el orden por z-index en vez de por orden de alta: las incidencias,
       // siempre encima de los contactos. Todo queda dentro del contenedor del mapa (`isolation`).
       m.createPane("contactsPane").style.zIndex = "580";
+      m.createPane("peticionesPane").style.zIndex = "610";
       m.createPane("incidentsPane").style.zIndex = "640";
-      setCapas({ incidencias: Lf.layerGroup().addTo(m), contactos: Lf.layerGroup().addTo(m), etiquetas: Lf.layerGroup().addTo(m), base });
+      setCapas({ incidencias: Lf.layerGroup().addTo(m), contactos: Lf.layerGroup().addTo(m), peticiones: Lf.layerGroup().addTo(m), etiquetas: Lf.layerGroup().addTo(m), base });
       (window as any).__leafletMap = m;
       if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => m.invalidateSize()).observe(nodo);
       m.on("zoomend", () => setZoom(m.getZoom()));
@@ -220,6 +224,20 @@ export default function MapaPage() {
     void pedirReportes();
   }, [pedirReportes]);
 
+  // Peticiones de Escucha Social (F3.3): se piden la primera vez que se enciende la capa, no antes.
+  const [peticiones, setPeticiones] = useState<PuntoDePeticion[] | null>(null);
+  useEffect(() => {
+    if (!verPeticiones || peticiones) return;
+    let vigente = true;
+    fetch("/api/map/escucha", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d) => vigente && setPeticiones(d.puntos ?? []))
+      .catch(() => vigente && avisar("No se pudieron leer las peticiones. Vuelve a encender la capa en un momento."));
+    return () => {
+      vigente = false;
+    };
+  }, [verPeticiones, peticiones]);
+
   // Secciones del municipio elegido, recordadas por municipio: volver a uno ya visto es instantáneo.
   // En «todo Jalisco» no se piden: se dibujan los 125 municipios del catálogo (4.5).
   const seccionesCache = useRef<Record<string, { en: number; data: any }>>({});
@@ -291,14 +309,18 @@ export default function MapaPage() {
 
   // La lista de personas para asignar solo se descarga al abrir un formulario que la usa.
   const pedirUsuarios = useCallback(async () => {
-    if (usuarios) return;
+    if (usuarios && equipos) return;
     try {
-      const res = await fetch("/api/map/users", { cache: "no-store" });
-      if (res.ok) setUsuarios((await res.json()).users || []);
+      const [rUsuarios, rEquipos] = await Promise.all([
+        usuarios ? null : fetch("/api/map/users", { cache: "no-store" }),
+        equipos ? null : fetch("/api/map/teams", { cache: "no-store" })
+      ]);
+      if (rUsuarios?.ok) setUsuarios((await rUsuarios.json()).users || []);
+      if (rEquipos?.ok) setEquipos((await rEquipos.json()).teams || []);
     } catch {
-      // El formulario funciona sin la lista: la asignación queda vacía.
+      // El formulario funciona sin las listas: la asignación queda vacía.
     }
-  }, [usuarios]);
+  }, [usuarios, equipos]);
 
   // ---------------------------------------------------------------------------------------------
   // Capas.
@@ -324,6 +346,7 @@ export default function MapaPage() {
   useCapaMunicipios({ L, mapa, visible: verSecciones && municipio === TODO_JALISCO, alElegir: cambiarMunicipio });
   useCapaIncidencias({ L, mapa, capa: capas?.incidencias, reportes, agrupar: true, compacto: verSecciones && coloreado === "electoral", zoom, visible: verIncidencias });
   useCapaContactos({ L, mapa, capa: capas?.contactos, contactos: contactos.features, grupos: contactos.grupos, visible: verContactos });
+  useCapaPeticiones({ L, mapa, capa: capas?.peticiones, puntos: peticiones ?? [], zoom, visible: verPeticiones });
 
   // ---------------------------------------------------------------------------------------------
   // Acciones.
@@ -452,6 +475,40 @@ export default function MapaPage() {
       { enableHighAccuracy: true, timeout: 8000 }
     );
   }, [mapa, puedeReportar, reportar, avisar]);
+
+  // Llegar con ?incidencia=<id> (el botón del mapa en Incidencias): centra y abre su globo. Si no está entre
+  // las que ve quien entra, se dice, sin confirmar si existe. El parámetro se retira en cuanto se usa.
+  const incidenciaPedida = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (incidenciaPedida.current === undefined) {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("incidencia");
+      incidenciaPedida.current = id && /^[0-9a-f-]{36}$/i.test(id) ? id : null;
+      if (id) {
+        params.delete("incidencia");
+        const resto = params.toString();
+        window.history.replaceState({}, "", window.location.pathname + (resto ? `?${resto}` : ""));
+      }
+    }
+    const id = incidenciaPedida.current;
+    if (!id || !L || !mapa || reportes.length === 0) return;
+    incidenciaPedida.current = null;
+    const r = reportes.find((x) => x.properties.id === id);
+    if (!r) {
+      avisar("No encontramos esa incidencia o no es de tu equipo.");
+      return;
+    }
+    const [lng, lat] = r.geometry.coordinates;
+    setVista("mapa");
+    setPanel("none");
+    setVerIncidencias(true);
+    // El globo se abre en el punto con el mismo contenido que el del marcador: los marcadores se vuelven a
+    // dibujar al cambiar el zoom, y buscar el suyo llegaba antes de que existiera.
+    mapa.once("moveend", () => {
+      L.popup({ closeButton: true, maxWidth: 320, offset: [0, -20] }).setLatLng([lat, lng]).setContent(globoIncidencia(r, 0, 1)).openOn(mapa);
+    });
+    mapa.flyTo([lat, lng], 17, { duration: 1.0 });
+  }, [L, mapa, reportes, avisar]);
 
   const centrarEn = (r: ReportFeature) => {
     const [lng, lat] = r.geometry.coordinates;
@@ -623,6 +680,9 @@ export default function MapaPage() {
           verContactos={verContactos}
           onVerContactos={setVerContactos}
           cobertura={cobertura}
+          verPeticiones={verPeticiones}
+          onVerPeticiones={setVerPeticiones}
+          peticionesEnMapa={peticiones ? peticiones.length : null}
           verSecciones={verSecciones}
           onVerSecciones={setVerSecciones}
           coloreado={coloreado}
@@ -711,6 +771,7 @@ export default function MapaPage() {
         punto={puntoDeReporte}
         secciones={secciones}
         usuarios={usuarios ?? []}
+        equipos={equipos ?? []}
         usuarioActualId={usuario?.id ?? null}
         onCerrar={() => setPuntoDeReporte(null)}
         onGuardada={(texto) => {

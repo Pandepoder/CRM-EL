@@ -33,7 +33,7 @@ describe("acciones de la auditoría", () => {
       // Las que pasan por un ayudante: `auditar(tx, actor, "…")` y `auditarDesdeLaConsola(cliente, "…")`.
       for (const m of texto.matchAll(/auditar(?:DesdeLaConsola)?\(\s*\w+,\s*(?:\w+,\s*)?"([a-z_.]+)"/g)) escritas.add(m[1]!);
       // Y las que se eligen con un ternario: `activa ? "user.activate" : "user.deactivate"`.
-      for (const m of texto.matchAll(/\?\s*"((?:user|admin|agenda)\.[a-z_.]+)"\s*:\s*"((?:user|admin|agenda)\.[a-z_.]+)"/g)) {
+      for (const m of texto.matchAll(/\?\s*"((?:user|admin|agenda|social|electoral|inventory)\.[a-z_.]+)"\s*:\s*"((?:user|admin|agenda|social|electoral|inventory)\.[a-z_.]+)"/g)) {
         escritas.add(m[1]!);
         escritas.add(m[2]!);
       }

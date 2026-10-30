@@ -14,7 +14,24 @@ import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 const TOPE_ADMINISTRACION = 50_000;
 const TOPE_ESTRUCTURA = 2_000;
 
+/** Lo que pide el Directorio: un formulario `POST` con el texto buscado en el cuerpo, nunca en la dirección (O2). */
+export async function POST(req: NextRequest) {
+  let q: string | null = null;
+  try {
+    const valor = (await req.formData()).get("q");
+    q = typeof valor === "string" ? valor : null;
+  } catch {
+    return new Response("La petición no trae un formulario válido.", { status: 400, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  }
+  return exportar(q);
+}
+
+/** Se conserva para los enlaces y scripts que ya lo usan (`scripts/qa-suite.ts`); la pantalla ya no lo llama. */
 export async function GET(req: NextRequest) {
+  return exportar(new URL(req.url).searchParams.get("q"));
+}
+
+async function exportar(q: string | null) {
   const actor = await actorFromSession();
   if (!actor) {
     return unauthorized();
@@ -24,8 +41,6 @@ export async function GET(req: NextRequest) {
   // mismo alcance que el directorio. Antes Dirección exportaba la base entera;
   // ahora exporta lo de sus equipos, y quien no tiene equipo, lo suyo.
   const alcance = await resolveUserNetworkScope(actor.actorId);
-  const { searchParams } = new URL(req.url);
-  const q = searchParams.get("q");
 
   const db = getDatabaseClient();
   const conditions = [eq(schema.contacts.status, "active")];

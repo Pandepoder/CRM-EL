@@ -28,6 +28,15 @@ export const RESULTADOS_ACTIVIDAD: Record<string, ResultadoActividad> = {
 
 export const CLAVES_RESULTADO = Object.keys(RESULTADOS_ACTIVIDAD);
 
+/**
+ * Lo más que puede medir lo que se escribe al cerrar una visita (`visitSummaryMaxLength` del módulo de
+ * visitas; `resultados-rapidos.test.ts` comprueba que coincidan). La conclusión de una actividad admite
+ * 4000, pero si la actividad cierra una visita manda la de la visita: el cuadro de texto no deja escribir
+ * de más, en vez de rechazarlo al guardar.
+ */
+export const LARGO_MAXIMO_RESUMEN_VISITA = 1000;
+export const LARGO_MAXIMO_CONCLUSION = 4000;
+
 export function esResultadoValido(valor: unknown): valor is string {
   return typeof valor === "string" && Object.hasOwn(RESULTADOS_ACTIVIDAD, valor);
 }

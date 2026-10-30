@@ -11,6 +11,7 @@ import {
   deleteUserWithoutDataAction
 } from "./actions";
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
+import { avisar } from "@/lib/avisos";
 
 /**
  * Las acciones sobre una cuenta que esta sesión gobierna (etapa 6). Cambiar de municipio y eliminar
@@ -44,11 +45,11 @@ export function UserActions({
     setLoading(true);
     try {
       const r = await accion();
-      if (!r.ok) alert(r.error);
-      else if (r.mensaje) alert(r.mensaje);
+      if (!r.ok) avisar(r.error);
+      else if (r.mensaje) avisar(r.mensaje, "exito");
       return r.ok;
     } catch {
-      alert("No se pudo completar. Revisa tu conexión e intenta de nuevo.");
+      avisar("No se pudo completar. Revisa tu conexión e intenta de nuevo.");
       return false;
     } finally {
       setLoading(false);
@@ -240,7 +241,7 @@ export function UserActions({
               <button 
                 type="button"
                 onClick={() => setIsResettingPassword(false)} 
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-11 h-11 shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center transition-colors cursor-pointer"
                 title="Cerrar ventana"
               >
                 <X size={16} />

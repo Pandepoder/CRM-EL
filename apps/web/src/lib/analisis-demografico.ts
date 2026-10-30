@@ -4,6 +4,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { esValorCifrado, schema } from "@tonala/shared/database";
 
 import { inicioDeDia, ZONA_HORARIA } from "@/lib/actividades";
+import { areasDe } from "@/lib/areas-de-participacion";
 import { condicionDeEquipos } from "@/lib/alcance-municipal";
 import { contactIdRestriction, contactosVisibles } from "@/lib/contact-visibility";
 import { getDatabaseClient } from "@/lib/db-client";
@@ -352,7 +353,9 @@ export async function analisisDemografico(scope: UserNetworkScope, opciones: { a
     horario: conEtiquetas(horario, ETIQUETAS_HORARIO, ORDEN_HORARIO),
     disponibilidad,
     perfiles: agrupar(descifrados.map((d) => d.perfil), 10),
-    areas: agrupar(descifrados.map((d) => d.area), 10),
+    // Cada área por separado y con su nombre (A2): lo importado trae varias separadas por comas, y una
+    // persona con dos áreas cuenta en las dos.
+    areas: agrupar(descifrados.flatMap((d) => areasDe(d.area)), 10),
     profesiones: agrupar(descifrados.map((d) => d.profesion), 10),
     colonias: colonias.slice(0, 10),
     municipios: porMunicipio

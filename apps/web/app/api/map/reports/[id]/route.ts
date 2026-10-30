@@ -9,9 +9,12 @@ import { resolveUserNetworkScope } from "@/lib/network-hierarchy";
 import {
   MOTIVO_ACTUALIZAR,
   MOTIVO_BORRAR,
+  MOTIVO_BORRAR_AVISO,
   MOTIVO_ES_ACTIVIDAD,
+  MOTIVO_RETIRADO,
   cargarContextoIncidencia,
   motivoAsignacionFueraDeAlcance,
+  motivoSiAvisoPorAceptar,
   puedeSobreIncidencia
 } from "@/lib/permisos-incidencias";
 import { schema } from "@tonala/shared/database";
@@ -42,12 +45,17 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       return NextResponse.json({ error: "El cuerpo de la petición no es JSON válido." }, { status: 400 });
     }
 
-    const { incidencia, esAdmin, equipos, personas } = await cargarContextoIncidencia(id, actor.actorId);
+    const { incidencia, esAdmin, equipos, personas, coordina } = await cargarContextoIncidencia(id, actor.actorId);
     if (!incidencia) {
       return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
     if (!puedeSobreIncidencia("actualizar", incidencia, actor.actorId, esAdmin, equipos, personas)) {
       return NextResponse.json({ error: MOTIVO_ACTUALIZAR }, { status: 403 });
+    }
+    // Un aviso «por aceptar» lo acepta quien coordina, no quien avisó (D9).
+    const motivoAviso = motivoSiAvisoPorAceptar(incidencia, actor.actorId, coordina, typeof body.status === "string" ? body.status : body.status === undefined ? undefined : "", equipos);
+    if (motivoAviso) {
+      return NextResponse.json({ error: motivoAviso, code: "por_aceptar" }, { status: 403 });
     }
     if (incidencia.activityTypeId) {
       return NextResponse.json({ error: MOTIVO_ES_ACTIVIDAD, code: "es_actividad" }, { status: 409 });
@@ -127,6 +135,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       const cerrada = ESTADOS_INCIDENCIA[status]!.cerrada;
       updatePayload.closedAt = cerrada ? new Date() : null;
       updatePayload.closedByUserId = cerrada ? actor.actorId : null;
+      // Quien avisó y lo retira: queda rechazado, con el motivo, y no se borra.
+      if (!coordina && status === "rechazada" && incidencia.createdByUserId === actor.actorId) updatePayload.cancelReason = MOTIVO_RETIRADO;
     }
 
     if (district !== undefined) {
@@ -173,9 +183,13 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
   const id = params.id;
 
   try {
-    const { incidencia, esAdmin, equipos, personas } = await cargarContextoIncidencia(id, actor.actorId);
+    const { incidencia, esAdmin, equipos, personas, coordina } = await cargarContextoIncidencia(id, actor.actorId);
     if (!incidencia) {
       return NextResponse.json({ error: "Report not found" }, { status: 404 });
+    }
+    // Borrar es de verdad: quien no coordina (y ahora puede avisar, D9) no borra su aviso; lo retira.
+    if (!coordina) {
+      return NextResponse.json({ error: MOTIVO_BORRAR_AVISO }, { status: 403 });
     }
     if (!puedeSobreIncidencia("borrar", incidencia, actor.actorId, esAdmin, equipos, personas)) {
       return NextResponse.json({ error: MOTIVO_BORRAR }, { status: 403 });

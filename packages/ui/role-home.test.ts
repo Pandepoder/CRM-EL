@@ -19,14 +19,13 @@ describe("barra de abajo del teléfono", () => {
     expect(barra(rol).slice(0, 2)).toEqual(["mapa", "equipo"]);
   });
 
-  it.each(ROLES)("%s: cuatro entradas, todas permitidas, sin repetir, sin Perfil ni Ajustes", (rol) => {
+  it.each(ROLES)("%s: cuatro entradas, todas permitidas, sin repetir, sin Perfil", (rol) => {
     const claves = barra(rol);
     const permitidas = new Set(menuDe(rol).map((i) => i.key));
     expect(claves).toHaveLength(LUGARES_EN_BARRA_MOVIL);
     expect(new Set(claves).size).toBe(claves.length);
     for (const clave of claves) expect(permitidas.has(clave)).toBe(true);
     expect(claves).not.toContain("perfil");
-    expect(claves).not.toContain("settings");
   });
 
   it("el brigadista tiene Escucha Social a mano, que es lo que sí levanta en campo", () => {
@@ -40,7 +39,7 @@ describe("barra de abajo del teléfono", () => {
   });
 
   it("un rol sin lista usa el orden del menú", () => {
-    const menu = [{ key: "a" }, { key: "b" }, { key: "settings" }, { key: "c" }, { key: "d" }, { key: "e" }];
+    const menu = [{ key: "a" }, { key: "b" }, { key: "perfil" }, { key: "c" }, { key: "d" }, { key: "e" }];
     expect(itemsDeBarraMovil("rol-nuevo", menu).map((i) => i.key)).toEqual(["a", "b", "c", "d"]);
   });
 });

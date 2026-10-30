@@ -17,6 +17,7 @@ export const ACCIONES: Record<string, string> = {
   "user.sessions_closed": "Sesiones cerradas",
   "user.rename": "Cambio de nombre",
   "user.municipality_change": "Cambio de municipio",
+  "user.daily_goal_set": "Meta del día fijada",
   "user.delete": "Cuenta eliminada",
   "admin.master_named": "Administrador maestro nombrado",
   "admin.master_replaced": "Administrador maestro reemplazado",
@@ -45,7 +46,19 @@ export const ACCIONES: Record<string, string> = {
   "agenda.catalog.update": "Opción de catálogo editada",
   "agenda.catalog.archive": "Opción de catálogo archivada",
   "agenda.catalog.restore": "Opción de catálogo restaurada",
-  "agenda.catalog.merge": "Opciones de catálogo fusionadas"
+  "agenda.catalog.merge": "Opciones de catálogo fusionadas",
+  // Plan de auditoría de menús, fase 3 (Escucha Social).
+  "social.status_change": "Cambio de estado de una petición",
+  "social.turn": "Petición turnada a una dependencia",
+  "social.unturn": "Turno de una petición quitado",
+  // Plan de auditoría de menús, fase 4 (Estructura Electoral).
+  "electoral.assign": "Nombramiento en una sección electoral",
+  "electoral.change": "Cambio de rol o casilla de un nombramiento",
+  "electoral.remove": "Nombramiento quitado de una sección",
+  // Plan de auditoría de menús, fase 5 (Logística).
+  "inventory.edit": "Artículo de logística editado",
+  "inventory.archive": "Artículo de logística archivado",
+  "inventory.restore": "Artículo de logística devuelto a la lista"
 };
 
 /** Grupos del filtro de la pantalla: prefijos de acción. */
@@ -55,5 +68,8 @@ export const GRUPOS_DE_ACCIONES = [
   { clave: "consultas", etiqueta: "Consultas del maestro", prefijos: ["master.view"] },
   { clave: "exportaciones", etiqueta: "Exportaciones", prefijos: ["contacts.export"] },
   { clave: "padron", etiqueta: "Ciudadanos", prefijos: ["contacts."] },
-  { clave: "incidencias", etiqueta: "Incidencias y agenda", prefijos: ["incidents.", "agenda."] }
+  { clave: "incidencias", etiqueta: "Incidencias y agenda", prefijos: ["incidents.", "agenda."] },
+  { clave: "escucha", etiqueta: "Escucha Social", prefijos: ["social."] },
+  { clave: "estructura", etiqueta: "Estructura Electoral", prefijos: ["electoral."] },
+  { clave: "logistica", etiqueta: "Logística", prefijos: ["inventory."] }
 ] as const;

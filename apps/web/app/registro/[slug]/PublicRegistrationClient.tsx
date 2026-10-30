@@ -9,6 +9,7 @@ import {
 import { EnviosPendientes } from "@/components/EnviosPendientes";
 import { enviarOEncolar, nuevaClave, TEXTO_DE_ESPERA } from "@/lib/cola-de-envios";
 import { MUNICIPIOS_JALISCO } from "@/lib/municipios-jalisco";
+import { AREAS_DE_PARTICIPACION } from "@/lib/areas-de-participacion";
 
 /** Lo que el modo evento recuerda en este teléfono mientras dura el evento. */
 type Evento = { municipio: string; seccion: string; registrados: number };
@@ -103,6 +104,13 @@ export default function PublicRegistrationClient({
   /** Guardado en este teléfono, esperando señal. */
   const [enEspera, setEnEspera] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  /** El teléfono ya estaba registrado: no es un error de la persona, se le dice con calma (F3). */
+  const [yaRegistrado, setYaRegistrado] = useState(false);
+  /** A quién se acaba de registrar, para confirmárselo con su nombre (F3). */
+  const [confirmado, setConfirmado] = useState<{ nombre: string; telefono: string } | null>(null);
+  // Fuera del modo evento la persona llena SUS datos: el navegador puede sugerirlos. En modo evento el
+  // teléfono es de quien organiza y pasan muchas personas: nada de autocompletar.
+  const auto = (valor: string) => (modoEvento ? "off" : valor);
 
   /** «Registrar a otra persona»: campos limpios; en modo evento, con municipio y sección del evento. */
   function registrarOtra() {
@@ -113,8 +121,13 @@ export default function PublicRegistrationClient({
     setSubmitted(false);
     setEnEspera(null);
     setErrorMessage("");
+    setYaRegistrado(false);
+    setConfirmado(null);
     window.scrollTo({ top: 0 });
   }
+
+  /** ¿Contestó algo de la encuesta? Si sí, se envía aunque la haya plegado: antes se perdía (F7). */
+  const encuestaContestada = Object.values(survey).some((v) => v.trim() !== "");
 
   const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
   const months = [
@@ -135,6 +148,7 @@ export default function PublicRegistrationClient({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMessage("");
+    setYaRegistrado(false);
 
     if (!formData.firstName.trim() || !formData.phone.trim()) {
       setErrorMessage("Por favor ingresa tu nombre y número de teléfono.");
@@ -154,7 +168,7 @@ export default function PublicRegistrationClient({
       cuerpo: {
         slug,
         ...formData,
-        survey: showSurvey ? survey : null,
+        survey: encuestaContestada ? survey : null,
         clientRequestId: clave,
         ...(modoEvento ? { modo: "evento" } : {})
       },
@@ -167,8 +181,17 @@ export default function PublicRegistrationClient({
     if (r.estado === "enviado" || r.estado === "encolado") {
       if (r.estado === "encolado") setEnEspera(TEXTO_DE_ESPERA[r.motivo]);
       if (evento) guardarEvento({ ...evento, registrados: evento.registrados + 1 });
+      setConfirmado({ nombre: formData.firstName.trim().split(/\s+/)[0] ?? "", telefono: formData.phone.trim() });
       setSubmitted(true);
       window.scrollTo({ top: 0 });
+      return;
+    }
+    // La regla no cambia (el registro público no acepta un teléfono repetido), pero ya no se dice como un
+    // error en rojo: quien lo ve casi siempre ya estaba en la red. Solo lo dice el servidor a quien opera el
+    // enlace con su sesión (modo evento); sin sesión, un repetido responde como un registro nuevo.
+    if (r.estado === "rechazado" && r.http === 409 && r.campo === "phone") {
+      setYaRegistrado(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     setErrorMessage(r.error);
@@ -177,7 +200,7 @@ export default function PublicRegistrationClient({
     else window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  const estiloCampo = "w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500";
+  const estiloCampo = "w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500";
 
   // Modo evento, antes de empezar: quien opera el teléfono fija municipio y sección una sola vez.
   if (modoEvento && configurandoEvento) {
@@ -244,10 +267,19 @@ export default function PublicRegistrationClient({
               </div>
 
               <div className="space-y-2">
-                <h2 className="text-2xl font-black text-blue-950">¡Muchas Gracias!</h2>
+                <h2 className="text-2xl font-black text-blue-950">
+                  {confirmado?.nombre ? `¡Listo, ${confirmado.nombre}!` : "¡Muchas gracias!"}
+                </h2>
                 <p className="text-sm font-medium text-gray-600">
-                  Tus datos han sido registrados correctamente en la red de <strong>{hostUser.displayName}</strong>.
+                  {modoEvento ? "Quedó registrado" : "Quedaste registrado"} en la red de <strong>{hostUser.displayName}</strong>.
                 </p>
+                {/* Fuera del modo evento se repite el teléfono, para que la persona note si lo escribió mal. En
+                    modo evento no: el teléfono pasa a la siguiente persona y vería el número de la anterior. */}
+                {!modoEvento && confirmado?.telefono && (
+                  <p className="text-sm font-semibold text-gray-700">
+                    Te buscaremos por WhatsApp al <strong>{confirmado.telefono}</strong>.
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -296,7 +328,7 @@ export default function PublicRegistrationClient({
           <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 bg-cyan-400/10 rounded-full blur-2xl" />
           
           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-bold text-cyan-200 border border-white/15 mb-3">
-            <Sparkles size={13} /> Registro Social
+            <Sparkles size={13} /> Registro
           </span>
 
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">
@@ -310,8 +342,14 @@ export default function PublicRegistrationClient({
 
         {/* FORM */}
         <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-7">
+          {yaRegistrado && (
+            <div role="status" className="p-4 bg-amber-50 border border-amber-200 text-amber-950 text-sm font-semibold rounded-2xl space-y-1">
+              <p className="font-extrabold flex items-center gap-2"><CheckCircle size={16} className="shrink-0 text-amber-600" aria-hidden="true" /> Este teléfono ya está registrado</p>
+              <p>Si es el tuyo, ya estás en la red: no necesitas hacer nada más. Si te equivocaste al escribirlo, corrígelo y vuelve a enviar.</p>
+            </div>
+          )}
           {errorMessage && (
-            <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-2xl flex items-center gap-2">
+            <div role="alert" className="p-4 bg-rose-50 border border-rose-200 text-rose-800 text-sm font-bold rounded-2xl flex items-center gap-2">
               <AlertCircle size={16} className="shrink-0 text-rose-600" />
               <span>{errorMessage}</span>
             </div>
@@ -330,10 +368,11 @@ export default function PublicRegistrationClient({
                 <input
                   type="text"
                   required
-                  placeholder="Tu nombre completo"
+                  name="firstName" autoComplete={auto("given-name")}
+                  placeholder="Ej. María Fernanda"
                   data-campo="firstName" value={formData.firstName}
                   onChange={e => setFormData({ ...formData, firstName: e.target.value })}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -342,9 +381,10 @@ export default function PublicRegistrationClient({
                 <input
                   type="text"
                   placeholder="Apellido paterno"
+                  name="lastName" autoComplete={auto("family-name")}
                   value={formData.lastName}
                   onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -353,9 +393,10 @@ export default function PublicRegistrationClient({
                 <input
                   type="text"
                   placeholder="Apellido materno"
+                  name="maternalLastName" autoComplete={auto("additional-name")}
                   value={formData.maternalLastName}
                   onChange={e => setFormData({ ...formData, maternalLastName: e.target.value })}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -367,9 +408,10 @@ export default function PublicRegistrationClient({
                     type="tel"
                     required
                     placeholder="10 dígitos (ej. 3312345678)"
+                    name="phone" autoComplete={auto("tel-national")} inputMode="tel"
                     data-campo="phone" value={formData.phone}
                     onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full pl-9 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-9 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -381,9 +423,10 @@ export default function PublicRegistrationClient({
                   <input
                     type="email"
                     placeholder="correo@ejemplo.com"
+                    name="email" autoComplete={auto("email")} inputMode="email"
                     data-campo="email" value={formData.email}
                     onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full pl-9 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-9 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -400,7 +443,7 @@ export default function PublicRegistrationClient({
                   required
                   data-campo="birthDay" value={formData.birthDay}
                   onChange={e => setFormData({ ...formData, birthDay: e.target.value })}
-                  className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
+                  className="p-2.5 bg-white border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-800 outline-none"
                 >
                   <option value="">Día *</option>
                   {days.map(d => (
@@ -412,7 +455,7 @@ export default function PublicRegistrationClient({
                   required
                   value={formData.birthMonth}
                   onChange={e => setFormData({ ...formData, birthMonth: e.target.value })}
-                  className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
+                  className="p-2.5 bg-white border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-800 outline-none"
                 >
                   <option value="">Mes *</option>
                   {months.map(m => (
@@ -421,11 +464,15 @@ export default function PublicRegistrationClient({
                 </select>
 
                 <input
-                  type="number"
-                  placeholder="Año (Opcional)"
-                  value={formData.birthYear}
-                  onChange={e => setFormData({ ...formData, birthYear: e.target.value })}
-                  className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 outline-none"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  name="birthYear" autoComplete={auto("bday-year")}
+                  aria-label="Año de nacimiento (opcional)"
+                  placeholder="Año"
+                  data-campo="birthYear" value={formData.birthYear}
+                  onChange={e => setFormData({ ...formData, birthYear: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+                  className="p-2.5 bg-white border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-800 outline-none"
                 />
               </div>
             </div>
@@ -450,7 +497,7 @@ export default function PublicRegistrationClient({
                   placeholder="Escribe tu colonia o fraccionamiento"
                   value={formData.colony}
                   onChange={e => setFormData({ ...formData, colony: e.target.value })}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -465,7 +512,7 @@ export default function PublicRegistrationClient({
                   required
                   value={formData.municipality}
                   onChange={e => setFormData({ ...formData, municipality: e.target.value })}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Selecciona tu municipio…</option>
                   {MUNICIPIOS_JALISCO.map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}
@@ -483,7 +530,7 @@ export default function PublicRegistrationClient({
                     placeholder="Viene en la credencial INE"
                     value={formData.sectionNum}
                     onChange={e => setFormData({ ...formData, sectionNum: e.target.value.replace(/\D/g, "") })}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               )}
@@ -493,9 +540,10 @@ export default function PublicRegistrationClient({
                 <input
                   type="text"
                   placeholder="Calle, número exterior/interior"
+                  name="address" autoComplete={auto("address-line1")}
                   value={formData.address}
                   onChange={e => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -505,7 +553,7 @@ export default function PublicRegistrationClient({
           <div className="space-y-4">
             <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
               <Briefcase size={16} className="text-blue-600" />
-              <h3 className="font-extrabold text-sm text-gray-900 uppercase tracking-wider">3. Ocupación y Participación</h3>
+              <h3 className="font-extrabold text-sm text-gray-900 uppercase tracking-wider">3. Ocupación y participación <span className="normal-case tracking-normal font-bold text-gray-500">(opcional)</span></h3>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -516,7 +564,7 @@ export default function PublicRegistrationClient({
                   placeholder="¿A qué te dedicas?"
                   value={formData.profession}
                   onChange={e => setFormData({ ...formData, profession: e.target.value })}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-900 outline-none focus:bg-white"
                 />
               </div>
 
@@ -525,14 +573,11 @@ export default function PublicRegistrationClient({
                 <select
                   value={formData.participatingArea}
                   onChange={e => setFormData({ ...formData, participatingArea: e.target.value })}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none cursor-pointer"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-bold text-gray-900 outline-none cursor-pointer"
                 >
-                  <option value="General">Participación General</option>
-                  <option value="Vecinal">Comité Vecinal y Mejoras</option>
-                  <option value="Deporte">Deportes y Juventud</option>
-                  <option value="Cultura">Cultura y Tradiciones</option>
-                  <option value="Comercio">Comercio y Emprendimiento</option>
-                  <option value="Social">Apoyo Social y Familias</option>
+                  {AREAS_DE_PARTICIPACION.map((a) => (
+                    <option key={a.clave} value={a.clave}>{a.nombre}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -549,7 +594,7 @@ export default function PublicRegistrationClient({
               placeholder="Comparte lo que gustes (opcional)..."
               value={formData.knowMeBetter}
               onChange={e => setFormData({ ...formData, knowMeBetter: e.target.value })}
-              className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-medium text-gray-900 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 bg-white border border-gray-200 rounded-xl text-base sm:text-sm font-medium text-gray-900 outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -565,8 +610,12 @@ export default function PublicRegistrationClient({
                   <ClipboardList size={14} />
                 </span>
                 <div>
-                  <h4 className="font-extrabold text-xs text-indigo-950">Encuesta Opcional de Opinión (2 minutos)</h4>
-                  <p className="text-[11px] text-indigo-700 font-medium">Ayúdanos contestando estas preguntas sobre tu municipio.</p>
+                  <h4 className="font-extrabold text-sm text-indigo-950">Encuesta opcional de opinión (2 minutos)</h4>
+                  <p className="text-xs text-indigo-700 font-medium">
+                    {encuestaContestada && !showSurvey
+                      ? "Ya contestaste algunas: se envían con tu registro."
+                      : "Ayúdanos contestando estas preguntas sobre tu municipio."}
+                  </p>
                 </div>
               </div>
               {showSurvey ? <ChevronUp size={16} className="text-indigo-600" /> : <ChevronDown size={16} className="text-indigo-600" />}
@@ -580,7 +629,7 @@ export default function PublicRegistrationClient({
                   <select
                     value={survey.colonyPriorityNeed}
                     onChange={e => setSurvey({ ...survey, colonyPriorityNeed: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none"
+                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-semibold text-gray-800 outline-none"
                   >
                     <option value="">Selecciona una opción</option>
                     <option value="Agua potable o drenaje">Agua potable o drenaje</option>
@@ -601,7 +650,7 @@ export default function PublicRegistrationClient({
                       placeholder="Especifica qué necesita mejorar..."
                       value={survey.colonyPriorityOther}
                       onChange={e => setSurvey({ ...survey, colonyPriorityOther: e.target.value })}
-                      className="w-full p-2 bg-gray-50 border border-gray-200 rounded-xl text-xs"
+                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm"
                     />
                   )}
                 </div>
@@ -612,7 +661,7 @@ export default function PublicRegistrationClient({
                   <select
                     value={survey.tonalaValues}
                     onChange={e => setSurvey({ ...survey, tonalaValues: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none"
+                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-semibold text-gray-800 outline-none"
                   >
                     <option value="">Selecciona una opción</option>
                     <option value="Su gente y sentido de comunidad">Su gente y sentido de comunidad</option>
@@ -623,6 +672,17 @@ export default function PublicRegistrationClient({
                     <option value="Sus barrios y comunidades">Sus barrios y comunidades</option>
                     <option value="Otra">Otra (escribir abajo)</option>
                   </select>
+                  {/* Decía «escribir abajo» y no había dónde escribir. */}
+                  {survey.tonalaValues === "Otra" && (
+                    <input
+                      type="text"
+                      placeholder="¿Qué es lo que más valoras?"
+                      maxLength={300}
+                      value={survey.tonalaValuesOther}
+                      onChange={e => setSurvey({ ...survey, tonalaValuesOther: e.target.value })}
+                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm"
+                    />
+                  )}
                 </div>
 
                 {/* P3 */}
@@ -658,7 +718,7 @@ export default function PublicRegistrationClient({
                   <select
                     value={survey.projectExpectations}
                     onChange={e => setSurvey({ ...survey, projectExpectations: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none"
+                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-semibold text-gray-800 outline-none"
                   >
                     <option value="">Selecciona una opción</option>
                     <option value="Que escuche y permanezca cercano a la gente">Que escuche y permanezca cercano a la gente</option>
@@ -676,7 +736,7 @@ export default function PublicRegistrationClient({
                   <select
                     value={survey.participationForm}
                     onChange={e => setSurvey({ ...survey, participationForm: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none"
+                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-semibold text-gray-800 outline-none"
                   >
                     <option value="">Selecciona una opción</option>
                     <option value="Recibir información">Recibir información</option>
@@ -684,6 +744,7 @@ export default function PublicRegistrationClient({
                     <option value="Asistir a reuniones o actividades">Asistir a reuniones o actividades</option>
                     <option value="Participar en acciones sociales">Participar en acciones sociales</option>
                     <option value="Compartir ideas o propuestas">Compartir ideas o propuestas</option>
+                    <option value="Representante de casilla">Ser representante de casilla el día de la elección</option>
                     <option value="Por ahora solamente deseo mantenerme informado">Por ahora solamente deseo mantenerme informado</option>
                   </select>
                 </div>
@@ -698,7 +759,7 @@ export default function PublicRegistrationClient({
                     placeholder="Escribe tu propuesta o mensaje libremente..."
                     value={survey.openProposal}
                     onChange={e => setSurvey({ ...survey, openProposal: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium outline-none focus:bg-white"
+                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white"
                   />
                 </div>
               </div>
@@ -715,7 +776,7 @@ export default function PublicRegistrationClient({
               <span>Guardando registro...</span>
             ) : (
               <>
-                <span>Completar Registro Social</span>
+                <span>Registrarme</span>
                 <ArrowRight size={16} />
               </>
             )}

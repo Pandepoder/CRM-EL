@@ -66,7 +66,7 @@ export function CreateUserModal({ roles, municipioFijo = null }: { roles: RoleOp
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-11 h-11 shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center transition-colors cursor-pointer"
                 title="Cerrar ventana"
               >
                 <X size={18} />
