@@ -16,7 +16,7 @@ const admitida = (ruta: string) => hasLocalMatch(patrones, ruta);
 
 describe("qué imágenes pasan por el optimizador", () => {
   it("las de la marca, sí", () => {
-    const propias = [MARCA.retrato, MARCA.monograma.blanco, MARCA.monograma.color].filter((r): r is string => Boolean(r));
+    const propias = [MARCA.retrato, MARCA.retratoSinFondo, MARCA.monograma.blanco, MARCA.monograma.color].filter((r): r is string => Boolean(r));
     expect(propias.length).toBeGreaterThan(0);
     for (const ruta of propias) expect(admitida(ruta), ruta).toBe(true);
   });

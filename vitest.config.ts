@@ -61,6 +61,8 @@ export default defineConfig({
       "@tonala/shared/outbox": fileURLToPath(new URL("./packages/shared/outbox/index.ts", import.meta.url)),
       "@tonala/shared/projections/infrastructure": fileURLToPath(new URL("./packages/shared/projections/infrastructure/index.ts", import.meta.url)),
       "@tonala/shared/projections": fileURLToPath(new URL("./packages/shared/projections/public.ts", import.meta.url)),
+      // El middleware importa este módulo directo (sin el índice): va antes que "@tonala/ui", que lo taparía.
+      "@tonala/ui/role-home.js": fileURLToPath(new URL("./packages/ui/role-home.ts", import.meta.url)),
       "@tonala/ui": fileURLToPath(new URL("./packages/ui/index.ts", import.meta.url)),
       "@tonala/config": fileURLToPath(new URL("./packages/config/index.ts", import.meta.url)),
       "@": fileURLToPath(new URL("./apps/web/src", import.meta.url))

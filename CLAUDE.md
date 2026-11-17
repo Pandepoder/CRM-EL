@@ -87,6 +87,7 @@ Lo que no se ve no existe: un id fuera del alcance o mal formado responde **404*
 | Pantallas del panel | `apps/web/app/(shell)/<pantalla>/` |
 | Rutas de API | `apps/web/app/api/` |
 | Lógica de negocio | `apps/web/src/lib/*-servicio.ts` y vecinos; la ruta solo valida y delega |
+| Bienvenida (`/conoceme`), acceso (`/login`) y solicitar acceso (`/register`): estilos y movimiento | `apps/web/app/publico.css`, solo lo cargan esas páginas; la columna de marca es `MarcaAcceso.tsx` |
 | Menú, barra del teléfono, botón «+» | `packages/ui/role-home.ts`, `packages/ui/AppShell.tsx`, `packages/ui/boton-mas.ts` |
 | Esquema | `packages/shared/database/schema.ts` |
 | Avisos y celebración | `apps/web/src/lib/avisos.ts`, `components/CapaDeAvisos.tsx`, `components/CapaDeCelebracion.tsx` |

@@ -34,7 +34,7 @@ export default function BotonCompartir({ mensaje }: { mensaje: string }) {
         <Share2 size={18} /> Compartir por WhatsApp
       </button>
       <button type="button" onClick={copiar} className="cierre-copiar">
-        {copiado ? <Check size={17} /> : <Link2 size={17} />}
+        {copiado ? <Check key="listo" size={17} className="cierre-copiado" /> : <Link2 key="copiar" size={17} />}
         {copiado ? "Enlace copiado" : "Copiar enlace"}
       </button>
     </div>

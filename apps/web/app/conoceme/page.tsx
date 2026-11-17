@@ -1,13 +1,26 @@
+import type { CSSProperties } from "react";
+import type { Metadata } from "next";
+
 import Image from "next/image";
 import Link from "next/link";
+import { ArrowDown, ArrowUpRight, CheckCircle2, LogIn } from "lucide-react";
+
+import "../publico.css";
 
 import VideoYoutube from "./VideoYoutube";
 import BotonCompartir from "./BotonCompartir";
 import Contador from "./Contador";
+import EnLosMedios from "./EnLosMedios";
 import MapaJalisco from "./MapaJalisco";
 import ReelCampana from "./ReelCampana";
+import { ConstelacionJalisco } from "@/components/ConstelacionJalisco";
+import { EsloganAnimado } from "@/components/EsloganAnimado";
+import { ICONO_YOUTUBE, IconoRed, RedesPublicas } from "@/components/RedesPublicas";
 import { CATEGORIAS_INCIDENCIA, CATEGORIA_DESCONOCIDA } from "@/lib/categorias-incidencia";
+import { direccionPublica } from "@/lib/direccion-publica";
+import { EN_LOS_MEDIOS } from "@/lib/en-los-medios";
 import { cifrasPublicas } from "@/lib/pulso-publico";
+import { tipografiaPublica } from "@/lib/tipografia-publica";
 import { videosDelCanal, type VideoDelCanal } from "@/lib/videos-canal";
 import { ESLOGAN_EN_TEXTO, ESLOGAN_ES_LARGO, MARCA } from "@/lib/marca";
 
@@ -35,6 +48,24 @@ const CUANTOS_VIDEOS = 6;
 export const dynamic = "force-dynamic";
 
 /**
+ * Lo que muestran WhatsApp y Facebook al compartir el enlace: antes salía «Jalisco OS — Sistema operativo
+ * territorial» y sin imagen. La imagen es `opengraph-image.tsx`; aquí, el título, el texto y la dirección
+ * completa con la que los robots la piden.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const titulo = `${MARCA.firma} · ${MARCA.lema}`;
+  const descripcion = `“${ESLOGAN_EN_TEXTO}” Conoce ${MARCA.primeraPersona ? "mi" : "su"} trabajo en Jalisco: lo que nos pide la gente, dónde estamos trabajando y videos desde el territorio.`;
+  return {
+    metadataBase: await direccionPublica(),
+    title: titulo,
+    description: descripcion,
+    alternates: { canonical: "/conoceme" },
+    openGraph: { type: "website", locale: "es_MX", siteName: MARCA.firma, url: "/conoceme", title: titulo, description: descripcion },
+    twitter: { card: "summary_large_image", title: titulo, description: descripcion }
+  };
+}
+
+/**
  * Respaldo: solo se usa si el canal no responde (servidor sin salida a internet, YouTube caído).
  * Lo normal es que estos videos ni se vean, porque la lista viene del canal.
  *
@@ -51,25 +82,6 @@ const VIDEOS_DE_RESPALDO: VideoDelCanal[] = [
   { id: "WOI0Wi9nO_s", titulo: "AYUDEMOS al comedor comunitario en Loma Bonita", formato: "corto" },
   { id: "11p2xl9RyWk", titulo: "En #tonala siempre de cerca escuchando sus necesidades", formato: "corto" },
   { id: "9Q3KK49ZIVU", titulo: "Las colonias se conocen por su #gente #tonala", formato: "corto" }
-];
-
-// Los mismos trazos que usa la pantalla de acceso, para que las redes se vean
-// idénticas en las dos páginas.
-const ICONO_YOUTUBE =
-  "M21.58 7.19a2.51 2.51 0 0 0-1.77-1.77C18.25 5 12 5 12 5s-6.25 0-7.81.42a2.51 2.51 0 0 0-1.77 1.77C2 8.75 2 12 2 12s0 3.25.42 4.81a2.51 2.51 0 0 0 1.77 1.77C5.75 19 12 19 12 19s6.25 0 7.81-.42a2.51 2.51 0 0 0 1.77-1.77C22 15.25 22 12 22 12s0-3.25-.42-4.81ZM10 15.02V8.98L15.2 12 10 15.02Z";
-
-const REDES = [
-  {
-    nombre: "Instagram",
-    href: MARCA.redes.instagram,
-    path: "M12 2.2c3.2 0 3.6 0 4.9.07 1.2.05 1.8.25 2.2.42.6.2 1 .48 1.4.9.4.4.7.8.9 1.4.17.4.37 1 .42 2.2.06 1.3.07 1.7.07 4.9s0 3.6-.07 4.9c-.05 1.2-.25 1.8-.42 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.17-1 .37-2.2.42-1.3.06-1.7.07-4.9.07s-3.6 0-4.9-.07c-1.2-.05-1.8-.25-2.2-.42-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.17-.4-.37-1-.42-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9c.05-1.2.25-1.8.42-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.17 1-.37 2.2-.42C8.4 2.2 8.8 2.2 12 2.2Zm0 5.2a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2Zm0 7.6a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm5.9-7.8a1.08 1.08 0 1 1-2.15 0 1.08 1.08 0 0 1 2.15 0Z"
-  },
-  {
-    nombre: "Facebook",
-    href: MARCA.redes.facebook,
-    path: "M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.51 1.5-3.9 3.78-3.9 1.1 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12Z"
-  },
-  { nombre: "YouTube", href: MARCA.redes.youtube ?? "", path: ICONO_YOUTUBE }
 ];
 
 /** "Hace 3 días" para el video más reciente: da señal de que la página está viva. */
@@ -92,14 +104,6 @@ function etiquetaDeNovedad(v: VideoDelCanal): string | null {
   return /hora|minuto|d[ií]a/.test(v.antiguedad) ? `Nuevo · ${v.antiguedad}` : "Lo más reciente";
 }
 
-function IconoRed({ path, size = 20 }: { path: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d={path} />
-    </svg>
-  );
-}
-
 export default async function ConocemePage() {
   // Las dos cosas que cuestan se piden a la vez, no una tras otra: YouTube y la base no se
   // necesitan mutuamente, y en fila sus esperas se sumaban.
@@ -111,146 +115,115 @@ export default async function ConocemePage() {
     cifrasPublicas()
   ]);
   const masPedido = cifras?.categorias[0]?.total ?? 0;
+  // Las etiquetas junto al retrato solo salen con un dato real: nunca un cero ni un número de relleno.
+  const brigadas = cifras?.brigadasActivas ?? 0;
+  const atendidos = cifras?.incidenciasResueltas ?? 0;
 
   return (
-    <div className="welcome-page min-h-screen flex flex-col font-sans" style={{ background: "#f7f8fb" }}>
-      <style>{`
-        @keyframes cm-entrada { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes cm-foto { from { opacity: 0; transform: scale(1.05); } to { opacity: 1; transform: scale(1); } }
-        .cm-anim { opacity: 0; animation: cm-entrada .7s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        .cm-red { transition: transform .25s cubic-bezier(0.34, 1.56, 0.64, 1), background .2s ease, border-color .2s ease; }
-        .cm-red:hover { transform: translateY(-2px); background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.5); }
-        .cm-volver { transition: color .2s ease, background .2s ease; }
-        @media (prefers-reduced-motion: reduce) {
-          .cm-anim { animation: none; opacity: 1; }
-          .cm-foto { animation: none !important; opacity: 1 !important; }
-          .cm-red:hover { transform: none; }
-        }
-      `}</style>
+    <div className={`pub welcome-page ${tipografiaPublica.className}`}>
+      <div className="pub-progreso" aria-hidden="true" />
 
-      <header
-        className="w-full px-6 sm:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20"
-        style={{ background: "rgba(255,255,255,.88)", backdropFilter: "blur(10px)", borderBottom: "1px solid #e6eaf2" }}
-      >
+      <header className="pub-cabecera">
         {/* Antes habia aqui un "Volver" a la portada. Ahora la raiz redirige a
             esta misma pagina, asi que ese enlace era un bucle: se queda el
             monograma como identidad, sin navegacion a ninguna parte. */}
-        <span className="flex items-center gap-2 font-semibold text-sm" style={{ color: "#0b1f3a" }}>
-          <Image
-            src={MARCA.monograma.color}
-            alt={MARCA.firma}
-            width={30}
-            height={30}
-            style={{ width: 30, height: 30, objectFit: "contain", display: "block" }}
-          />
+        <span className="pub-firma">
+          <Image src={MARCA.monograma.color} alt="" width={32} height={32} />
           {MARCA.firma}
         </span>
-        <Link
-          href="/login"
-          className="cm-volver font-semibold text-sm px-4 py-2 rounded-lg"
-          style={{ color: "#0b1f3a", background: "#eef2f8" }}
-        >
+        <Link href="/login" className="pub-entrar">
+          <LogIn size={16} aria-hidden="true" />
           Iniciar sesión
         </Link>
       </header>
 
-      <main className="flex-1">
+      <main>
         {/* Retrato y eslogan */}
-        <section className="welcome-hero"
-          style={{
-            background: "linear-gradient(155deg, #0b1f3a 0%, #12305c 58%, #16407a 100%)",
-            color: "#fff",
-            position: "relative",
-            overflow: "hidden"
-          }}
-        >
-          <div className="welcome-orbits" aria-hidden="true"><i /><i /><i /><span>JALISCO</span></div>
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "radial-gradient(820px 360px at 22% 8%, rgba(96,165,250,.20), transparent 62%)"
-            }}
-          />
-          <div className="welcome-composition max-w-5xl mx-auto px-6 sm:px-8 py-14 sm:py-20 relative flex flex-col items-center text-center">
-            {MARCA.retrato ? (
-            <div
-              className="cm-foto welcome-portrait"
-              style={{
-                width: "clamp(132px, 26vw, 184px)",
-                height: "clamp(132px, 26vw, 184px)",
-                borderRadius: "50%",
-                overflow: "hidden",
-                border: "3px solid rgba(255,255,255,.24)",
-                boxShadow: "0 24px 60px -26px rgba(0,0,0,.7)",
-                marginBottom: "1.75rem",
-                opacity: 0,
-                animation: "cm-foto .9s cubic-bezier(0.16, 1, 0.3, 1) .08s forwards"
-              }}
-            >
-              <img
-                src={MARCA.retrato ?? ""}
-                alt={MARCA.referente.nombre}
-                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-              />
-            </div>
+        <section className="welcome-hero">
+          <div className="pub-aurora" aria-hidden="true"><i /><i /><i /></div>
+          <ConstelacionJalisco className="welcome-constelacion" />
+          <div className="welcome-rejilla">
+            {MARCA.retratoSinFondo || MARCA.retrato ? (
+              <div className={MARCA.retratoSinFondo ? "welcome-foto welcome-foto--recorte" : "welcome-foto"}>
+                {MARCA.retratoSinFondo ? (
+                  // Sin fondo, la persona sale del mismo azul de la página: un disco de luz detrás y una órbita.
+                  <>
+                    <div className="welcome-disco" aria-hidden="true" />
+                    <div className="welcome-orbita" aria-hidden="true"><i /></div>
+                    <div className="welcome-persona">
+                      <Image
+                        src={MARCA.retratoSinFondo}
+                        alt={MARCA.referente.nombre}
+                        fill
+                        priority
+                        sizes="(max-width: 899px) 92vw, 560px"
+                        className="welcome-persona-imagen"
+                      />
+                    </div>
+                    <div className="welcome-foto-pie">
+                      <strong>{MARCA.referente.nombre}</strong>
+                      <span>{MARCA.lema}</span>
+                    </div>
+                  </>
+                ) : MARCA.retrato ? (
+                  <div className="pub-marco">
+                    <div className="pub-marco-foto">
+                      <Image
+                        src={MARCA.retrato}
+                        alt={MARCA.referente.nombre}
+                        fill
+                        priority
+                        sizes="(max-width: 899px) 92vw, 460px"
+                        className="welcome-foto-imagen"
+                      />
+                      <div className="welcome-foto-pie">
+                        <strong>{MARCA.referente.nombre}</strong>
+                        <span>{MARCA.lema}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+                {brigadas > 0 ? (
+                  <p className="welcome-dato welcome-dato--arriba">
+                    <span className="pub-latido" aria-hidden="true" />
+                    <span><b>{brigadas.toLocaleString("es-MX")}</b> {brigadas === 1 ? "brigada trabajando" : "brigadas trabajando"}</span>
+                  </p>
+                ) : null}
+                {atendidos > 0 ? (
+                  <p className="welcome-dato welcome-dato--abajo">
+                    <CheckCircle2 size={18} aria-hidden="true" />
+                    <span><b>{atendidos.toLocaleString("es-MX")}</b> {atendidos === 1 ? "reporte atendido" : "reportes atendidos"}</span>
+                  </p>
+                ) : null}
+              </div>
             ) : null}
 
-            <p
-              className="cm-anim text-xs font-bold uppercase mb-4"
-              style={{ letterSpacing: ".18em", color: "#93c5fd", animationDelay: ".16s" }}
-            >
-              {MARCA.referente.corto}{MARCA.referente.cargo ? ` · ${MARCA.referente.cargo}` : ""}
-            </p>
+            <div className="welcome-texto">
+              <p className="welcome-ceja">
+                {MARCA.referente.corto}{MARCA.referente.cargo ? ` · ${MARCA.referente.cargo}` : ""} · Jalisco
+              </p>
 
-            {/* El eslogan es el centro de la página: sin biografía todavía, es lo
-                que tiene que quedarse en la cabeza de quien entra. */}
-            <h1
-              className="cm-anim font-extrabold tracking-tight"
-              style={{
-                fontSize: ESLOGAN_ES_LARGO ? "clamp(1.95rem, 5.4vw, 3.35rem)" : "clamp(3.2rem, 11vw, 6.6rem)",
-                lineHeight: 1.08,
-                textWrap: "balance",
-                maxWidth: "18ch",
-                animationDelay: ".24s"
-              }}
-            >
-              <span className="sr-only">{ESLOGAN_EN_TEXTO}</span>
-              <span aria-hidden="true">
-                {MARCA.eslogan.comillas ? "“" : ""}
-                {MARCA.eslogan.inicio ? <>{MARCA.eslogan.inicio}<br /></> : null}
-                <span className="welcome-title-soft">{MARCA.eslogan.suave}</span>{" "}
-                <span className="welcome-title-accent">{MARCA.eslogan.acento}{MARCA.eslogan.comillas ? "”" : ""}</span>
-              </span>
-            </h1>
+              {/* El eslogan es el centro de la página: sin biografía todavía, es lo
+                  que tiene que quedarse en la cabeza de quien entra. */}
+              <h1 className={ESLOGAN_ES_LARGO ? "welcome-titulo" : "welcome-titulo welcome-titulo--corto"}>
+                <span className="sr-only">{ESLOGAN_EN_TEXTO}</span>
+                <EsloganAnimado />
+              </h1>
 
-            <div
-              className="cm-anim welcome-social flex items-center gap-3 mt-9"
-              style={{ animationDelay: ".34s" }}
-            >
-              {REDES.filter((r) => r.href).map(({ nombre, href, path }) => (
+              <div className="welcome-acciones">
                 <a
-                  key={nombre}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={nombre}
-                  className="cm-red flex items-center justify-center rounded-xl"
-                  style={{
-                    width: 46,
-                    height: 46,
-                    background: "rgba(255,255,255,.08)",
-                    border: "1px solid rgba(255,255,255,.28)",
-                    color: "#fff"
-                  }}
+                  href={MARCA.redes.youtube ? "#videos" : MARCA.redes.instagram}
+                  {...(MARCA.redes.youtube ? {} : { target: "_blank", rel: "noopener noreferrer" })}
+                  className="pub-boton"
                 >
-                  <IconoRed path={path} />
+                  {MARCA.primeraPersona ? "Conoce mi trabajo" : "Conoce su trabajo"}
+                  <span className="pub-boton-flecha" aria-hidden="true">
+                    {MARCA.redes.youtube ? <ArrowDown size={20} /> : <ArrowUpRight size={20} />}
+                  </span>
                 </a>
-              ))}
+                <RedesPublicas />
+              </div>
             </div>
-            <a href={MARCA.redes.youtube ? "#videos" : MARCA.redes.instagram} {...(MARCA.redes.youtube ? {} : { target: "_blank", rel: "noopener noreferrer" })} className="welcome-cta">{MARCA.primeraPersona ? "Conoce mi trabajo" : "Conoce su trabajo"} <span aria-hidden="true">↗︎</span></a>
-            <div className="welcome-signature"><span className="signature-line" /><span>JALISCO</span><span className="signature-line" /></div>
           </div>
         </section>
 
@@ -258,16 +231,18 @@ export default async function ConocemePage() {
         {cifras ? (
           <section className="pulso-banda">
             <div className="pulso-interior">
-              <p className="pulso-eyebrow">Lo que llevamos hecho</p>
-              <div className="pulso-rejilla">
-                <Contador valor={cifras.incidenciasResueltas} etiqueta="Reportes atendidos" />
-                <Contador valor={cifras.visitasRealizadas} etiqueta="Visitas en campo" />
-                <Contador valor={cifras.coloniasRecorridas} etiqueta="Colonias recorridas" />
-                <Contador valor={cifras.brigadasActivas} etiqueta="Brigadas trabajando" />
+              <div className="pulso-caja pub-revela">
+                <p className="pub-ceja pub-ceja--claro">Lo que llevamos hecho</p>
+                <div className="pulso-rejilla">
+                  <Contador valor={cifras.incidenciasResueltas} etiqueta="Reportes atendidos" />
+                  <Contador valor={cifras.visitasRealizadas} etiqueta="Visitas en campo" />
+                  <Contador valor={cifras.coloniasRecorridas} etiqueta="Colonias recorridas" />
+                  <Contador valor={cifras.brigadasActivas} etiqueta="Brigadas trabajando" />
+                </div>
+                <p className="pulso-pie">
+                  Cifras del sistema con el que trabajan las brigadas, no de un folleto. Se actualizan solas.
+                </p>
               </div>
-              <p className="pulso-pie">
-                Cifras del sistema con el que trabajan las brigadas, no de un folleto. Se actualizan solas.
-              </p>
             </div>
           </section>
         ) : null}
@@ -275,12 +250,13 @@ export default async function ConocemePage() {
         {/* Dónde estamos trabajando */}
         {cifras && cifras.municipios.length > 0 ? (
           <section className="mapa-seccion">
+            <div className="pub-aurora pub-aurora--tenue" aria-hidden="true"><i /><i /></div>
             <div className="mapa-interior">
-              <div className="mapa-texto">
-                <h2 className="mapa-titulo">
-                  Jalisco,<br /><span className="welcome-title-accent">municipio por municipio.</span>
+              <div className="mapa-texto pub-revela">
+                <h2 className="pub-titulo pub-titulo--oscuro">
+                  Jalisco,<br /><span className="pub-acento">municipio por municipio.</span>
                 </h2>
-                <p className="mapa-lead">
+                <p className="pub-lead pub-lead--oscuro">
                   Cada punto es un municipio del estado. Los que brillan son en los que ya hay trabajo
                   levantado por las brigadas.
                 </p>
@@ -292,7 +268,7 @@ export default async function ConocemePage() {
                   ))}
                 </div>
               </div>
-              <div className="mapa-lienzo">
+              <div className="mapa-lienzo" data-al-llegar="">
                 <MapaJalisco activos={cifras.municipios} />
                 <p className="mapa-nota">Los 125 municipios de Jalisco, representados por su centro.</p>
               </div>
@@ -302,71 +278,59 @@ export default async function ConocemePage() {
 
         {/* Videos: solo si hay canal de YouTube configurado */}
         {MARCA.redes.youtube ? (
-        <section id="videos" className="max-w-5xl mx-auto px-6 sm:px-8 py-14 sm:py-16">
-          <h2
-            className="cm-anim font-bold tracking-tight mb-2"
-            style={{ fontSize: "1.5rem", color: "#0b1f3a", animationDelay: ".4s" }}
-          >
-            Historias desde<br /><span className="stories-accent">el territorio.</span>
-          </h2>
-          <p
-            className="cm-anim mb-7"
-            style={{ color: "#5b6780", fontSize: ".95rem", animationDelay: ".44s" }}
-          >
-            Se reproducen solo cuando los tocas: abrir esta página no gasta tus datos.
-          </p>
+          <section id="videos" className="videos-seccion">
+            <div className="videos-interior">
+              <div className="pub-revela">
+                <h2 className="pub-titulo">
+                  Historias desde<br /><span className="pub-acento pub-acento--claro">el territorio.</span>
+                </h2>
+                <p className="pub-lead">Se reproducen solo cuando los tocas: abrir esta página no gasta tus datos.</p>
+              </div>
 
-          {VIDEOS.length > 0 ? (
-            <div className="grid gap-4 sm:gap-5 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {VIDEOS.map((v, i) => (
-                <div key={v.id} className="welcome-video-card">
-                  {i === 0 && etiquetaDeNovedad(v) ? (
-                    <span className="video-nuevo">{etiquetaDeNovedad(v)}</span>
-                  ) : null}
-                  {/* El formato solo se pasa si se sabe: si no, la tarjeta lo deduce de la miniatura. */}
-                  <VideoYoutube id={v.id} titulo={v.titulo} {...(v.formato ? { formato: v.formato } : {})} />
+              {VIDEOS.length > 0 ? (
+                <div className="videos-rejilla">
+                  {VIDEOS.map((v, i) => (
+                    <div key={v.id} className="welcome-video-card">
+                      {i === 0 && etiquetaDeNovedad(v) ? (
+                        <span className="video-nuevo">{etiquetaDeNovedad(v)}</span>
+                      ) : null}
+                      {/* El formato solo se pasa si se sabe: si no, la tarjeta lo deduce de la miniatura. */}
+                      <VideoYoutube id={v.id} titulo={v.titulo} {...(v.formato ? { formato: v.formato } : {})} />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div className="videos-vacio pub-revela">
+                  <p className="videos-vacio-titulo">Todavía no hay videos publicados</p>
+                  <p>Mientras tanto, los encuentras en el canal de YouTube.</p>
+                  <a href={MARCA.redes.youtube} target="_blank" rel="noopener noreferrer" className="videos-canal">
+                    <IconoRed path={ICONO_YOUTUBE} size={18} /> Ver el canal
+                  </a>
+                </div>
+              )}
             </div>
-          ) : (
-            <div
-              className="cm-anim rounded-2xl px-6 py-10 text-center"
-              style={{ background: "#fff", border: "1px dashed #c7d2e4", animationDelay: ".5s" }}
-            >
-              <p className="font-semibold mb-1" style={{ color: "#0b1f3a" }}>
-                Todavía no hay videos publicados
-              </p>
-              <p style={{ color: "#5b6780", fontSize: ".92rem" }}>
-                Mientras tanto, los encuentras en el canal de YouTube.
-              </p>
-              <a
-                href={MARCA.redes.youtube ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="cm-red inline-flex items-center gap-2 font-bold rounded-xl mt-5"
-                style={{ background: "#0b1f3a", color: "#fff", padding: "0.8rem 1.35rem" }}
-              >
-                <IconoRed path={ICONO_YOUTUBE} size={18} /> Ver el canal
-              </a>
-            </div>
-          )}
-        </section>
+          </section>
         ) : null}
+
+        {/* Notas y entrevistas en otros medios: solo si el equipo ya cargó alguna */}
+        <EnLosMedios lista={EN_LOS_MEDIOS} />
 
         {/* Lo que más nos piden */}
         {cifras && cifras.categorias.length > 0 ? (
           <section className="peticiones">
             <div className="peticiones-interior">
-              <h2 className="peticiones-titulo">
-                Esto es lo que<br /><span className="peticiones-acento">nos pide la gente.</span>
-              </h2>
-              <p className="peticiones-lead">Lo que más se reporta en la calle, tal como entra al sistema.</p>
-              <ul className="peticiones-lista">
-                {cifras.categorias.map((c) => {
+              <div className="pub-revela">
+                <h2 className="pub-titulo">
+                  Esto es lo que<br /><span className="pub-acento pub-acento--claro">nos pide la gente.</span>
+                </h2>
+                <p className="pub-lead">Lo que más se reporta en la calle, tal como entra al sistema.</p>
+              </div>
+              <ul className="peticiones-lista" data-al-llegar="">
+                {cifras.categorias.map((c, i) => {
                   const info = CATEGORIAS_INCIDENCIA[c.categoria] ?? CATEGORIA_DESCONOCIDA;
                   const ancho = masPedido > 0 ? Math.max(8, Math.round((c.total / masPedido) * 100)) : 0;
                   return (
-                    <li key={c.categoria} className="peticion-fila">
+                    <li key={c.categoria} className="peticion-fila" style={{ "--i": i } as CSSProperties}>
                       <span
                         className="peticion-icono"
                         style={{ background: info.bg, border: `1px solid ${info.border}`, color: info.color }}
@@ -387,52 +351,46 @@ export default async function ConocemePage() {
 
         {/* Un minuto en territorio: solo con reel propio */}
         {MARCA.reel ? (
-        <section className="reel-seccion">
-          <div className="reel-interior">
-            <div className="reel-texto">
-              <p className="reel-eyebrow">Un minuto en territorio</p>
-              <h2 className="reel-titulo-grande">
-                Así se ve<br /><span className="welcome-title-accent">el trabajo en calle.</span>
-              </h2>
-              <p className="reel-lead">Se descarga solo si lo tocas.</p>
+          <section className="reel-seccion">
+            <div className="pub-aurora pub-aurora--tenue" aria-hidden="true"><i /><i /></div>
+            <div className="reel-interior">
+              <div className="reel-texto pub-revela">
+                <p className="pub-ceja">Un minuto en territorio</p>
+                <h2 className="pub-titulo pub-titulo--oscuro">
+                  Así se ve<br /><span className="pub-acento">el trabajo en calle.</span>
+                </h2>
+                <p className="pub-lead pub-lead--oscuro">Se descarga solo si lo tocas.</p>
+              </div>
+              <div className="pub-revela reel-envoltura">
+                <ReelCampana src={MARCA.reel.src} poster={MARCA.reel.poster} titulo="Recorrido de campaña" />
+              </div>
             </div>
-            <ReelCampana src={MARCA.reel.src} poster={MARCA.reel.poster} titulo="Recorrido de campaña" />
-          </div>
-        </section>
+          </section>
         ) : null}
 
         {/* Cierre: comparte y sigue */}
         <section className="cierre">
-          <div className="cierre-interior">
-            <img src={MARCA.monograma.blanco} alt="" width={44} height={44} className="cierre-monograma" />
+          <div className="pub-aurora pub-aurora--cierre" aria-hidden="true"><i /><i /></div>
+          <div className="cierre-interior pub-revela">
+            <Image src={MARCA.monograma.blanco} alt="" width={52} height={52} className="cierre-monograma" />
             <h2 className="cierre-titulo">Pásale esta página a tu gente.</h2>
             <p className="cierre-lead">Se abre en cualquier teléfono y no gasta datos hasta que alguien toca un video.</p>
             <BotonCompartir mensaje={`Conoce el trabajo de ${MARCA.referente.corto} en Jalisco:`} />
-            <div className="cierre-redes">
-              {REDES.filter((r) => r.href).map(({ nombre, href, path }) => (
-                <a key={nombre} href={href} target="_blank" rel="noopener noreferrer" aria-label={nombre} className="cm-red cierre-red">
-                  <IconoRed path={path} />
-                </a>
-              ))}
-            </div>
+            <RedesPublicas className="cierre-redes" />
           </div>
         </section>
       </main>
 
-      <footer className="py-7 px-6 text-center" style={{ background: "#fff", borderTop: "1px solid #e6eaf2" }}>
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <img
-            src={MARCA.monograma.color}
-            alt=""
-            width={22}
-            height={22}
-            style={{ width: 22, height: 22, objectFit: "contain" }}
-          />
-          <span className="font-semibold text-sm" style={{ color: "#0b1f3a" }}>
-            Jalisco OS
-          </span>
+      <footer className="pub-pie">
+        <div className="pub-pie-marca">
+          <Image src={MARCA.monograma.color} alt="" width={24} height={24} />
+          <span>Jalisco OS</span>
         </div>
-        <p style={{ color: "#8b95a9", fontSize: ".82rem" }}>© 2026 {MARCA.firma} · {MARCA.lema}</p>
+        <p>© 2026 {MARCA.firma} · {MARCA.lema}</p>
+        <nav className="pub-pie-enlaces" aria-label="Avisos legales">
+          <Link href="/privacidad">Política de Privacidad</Link>
+          <Link href="/terminos">Términos de Uso</Link>
+        </nav>
       </footer>
     </div>
   );
