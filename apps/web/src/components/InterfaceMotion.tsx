@@ -15,7 +15,17 @@ export function InterfaceMotion() {
       if (preference.matches) return;
       const animations = new Set<Animation>();
       const seen = new WeakSet<Element>();
-      const selector = ".summary-actions > *, .summary-metrics > *, .agenda-pulse > *, .agenda-entry, .citizen-page form > section, .optional-fields, .welcome-video-card";
+      const selector = ".summary-actions > *, .summary-metrics > *, .agenda-pulse > *, .agenda-entry, .citizen-page form > section, .optional-fields, .welcome-video-card, .pub-revela";
+      // Lo que se arma al llegar (las barras, los puntos del mapa) se esconde solo si `data-movimiento`
+      // está puesto: sin JavaScript o pidiendo menos movimiento, todo se ve completo desde el principio.
+      document.documentElement.setAttribute("data-movimiento", "");
+      const alLlegar = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          alLlegar.unobserve(entry.target);
+          entry.target.setAttribute("data-visible", "");
+        });
+      }, { threshold: 0.15 });
       const observer = new IntersectionObserver(entries => {
         entries.forEach(entry => {
           if (!entry.isIntersecting) return;
@@ -31,9 +41,12 @@ export function InterfaceMotion() {
           animation.onfinish = () => animations.delete(animation);
         });
       }, { threshold: 0.08 });
-      const scan = () => document.querySelectorAll(selector).forEach(element => {
-        if (!seen.has(element)) { seen.add(element); observer.observe(element); }
-      });
+      const scan = () => {
+        document.querySelectorAll(selector).forEach(element => {
+          if (!seen.has(element)) { seen.add(element); observer.observe(element); }
+        });
+        document.querySelectorAll("[data-al-llegar]:not([data-visible])").forEach(element => alLlegar.observe(element));
+      };
       scan();
       const mutations = new MutationObserver(scan);
       mutations.observe(document.body, { childList: true, subtree: true });
@@ -43,11 +56,13 @@ export function InterfaceMotion() {
         cancelAnimationFrame(frame);
         active?.style.removeProperty("--light-x");
         active?.style.removeProperty("--light-y");
+        active?.style.removeProperty("--mov-x");
+        active?.style.removeProperty("--mov-y");
         active = null;
       };
       const move = (event: PointerEvent) => {
         if (!finePointer.matches || !(event.target instanceof Element)) return;
-        const target = event.target.closest<HTMLElement>(".welcome-hero, .workspace-hero");
+        const target = event.target.closest<HTMLElement>(".welcome-hero, .workspace-hero, .login-marca");
         if (active && active !== target) reset();
         if (!target) return;
         active = target;
@@ -56,12 +71,15 @@ export function InterfaceMotion() {
           const bounds = target.getBoundingClientRect();
           target.style.setProperty("--light-x", `${event.clientX - bounds.left}px`);
           target.style.setProperty("--light-y", `${event.clientY - bounds.top}px`);
+          target.style.setProperty("--mov-x", ((event.clientX - bounds.left) / bounds.width - 0.5).toFixed(3));
+          target.style.setProperty("--mov-y", ((event.clientY - bounds.top) / bounds.height - 0.5).toFixed(3));
         });
       };
       document.addEventListener("pointermove", move, { passive: true });
       document.addEventListener("pointerleave", reset);
       cleanup = () => {
-        observer.disconnect(); mutations.disconnect(); reset();
+        observer.disconnect(); alLlegar.disconnect(); mutations.disconnect(); reset();
+        document.documentElement.removeAttribute("data-movimiento");
         animations.forEach(animation => animation.cancel());
         document.removeEventListener("pointermove", move);
         document.removeEventListener("pointerleave", reset);

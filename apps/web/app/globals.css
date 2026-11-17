@@ -720,88 +720,6 @@ input[placeholder*="buscar"] {
 }
 
 /* ==========================================================================
-   LOGIN (PREMIUM STYLE)
-   ========================================================================== */
-.login-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: 
-    linear-gradient(135deg, rgba(11, 31, 58, 0.95), rgba(15, 45, 82, 0.98)),
-    url('data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%231f5c9b" fill-opacity="0.1"%3E%3Cpath d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');
-}
-
-.login-card {
-  width: 100%;
-  max-width: 440px;
-  background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
-  padding: 40px 32px;
-  text-align: left;
-}
-
-.login-card h1 {
-  margin: 0 0 8px;
-  font-size: 28px;
-  color: var(--blue-950);
-  font-weight: 800;
-}
-
-.login-eyebrow {
-  display: inline-block;
-  margin: 0 0 12px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  background: var(--blue-50);
-  color: var(--blue-700);
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.login-sub {
-  margin: 0 0 24px;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.5;
-  font-weight: 500;
-}
-
-.login-error {
-  margin: 0 0 16px;
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--danger-bg);
-  color: var(--danger);
-  font-size: 13px;
-  font-weight: 700;
-  border: 1px solid #f2b6b6;
-}
-
-.login-hint {
-  margin: 24px 0 0;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.5;
-  text-align: center;
-}
-
-.login-hint code {
-  background: var(--soft);
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: var(--blue-800);
-  font-weight: bold;
-}
-
-/* ==========================================================================
    MAP EXTRAS (BOTTOM SHEET)
    ========================================================================== */
 .bottom-sheet {
@@ -840,159 +758,6 @@ input[placeholder*="buscar"] {
   .sheet-handle {
     display: none;
   }
-}
-
-/* ==========================================================================
-   MODERN LOGIN REDESIGN
-   ========================================================================== */
-.modern-login-layout {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at top left, #1f5c9b, #0b1f3a);
-  padding: 24px;
-}
-
-.modern-login-container {
-  width: 100%;
-  max-width: 440px;
-  background: #ffffff;
-  border-radius: 24px;
-  padding: 48px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  animation: float-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.modern-login-header {
-  text-align: center;
-  margin-bottom: 40px;
-}
-
-.modern-login-icon {
-  width: 64px;
-  height: 64px;
-  background: #f0f7ff;
-  color: #2878c7;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 24px;
-}
-
-.modern-login-title {
-  font-size: 28px;
-  font-weight: 800;
-  color: #0b1f3a;
-  margin: 0 0 8px;
-}
-
-.modern-login-subtitle {
-  font-size: 15px;
-  color: #64748b;
-  margin: 0;
-}
-
-.modern-input-wrapper {
-  margin-bottom: 24px;
-  position: relative;
-}
-
-.modern-input-wrapper label {
-  display: block;
-  font-size: 13px;
-  font-weight: 700;
-  color: #334155;
-  margin-bottom: 8px;
-}
-
-.modern-input {
-  width: 100%;
-  padding: 14px 16px 14px 44px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  font-size: 15px;
-  background: #f8fafc;
-  color: #0f172a;
-  transition: all 0.2s ease;
-}
-
-.modern-input:focus {
-  outline: none;
-  border-color: #2878c7;
-  background: #ffffff;
-  box-shadow: 0 0 0 4px rgba(40, 120, 199, 0.1);
-}
-
-.modern-input-icon {
-  position: absolute;
-  left: 14px;
-  top: 39px;
-  color: #94a3b8;
-}
-
-.modern-checkbox-group {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 32px;
-  background: #f0f7ff;
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid #dcecff;
-}
-
-.modern-checkbox-group input {
-  margin-top: 3px;
-  width: 16px;
-  height: 16px;
-  accent-color: #2878c7;
-}
-
-.modern-checkbox-group label {
-  font-size: 12px;
-  line-height: 1.6;
-  color: #475569;
-}
-
-.modern-checkbox-group a {
-  color: #1f5c9b;
-  font-weight: 600;
-  text-decoration: underline;
-}
-
-.modern-button {
-  width: 100%;
-  padding: 16px;
-  background: #2878c7;
-  color: #ffffff;
-  border: none;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.modern-button:hover:not(:disabled) {
-  background: #1f5c9b;
-  transform: translateY(-1px);
-  box-shadow: 0 10px 15px -3px rgba(40, 120, 199, 0.3);
-}
-
-.modern-button:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
-}
-
-@keyframes float-up {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ==========================================================================
@@ -1189,7 +954,8 @@ input[placeholder*="buscar"] {
   position: fixed;
   inset: 0;
   z-index: 200;
-  background: #0b1f3a;
+  background: radial-gradient(90% 70% at 85% 0%, rgba(26, 86, 201, 0.5), transparent 70%),
+    linear-gradient(160deg, #06152c, #0a2342 55%, #0c2f66);
   display: grid;
   place-items: center;
   padding: 16px;
@@ -1202,7 +968,13 @@ input[placeholder*="buscar"] {
   background: #fff;
   border-radius: 22px;
   overflow: hidden;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 34px 70px -24px rgba(0, 0, 0, 0.7), 0 0 70px -24px rgba(42, 111, 240, 0.7);
+  animation: bienvenida-entra 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes bienvenida-entra {
+  from { opacity: 0; transform: translateY(28px) scale(0.97); }
+  to { opacity: 1; transform: none; }
 }
 
 .bienvenida-foto {
@@ -1278,16 +1050,31 @@ input[placeholder*="buscar"] {
   padding: 17px 20px;
   border: none;
   border-radius: 14px;
-  background: linear-gradient(135deg, #1d4ed8, #0b1f3a);
+  background: linear-gradient(120deg, #1450c8, #0d3fa6 60%, #0b7a57);
   color: #fff;
   font-size: 17px;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 6px 18px rgba(29, 78, 216, 0.35);
+  box-shadow: 0 18px 30px -18px #1450c8;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), filter 0.2s;
 }
 
 .bienvenida-continuar:hover {
   filter: brightness(1.08);
+}
+
+.bienvenida-continuar:active {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bienvenida-caja {
+    animation: none;
+  }
+
+  .bienvenida-continuar {
+    transition: none;
+  }
 }
 
 .bienvenida-continuar:focus-visible {

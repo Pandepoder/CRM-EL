@@ -63,6 +63,9 @@ export async function middleware(request: NextRequest) {
     // se queda con el icono genérico en todas las páginas públicas.
     pathname === "/icon.png" ||
     pathname === "/apple-icon.png" ||
+    // La imagen que muestran WhatsApp y Facebook al compartir Conóceme. La piden sus robots, que nunca
+    // traen sesión: si se mandara al login, el enlace saldría sin foto.
+    pathname.startsWith("/conoceme/opengraph-image") ||
     // El service worker de los avisos de la agenda: el navegador lo vuelve a pedir por su cuenta
     // para actualizarlo, también cuando la sesión ya venció.
     pathname === "/avisos-sw.js" ||

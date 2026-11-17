@@ -1,4 +1,7 @@
-import { MUNICIPIOS_JALISCO, RECUADRO_JALISCO, sinAcentos } from "@/lib/municipios-jalisco";
+import type { CSSProperties } from "react";
+
+import { sinAcentos } from "@/lib/municipios-jalisco";
+import { ALTO_JALISCO as ALTO, ANCHO_JALISCO as ANCHO, MARGEN_JALISCO as MARGEN, PUNTOS_JALISCO } from "@/lib/proyeccion-jalisco";
 
 /**
  * Jalisco como constelación: un punto por municipio, encendidos los que tienen trabajo.
@@ -17,24 +20,9 @@ import { MUNICIPIOS_JALISCO, RECUADRO_JALISCO, sinAcentos } from "@/lib/municipi
  * dónde vive quien reporta.
  */
 
-const ANCHO = 1000;
-const [OESTE, SUR, ESTE, NORTE] = RECUADRO_JALISCO;
-/** Se corrige la proporción por la latitud: sin esto Jalisco sale estirado a lo ancho. */
-const FACTOR_LATITUD = Math.cos((((SUR + NORTE) / 2) * Math.PI) / 180);
-const ALTO = Math.round((ANCHO * (NORTE - SUR)) / ((ESTE - OESTE) * FACTOR_LATITUD));
-
-const MARGEN = 26;
-const enX = (lng: number) => MARGEN + ((lng - OESTE) / (ESTE - OESTE)) * (ANCHO - MARGEN * 2);
-const enY = (lat: number) => MARGEN + ((NORTE - lat) / (NORTE - SUR)) * (ALTO - MARGEN * 2);
-
 export default function MapaJalisco({ activos }: { activos: Array<{ municipio: string; total: number }> }) {
   const porClave = new Map(activos.map((a) => [sinAcentos(a.municipio), a.total]));
-  const puntos = MUNICIPIOS_JALISCO.map((m) => ({
-    nombre: m.name,
-    x: enX(m.center[1]),
-    y: enY(m.center[0]),
-    total: porClave.get(sinAcentos(m.name)) ?? 0
-  }));
+  const puntos = PUNTOS_JALISCO.map((p) => ({ ...p, total: porClave.get(sinAcentos(p.nombre)) ?? 0 }));
   const encendidos = puntos.filter((p) => p.total > 0).sort((a, b) => b.total - a.total);
 
   const total = encendidos.reduce((n, p) => n + p.total, 0);
@@ -56,7 +44,15 @@ export default function MapaJalisco({ activos }: { activos: Array<{ municipio: s
       aria-label={`Municipios de Jalisco con trabajo registrado: ${encendidos.map((e) => e.nombre).join(", ") || "ninguno todavía"}`}
     >
       {puntos.map((p) => (
-        <circle key={p.nombre} cx={p.x} cy={p.y} r={p.total > 0 ? 11 : 6} className={p.total > 0 ? "mapa-punto vivo" : "mapa-punto"}>
+        <circle
+          key={p.nombre}
+          cx={p.x}
+          cy={p.y}
+          r={p.total > 0 ? 11 : 6}
+          className={p.total > 0 ? "mapa-punto vivo" : "mapa-punto"}
+          // Al llegar a esta parte de la página los puntos se encienden de poniente a oriente.
+          style={{ "--d": p.x } as CSSProperties}
+        >
           {p.total > 0 ? <title>{`${p.nombre}: ${p.total} reportes`}</title> : null}
         </circle>
       ))}
@@ -81,7 +77,7 @@ export default function MapaJalisco({ activos }: { activos: Array<{ municipio: s
           const aLaDerecha = centro.x + 106 + anchoTexto <= ANCHO - MARGEN;
           const salto = aLaDerecha ? 1 : -1;
           return (
-            <g>
+            <g className="mapa-rotulo">
               <line
                 x1={centro.x + 30 * salto}
                 y1={centro.y}

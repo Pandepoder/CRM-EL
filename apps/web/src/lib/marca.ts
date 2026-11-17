@@ -33,10 +33,21 @@ export const MARCA = {
   redes: {
     instagram: "https://www.instagram.com/edgar_lopezj",
     facebook: "https://www.facebook.com/share/14khJUZf2aw/",
-    youtube: "https://youtube.com/@edgarlopezj" as string | null
+    youtube: "https://youtube.com/@edgarlopezj" as string | null,
+    // Las que faltan van en `null` hasta tener el enlace real de la persona: sin enlace, su ícono no se dibuja.
+    tiktok: null as string | null,
+    x: null as string | null,
+    threads: null as string | null,
+    /** El canal de WhatsApp (whatsapp.com/channel/…), no un número personal. */
+    whatsapp: null as string | null
   },
   /** Ruta bajo /public. Sin foto aprobada se deja `null` y no se muestra retrato. */
   retrato: "/media/edgar-retrato.jpg" as string | null,
+  /**
+   * La misma persona sin fondo, para la portada de Conóceme: se dibuja directo sobre el azul de la página.
+   * Sin ella, la portada usa `retrato` en su marco. Es el recorte de la foto de estudio (fondo gris, camisa verde).
+   */
+  retratoSinFondo: "/media/edgar-sentado-sin-fondo.webp" as string | null,
   reel: { src: "/media/edgar-reel-1.mp4", poster: "/media/edgar-frame-3s.jpg" } as { src: string; poster: string } | null,
   /** El logotipo, en blanco (sobre fondo oscuro) y a color. El genérico es /brand/monograma-*.svg. */
   monograma: { blanco: "/brand/el-monograma-blanco.png", color: "/brand/el-monograma-color.png" }
