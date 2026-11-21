@@ -30,6 +30,9 @@ const NETWORK_COLORS = [
  */
 const MAXIMO_DE_FICHAS = 3000;
 
+/** El origen con que se guardan los ciudadanos de una lista de Excel (`ORIGENES` en `lib/alta-ciudadano.ts`). */
+const ORIGEN_IMPORTACION = "importacion";
+
 /**
  * Contactos para el mapa.
  *
@@ -83,7 +86,9 @@ export async function GET(request: Request) {
       .select({
         total: count(),
         exactos: sql<number>`count(*) FILTER (WHERE ${conGps})`,
-        sinUbicacion: sql<number>`count(*) FILTER (WHERE ${contactoSinUbicacionEnMapa})`
+        sinUbicacion: sql<number>`count(*) FILTER (WHERE ${contactoSinUbicacionEnMapa})`,
+        // Los que llegaron en una lista de Excel y el mapa sí puede dibujar: con ellos se explica su ícono.
+        importados: sql<number>`count(*) FILTER (WHERE ${C.origin} = ${ORIGEN_IMPORTACION} AND NOT (${contactoSinUbicacionEnMapa}))`
       })
       .from(C)
       .leftJoin(schema.electoralSections, eq(C.sectionId, schema.electoralSections.id))
@@ -99,6 +104,7 @@ export async function GET(request: Request) {
       porSeccion,
       sinUbicacion,
       ubicables: exactos + porSeccion,
+      importados: Number(c?.importados ?? 0),
       enVista: 0,
       dibujados: 0,
       truncado: false
@@ -123,19 +129,20 @@ export async function GET(request: Request) {
     }
 
     const filas = await db
-      .select({ id: C.id, lat: C.exactLatitude, lng: C.exactLongitude, sectionId: C.sectionId, pan: C.panMilitancy })
+      .select({ id: C.id, lat: C.exactLatitude, lng: C.exactLongitude, sectionId: C.sectionId, pan: C.panMilitancy, origen: C.origin })
       .from(C)
       .where(and(...condiciones, ...enVista))
       .orderBy(desc(C.createdAt), desc(C.id));
 
     const puntos: PuntoDelMapa[] = [];
     for (const f of filas) {
+      const comun = { id: f.id, pan: f.pan === "confirmada", importado: f.origen === ORIGEN_IMPORTACION };
       if (f.lat != null && f.lng != null) {
-        puntos.push({ id: f.id, lng: f.lng, lat: f.lat, pan: f.pan === "confirmada", aprox: false });
+        puntos.push({ ...comun, lng: f.lng, lat: f.lat, aprox: false });
         continue;
       }
       const centro = f.sectionId ? centroDe.get(f.sectionId) : undefined;
-      if (centro) puntos.push({ id: f.id, lng: centro[0], lat: centro[1], pan: f.pan === "confirmada", aprox: true });
+      if (centro) puntos.push({ ...comun, lng: centro[0], lat: centro[1], aprox: true });
     }
     cobertura.enVista = puntos.length;
 
@@ -183,6 +190,8 @@ export async function GET(request: Request) {
           // El cliente pinta distinto lo aproximado para que nadie lo confunda con un domicilio.
           precision: p.aprox ? "seccion" : "exacta",
           isApproximate: p.aprox,
+          // Llegó en una lista de Excel: el mapa lo dibuja con su propio ícono.
+          importado: p.importado === true,
           sectionNum: f.sectionNum ?? null,
           createdAt: f.createdAt ? f.createdAt.toISOString() : null
         },

@@ -43,6 +43,7 @@ export default async function ContactsPage({
       userName={usuario?.displayName || "Mi Usuario"}
       userAccessType={alcance.isAdmin ? "coordinacion" : alcance.isLeader ? "enlace" : "conexion"}
       puedeRegistrar={puedeAbrir("/crm/nuevo", alcance.roleKey)}
+      puedeImportar={puedeAbrir("/crm/importar", alcance.roleKey)}
     />
   );
 }

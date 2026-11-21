@@ -130,6 +130,34 @@ describe("contactos", () => {
     expect(html).toContain("#2563eb");
   });
 
+  it("el que llegó en una lista de Excel va en un cuadro verde con una hoja, y su globo lo dice", () => {
+    const delExcel = iconoContacto(contacto({ importado: true, networkColor: "#dc2626" }));
+    expect(delExcel).toContain("border-radius:8px");
+    expect(delExcel).toContain("#15803d");
+    expect(delExcel).not.toContain("#dc2626");
+    expect(delExcel).toContain("de una lista de Excel");
+    const normal = iconoContacto(contacto());
+    expect(normal).toContain("border-radius:50%");
+    expect(normal).not.toContain("lista de Excel");
+
+    expect(globoContacto(contacto({ importado: true }))).toContain("Llegó en una lista de Excel.");
+    expect(globoContacto(contacto())).not.toContain("lista de Excel");
+    // Aproximado y del Excel a la vez: las dos cosas se ven.
+    const ambos = iconoContacto(contacto({ importado: true, isApproximate: true }));
+    expect(ambos).toContain("dashed");
+    expect(ambos).toContain("border-radius:8px");
+  });
+
+  it("un grupo va en verde solo si todos llegaron en una lista de Excel", () => {
+    const base = { lat: 20.6, lng: -103.3, total: 5, pan: 0, aprox: false };
+    const todos = iconoGrupoContactos({ ...base, importados: true });
+    expect(todos).toContain(">Excel<");
+    expect(todos).toContain("border-radius:12px");
+    const mezcla = iconoGrupoContactos({ ...base, importados: false });
+    expect(mezcla).not.toContain("Excel");
+    expect(mezcla).toContain("border-radius:50%");
+  });
+
   it("un grupo solo pinta cifras", () => {
     const html = iconoGrupoContactos({ lat: 20.6, lng: -103.3, total: "<b>" as unknown as number, pan: 0, aprox: false });
     expect(html).not.toContain("<b>");

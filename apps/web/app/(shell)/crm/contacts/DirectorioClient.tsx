@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Search, Plus, Users, ChevronLeft, ChevronRight,
-  Download, QrCode, Phone, Filter, Trash2, Loader2
+  Download, QrCode, Phone, Filter, Trash2, Loader2, FileSpreadsheet
 } from "lucide-react";
 import { AccionesDeContacto } from "@/components/AccionesDeContacto";
 import { MiDia } from "@/components/MiDia";
@@ -23,7 +23,8 @@ export default function DirectorioClient({
   userSlug,
   userName,
   userAccessType,
-  puedeRegistrar
+  puedeRegistrar,
+  puedeImportar = false
 }: {
   /** La primera página, hecha en el servidor con los filtros de la dirección. */
   inicial: PaginaDelDirectorio;
@@ -33,6 +34,8 @@ export default function DirectorioClient({
   userAccessType: string;
   /** Abre «Registrar ciudadano» (la misma lista que la guarda de /crm/nuevo). El brigadista no: comparte su QR. */
   puedeRegistrar: boolean;
+  /** Abre «Importar desde Excel» (`/crm/importar`): solo administración. */
+  puedeImportar?: boolean;
 }) {
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -154,6 +157,16 @@ export default function DirectorioClient({
               <span>Exportar</span>
             </button>
           </form>
+
+          {puedeImportar && (
+            <Link
+              href="/crm/importar"
+              className="px-4 py-2.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <FileSpreadsheet size={15} />
+              <span>Importar desde Excel</span>
+            </Link>
+          )}
 
           {/* Solo a quien la pantalla de alta deja entrar: al brigadista lo rebotaba a su inicio sin decir nada (L4). */}
           {puedeRegistrar && (

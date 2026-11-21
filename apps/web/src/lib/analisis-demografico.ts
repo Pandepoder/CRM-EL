@@ -80,7 +80,8 @@ export const ETIQUETAS_ORIGEN: Record<string, string> = {
   recomendacion: "Recomendación",
   evento: "Evento",
   visita: "Visita",
-  otro: "Otro"
+  otro: "Otro",
+  importacion: "Lista de Excel"
 };
 
 export const ETIQUETAS_MILITANCIA: Record<string, string> = {

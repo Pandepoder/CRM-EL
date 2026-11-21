@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 
 import { esValorCifrado, huellaDeTelefono, normalizarTelefono, schema } from "@tonala/shared/database";
 
@@ -40,6 +40,53 @@ export async function ciudadanoConElTelefono(telefono: string, excepto?: string)
     .from(c)
     .where(and(isNull(c.phoneHash), isNotNull(c.phone), eq(c.status, "active"), otro));
   return sinHuella.find((f) => !esValorCifrado(f.phone) && normalizarTelefono(f.phone) === digitos)?.id ?? null;
+}
+
+/**
+ * Lo mismo que `ciudadanoConElTelefono`, para muchos teléfonos a la vez (la revisión de un Excel): una consulta
+ * por huella en vez de una por renglón. Cada teléfono, de diez dígitos, se busca también con el 52 y el 521
+ * delante, que es como quedó escrito en algunas fichas.
+ *
+ * @returns teléfono (los diez dígitos) → id del primer ciudadano activo que lo tiene.
+ */
+export async function ciudadanosConLosTelefonos(telefonos: readonly string[]): Promise<Map<string, string>> {
+  const resultado = new Map<string, string>();
+  const unicos = [...new Set(telefonos)];
+  if (unicos.length === 0) return resultado;
+  const deHuella = new Map<string, string>();
+  for (const tel of unicos) {
+    for (const variante of [tel, `52${tel}`, `521${tel}`]) {
+      const huella = huellaDeTelefono(variante);
+      if (huella) deHuella.set(huella, tel);
+    }
+  }
+  const c = schema.contacts;
+  const db = getDatabaseClient();
+  const huellas = [...deHuella.keys()];
+  for (let i = 0; i < huellas.length; i += 1000) {
+    const filas = await db
+      .select({ id: c.id, huella: c.phoneHash })
+      .from(c)
+      .where(and(inArray(c.phoneHash, huellas.slice(i, i + 1000)), eq(c.status, "active")));
+    for (const f of filas) {
+      const tel = f.huella ? deHuella.get(f.huella) : undefined;
+      if (tel && !resultado.has(tel)) resultado.set(tel, f.id);
+    }
+  }
+
+  // Las fichas que aún no tienen huella (el relleno de 0019 sin terminar), como en `ciudadanoConElTelefono`.
+  const sinHuella = await db
+    .select({ id: c.id, phone: c.phone })
+    .from(c)
+    .where(and(isNull(c.phoneHash), isNotNull(c.phone), eq(c.status, "active")));
+  const buscados = new Set(unicos);
+  for (const f of sinHuella) {
+    if (esValorCifrado(f.phone)) continue;
+    const d = normalizarTelefono(f.phone);
+    const tel = d && (buscados.has(d) ? d : buscados.has(d.replace(/^521?/, "")) ? d.replace(/^521?/, "") : null);
+    if (tel && !resultado.has(tel)) resultado.set(tel, f.id);
+  }
+  return resultado;
 }
 
 export type AvisoDeTelefonoRepetido = {

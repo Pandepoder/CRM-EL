@@ -71,12 +71,14 @@ export type ContactoDelMapa = {
     creatorName: string;
     networkColor: string;
     isApproximate: boolean;
+    /** Llegó en una lista de Excel: se dibuja con su propio ícono. */
+    importado?: boolean;
     sectionNum: number | null;
   };
   geometry: { type: "Point"; coordinates: [number, number] };
 };
 
-export type GrupoDeContactos = { lat: number; lng: number; total: number; pan: number; aprox: boolean };
+export type GrupoDeContactos = { lat: number; lng: number; total: number; pan: number; aprox: boolean; importados?: boolean };
 
 export type CoberturaContactos = {
   contactos: number;
@@ -84,6 +86,8 @@ export type CoberturaContactos = {
   porSeccion: number;
   sinUbicacion: number;
   ubicables: number;
+  /** De los que el mapa puede dibujar, cuántos llegaron en una lista de Excel. */
+  importados?: number;
   enVista: number;
   dibujados: number;
   truncado: boolean;

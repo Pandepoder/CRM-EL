@@ -222,6 +222,7 @@ Siguen existiendo solo para que un enlace o marcador viejo no se rompa.
 - **«Registrados por…» (fase 6):** `?registro=<id>` filtra a lo que registró (o refirió) esa persona, solo si quien
   mira puede abrir su perfil (`puedeVerPerfil`); un id ajeno o inventado se ignora sin decir si existe. Lo demás del
   Directorio sigue igual (alcance, búsqueda, filtros). Un aviso arriba dice de quién y ofrece «Ver a todos».
+- **«Importar desde Excel»:** el botón solo lo ve administración y lleva a `/crm/importar` (ficha abajo).
 - **Archivos:** `crm/contacts/page.tsx` (la primera página), `DirectorioClient.tsx`, `lib/directorio-consulta.ts`
   (la consulta), `lib/directorio-filtros.ts` (filtros sin base: qué va en la dirección y qué no).
 - **APIs:** `POST /api/directorio/consulta`; `POST` (y `GET`) `/api/crm/contacts/export`.
@@ -261,6 +262,44 @@ Siguen existiendo solo para que un enlace o marcador viejo no se rompa.
   `secciones-ligeras` (solo las tres claves, con sesión; el GET completo no cambia).
 - Ficha de referencia.
 
+### Importar desde Excel · `/crm/importar`
+
+- **Para qué:** meter al CRM, como ciudadanos, a las personas de una lista de Excel (decisión del dueño,
+  2026-11-21). Se llega desde el Directorio; no está en el menú.
+- **Quién entra:** solo administración. El maestro importa a cualquier municipio (elige el de quienes no lo dicen
+  en su renglón); un administrador municipal, solo al suyo: un renglón de otro municipio sale como error.
+- **Cómo funciona:** el archivo (.xlsx, hasta 2,000 personas y 5 MB) se lee en el navegador; al servidor solo
+  viajan los renglones, en el cuerpo. Primero la vista previa (nada se guarda): cada renglón sale listo, repetido
+  o con error, con qué corregir. Después se guardan los listos, en tandas de 100, con una clave por renglón
+  (`clientRequestId`): reenviar no duplica. No va por la cola sin señal: es trabajo de escritorio.
+- **Cada renglón** necesita nombre, teléfono (10 dígitos; «+52 33…» se acepta y se guarda en diez) y calle. Las
+  columnas se reconocen por su título, sin importar acentos ni mayúsculas, y con otros nombres («Celular»,
+  «Domicilio»…): la lista está en `COLUMNAS` de `lib/importar-ciudadanos.ts`. Plantilla: `public/plantilla-ciudadanos.xlsx`.
+- **Repetidos:** el teléfono que ya está en el padrón (por su huella, también con 52 o 521 delante) o dos veces
+  en el archivo no se guarda. «Ver ficha» solo si quien importa la puede abrir.
+- **Ubicación:** con latitud y longitud, en su punto (la sección sale del punto); con sección, en el centro de su
+  sección mientras tanto. A todo el que no trae su punto (solo domicilio, o sección), «Ubicar por domicilio» lo
+  busca en OpenStreetMap: primero a quien no sale en el mapa; una búsqueda cada 1.5 s, un solo envío a la vez en
+  todo el servidor, 300 por hora por persona, y se detiene si OpenStreetMap está saturado. Solo se acepta un
+  resultado dentro de su municipio; con número de casa queda en ese punto, sin número solo en su sección. Quien
+  trae sección solo gana su punto con número de casa y dentro de esa misma sección; si no, sigue en el centro de
+  su sección. Cada búsqueda contestada queda en la auditoría (`contacts.locate`) y no se repite: lo que no se
+  encuentra queda en «Sin ubicación» del Directorio y se corrige en su ficha. En el mapa van en un **cuadro verde
+  con una hoja** (no en el círculo de la red); su globo dice «Llegó en una lista de Excel» y el menú del mapa
+  cuenta cuántos hay.
+- **A quién quedan:** los registra quien importa, con origen «Lista de Excel» (`importacion`); «¿Quién los
+  atiende?» (opcional) es una persona de su gente, con la misma regla que el alta.
+- **Auditoría:** cada persona con su «Alta de ciudadano»; cada revisión (`contacts.import_review`), cada tanda
+  (`contacts.import`) y cada búsqueda de domicilio (`contacts.locate`), solo con números.
+- **Archivos:** `crm/importar/page.tsx`, `ImportarClient.tsx`; `lib/importar-ciudadanos.ts` (columnas y datos, sin
+  base), `lib/importar-ciudadanos-servicio.ts`, `lib/importar-ciudadanos-api.ts`; `ciudadanosConLosTelefonos` en
+  `lib/telefono-repetido.ts`.
+- **APIs:** `POST /api/crm/contacts/importar/revision`, `POST /api/crm/contacts/importar` (una tanda),
+  `POST /api/crm/contacts/importar/ubicar`.
+- **Pruebas:** `importar-ciudadanos` (unidad: columnas, teléfonos, fechas, coordenadas, la plantilla) e
+  `importar-ciudadanos` (integración: la matriz de quién sí y quién no, la vista previa, guardar, reenvío,
+  repetidos, privacidad de la respuesta, el mapa, ubicar por domicilio con OpenStreetMap simulado).
+
 ### Agenda · `/equipo`
 
 - **Para qué:** las actividades (vistas Hoy, Vencidas, Próximas, Con seguimiento, Historial, Esta semana, Este
@@ -297,6 +336,8 @@ Siguen existiendo solo para que un enlace o marcador viejo no se rompa.
 - **Capas:** `/api/map/contacts`, `/api/map/reports` (y `/bulk`, solo administración), `/api/map/escucha` (sin
   nombres), `/api/map/teams`, `/api/map/users`. Cada capa en su gancho de `mapa/capas.ts`; los globos, en
   `mapa/html.ts`.
+- **Ciudadanos:** círculo del color de la red; punteado si es el centro de su sección (sin GPS). Los que llegaron
+  en una lista de Excel (`importado`), cuadro verde con una hoja; un grupo va en verde solo si todos llegaron así.
 - **Archivos:** `mapa/page.tsx`, `capas.ts`, `html.ts`, `CentroDeMando.tsx`, `PanelDelMapa.tsx`,
   `ModalesDeIncidencia.tsx`.
 - **Pruebas:** `mapa/html.test.ts`, `matriz-incidencias`, `matriz-escucha`, `incidencias-brigadas`,

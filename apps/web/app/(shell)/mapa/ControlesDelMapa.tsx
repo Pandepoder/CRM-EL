@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
-  AlertCircle, ChevronDown, ChevronUp, Eye, ListFilter, LocateFixed, MapPin, MessageSquare, PlusCircle, Search, SlidersHorizontal, Users, Vote, X
+  AlertCircle, ChevronDown, ChevronUp, Eye, ListFilter, LocateFixed, MapPin, MessageSquare, PlusCircle, Search, Sheet, SlidersHorizontal, Users, Vote, X
 } from "lucide-react";
 
 import { MUNICIPIOS_JALISCO, TODO_JALISCO, TOTAL_SECCIONES_JALISCO } from "@/lib/municipios-jalisco";
@@ -80,6 +80,7 @@ function Titulo({ children }: { children: React.ReactNode }) {
 
 function QueVeo(p: PropsControles) {
   const sinUbicacion = p.cobertura?.sinUbicacion ?? 0;
+  const importados = p.cobertura?.importados ?? 0;
   return (
     <section aria-label="Qué veo" className="space-y-1.5">
       <Titulo>Qué veo</Titulo>
@@ -91,6 +92,15 @@ function QueVeo(p: PropsControles) {
         detalle={p.cobertura ? `${p.cobertura.ubicables.toLocaleString("es-MX")} en el mapa` : "Contando…"}
         icono={<Users size={17} />}
       />
+      {/* La leyenda del cuadro verde (`iconoContacto`), solo si hay alguno que dibujar. */}
+      {p.verContactos && importados > 0 && (
+        <p className="flex items-center gap-2 px-3 text-[11px] font-semibold text-slate-600">
+          <span aria-hidden="true" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 border-green-700 bg-white text-green-700">
+            <Sheet size={9} strokeWidth={3} />
+          </span>
+          {importados.toLocaleString("es-MX")} {importados === 1 ? "llegó" : "llegaron"} en una lista de Excel
+        </p>
+      )}
       {/* Antes desaparecían en silencio: el rótulo decía «Contactos (3075)» como si fueran todos (C21). */}
       {sinUbicacion > 0 && (
         <Link href="/crm/contacts?ubicacion=sin" className="block text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 hover:bg-amber-100">

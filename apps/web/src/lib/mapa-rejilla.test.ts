@@ -103,4 +103,11 @@ describe("agruparEnRejilla", () => {
     const mezcla = agruparEnRejilla([punto("a", 20.501, -103.301, { aprox: true }), punto("b", 20.502, -103.302)], 0.04);
     expect(mezcla.grupos[0]!.aprox).toBe(false);
   });
+
+  it("el grupo lleva el ícono de la lista de Excel solo si todos llegaron así", () => {
+    const todos = agruparEnRejilla([punto("a", 20.501, -103.301, { importado: true }), punto("b", 20.502, -103.302, { importado: true })], 0.04);
+    expect(todos.grupos[0]!.importados).toBe(true);
+    const mezcla = agruparEnRejilla([punto("a", 20.501, -103.301, { importado: true }), punto("b", 20.502, -103.302)], 0.04);
+    expect(mezcla.grupos[0]!.importados).toBe(false);
+  });
 });

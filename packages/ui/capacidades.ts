@@ -34,6 +34,9 @@ export const ACCESO_A_PANTALLAS = {
   "/crm/contacts": TODOS,
   // El brigadista consulta el directorio pero no da de alta ciudadanos.
   "/crm/nuevo": ["admin", "direction", "territorial_coordinator", "capturist"],
+  // Importar ciudadanos desde un Excel: solo administración (decisión del dueño, 2026-11-21). No va en el
+  // menú: se llega desde el Directorio.
+  "/crm/importar": ["admin"],
   "/equipo": TODOS,
   "/admin-equipos": MANDO,
   "/estructura-electoral": MANDO,

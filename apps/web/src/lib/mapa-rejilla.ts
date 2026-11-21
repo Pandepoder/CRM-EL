@@ -19,6 +19,8 @@ export type PuntoDelMapa = {
   pan: boolean;
   /** Ubicación aproximada: el centro de su sección, no un GPS. */
   aprox: boolean;
+  /** Llegó en una lista de Excel (`origin = 'importacion'`): el mapa le pone su propio ícono. */
+  importado?: boolean;
 };
 
 export type GrupoDelMapa = {
@@ -28,6 +30,8 @@ export type GrupoDelMapa = {
   pan: number;
   /** Todos los del grupo son aproximados: el círculo se dibuja punteado. */
   aprox: boolean;
+  /** Todos los del grupo llegaron en una lista de Excel: se dibuja con el ícono de los importados. */
+  importados: boolean;
 };
 
 export const ZOOM_SIN_AGRUPAR = 15;
@@ -86,7 +90,8 @@ export function agruparEnRejilla(puntos: readonly PuntoDelMapa[], lado: number):
       lng: celda.lng / total,
       total,
       pan: celda.pan,
-      aprox: celda.puntos.every((p) => p.aprox)
+      aprox: celda.puntos.every((p) => p.aprox),
+      importados: celda.puntos.every((p) => p.importado === true)
     });
   }
   return { grupos, sueltos };

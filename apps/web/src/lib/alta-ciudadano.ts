@@ -83,7 +83,7 @@ export type ResultadoAlta =
 const rechazo = (code: string, message: string, campo?: string, status = 400): ResultadoAlta => ({ ok: false, status, code, message, campo });
 
 /** Los valores que ofrece el formulario. Un texto inventado ensuciaba filtros y conteos. */
-export const ORIGENES = ["toca_toca", "enlace_personal", "recomendacion", "evento", "visita", "otro"] as const;
+export const ORIGENES = ["toca_toca", "enlace_personal", "recomendacion", "evento", "visita", "otro", "importacion"] as const;
 export const MILITANCIAS = ["no_registrada", "declarada", "pendiente", "confirmada"] as const;
 
 /**

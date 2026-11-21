@@ -1,7 +1,7 @@
 import { nombreDeCategoriaEscucha, nombreDeEstadoEscucha, type PuntoDePeticion } from "@/lib/escucha-social";
 import { ESTADOS_INCIDENCIA, ESTADO_DESCONOCIDO } from "@/lib/estados-incidencia";
 
-import { BLOQUES, PAN_BADGE_HTML, SVGS, calcularResultado, categoriaDe } from "./constantes";
+import { BLOQUES, PAN_BADGE_HTML, SVGS, VERDE_EXCEL, calcularResultado, categoriaDe } from "./constantes";
 import type { ContactoDelMapa, GrupoDeContactos, ReportFeature, SectionProperties } from "./tipos";
 
 /**
@@ -125,17 +125,21 @@ export function globoIncidencia(report: ReportFeature, indice: number, total: nu
 export function iconoContacto(c: ContactoDelMapa): string {
   const p = c.properties;
   const pan = p.isPanConfirmed;
-  const color = /^#[0-9a-f]{6}$/i.test(p.networkColor) ? p.networkColor : "#2563eb";
+  // Los que llegaron en una lista de Excel van en un cuadro verde con una hoja, no en el círculo de
+  // la red: se distinguen por la forma, no solo por el color.
+  const importado = p.importado === true;
+  const color = importado ? VERDE_EXCEL : /^#[0-9a-f]{6}$/i.test(p.networkColor) ? p.networkColor : "#2563eb";
   // Un punto derivado del centro de la sección no es un domicilio: borde punteado y sin sombra,
   // para que se lea como "por aquí" y no como "en esta puerta".
   const aprox = p.isApproximate === true;
+  const deDonde = importado ? " — de una lista de Excel" : "";
   const titulo = aprox
-    ? `${p.displayName} — ubicación aproximada${p.sectionNum ? ` (sección ${p.sectionNum})` : ""}, sin GPS`
-    : `${p.displayName} (${pan ? "PAN confirmado" : "Contacto"})`;
+    ? `${p.displayName}${deDonde} — ubicación aproximada${p.sectionNum ? ` (sección ${p.sectionNum})` : ""}, sin GPS`
+    : `${p.displayName}${deDonde} (${pan ? "PAN confirmado" : "Contacto"})`;
   return `
     <div style="position:relative; display:flex; align-items:center; justify-content:center; cursor:pointer;" title="${escaparHtml(titulo)}">
-      <div style="width:30px; height:30px; border-radius:50%; background:${pan ? "#2563eb" : "#ffffff"}; color:${pan ? "#ffffff" : color}; border:2.5px ${aprox ? "dashed" : "solid"} ${pan ? "#ffffff" : color}; display:flex; align-items:center; justify-content:center; box-shadow:${aprox ? "none" : "0 4px 14px rgba(0,0,0,0.25)"}; opacity:${aprox ? "0.75" : "1"}; font-size:12px; font-weight:900;">
-        ${pan ? `<span style="color:#fff; font-size:0.85em; font-weight:900; line-height:1;">M</span>` : SVGS.User}
+      <div style="width:30px; height:30px; border-radius:${importado ? "8px" : "50%"}; background:${pan ? "#2563eb" : "#ffffff"}; color:${pan ? "#ffffff" : color}; border:2.5px ${aprox ? "dashed" : "solid"} ${pan ? "#ffffff" : color}; display:flex; align-items:center; justify-content:center; box-shadow:${aprox ? "none" : "0 4px 14px rgba(0,0,0,0.25)"}; opacity:${aprox ? "0.75" : "1"}; font-size:12px; font-weight:900;">
+        ${pan ? `<span style="color:#fff; font-size:0.85em; font-weight:900; line-height:1;">M</span>` : importado ? SVGS.Hoja : SVGS.User}
       </div>
     </div>`;
 }
@@ -150,6 +154,7 @@ export function globoContacto(c: ContactoDelMapa): string {
         ${p.isPanConfirmed ? `<span style="background:#2563eb; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:999px;">PAN confirmado</span>` : ""}
       </div>
       <p style="margin:0 0 2px; font-size:11px; color:#475569;">${escaparHtml(p.colony || "Colonia por definir")}, ${escaparHtml(p.municipality || "municipio sin registrar")}</p>
+      ${p.importado === true ? `<p style="margin:0 0 2px; font-size:11px; font-weight:700; color:${VERDE_EXCEL};">Llegó en una lista de Excel.</p>` : ""}
       ${p.isApproximate ? `<p style="margin:0 0 2px; font-size:11px; color:#b45309;">Ubicación aproximada: centro de su sección, sin GPS.</p>` : ""}
       <p style="margin:0 0 8px; font-size:11px; color:#64748b;">Red: <strong style="color:#0f172a;">${escaparHtml(p.creatorName || "Equipo")}</strong></p>
       ${id ? `<a href="/crm/contacts/${id}" style="display:block; text-align:center; padding:7px 12px; background:#2563eb; color:white; border-radius:8px; font-size:11px; font-weight:800; text-decoration:none;">Ver ficha</a>` : ""}
@@ -184,13 +189,19 @@ export function globoPeticion(p: PuntoDePeticion): string {
 
 export function iconoGrupoContactos(g: GrupoDeContactos): string {
   // A este zoom casi todo lo que se ve son grupos: si el grupo entero es de ubicaciones
-  // aproximadas, se dice aquí, que es donde se mira antes de decidir a dónde ir.
+  // aproximadas, se dice aquí, que es donde se mira antes de decidir a dónde ir. Lo mismo si todos
+  // llegaron en una lista de Excel: cuadro verde, como su ícono suelto.
+  const excel = g.importados === true;
+  const titulo = `${cifra(g.total)} contactos${excel ? " de una lista de Excel" : ""}${g.aprox ? " — ubicación aproximada por sección, sin GPS" : ""}`;
+  const fondo = excel ? `linear-gradient(135deg, #14532d 0%, ${VERDE_EXCEL} 100%)` : "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)";
+  const sombra = excel ? "21,128,61" : "37,99,235";
+  const rotulo = excel ? "Excel" : g.aprox ? "Aprox" : "Red";
   return `
-    <div title="${cifra(g.total)} contactos${g.aprox ? " — ubicación aproximada por sección, sin GPS" : ""}" style="position:relative; width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2.5px ${g.aprox ? "dashed" : "solid"} #ffffff; box-shadow:0 6px 20px rgba(37,99,235,${g.aprox ? "0.25" : "0.45"}); cursor:pointer; font-family:system-ui,-apple-system,sans-serif;">
+    <div title="${titulo}" style="position:relative; width:44px; height:44px; border-radius:${excel ? "12px" : "50%"}; background:${fondo}; color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2.5px ${g.aprox ? "dashed" : "solid"} #ffffff; box-shadow:0 6px 20px rgba(${sombra},${g.aprox ? "0.25" : "0.45"}); cursor:pointer; font-family:system-ui,-apple-system,sans-serif;">
       <div style="font-size:13px; font-weight:900; line-height:1;">${cifra(g.total)}</div>
       ${cifra(g.pan) > 0
         ? `<div style="font-size:9px; font-weight:800; color:#93c5fd; margin-top:2px; display:flex; align-items:center; gap:2px;">${PAN_BADGE_HTML} ${cifra(g.pan)}</div>`
-        : `<div style="font-size:8px; font-weight:700; color:#bfdbfe; text-transform:uppercase; margin-top:1px;">${g.aprox ? "Aprox" : "Red"}</div>`}
+        : `<div style="font-size:8px; font-weight:700; color:${excel ? "#bbf7d0" : "#bfdbfe"}; text-transform:uppercase; margin-top:1px;">${rotulo}</div>`}
     </div>`;
 }
 
